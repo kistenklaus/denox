@@ -4,6 +4,7 @@
 #include "pyvk/host/Tensor.hpp"
 #include <glm/ext/vector_uint2.hpp>
 #include <glm/glm.hpp>
+#include <print>
 #include <string>
 #include <utility>
 namespace pyvk {
@@ -28,6 +29,7 @@ enum class ActivationFunction { Relu };
 struct LayerDescription {
   std::string name;
   LayerType type;
+  std::string inputName;
   union Infos {
     struct Input {
       unsigned int channels;
@@ -52,7 +54,7 @@ struct LayerDescription {
       UpsampleFilterMode filterMode;
     } upsample;
     struct Concat {
-      std::vector<std::string> resultsOf;
+      std::string to;
     } concat;
     struct Output {
     } output;
@@ -65,30 +67,30 @@ struct LayerDescription {
   LayerDescription() : type(LayerType::None) {}
 
   LayerDescription(const LayerDescription &o)
-      : name(o.name), type(o.type) {
+      : name(o.name), type(o.type), inputName(o.inputName) {
     switch (type) {
     case LayerType::None:
       break;
     case LayerType::Input:
-      info.input = o.info.input;
+      new (&info.input) Infos::Input(o.info.input);
       break;
     case LayerType::Conv2d:
-      info.conv2d = o.info.conv2d;
+      new (&info.conv2d) Infos::Conv2d(o.info.conv2d);
       break;
     case LayerType::Activation:
-      info.activation = o.info.activation;
+      new (&info.activation) Infos::Activation(o.info.activation);
       break;
     case LayerType::MaxPool:
-      info.maxPool = o.info.maxPool;
+      new (&info.maxPool) Infos::MaxPool(o.info.maxPool);
       break;
     case LayerType::Upsample:
-      info.upsample = o.info.upsample;
+      new (&info.upsample) Infos::Upsample(o.info.upsample);
       break;
     case LayerType::Concat:
-      info.concat = o.info.concat;
+      new (&info.concat) Infos::Concat(o.info.concat);
       break;
     case LayerType::Output:
-      info.output = o.info.output;
+      new (&info.output) Infos::Output(o.info.output);
       break;
     }
   }
@@ -100,58 +102,61 @@ struct LayerDescription {
     reset();
     name = o.name;
     type = o.type;
+    inputName = o.inputName;
     switch (type) {
     case LayerType::None:
       break;
     case LayerType::Input:
-      info.input = o.info.input;
+      info.input = Infos::Input(o.info.input);
       break;
     case LayerType::Conv2d:
-      info.conv2d = o.info.conv2d;
+      info.conv2d = Infos::Conv2d(o.info.conv2d);
       break;
     case LayerType::Activation:
-      info.activation = o.info.activation;
+      info.activation = Infos::Activation(o.info.activation);
       break;
     case LayerType::MaxPool:
-      info.maxPool = o.info.maxPool;
+      info.maxPool = Infos::MaxPool(o.info.maxPool);
       break;
     case LayerType::Upsample:
-      info.upsample = o.info.upsample;
+      info.upsample = Infos::Upsample(o.info.upsample);
       break;
     case LayerType::Concat:
-      info.concat = o.info.concat;
+      info.concat = Infos::Concat(o.info.concat);
       break;
     case LayerType::Output:
-      info.output = o.info.output;
+      info.output = Infos::Output(o.info.output);
       break;
     }
     return *this;
   }
 
-  LayerDescription(LayerDescription &&o) : name(o.name), type(o.type) {
+  LayerDescription(LayerDescription &&o)
+      : name(std::move(o.name)), type(o.type),
+        inputName(std::move(o.inputName)) {
     switch (type) {
     case LayerType::None:
       break;
     case LayerType::Input:
-      info.input = std::move(o.info.input);
+      new (&info.input) Infos::Input(o.info.input);
       break;
     case LayerType::Conv2d:
-      info.conv2d = std::move(o.info.conv2d);
+      new (&info.conv2d) Infos::Conv2d(o.info.conv2d);
       break;
     case LayerType::Activation:
-      info.activation = std::move(o.info.activation);
+      new (&info.activation) Infos::Activation(o.info.activation);
       break;
     case LayerType::MaxPool:
-      info.maxPool = std::move(o.info.maxPool);
+      new (&info.maxPool) Infos::MaxPool(o.info.maxPool);
       break;
     case LayerType::Upsample:
-      info.upsample = std::move(o.info.upsample);
+      new (&info.upsample) Infos::Upsample(o.info.upsample);
       break;
     case LayerType::Concat:
-      info.concat = std::move(o.info.concat);
+      new (&info.concat) Infos::Concat(o.info.concat);
       break;
     case LayerType::Output:
-      info.output = std::move(o.info.output);
+      new (&info.output) Infos::Output(o.info.output);
       break;
     }
   }
@@ -161,55 +166,55 @@ struct LayerDescription {
       return *this;
     }
     reset();
-    name = o.name;
+    name = std::move(o.name);
     type = o.type;
+    inputName = std::move(o.inputName);
     switch (type) {
     case LayerType::None:
       break;
     case LayerType::Input:
-      info.input = std::move(o.info.input);
+      info.input = Infos::Input(o.info.input);
       break;
     case LayerType::Conv2d:
-      info.conv2d =
-          std::move(o.info.conv2d); // <- only one where it actually matters.
+      info.conv2d = Infos::Conv2d(o.info.conv2d);
       break;
     case LayerType::Activation:
-      info.activation = std::move(o.info.activation);
+      info.activation = Infos::Activation(o.info.activation);
       break;
     case LayerType::MaxPool:
-      info.maxPool = std::move(o.info.maxPool);
+      info.maxPool = Infos::MaxPool(o.info.maxPool);
       break;
     case LayerType::Upsample:
-      info.upsample = std::move(o.info.upsample);
+      info.upsample = Infos::Upsample(o.info.upsample);
       break;
     case LayerType::Concat:
-      info.concat = std::move(o.info.concat);
+      info.concat = Infos::Concat(o.info.concat);
       break;
     case LayerType::Output:
-      info.output = std::move(o.info.output);
+      info.output = Infos::Output(o.info.output);
       break;
-    }
-    return *this;
+    }    return *this;
   }
 
   // ======= NAMED constructors =============
   static LayerDescription input(const std::string &name,
-                                   unsigned int channels) {
+                                unsigned int channels) {
     LayerDescription desc;
     desc.name = name;
+    desc.inputName = "interface";
     desc.type = LayerType::Input;
-    desc.info.input.channels = channels;
+    new (&desc.info.input.channels) int(channels);
     return desc;
   }
 
-  static LayerDescription conv2d(const std::string &name,
-                                    const glm::uvec2 &kernelSize,
-                                    const glm::uvec2 &stride,
-                                    const glm::uvec2 &padding,
-                                    Tensor<float, TensorFormat_OIHW> weights) {
+  static LayerDescription
+  conv2d(const std::string &name, const std::string &input,
+         const glm::uvec2 &kernelSize, const glm::uvec2 &stride,
+         const glm::uvec2 &padding, Tensor<float, TensorFormat_OIHW> weights) {
     LayerDescription desc;
     desc.name = name;
     desc.type = LayerType::Conv2d;
+    desc.inputName = input;
     new (&desc.info.conv2d.kernelSize) glm::uvec2(kernelSize);
     new (&desc.info.conv2d.stride) glm::uvec2(stride);
     new (&desc.info.conv2d.padding) glm::uvec2(padding);
@@ -219,49 +224,58 @@ struct LayerDescription {
     return desc;
   }
   static LayerDescription activation(const std::string &name,
-                                        const ActivationFunction func) {
+                                     const std::string &input,
+                                     const ActivationFunction func) {
     LayerDescription desc;
     desc.name = name;
     desc.type = LayerType::Activation;
-    desc.info.activation.func = func;
+    desc.inputName = input;
+    new (&desc.info.activation.func) ActivationFunction(func);
     return desc;
   }
 
   static LayerDescription upsample(const std::string &name,
-                                      const Rational &scaleFactor,
-                                      const UpsampleFilterMode mode) {
+                                   const std::string &input,
+                                   const Rational &scaleFactor,
+                                   const UpsampleFilterMode mode) {
     LayerDescription desc;
     desc.name = name;
     desc.type = LayerType::Upsample;
-    desc.info.upsample.scaleFactor = scaleFactor;
-    desc.info.upsample.filterMode = mode;
+    desc.inputName = input;
+    new (&desc.info.upsample.scaleFactor) Rational(scaleFactor);
+    new (&desc.info.upsample.filterMode) UpsampleFilterMode(mode);
     return desc;
   }
 
   static LayerDescription maxPool(const std::string &name,
-                                     const glm::uvec2 &kernelSize,
-                                     const glm::uvec2 &stride) {
+                                  const std::string &input,
+                                  const glm::uvec2 &kernelSize,
+                                  const glm::uvec2 &stride) {
     LayerDescription desc;
     desc.name = name;
     desc.type = LayerType::MaxPool;
-    desc.info.maxPool.kernelSize = kernelSize;
-    desc.info.maxPool.stride = stride;
+    desc.inputName = input;
+    new (&desc.info.maxPool.kernelSize) glm::uvec2(kernelSize);
+    new (&desc.info.maxPool.stride) glm::uvec2(stride);
     return desc;
   }
   static LayerDescription concat(const std::string &name,
-                                    const std::span<std::string> &resultsOf) {
+                                 const std::string &input,
+                                 const std::string &to) {
     LayerDescription desc;
     desc.name = name;
     desc.type = LayerType::Concat;
-    desc.info.concat.resultsOf =
-        std::vector(resultsOf.begin(), resultsOf.end());
+    desc.inputName = input;
+    new (&desc.info.concat.to) std::string(to);
     return desc;
   }
 
-  static LayerDescription output(const std::string &name) {
+  static LayerDescription output(const std::string &name,
+                                 const std::string &input) {
     LayerDescription desc;
     desc.name = name;
     desc.type = LayerType::Output;
+    desc.inputName = input;
     return desc;
   }
 
@@ -296,7 +310,5 @@ private:
     type = LayerType::None;
   }
 };
-
-static constexpr auto x = sizeof(LayerDescription);
 
 } // namespace pyvk

@@ -17,7 +17,8 @@ merian = merian_proj.get_variable('merian_dep')
 
 
 pyvk_lib_src = files(
-  'src/pyvk/host/layer_fusion.cpp'
+  'src/pyvk/host/layer_fusion.cpp',
+  'src/pyvk/host/memory_planning.cpp'
 )
 
 pyvk_lib_inc = include_directories('src')

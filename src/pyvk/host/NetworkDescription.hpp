@@ -16,74 +16,82 @@ struct NetworkDescription {
         LayerDescription::input(inputLayerName, channels)));
   }
 
-  void conv2d(const std::string &name, Tensor<float, TensorFormat_OIHW> weights,
-              const glm::uvec2 padding, const glm::uvec2 &stride) {
+  void conv2d(const std::string &name, const std::string &input,
+              Tensor<float, TensorFormat_OIHW> weights, glm::uvec2 padding,
+              glm::uvec2 stride) {
 
     const auto &weightShape = weights.shape();
 
     m_layers.push_back(std::make_shared<LayerDescription>(
-        LayerDescription::conv2d(name,
+        LayerDescription::conv2d(name, input,
                                  glm::uvec2(weightShape[3], weightShape[2]),
                                  stride, padding, std::move(weights))));
   }
 
-  void activation(const std::string name, ActivationFunction func) {
+  void activation(const std::string name, const std::string &input,
+                  ActivationFunction func) {
     m_layers.push_back(std::make_shared<LayerDescription>(
-        LayerDescription::activation(name, func)));
+        LayerDescription::activation(name, input, func)));
   }
 
-  void maxPool(const std::string &name, const glm::uvec2 kernelSize,
-               const glm::uvec2 stride) {
+  void maxPool(const std::string &name, const std::string &input,
+               glm::uvec2 kernelSize, glm::uvec2 stride) {
     m_layers.push_back(std::make_shared<LayerDescription>(
-        LayerDescription::maxPool(name, kernelSize, stride)));
+        LayerDescription::maxPool(name, input, kernelSize, stride)));
   }
 
-  void upsample(const std::string &name, const Rational scaleFactor,
-                UpsampleFilterMode mode) {
+  void upsample(const std::string &name, const std::string &input,
+                const Rational scaleFactor, UpsampleFilterMode mode) {
 
     m_layers.push_back(std::make_shared<LayerDescription>(
-        LayerDescription::upsample(name, scaleFactor, mode)));
+        LayerDescription::upsample(name, input, scaleFactor, mode)));
   }
 
-  void concat(const std::string &name, std::span<std::string> &resultsOf) {
-
+  void concat(const std::string &name, const std::string &input,
+              const std::string &to) {
     m_layers.push_back(std::make_shared<LayerDescription>(
-        LayerDescription::concat(name, resultsOf)));
+        LayerDescription::concat(name, input, to)));
   }
 
-  void output(const std::string &name) {
-    m_layers.push_back(
-        std::make_shared<LayerDescription>(LayerDescription::output(name)));
+  void output(const std::string &name, const std::string &input) {
+    m_layers.push_back(std::make_shared<LayerDescription>(
+        LayerDescription::output(name, input)));
+  }
+
+  std::span<const std::shared_ptr<LayerDescription>> layers() const {
+    return m_layers;
   }
 
   void logPretty() {
+    std::println("{:=^100}", "Netork");
     for (const auto &layer : m_layers) {
       switch (layer->type) {
       case LayerType::None:
-        std::print("NOOP -> ");
+        std::println("NOOP -> ");
         break;
       case LayerType::Input:
-        std::print("Input(WxHx{}) -> ", layer->info.input.channels);
+        std::println("Input(WxHx{}) -> ", layer->info.input.channels);
         break;
       case LayerType::Conv2d:
-        std::print("Conv2d({}) -> ", layer->info.conv2d.weights.shape()[0]);
+        std::println("Conv2d({}) -> ", layer->info.conv2d.weights.shape()[0]);
         break;
       case LayerType::Activation:
         switch (layer->info.activation.func) {
         case ActivationFunction::Relu:
-          std::print("Relu -> ");
+          std::println("Relu -> ");
           break;
         }
         break;
       case LayerType::MaxPool:
-        std::print("MaxPool -> ");
+        std::println("MaxPool -> ");
         break;
       case LayerType::Upsample:
-        std::print("Upsample({}/{}) -> ", layer->info.upsample.scaleFactor.num,
-                   layer->info.upsample.scaleFactor.den);
+        std::println("Upsample({}/{}) -> ",
+                     layer->info.upsample.scaleFactor.num,
+                     layer->info.upsample.scaleFactor.den);
         break;
       case LayerType::Concat:
-        std::print("Concat -> ");
+        std::println("Concat -> ");
         break;
       case LayerType::Output:
         std::println("Output");
