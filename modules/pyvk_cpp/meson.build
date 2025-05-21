@@ -1,6 +1,6 @@
 
 pyvk_cpp_src = files(
-  'src/host/bindings/pyvk_cpp.cpp'
+  'pyvk.cpp'
 )
 
 py.extension_module(

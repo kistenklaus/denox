@@ -26,5 +26,6 @@ class DummyTarget(pyvk.Target):
     def generate_code(self):
         pass
 
-target = DummyTarget()
-pyvk.export(model, target, input_shape=[1, 3, 224, 224])
+# target = DummyTarget()
+# pyvk.export(model, target, input_shape=[1, 3, 224, 224])
+
