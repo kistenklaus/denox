@@ -3,7 +3,6 @@
 #include "pyvk/host/Rational.hpp"
 #include "pyvk/host/Tensor.hpp"
 #include "pyvk/host/layer_fusion.hpp"
-#include "pyvk/host/memory_planning.hpp"
 #include <glm/ext/vector_uint2.hpp>
 #include <print>
 #include <pyvk/host/NetworkDescription.hpp>
@@ -24,7 +23,7 @@ int main() {
   network.activation("relu1", "conv0", pyvk::ActivationFunction::Relu);
 
 
-  network.upsample("upsample0", "conv0", pyvk::Rational(2, 1),
+  network.upsample("upsample0", "relu1", pyvk::Rational(2, 1),
                    pyvk::UpsampleFilterMode::Nearest);
 
   network.concat("concat0", "upsample0", "pool0");
@@ -35,6 +34,7 @@ int main() {
   network.conv2d("dec1", "concat0", std::move(conv1Weights), glm::uvec2(1),
                  glm::uvec2(1));
   network.activation("relu2", "dec1", pyvk::ActivationFunction::Relu);
+
   network.output("output", "relu2");
   network.logPretty();
 
@@ -50,6 +50,4 @@ int main() {
   // Here we ofcause can't already do the full memory planning, but we can
   // determine required buffers and their lifetime.
 
-  std::println("{:=^100}", "LiveBuffers per dispatch");
-  pyvk::planMemory(ops);
 }

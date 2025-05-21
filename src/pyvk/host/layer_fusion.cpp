@@ -6,6 +6,7 @@
 #include <set>
 #include <stack>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace pyvk {
@@ -24,7 +25,7 @@ public:
                            const LayerDescription &layer1) = 0;
 };
 
-class ConvActiFusion : public FusionRule {
+class ConvActiFusion final : public FusionRule {
 public:
   TriState fusable(const LayerDescription &layer0,
                    const LayerDescription &layer1) override {
@@ -35,20 +36,15 @@ public:
   }
 };
 
-class DisallowConcatFusion : public FusionRule {
+class NonTrivalDep final : public FusionRule {
 public:
-  DisallowConcatFusion(
-      std::span<const std::shared_ptr<LayerDescription>> layers) {
-    for (const auto &layer : layers) {
-      if (layer->type == LayerType::Concat) {
-        m_concatDependencies.insert(layer->info.concat.to);
-        m_concatDependencies.insert(layer->name);
-      }
-    }
-  }
+  NonTrivalDep(std::unordered_map<std::string, std::vector<std::string>>
+                   outputDependencies)
+      : m_outputDependencies(std::move(outputDependencies)) {}
+
   TriState fusable(const LayerDescription &layer0,
-                   const LayerDescription &layer1) override {
-    if (m_concatDependencies.contains(layer0.name)) {
+                   [[maybe_unused]] const LayerDescription &layer1) {
+    if (m_outputDependencies.at(layer0.name).size() > 1) {
       return TriState::Disallow;
     } else {
       return TriState::DontCare;
@@ -56,42 +52,63 @@ public:
   }
 
 private:
-  std::set<std::string> m_concatDependencies;
+  std::unordered_map<std::string, std::vector<std::string>>
+      m_outputDependencies;
 };
 
 std::vector<DispatchOp> fuseLayers(const NetworkDescription &network) {
 
-  ConvActiFusion convActiRule;
-  DisallowConcatFusion concatFusion(network.layers());
-  FusionRule *rules[]{
-      &convActiRule, //
-      &concatFusion, //
-  };
   using LayerHandle = std::shared_ptr<LayerDescription>;
 
   // I hate it myself, but sometimes performance doesn't matter.
   std::unordered_map<std::string, LayerHandle> layerMap;
+  std::unordered_map<std::string, std::vector<std::string>> inputDependencies;
 
-  LayerHandle output;
+  LayerHandle input;
   for (const auto &layer : network.layers()) {
-    std::println("Register {}", layer->name);
-    if (layer->type == LayerType::Concat) {
-      std::println("To {}", layer->info.concat.to);
-    }
     layerMap[layer->name] = layer;
-    if (layer->type == LayerType::Output) {
-      output = layer;
+    std::vector<std::string> &deps = inputDependencies[layer->name];
+    switch (layer->type) {
+    case LayerType::None:
+      // skip
+      break;
+    case LayerType::Input:
+      input = layer;
+    case LayerType::Conv2d:
+    case LayerType::Activation:
+    case LayerType::MaxPool:
+    case LayerType::Upsample:
+    case LayerType::Output:
+      deps.push_back(layer->inputName);
+      break;
+    case LayerType::Concat:
+      deps.push_back(layer->inputName);
+      deps.push_back(layer->info.concat.to);
+      break;
     }
   }
+  // reverse dependency order
+  std::unordered_map<std::string, std::vector<std::string>> outputDependencies;
+  for (const auto &[layerName, deps] : inputDependencies) {
+    for (const auto &dep : deps) {
+      outputDependencies[dep].push_back(layerName);
+    }
+  }
+
   assert(output != nullptr);
 
   // Not a linked list! =^).
   struct MyTuple {
-    LayerHandle
-        prev; // <- this is actually the furthest node (depth in the CNN dag)
-    LayerHandle next; // <- this is the closest node to the input.
+    LayerHandle prev;
+    LayerHandle curr;
   };
 
+  ConvActiFusion convActiRule;
+  NonTrivalDep concatFusion(outputDependencies);
+  FusionRule *rules[]{
+      &convActiRule, // <- conv + relu is trivially fusable.
+      &concatFusion, // <- this rule is sort of implied by the algo, just here for edge cases.
+  };
   auto applyRules = [&](const LayerDescription &layer0,
                         const LayerDescription &layer1) -> bool {
     bool possible = false;
@@ -109,11 +126,12 @@ std::vector<DispatchOp> fuseLayers(const NetworkDescription &network) {
   std::stack<MyTuple> topoStack;
   topoStack.push(MyTuple{
       .prev = nullptr,
-      .next = output,
+      .curr = input,
   });
   std::vector<DispatchOp> ops;
   std::stack<std::vector<LayerHandle>> fusedStack;
   std::set<std::string> visited;
+  visited.insert("interface");
   while (!topoStack.empty()) {
     if (fusedStack.empty()) {
       fusedStack.push({});
@@ -122,65 +140,50 @@ std::vector<DispatchOp> fuseLayers(const NetworkDescription &network) {
     const auto &x = topoStack.top();
     topoStack.pop();
     const LayerHandle &prev = x.prev;
-    const LayerHandle &next = x.next;
+    const LayerHandle &curr = x.curr;
 
-    if (visited.contains(next->name)) {
+    if (visited.contains(curr->name)) {
       continue;
     }
-    visited.insert(next->name);
+    bool allInputDepsAvailable = true;
+    for (const auto &dep : inputDependencies[curr->name]) {
+      if (!visited.contains(dep)) {
+        allInputDepsAvailable = false;
+      }
+    }
+    if (!allInputDepsAvailable) {
+      continue; // iam to lazy to fix this right now iam know that it is far
+                // from optimal.
+    }
 
+    visited.insert(curr->name);
 
-    bool fuse = prev != nullptr && applyRules(*next, *prev);
+    std::println("Processing pair ({}, {})",
+                 prev != nullptr ? prev->name : "null", curr->name);
+
+    bool fuse = prev != nullptr && applyRules(*prev, *curr);
 
     if (fuse) {
-      fusedStack.top().push_back(next);
-      std::println("FUSION");
+      fusedStack.top().push_back(curr);
+      std::println("FUSE");
     } else {
       if (!fusedStack.top().empty()) {
-        std::ranges::reverse(fusedStack.top());
+        std::println("Make dispatch");
         ops.push_back(DispatchOp(fusedStack.top()));
       }
       fusedStack.pop();
-      fusedStack.push({next});
+      fusedStack.push({curr});
     }
-
-    // Enqueue dependencies
-    switch (next->type) {
-    case LayerType::None:
-      // skip (treated like a noop)
-      break;
-    case LayerType::Input:
-      break;
-    case LayerType::Conv2d:
-      topoStack.push(
-          MyTuple{.prev = next, .next = layerMap.at(next->inputName)});
-      break;
-    case LayerType::MaxPool:
-      topoStack.push(
-          MyTuple{.prev = next, .next = layerMap.at(next->inputName)});
-      break;
-    case LayerType::Upsample:
-      topoStack.push(
-          MyTuple{.prev = next, .next = layerMap.at(next->inputName)});
-      break;
-    case LayerType::Concat: {
-      auto x = layerMap.at(next->inputName);
-      auto y = layerMap.at(next->info.concat.to);
-      topoStack.push(MyTuple{.prev = next, .next = y});
-      topoStack.push(MyTuple{.prev = next, .next = x});
-      break;
-    }
-    case LayerType::Activation:
-      topoStack.push(
-          MyTuple{.prev = next, .next = layerMap.at(next->inputName)});
-      break;
-    case LayerType::Output:
-      topoStack.push(
-          MyTuple{.prev = next, .next = layerMap.at(next->inputName)});
-      break;
+    std::vector<std::string> deps = outputDependencies[curr->name];
+    for (const auto &dep : deps) {
+      std::println("Dependency : {}", dep);
+      topoStack.push(MyTuple{.prev = curr, .curr = layerMap.at(dep)});
     }
   }
-  std::ranges::reverse(ops);
+  while (!fusedStack.empty()) {
+    ops.push_back(DispatchOp(fusedStack.top()));
+    fusedStack.pop();
+  }
   return ops;
 }
 
