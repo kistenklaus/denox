@@ -17,7 +17,15 @@ merian = merian_proj.get_variable('merian_dep')
 
 
 pyvk_lib_src = files(
-  'src/pyvk/host/layer_fusion.cpp',
+  'src/vkcnn/device/conv2d/Conv2d.cpp',
+  'src/vkcnn/device/OpComputePipe.cpp',
+  'src/vkcnn/host/codegen/conv2d/direct.cpp',
+  'src/vkcnn/host/codegen/storage_buffer.cpp',
+  'src/vkcnn/host/codegen/indent.cpp',
+  'src/vkcnn/host/codegen/shared.cpp',
+  'src/vkcnn/host/codegen/load_tile.cpp',
+  'src/vkcnn/host/codegen/entry.cpp',
+  'src/vkcnn/host/codegen/push_constant.cpp'
 )
 
 pyvk_lib_inc = include_directories('src')
