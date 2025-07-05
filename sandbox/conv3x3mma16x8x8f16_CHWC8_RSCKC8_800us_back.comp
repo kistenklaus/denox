@@ -10,8 +10,8 @@
 
 #pragma use_vulkan_memory_model
 
-const uint K = 32; // output channels
-const uint C = 32; // input channels
+const uint K = 8; // output channels
+const uint C = 8; // input channels
 
 const uint S = 3; // kernel width
 const uint R = 3; // kernel height
@@ -53,6 +53,9 @@ const uint PIPELINE_DEPTH = 2;
 shared f16vec2 sh_A[PIPELINE_DEPTH][TILE_W * TILE_H * COOPMAT_K / 2];
 shared f16vec2 sh_B[PIPELINE_DEPTH][COOPMAT_K * K / 2];
 
+uint inputW;
+uint inputH;
+
 void loadA(uint stage, uint row, uvec2 pixel, uint cSlice)
 {
     if (gl_SubgroupInvocationID >= 16) return;
@@ -61,7 +64,9 @@ void loadA(uint stage, uint row, uvec2 pixel, uint cSlice)
 
     if (inBounds) {
         uint gIndex = ((pixel.y * pc.Input_W + pixel.x) * COOPMAT_K + cSlice * (pc.Input_W * pc.Input_H * COOPMAT_K)) / 8;
+
         uvec4 v = inputTensor[gIndex];
+
         sh_A[stage][row * COOPMAT_K / 2 + 0u] = unpackFloat2x16(uint32_t(v.x));
         sh_A[stage][row * COOPMAT_K / 2 + 1u] = unpackFloat2x16(uint32_t(v.y));
         sh_A[stage][row * COOPMAT_K / 2 + 2u] = unpackFloat2x16(uint32_t(v.z));
@@ -75,9 +80,11 @@ void loadA(uint stage, uint row, uvec2 pixel, uint cSlice)
 }
 
 void loadB(uint stage, uint k) {
-    const uint offset = k * K;
-    for (uint o = gl_LocalInvocationID.x; o < COOPMAT_K * K / 8; o += WORKGROUP_SIZE) {
-        uvec4 v = weightTensor[o + offset];
+    const uint offset = k * 8 * K / 8;
+    const uint end = offset + (COOPMAT_K * K / 8);
+
+    for (uint o = offset + gl_LocalInvocationID.x; o < end; o += WORKGROUP_SIZE) {
+        uvec4 v = weightTensor[o];
         sh_B[stage][o * 4 + 0] = unpackFloat2x16(uint32_t(v.x));
         sh_B[stage][o * 4 + 1] = unpackFloat2x16(uint32_t(v.y));
         sh_B[stage][o * 4 + 2] = unpackFloat2x16(uint32_t(v.z));
@@ -111,55 +118,41 @@ void main(void) {
     loadA(stage, row, lpixel, 0);
     loadB(stage, 0);
 
-    uint c = 1;
-    uint k = 1;
-    for (uint r = 0; r < R; ++r) {
-        for (uint s = 0; s < S; ++s) {
+    for (uint k = 0; k < R * S * (C / COOPMAT_K); ++k)
+    {
+        if ((k + 1) < R * S * (C / COOPMAT_K)) {
+            uint c = (k + 1) % (C / COOPMAT_K);
+            uint s = ((k + 1) / (C / COOPMAT_K)) % S;
+            uint r = (k + 1) / (S * (C / COOPMAT_K));
             uvec2 pixel = lpixel + uvec2(s, r);
-            for (; c < (C / COOPMAT_K); ++c) {
-                loadA(stage ^ 1, row, pixel, c);
-                loadB(stage ^ 1, k++);
-
-                memoryBarrierShared();
-                barrier();
-
-                coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_K, gl_MatrixUseA > aFrag;
-                coopMatLoad(aFrag, sh_A[stage], aFragOffset, COOPMAT_K / 2,
-                    gl_CooperativeMatrixLayoutRowMajor);
-
-                for (uint o = 0, n = 0; n < cFragCount; o += (COOPMAT_M * COOPMAT_K / 2), ++n) {
-                    coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_K, COOPMAT_M, gl_MatrixUseB > bFrag;
-
-                    coopMatLoad(bFrag, sh_B[stage], o, (COOPMAT_K / 2),
-                        gl_CooperativeMatrixLayoutColumnMajor);
-
-                    cFrag[n] = coopMatMulAdd(aFrag, bFrag, cFrag[n]);
-                }
-                stage ^= 1;
-            }
-            c = 0;
+            loadA(stage ^ 1, row, pixel, c);
+            loadB(stage ^ 1, k);
         }
-    }
 
-    coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_K, gl_MatrixUseA > aFrag;
-    coopMatLoad(aFrag, sh_A[stage], aFragOffset, COOPMAT_K / 2,
-        gl_CooperativeMatrixLayoutRowMajor);
+        memoryBarrierShared();
+        barrier();
 
-    for (uint o = 0, n = 0; n < cFragCount; o += (COOPMAT_M * COOPMAT_K / 2), ++n) {
-        coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_K, COOPMAT_M, gl_MatrixUseB > bFrag;
-        coopMatLoad(bFrag, sh_B[stage], o, (COOPMAT_K / 2),
-            gl_CooperativeMatrixLayoutColumnMajor);
-        cFrag[n] = coopMatMulAdd(aFrag, bFrag, cFrag[n]);
-    }
-
-    uint offset = wpixel.x * COOPMAT_M + wpixel.y * pc.Input_W * COOPMAT_M + gl_SubgroupID * COOPMAT_M * pc.Input_W;
-    uint stride = pc.Input_W * pc.Input_H * COOPMAT_M;
-
-    for (uint n = 0; n < cFragCount; ++n) {
-        coopMatStore(cFrag[n], outputTensor,
-            offset,
-            COOPMAT_M,
+        coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_K, gl_MatrixUseA > aFrag;
+        coopMatLoad(aFrag, sh_A[stage], aFragOffset, COOPMAT_K / 2,
             gl_CooperativeMatrixLayoutRowMajor);
-        offset += stride;
+
+        for (uint o = 0, n = 0; n < cFragCount; o += (COOPMAT_M * COOPMAT_K / 2), ++n) {
+            coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_K, COOPMAT_M, gl_MatrixUseB > bFrag;
+
+            coopMatLoad(bFrag, sh_B[stage], o, (COOPMAT_K / 2),
+                gl_CooperativeMatrixLayoutColumnMajor);
+
+            cFrag[n] = coopMatMulAdd(aFrag, bFrag, cFrag[n]);
+        }
+
+        stage ^= 1;
+    }
+
+    const uint wgOffset = wpixel.x * COOPMAT_M + wpixel.y * pc.Input_W * COOPMAT_M;
+
+    for (uint acc = 0; acc < cFragCount; ++acc) {
+        coopMatStore(cFrag[acc], outputTensor,
+            wgOffset + gl_SubgroupID * COOPMAT_M * pc.Input_W + acc * (pc.Input_W * pc.Input_H * COOPMAT_M), COOPMAT_M,
+            gl_CooperativeMatrixLayoutRowMajor);
     }
 }

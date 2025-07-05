@@ -10,8 +10,8 @@
 
 #pragma use_vulkan_memory_model
 
-const uint K = 64; // output channels
-const uint C = 64; // input channels
+const uint K = 8; // output channels
+const uint C = 8; // input channels
 
 const uint S = 3; // kernel width
 const uint R = 3; // kernel height
@@ -104,7 +104,6 @@ void main(void) {
     const uvec2 wpixel = wg2d * uvec2(TILE_W, TILE_H);
     const uvec2 lpixel = wpixel + uvec2(row % TILE_W, row / TILE_W) - uvec2(PADDING_W, PADDING_H);
 
-
     const uint NUM_ACC = K / COOPMAT_M;
     coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_M, gl_MatrixUseAccumulator > cFrag[NUM_ACC];
 
@@ -117,8 +116,7 @@ void main(void) {
     loadA(stage, row, lpixel, 0);
     loadB(stage, 0);
 
-    for (uint k = 0; k < R * S * (C / COOPMAT_K); ++k)
-    {
+    for (uint k = 0; k < R * S * (C / COOPMAT_K); ++k) {
         if ((k + 1) < R * S * (C / COOPMAT_K)) {
             uint c = (k + 1) % (C / COOPMAT_K);
             uint s = ((k + 1) / (C / COOPMAT_K)) % S;

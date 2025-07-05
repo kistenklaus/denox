@@ -9,6 +9,7 @@
 #include "vkcnn/host/floatx.hpp"
 #include "vkcnn/host/fprec.hpp"
 #include "vulkan/vulkan_enums.hpp"
+#include <cassert>
 #include <cstring>
 #include <fmt/base.h>
 #include <fmt/format.h>
@@ -18,7 +19,6 @@
 #include <stdexcept>
 #include <utility>
 #include <variant>
-#include <cassert>
 
 namespace vkcnn {
 
@@ -171,6 +171,34 @@ public:
       set<T>(mapped, i, m_shape.precision, gen(i));
     }
     unmapHostStorage();
+  }
+
+  friend ImageTensor operator+(const ImageTensor &a, const ImageTensor &b) {
+    assert(a.w() == b.w() && a.h() == b.h() && a.c() == b.c());
+    ImageTensor out{ImageTensorLayout::HWC, FPrec::F32, a.w(), a.h(), a.c()};
+    for (unsigned int y = 0; y < a.h(); ++y) {
+      for (unsigned int x = 0; x < a.w(); ++x) {
+        for (unsigned int c = 0; c < a.c(); ++c) {
+          out.set<float>(x, y, c,
+                         a.get<float>(x, y, c) + b.get<float>(x, y, c));
+        }
+      }
+    }
+    return out;
+  }
+
+  friend ImageTensor operator-(const ImageTensor &a, const ImageTensor &b) {
+    assert(a.w() == b.w() && a.h() == b.h() && a.c() == b.c());
+    ImageTensor out{ImageTensorLayout::HWC, FPrec::F32, a.w(), a.h(), a.c()};
+    for (unsigned int y = 0; y < a.h(); ++y) {
+      for (unsigned int x = 0; x < a.w(); ++x) {
+        for (unsigned int c = 0; c < a.c(); ++c) {
+          out.set<float>(x, y, c,
+                         a.get<float>(x, y, c) - b.get<float>(x, y, c));
+        }
+      }
+    }
+    return out;
   }
 
   inline unsigned int w() const { return m_shape.width; }
@@ -480,8 +508,7 @@ private:
       return c * (shape.height * shape.width) + h * (shape.width) + w;
       break;
     case ImageTensorLayout::CHWC8:
-
-      return (c >> 8) * (shape.height * shape.width * 8) +
+      return (c >> 3) * (shape.height * shape.width * 8) +
              h * (shape.width * 8) + w * 8 + (c & 0x7);
       break;
     default:

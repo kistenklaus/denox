@@ -1,6 +1,7 @@
 
 
 #include "ExtensionCoopMat.hpp"
+#include "conv.hpp"
 #include "merian/io/file_loader.hpp"
 #include "merian/vk/command/command_buffer.hpp"
 #include "merian/vk/command/queue.hpp"
@@ -105,12 +106,12 @@ int main() {
   const unsigned int TILE_W = 16;
   const unsigned int TILE_H = 8;
 
-  const unsigned int W = 1080 / 2;
-  const unsigned int H = 1920 / 2;
+  const unsigned int W = 1920;
+  const unsigned int H = 1080;
   // const unsigned int W = 32;
   // const unsigned int H = 16;
-  const unsigned int C = 64;
-  const unsigned int K = 64;
+  const unsigned int C = 32;
+  const unsigned int K = 32;
   const unsigned int R = 3;
   const unsigned int S = 3;
 
@@ -118,11 +119,11 @@ int main() {
 
   WeightTensorLayout weightLayout = WeightTensorLayout::RSCKC8;
   WeightTensor weightTensor{weightLayout, FPrec::F16, K, C, S, R};
-  weightTensor.fill<float>([&](auto) { return 1.0f; });
+  weightTensor.fill<float>([&](auto) { return dist(prng); });
 
   ImageTensorLayout inputLayout = ImageTensorLayout::CHWC8;
   ImageTensor inputTensor{inputLayout, FPrec::F16, W, H, C};
-  inputTensor.fill<float>([&](auto) { return 1.0; });
+  inputTensor.fill<float>([&](auto) { return dist(prng); });
 
   ImageTensorLayout outputLayout = ImageTensorLayout::CHWC8;
   ImageTensor outputTensor{outputLayout, FPrec::F16, W, H, K};
@@ -165,14 +166,14 @@ int main() {
                            outputTensor.getDeviceHandle(),
                            weightTensor.getDeviceHandle());
 
-  for (std::size_t i = 0; i < 10; ++i) {
+  for (std::size_t i = 0; i < 1; ++i) {
     profiler->start("conv3x3");
     profiler->cmd_start(cmd, "conv3x3");
 
     const glm::uvec2 c =
         (glm::uvec2(W, H) + glm::uvec2(TILE_W, TILE_H) - glm::uvec2(1)) /
         glm::uvec2(TILE_W, TILE_H);
-    cmd->dispatch(c.x, c.y);
+    cmd->dispatch(c.x * c.y);
 
     profiler->end();
     profiler->cmd_end(cmd);
@@ -189,15 +190,24 @@ int main() {
   outputTensor.disableDevice();
 
   if (W <= 32) {
-    fmt::println("Output tensor:\n{}", outputTensor);
-  }
+    ImageTensor outputTensorReference{outputLayout, FPrec::F16, W, H, K};
+    reference::conv(inputTensor, outputTensorReference, weightTensor,
+                    glm::uvec2(S, R), glm::uvec2(1, 1));
 
+    fmt::println("Output tensor reference :\n{}", outputTensorReference);
+
+    fmt::println("Output tensor:\n{}", outputTensor);
+
+    auto diff = outputTensorReference - outputTensor;
+    fmt::println("Diff: \n{}", diff);
+  }
   fmt::println("{}", reportStr);
 
   auto optimalLat = (inputTensor.byteSize() + outputTensor.byteSize()) / 504e6;
   fmt::println("Optimal memory latency: {}ms", optimalLat);
 
-
+  auto goodLat = (inputTensor.byteSize() + outputTensor.byteSize()) / 400e6;
+  fmt::println("Optimization Goal: {}ms", goodLat);
 
   return 0;
 }
