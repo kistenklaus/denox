@@ -24,11 +24,11 @@ const uint PADDING_W = 1;
 const uint PADDING_H = 1;
 
 layout(set = 0, binding = 0) readonly buffer input_tensor {
-    uvec4 inputTensor[];
+    uvec4 inputTensor[]; // CHW8
 };
 
 layout(set = 0, binding = 1) writeonly buffer output_tensor {
-    float16_t outputTensor[]; // HWC
+    float16_t outputTensor[]; // CHW8
 };
 
 layout(set = 0, binding = 2) readonly buffer weight_tensor {

@@ -112,12 +112,15 @@ int main() {
   // const unsigned int H = 16;
   const unsigned int C = 32;
   const unsigned int K = 32;
+
+
   const unsigned int R = 3;
   const unsigned int S = 3;
 
-  std::string shaderPath = "sandbox/conv3x3mma16x8x8f16_CHWC8_RSCKC8.comp";
+  std::string shaderPath =
+      "sandbox/conv3x3mma16x8x8f16_CHWC8_RSCKC8_reuse.comp";
 
-  WeightTensorLayout weightLayout = WeightTensorLayout::RSCKC8;
+  WeightTensorLayout weightLayout = WeightTensorLayout::RCSKC8;
   WeightTensor weightTensor{weightLayout, FPrec::F16, K, C, S, R};
   weightTensor.fill<float>([&](auto) { return dist(prng); });
 
@@ -166,7 +169,7 @@ int main() {
                            outputTensor.getDeviceHandle(),
                            weightTensor.getDeviceHandle());
 
-  for (std::size_t i = 0; i < 1; ++i) {
+  for (std::size_t i = 0; i < 10; ++i) {
     profiler->start("conv3x3");
     profiler->cmd_start(cmd, "conv3x3");
 

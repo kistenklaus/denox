@@ -497,6 +497,12 @@ private:
              s * (shape.inputChannels * shape.outputChannels) +
              (c / 8) * (shape.outputChannels * 8) + k * (8) + (c % 8);
       break;
+    case WeightTensorLayout::RCSKC8:
+      return r * (shape.inputChannels * shape.kernelWidth *
+                  shape.outputChannels) +
+             (c / 8) * (shape.kernelWidth * shape.outputChannels * 8) +
+             s * (shape.outputChannels * 8) + k * 8 + (c % 8);
+      break;
     default:
       throw std::runtime_error(
           "DynamicTensor does not yet support this layout.");
