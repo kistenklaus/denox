@@ -5,6 +5,25 @@
 
 namespace vkcnn {
 
+/// Float precision.
+enum class FloatType {
+  F16,
+  F32,
+  F64,
+};
+
+static inline std::size_t Float_Size(FloatType precision) {
+  switch (precision) {
+  case FloatType::F16:
+    return 2;
+  case FloatType::F32:
+    return 4;
+  case FloatType::F64:
+    return 8;
+  }
+  return -1;
+}
+
 using f32 = float;
 static_assert(sizeof(f32) == 4);
 ;
@@ -16,7 +35,9 @@ struct f16 {
   explicit f16(double v) : m_bits(from_float(static_cast<float>(v))) {}
 
   explicit operator float() const { return to_float(m_bits); }
-  explicit operator double() const { return static_cast<double>(to_float(m_bits)); }
+  explicit operator double() const {
+    return static_cast<double>(to_float(m_bits));
+  }
 
 private:
   static inline uint16_t from_float(float f) {

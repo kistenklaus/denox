@@ -1,5 +1,6 @@
 #include "./conv.hpp"
 #include "vkcnn/WeightTensor.hpp"
+#include <fmt/base.h>
 
 static float getInput(const vkcnn::ImageTensor& tensor, glm::uvec2 pixel,
                       std::size_t c) {

@@ -2,7 +2,6 @@
 
 #include "ExtensionCoopMat.hpp"
 #include "conv.hpp"
-#include "merian/io/file_loader.hpp"
 #include "merian/vk/command/command_buffer.hpp"
 #include "merian/vk/command/queue.hpp"
 #include "merian/vk/context.hpp"
@@ -19,23 +18,10 @@
 #include "merian/vk/shader/shader_compiler_system_glslc.hpp"
 #include "merian/vk/utils/profiler.hpp"
 #include "vkcnn/ImageTensor.hpp"
-#include "vkcnn/WeightTensor.hpp"
-#include "vkcnn/device/OpComputePipe.hpp"
-#include "vkcnn/device/conv2d/Conv2d.hpp"
-#include "vkcnn/device/tensor/ImageTensor.hpp"
-#include "vkcnn/host/DynamicImageTensor.hpp"
-#include "vkcnn/host/ImageTensorLayout.hpp"
-#include "vkcnn/host/ShaderSource.hpp"
-#include "vkcnn/host/WeightTensorLayout.hpp"
-#include "vkcnn/host/codegen/conv2d/direct.hpp"
-#include "vkcnn/host/conv2d/Conv2dSource.hpp"
-#include "vkcnn/host/fprec.hpp"
-#include "vkcnn/host/ops/OpConv2d.hpp"
 #include "vulkan/vulkan_enums.hpp"
 #include <fmt/base.h>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
-#include <print>
 #include <random>
 
 /// Just a helper function, which does the initalization
@@ -110,9 +96,8 @@ int main() {
   const unsigned int H = 1080;
   // const unsigned int W = 32;
   // const unsigned int H = 16;
-  const unsigned int C = 32;
-  const unsigned int K = 32;
-
+  const unsigned int C = 64;
+  const unsigned int K = 64;
 
   const unsigned int R = 3;
   const unsigned int S = 3;
@@ -121,15 +106,15 @@ int main() {
       "sandbox/conv3x3mma16x8x8f16_CHWC8_RSCKC8_reuse.comp";
 
   WeightTensorLayout weightLayout = WeightTensorLayout::RCSKC8;
-  WeightTensor weightTensor{weightLayout, FPrec::F16, K, C, S, R};
+  WeightTensor weightTensor{weightLayout, FloatType::F16, K, C, S, R};
   weightTensor.fill<float>([&](auto) { return dist(prng); });
 
   ImageTensorLayout inputLayout = ImageTensorLayout::CHWC8;
-  ImageTensor inputTensor{inputLayout, FPrec::F16, W, H, C};
+  ImageTensor inputTensor{inputLayout, FloatType::F16, W, H, C};
   inputTensor.fill<float>([&](auto) { return dist(prng); });
 
   ImageTensorLayout outputLayout = ImageTensorLayout::CHWC8;
-  ImageTensor outputTensor{outputLayout, FPrec::F16, W, H, K};
+  ImageTensor outputTensor{outputLayout, FloatType::F16, W, H, K};
 
   merian::PipelineLayoutBuilder pipelineLayoutBuilder{context};
 
@@ -169,7 +154,7 @@ int main() {
                            outputTensor.getDeviceHandle(),
                            weightTensor.getDeviceHandle());
 
-  for (std::size_t i = 0; i < 10; ++i) {
+  for (std::size_t i = 0; i < 100; ++i) {
     profiler->start("conv3x3");
     profiler->cmd_start(cmd, "conv3x3");
 
@@ -193,17 +178,18 @@ int main() {
   outputTensor.disableDevice();
 
   if (W <= 32) {
-    ImageTensor outputTensorReference{outputLayout, FPrec::F16, W, H, K};
+    ImageTensor outputTensorReference{outputLayout, FloatType::F16, W, H, K};
     reference::conv(inputTensor, outputTensorReference, weightTensor,
                     glm::uvec2(S, R), glm::uvec2(1, 1));
+    auto diff = outputTensorReference - outputTensor;
 
     fmt::println("Output tensor reference :\n{}", outputTensorReference);
 
     fmt::println("Output tensor:\n{}", outputTensor);
 
-    auto diff = outputTensorReference - outputTensor;
     fmt::println("Diff: \n{}", diff);
   }
+
   fmt::println("{}", reportStr);
 
   auto optimalLat = (inputTensor.byteSize() + outputTensor.byteSize()) / 504e6;
@@ -211,6 +197,11 @@ int main() {
 
   auto goodLat = (inputTensor.byteSize() + outputTensor.byteSize()) / 400e6;
   fmt::println("Optimization Goal: {}ms", goodLat);
+
+  double avgLatency = profiler->get_report().gpu_total() * 1e-3;
+  auto throughputGBs =
+      ((inputTensor.byteSize() + outputTensor.byteSize()) / avgLatency) * 1e-9;
+  fmt::println("Memory-throughput: {}GB/s", throughputGBs);
 
   return 0;
 }

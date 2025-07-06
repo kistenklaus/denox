@@ -5,9 +5,8 @@
 #include "merian/vk/memory/resource_allocations.hpp"
 #include "merian/vk/memory/resource_allocator.hpp"
 
-#include "vkcnn/host/WeightTensorLayout.hpp"
-#include "vkcnn/host/floatx.hpp"
-#include "vkcnn/host/fprec.hpp"
+#include "vkcnn/tensor/WeightTensorLayout.hpp"
+#include "vkcnn/tensor/float_types.hpp"
 #include "vulkan/vulkan_enums.hpp"
 #include <cstring>
 #include <fmt/format.h>
@@ -26,7 +25,7 @@ private:
   using ATraits = std::allocator_traits<Alloc>;
   struct Shape {
     WeightTensorLayout layout;
-    FPrec precision;
+    FloatType precision;
     unsigned int outputChannels;
     unsigned int inputChannels;
     unsigned int kernelWidth;
@@ -44,10 +43,10 @@ private:
   };
 
 public:
-  WeightTensor(WeightTensorLayout layout, FPrec precision, std::size_t k,
+  WeightTensor(WeightTensorLayout layout, FloatType precision, std::size_t k,
                std::size_t c, std::size_t s, std::size_t r)
       : m_shape(layout, precision, k, c, s, r),
-        m_host(nullptr, k * c * s * r * FPrec_Size(precision), {}),
+        m_host(nullptr, k * c * s * r * Float_Size(precision), {}),
         m_device(nullptr, nullptr, true) {}
 
   ~WeightTensor() {
@@ -119,7 +118,7 @@ public:
     m_host.buffer = newStorage;
   }
 
-  void transformPrecision(FPrec precision) {
+  void transformPrecision(FloatType precision) {
     if (precision == m_shape.precision) {
       return;
     }
@@ -140,7 +139,7 @@ public:
 
     std::byte *oldStorage = mapHostStorage();
     auto oldPrec = m_shape.precision;
-    auto fSize = FPrec_Size(precision);
+    auto fSize = Float_Size(precision);
     std::size_t size = m_shape.inputChannels * m_shape.outputChannels *
                        m_shape.kernelWidth * m_shape.kernelHeight;
 
@@ -173,7 +172,7 @@ public:
   inline unsigned int c() const { return m_shape.inputChannels; }
   inline unsigned int s() const { return m_shape.kernelWidth; }
   inline unsigned int r() const { return m_shape.kernelHeight; }
-  inline FPrec precision() const { return m_shape.precision; }
+  inline FloatType precision() const { return m_shape.precision; }
 
   void enableDevice(const merian::ResourceAllocatorHandle &alloc) {
     m_device.allocator = alloc;
@@ -361,18 +360,18 @@ private:
 
   template <typename T>
   __attribute__((always_inline)) static inline T
-  get(const std::byte *storage, std::size_t idx, FPrec precision) {
+  get(const std::byte *storage, std::size_t idx, FloatType precision) {
     switch (precision) {
-    case FPrec::F16:
+    case FloatType::F16:
       if constexpr (std::same_as<T, f16>) {
         return *reinterpret_cast<const f16 *>(storage + idx * 2);
       } else {
         return static_cast<T>(
             *reinterpret_cast<const f16 *>(storage + idx * 2));
       }
-    case FPrec::F32:
+    case FloatType::F32:
       return T(*reinterpret_cast<const f32 *>(storage + idx * 4));
-    case FPrec::F64:
+    case FloatType::F64:
       return T(*reinterpret_cast<const f64 *>(storage + idx * 8));
     }
     throw std::invalid_argument("Invalid precision");
@@ -380,19 +379,19 @@ private:
 
   template <typename T>
   __attribute__((always_inline)) static inline void
-  set(std::byte *storage, std::size_t idx, FPrec precision, T v) {
+  set(std::byte *storage, std::size_t idx, FloatType precision, T v) {
     switch (precision) {
-    case FPrec::F16:
+    case FloatType::F16:
       *reinterpret_cast<f16 *>(storage + idx * 2) = f16(v);
       break;
-    case FPrec::F32:
+    case FloatType::F32:
       if constexpr (std::same_as<T, f16>) {
         *reinterpret_cast<f32 *>(storage + idx * 4) = static_cast<f32>(v);
       } else {
         *reinterpret_cast<f32 *>(storage + idx * 4) = f32(v);
       }
       break;
-    case FPrec::F64:
+    case FloatType::F64:
       if constexpr (std::same_as<T, f16>) {
         *reinterpret_cast<f64 *>(storage + idx * 8) = static_cast<f64>(v);
       } else {
@@ -404,61 +403,61 @@ private:
 
   __attribute__((always_inline)) static inline void
   copy(std::byte *dst, std::size_t dstIdx, const std::byte *src,
-       std::size_t srcIdx, FPrec precision) {
-    std::size_t fsize = FPrec_Size(precision);
+       std::size_t srcIdx, FloatType precision) {
+    std::size_t fsize = Float_Size(precision);
     // fmt::println("Copying {} -> {}", dstIdx * fsize, srcIdx * fsize);
     std::memcpy(dst + dstIdx * fsize, src + srcIdx * fsize, fsize);
   }
 
   /// Hopefully this is inlined and the branching is put outside of the loop.
   __attribute__((always_inline)) static inline void
-  cast(std::byte *dst, std::size_t dstIdx, FPrec dstPrec, const std::byte *src,
-       std::size_t srcIdx, FPrec srcPrec) {
+  cast(std::byte *dst, std::size_t dstIdx, FloatType dstPrec,
+       const std::byte *src, std::size_t srcIdx, FloatType srcPrec) {
     if (dstPrec == srcPrec) {
       return copy(dst, dstIdx, src, srcIdx, srcPrec);
     }
     switch (dstPrec) {
-    case FPrec::F16: {
+    case FloatType::F16: {
       f16 *d = reinterpret_cast<f16 *>(dst + 2 * dstIdx);
       switch (srcPrec) {
-      case FPrec::F16:
+      case FloatType::F16:
         std::unreachable();
         break;
-      case FPrec::F32:
+      case FloatType::F32:
         *d = f16(*reinterpret_cast<const f32 *>((src + 4 * srcIdx)));
         break;
-      case FPrec::F64:
+      case FloatType::F64:
         *d = f16(*reinterpret_cast<const f64 *>((src + 8 * srcIdx)));
         break;
       }
       break;
     }
-    case FPrec::F32: {
+    case FloatType::F32: {
       f32 *d = reinterpret_cast<f32 *>(dst + 4 * dstIdx);
       switch (srcPrec) {
-      case FPrec::F16:
+      case FloatType::F16:
         *d = static_cast<f32>(*reinterpret_cast<const f16 *>(src + 2 * srcIdx));
         break;
-      case FPrec::F32:
+      case FloatType::F32:
         std::unreachable();
         break;
-      case FPrec::F64:
+      case FloatType::F64:
         *d = f64(*reinterpret_cast<const f64 *>(src + 8 * srcIdx));
         break;
       }
       break;
     }
-    case FPrec::F64: {
+    case FloatType::F64: {
       f64 *d = reinterpret_cast<f64 *>(dst + 8 * dstIdx);
       switch (srcPrec) {
-      case FPrec::F16:
+      case FloatType::F16:
         *d = static_cast<double>(
             *reinterpret_cast<const f16 *>(src + 2 * srcIdx));
         break;
-      case FPrec::F32:
+      case FloatType::F32:
         *d = f32(*reinterpret_cast<const f32 *>(src + 4 * srcIdx));
         break;
-      case FPrec::F64:
+      case FloatType::F64:
         std::unreachable();
         break;
       }
