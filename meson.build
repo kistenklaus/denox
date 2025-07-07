@@ -1,4 +1,4 @@
-project('purelib-and-platlib', 
+project('vkcnn', 
     ['c', 'cpp'],
     version: '0.0.0',
     default_options : [
@@ -10,31 +10,37 @@ project('purelib-and-platlib',
     ]
 )
 
-pybind11 = dependency('pybind11', required: true)
+subdir('common')
+subdir('shaders')
+subdir('runtime')
+subdir('dev')
 
-merian_proj = subproject('merian')
-merian = merian_proj.get_variable('merian_dep')
 
 
-pyvk_lib_src = files(
-)
+# pybind11 = dependency('pybind11', required: true)
+# merian_proj = subproject('merian')
+# merian = merian_proj.get_variable('merian_dep')
 
-pyvk_lib_inc = include_directories('src')
-pyvk_lib = static_library('pyvk_lib',
-  pyvk_lib_src,
-  dependencies: [merian],
-  include_directories: pyvk_lib_inc,
-  install: false,
-  pic : true
-)
+# pyvk_lib_src = files(
+#   'src/vkcnn/common/tensor/FilterHostTensor.cpp',
+#   'src/vkcnn/common/tensor/ActivationHostTensor.cpp'
+# )
 
-pyvk = declare_dependency(
-  link_with: pyvk_lib,
-  include_directories: pyvk_lib_inc,
-)
 
-subdir('sandbox')
+# pyvk_lib_inc = include_directories('src')
+# pyvk_lib = static_library('pyvk_lib',
+#   pyvk_lib_src,
+#   dependencies: [merian],
+#   include_directories: pyvk_lib_inc,
+#   install: false,
+#   pic : true
+# )
 
-subdir('modules/pyvk')
-subdir('modules/pyvk_cpp')
+# pyvk = declare_dependency(
+#   link_with: pyvk_lib,
+#   include_directories: pyvk_lib_inc,
+# )
 
+# subdir('sandbox')
+# subdir('modules/pyvk')
+# subdir('modules/pyvk_cpp')
