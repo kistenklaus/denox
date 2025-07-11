@@ -17,6 +17,8 @@ public:
     RSKC,
     RSCKC8,
     RCSKC8,
+    RSCKC16,
+    RCSKC16,
   };
   constexpr FilterLayout(Tag tag) : m_tag(tag) {}
 
@@ -44,6 +46,13 @@ public:
       return r * (shape.c * shape.s * shape.k) +
              (c / 8) * (shape.s * shape.k * 8) + s * (shape.k * 8) + k * 8 +
              (c % 8);
+    case Tag::RSCKC16:
+      return r * (shape.s * shape.c * shape.k) + s * (shape.c * shape.k) +
+             (c / 16) * (shape.k * 16) + k * (16) + (c % 16);
+    case Tag::RCSKC16:
+      return r * (shape.c * shape.s * shape.k) +
+             (c >> 4) * (shape.s * shape.k << 4) + s * (shape.k << 4) +
+             (k << 4) + (c & 0xF);
     }
     throw std::runtime_error("Unsupported FilterLayout");
   }
@@ -73,6 +82,12 @@ public:
 
   static constexpr details::FilterLayout RCSKC8{
       details::FilterLayout::Tag::RCSKC8};
+
+  static constexpr details::FilterLayout RSCKC16{
+      details::FilterLayout::Tag::RSCKC16};
+
+  static constexpr details::FilterLayout RCSKC16{
+      details::FilterLayout::Tag::RCSKC16};
 
   constexpr std::size_t operator()(const FilterShape &shape, unsigned int s,
                                    unsigned r, unsigned int c,

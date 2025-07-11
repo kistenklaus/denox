@@ -19,9 +19,9 @@ public:
       : m_defs(defines.begin(), defines.end()) {}
 
   auto begin() { return m_defs.begin(); }
-  auto end() { return m_defs.begin(); }
+  auto end() { return m_defs.end(); }
   auto begin() const { return m_defs.begin(); }
-  auto end() const { return m_defs.begin(); }
+  auto end() const { return m_defs.end(); }
 
 private:
   std::vector<ShaderDefine> m_defs;

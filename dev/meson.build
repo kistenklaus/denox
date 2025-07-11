@@ -1,4 +1,5 @@
 subdir('utils')
-# subdir('tests')
+subdir('tests')
 subdir('sandbox')
 # subdir('bench')
+# subdir('survey')

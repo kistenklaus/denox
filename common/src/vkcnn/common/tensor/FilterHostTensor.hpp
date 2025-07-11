@@ -2,7 +2,9 @@
 
 #include "vkcnn/common/tensor/FilterLayout.hpp"
 #include "vkcnn/common/tensor/FitlerDescriptor.hpp"
+#include "vkcnn/common/tensor/FloatType.hpp"
 #include <cassert>
+#include <concepts>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -34,36 +36,37 @@ public:
   const FilterDescriptor &desc() const { return m_desc; }
   const FilterShape &shape() const { return m_desc.shape; }
   FilterLayout layout() const { return m_desc.layout; }
-  FloatType floatType() const { return m_desc.type; }
+  FloatType type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
-  template <typename F>
-  auto at(unsigned int s, unsigned int r, unsigned int c, unsigned int k)
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_reference, std::remove_cvref_t<F> &> {
+  fxx_reference at(unsigned int s, unsigned int r, unsigned int c,
+                   unsigned int k) {
     std::size_t linearIndex = m_desc.layout(m_desc.shape, s, r, c, k);
     std::size_t offset = linearIndex * m_desc.type.size();
     std::byte *ptr = m_buffer + offset;
-    if constexpr (std::same_as<std::remove_cvref_t<F>, f16>) {
-      return f16_reference(reinterpret_cast<f16 *>(ptr));
-    } else {
-      return *reinterpret_cast<std::remove_cvref_t<F> *>(ptr);
-    }
+    return fxx_reference(reinterpret_cast<void *>(ptr), m_desc.type);
   }
 
-  template <typename F>
-  auto at(unsigned int s, unsigned int r, unsigned int c, unsigned int k) const
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_const_reference,
-                            const std::remove_cvref_t<F> &> {
+  fxx_const_reference at(unsigned int s, unsigned int r, unsigned int c,
+                         unsigned int k) const {
     std::size_t linearIndex = m_desc.layout(m_desc.shape, s, r, c, k);
     std::size_t offset = linearIndex * m_desc.type.size();
     const std::byte *ptr = m_buffer + offset;
-    if constexpr (std::same_as<std::remove_cvref_t<F>, f16>) {
-      return f16_const_reference(reinterpret_cast<const f16 *>(ptr));
-    } else {
-      return *reinterpret_cast<const std::remove_cvref_t<F> *>(ptr);
-    }
+    return fxx_const_reference(reinterpret_cast<const void *>(ptr),
+                               m_desc.type);
+  }
+
+  fxx_reference operator[](unsigned int linearIndex) {
+    std::size_t offset = linearIndex * m_desc.type.size();
+    std::byte *ptr = m_buffer + offset;
+    return fxx_reference(reinterpret_cast<void *>(ptr), m_desc.type);
+  }
+
+  fxx_const_reference operator[](unsigned int linearIndex) const {
+    std::size_t offset = linearIndex * m_desc.type.size();
+    const std::byte *ptr = m_buffer + offset;
+    return fxx_const_reference(reinterpret_cast<const void *>(ptr),
+                               m_desc.type);
   }
 
   void assignFrom(const FilterHostTensorConstView &view);
@@ -94,22 +97,23 @@ public:
   const FilterDescriptor &desc() const { return m_desc; }
   const FilterShape &shape() const { return m_desc.shape; }
   FilterLayout layout() const { return m_desc.layout; }
-  FloatType floatType() const { return m_desc.type; }
+  FloatType type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
-  template <typename F>
-  auto at(unsigned int s, unsigned int r, unsigned int c, unsigned int k) const
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_const_reference,
-                            const std::remove_cvref_t<F> &> {
+  fxx_const_reference at(unsigned int s, unsigned int r, unsigned int c,
+                         unsigned int k) const {
     std::size_t linearIndex = m_desc.layout(m_desc.shape, s, r, c, k);
     std::size_t offset = linearIndex * m_desc.type.size();
     const std::byte *ptr = m_buffer + offset;
-    if constexpr (std::same_as<std::remove_cvref_t<F>, f16>) {
-      return f16_const_reference(reinterpret_cast<const f16 *>(ptr));
-    } else {
-      return *reinterpret_cast<const std::remove_cvref_t<F> *>(ptr);
-    }
+    return fxx_const_reference(reinterpret_cast<const void *>(ptr),
+                               m_desc.type);
+  }
+
+  fxx_const_reference operator[](unsigned int linearIndex) const {
+    std::size_t offset = linearIndex * m_desc.type.size();
+    const std::byte *ptr = m_buffer + offset;
+    return fxx_const_reference(reinterpret_cast<const void *>(ptr),
+                               m_desc.type);
   }
 
 private:
@@ -140,6 +144,7 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
+    requires(!std::same_as<Alloc, std::span<std::byte>>)
   explicit FilterHostTensor(FilterDescriptor descriptor,
                             const Alloc &alloc = {})
       : m_desc(descriptor) {
@@ -168,7 +173,7 @@ public:
     if (shape() != view.shape()) {
       throw std::runtime_error("Invalid tensor shape! Shapes do not match!");
     }
-    if (layout() == view.layout() && floatType() == view.floatType()) {
+    if (layout() == view.layout() && type() == view.type()) {
       std::memcpy(ptr, view.data(), n);
     } else {
       FilterHostTensorView{m_desc, ptr}.assignFrom(view);
@@ -210,22 +215,25 @@ public:
   const FilterDescriptor &desc() const { return m_desc; }
   const FilterShape &shape() const { return m_desc.shape; }
   FilterLayout layout() const { return m_desc.layout; }
-  FloatType floatType() const { return m_desc.type; }
+  FloatType type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
-  template <typename F>
-  auto at(unsigned int s, unsigned int r, unsigned int c, unsigned int k)
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_reference, std::remove_cvref_t<F> &> {
-    return FilterHostTensorView{this}.at<F>(s, r, c, k);
+  fxx_reference at(unsigned int s, unsigned int r, unsigned int c,
+                   unsigned int k) {
+    return FilterHostTensorView{this}.at(s, r, c, k);
   }
 
-  template <typename F>
-  auto at(unsigned int s, unsigned int r, unsigned int c, unsigned int k) const
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_const_reference,
-                            const std::remove_cvref_t<F> &> {
-    return FilterHostTensorConstView{this}.at<F>(s, r, c, k);
+  fxx_const_reference at(unsigned int s, unsigned int r, unsigned int c,
+                         unsigned int k) const {
+    return FilterHostTensorConstView{this}.at(s, r, c, k);
+  }
+
+  fxx_reference operator[](unsigned int linearIndex) {
+    return FilterHostTensorView{this}[linearIndex];
+  }
+
+  fxx_const_reference operator[](unsigned int linearIndex) const {
+    return FilterHostTensorConstView{this}[linearIndex];
   }
 
 private:

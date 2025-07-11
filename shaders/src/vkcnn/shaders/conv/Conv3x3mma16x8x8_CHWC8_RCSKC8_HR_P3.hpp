@@ -7,16 +7,16 @@
 
 namespace vkcnn::shaders {
 
-class Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2 final : public ConvTemplate {
+class Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P3 final : public ConvTemplate {
 public:
-  Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2();
+  Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P3();
 
   bool supports(const OpConv &op) const final override;
 
   ConvShaderSource do_specialize(const OpConv &op) const final override;
 
   std::string_view name() const final override {
-    return "conv3x3mma16x8x8f16_CHWC8_RSCKC8_HR_P2";
+    return "conv3x3mma16x8x8f16_CHWC8_RSCKC8_HR_P3";
   };
 
 private:

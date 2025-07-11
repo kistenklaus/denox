@@ -1,16 +1,16 @@
-#include "./Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
+#include "./Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.hpp"
 
 #include "vkcnn/common/io/read_file.hpp"
 #include <cstring>
 
 namespace vkcnn::shaders {
 
-Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2()
+Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2::Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2()
     : m_source(vkcnn::readFile("./shaders/src/vkcnn/shaders/conv/"
-                               "conv3x3mma16x8x8f16_CHWC8_RCSKC8_HR_P2.comp")) {
+                               "conv3x3mma16x8x8f16_CHWC8_RSCKC8_NR_P2.comp")) {
 }
 
-bool Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2::supports(const OpConv &op) const {
+bool Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2::supports(const OpConv &op) const {
   if (op.filterShape.r != 3)
     return false;
   if (op.filterShape.s != 3)
@@ -37,7 +37,7 @@ bool Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2::supports(const OpConv &op) const {
 }
 
 ConvShaderSource
-Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2::do_specialize(const OpConv &op) const {
+Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2::do_specialize(const OpConv &op) const {
   std::vector<std::byte> src{m_source.size() * sizeof(std::string::value_type)};
   std::memcpy(src.data(), m_source.data(), src.size());
   std::uint32_t specConstants[2] = {op.filterShape.c, op.filterShape.k};

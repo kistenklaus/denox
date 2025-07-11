@@ -2,7 +2,8 @@
 vkcnn_common_src = files(
   'src/vkcnn/common/io/read_file.cpp',
   'src/vkcnn/common/tensor/FilterHostTensor.cpp',
-  'src/vkcnn/common/tensor/ActivationHostTensor.cpp'
+  'src/vkcnn/common/tensor/ActivationHostTensor.cpp',
+  'src/vkcnn/common/tensor/FloatType.cpp'
 )
 
 vkcnn_common_inc = include_directories('src')

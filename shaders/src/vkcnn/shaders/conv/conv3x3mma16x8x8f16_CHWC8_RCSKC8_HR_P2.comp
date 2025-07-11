@@ -10,8 +10,9 @@
 
 #pragma use_vulkan_memory_model
 
-const uint C = 8;
-const uint K = 8;
+
+layout(constant_id = 0) const uint C = 8;
+layout(constant_id = 1) const uint K = 8;
 
 const uint S = 3; // kernel width
 const uint R = 3; // kernel height

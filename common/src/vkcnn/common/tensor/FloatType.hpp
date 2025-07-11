@@ -3,7 +3,9 @@
 #include <bit>
 #include <compare>
 #include <cstdint>
+#include <istream>
 #include <stdexcept>
+#include <utility>
 
 namespace vkcnn {
 
@@ -168,6 +170,203 @@ struct f16_reference {
 
 private:
   f16 *m_ptr;
+};
+
+// Reference to any float type (i.e. f16, f32, f64)
+// includes runtime information about the underlying type.
+struct fxx_const_reference;
+struct fxx_reference {
+  friend struct fxx_const_reference;
+  explicit fxx_reference(f16 *v) : m_ptr(v), m_type(FloatType::F16) {}
+  fxx_reference(f16 &v) : m_ptr(&v), m_type(FloatType::F16) {}
+
+  explicit fxx_reference(f32 *v) : m_ptr(v), m_type(FloatType::F32) {}
+  fxx_reference(f32 &v) : m_ptr(&v), m_type(FloatType::F32) {}
+
+  explicit fxx_reference(f64 *v) : m_ptr(v), m_type(FloatType::F64) {}
+  fxx_reference(f64 &v) : m_ptr(&v), m_type(FloatType::F64) {}
+
+  explicit fxx_reference(void *ptr, FloatType type)
+      : m_ptr(ptr), m_type(type) {}
+
+  fxx_reference &operator=(f16 v) {
+    if (m_type == FloatType::F16) {
+      *reinterpret_cast<f16 *>(m_ptr) = v;
+    } else if (m_type == FloatType::F32) {
+      *reinterpret_cast<f32 *>(m_ptr) = static_cast<f32>(v);
+    } else if (m_type == FloatType::F64) {
+      *reinterpret_cast<f64 *>(m_ptr) = static_cast<f64>(v);
+    } else {
+      std::unreachable();
+    }
+    return *this;
+  }
+
+  fxx_reference &operator=(f16_reference v) {
+    if (m_type == FloatType::F16) {
+      *reinterpret_cast<f16 *>(m_ptr) = static_cast<f16>(v);
+    } else if (m_type == FloatType::F32) {
+      *reinterpret_cast<f32 *>(m_ptr) = static_cast<f32>(v);
+    } else if (m_type == FloatType::F64) {
+      *reinterpret_cast<f64 *>(m_ptr) = static_cast<f64>(v);
+    } else {
+      std::unreachable();
+    }
+    return *this;
+  }
+
+  fxx_reference &operator=(f16_const_reference v) {
+    if (m_type == FloatType::F16) {
+      *reinterpret_cast<f16 *>(m_ptr) = static_cast<f16>(v);
+    } else if (m_type == FloatType::F32) {
+      *reinterpret_cast<f32 *>(m_ptr) = static_cast<f32>(v);
+    } else if (m_type == FloatType::F64) {
+      *reinterpret_cast<f64 *>(m_ptr) = static_cast<f64>(v);
+    } else {
+      std::unreachable();
+    }
+    return *this;
+  }
+
+  fxx_reference &operator=(f32 v) {
+    if (m_type == FloatType::F16) {
+      *reinterpret_cast<f16 *>(m_ptr) = f16(v);
+    } else if (m_type == FloatType::F32) {
+      *reinterpret_cast<f32 *>(m_ptr) = v;
+    } else if (m_type == FloatType::F64) {
+      *reinterpret_cast<f64 *>(m_ptr) = static_cast<f64>(v);
+    } else {
+      std::unreachable();
+    }
+    return *this;
+  }
+
+  fxx_reference &operator=(f64 v) {
+    if (m_type == FloatType::F16) {
+      *reinterpret_cast<f16 *>(m_ptr) = f16(v);
+    } else if (m_type == FloatType::F32) {
+      *reinterpret_cast<f32 *>(m_ptr) = static_cast<f32>(v);
+    } else if (m_type == FloatType::F64) {
+      *reinterpret_cast<f64 *>(m_ptr) = v;
+    } else {
+      std::unreachable();
+    }
+    return *this;
+  }
+
+  fxx_reference &operator=(fxx_const_reference v);
+
+  explicit operator f32() const {
+    if (m_type == FloatType::F16) {
+      f16 v = *reinterpret_cast<const f16 *>(m_ptr);
+      return static_cast<f32>(v);
+    } else if (m_type == FloatType::F32) {
+      f32 v = *reinterpret_cast<const f32 *>(m_ptr);
+      return v;
+    } else if (m_type == FloatType::F64) {
+      f64 v = *reinterpret_cast<const f64 *>(m_ptr);
+      return static_cast<f32>(v);
+    }
+    std::unreachable();
+  }
+  explicit operator double() const {
+    if (m_type == FloatType::F16) {
+      f16 v = *reinterpret_cast<const f16 *>(m_ptr);
+      return static_cast<f64>(v);
+    } else if (m_type == FloatType::F32) {
+      f32 v = *reinterpret_cast<const f32 *>(m_ptr);
+      return static_cast<f64>(v);
+    } else if (m_type == FloatType::F64) {
+      f64 v = *reinterpret_cast<const f64 *>(m_ptr);
+      return v;
+    }
+    std::unreachable();
+  }
+  explicit operator f16() const {
+    if (m_type == FloatType::F16) {
+      f16 v = *reinterpret_cast<const f16 *>(m_ptr);
+      return v;
+    } else if (m_type == FloatType::F32) {
+      f32 v = *reinterpret_cast<const f32 *>(m_ptr);
+      return f16(v);
+    } else if (m_type == FloatType::F64) {
+      f64 v = *reinterpret_cast<const f64 *>(m_ptr);
+      return f16(v);
+    }
+    std::unreachable();
+  }
+
+private:
+  void *m_ptr;
+  FloatType m_type;
+};
+
+// Const Reference to any float type (i.e. f16, f32, f64)
+// includes runtime information about the underlying type.
+struct fxx_const_reference {
+  friend struct fxx_reference;
+  fxx_const_reference(fxx_reference ref)
+      : m_ptr(ref.m_ptr), m_type(ref.m_type) {}
+
+  explicit fxx_const_reference(const f16 *v)
+      : m_ptr(v), m_type(FloatType::F16) {}
+
+  fxx_const_reference(const f16 &v) : m_ptr(&v), m_type(FloatType::F16) {}
+
+  explicit fxx_const_reference(const f32 *v)
+      : m_ptr(v), m_type(FloatType::F32) {}
+  fxx_const_reference(const f32 &v) : m_ptr(&v), m_type(FloatType::F32) {}
+
+  explicit fxx_const_reference(const f64 *v)
+      : m_ptr(v), m_type(FloatType::F64) {}
+  fxx_const_reference(const f64 &v) : m_ptr(&v), m_type(FloatType::F64) {}
+
+  explicit fxx_const_reference(const void *ptr, FloatType type)
+      : m_ptr(ptr), m_type(type) {}
+
+  explicit operator f32() const {
+    if (m_type == FloatType::F16) {
+      f16 v = *reinterpret_cast<const f16 *>(m_ptr);
+      return static_cast<f32>(v);
+    } else if (m_type == FloatType::F32) {
+      f32 v = *reinterpret_cast<const f32 *>(m_ptr);
+      return v;
+    } else if (m_type == FloatType::F64) {
+      f64 v = *reinterpret_cast<const f64 *>(m_ptr);
+      return static_cast<f32>(v);
+    }
+    std::unreachable();
+  }
+  explicit operator double() const {
+    if (m_type == FloatType::F16) {
+      f16 v = *reinterpret_cast<const f16 *>(m_ptr);
+      return static_cast<f64>(v);
+    } else if (m_type == FloatType::F32) {
+      f32 v = *reinterpret_cast<const f32 *>(m_ptr);
+      return static_cast<f64>(v);
+    } else if (m_type == FloatType::F64) {
+      f64 v = *reinterpret_cast<const f64 *>(m_ptr);
+      return v;
+    }
+    std::unreachable();
+  }
+  explicit operator f16() const {
+    if (m_type == FloatType::F16) {
+      f16 v = *reinterpret_cast<const f16 *>(m_ptr);
+      return v;
+    } else if (m_type == FloatType::F32) {
+      f32 v = *reinterpret_cast<const f32 *>(m_ptr);
+      return f16(v);
+    } else if (m_type == FloatType::F64) {
+      f64 v = *reinterpret_cast<const f64 *>(m_ptr);
+      return f16(v);
+    }
+    std::unreachable();
+  }
+
+private:
+  const void *m_ptr;
+  FloatType m_type;
 };
 
 static_assert(sizeof(f16) == 2);

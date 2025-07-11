@@ -7,6 +7,7 @@
 #include "merian/vk/shader/shader_module.hpp"
 #include "vkcnn/runtime/tensor/SyncUse.hpp"
 #include <cstring>
+#include <fmt/base.h>
 #include <ranges>
 
 namespace vkcnn::runtime {

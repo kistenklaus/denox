@@ -4,14 +4,18 @@
 #include "merian/vk/shader/shader_compiler.hpp"
 #include "merian/vk/shader/shader_compiler_system_glslc.hpp"
 #include "merian/vk/utils/profiler.hpp"
+#include "torch/cuda.h"
 #include "vkcnn/common/shader/conv/ConvShaderSource.hpp"
 #include "vkcnn/common/tensor/ActivationHostTensor.hpp"
 #include "vkcnn/common/tensor/FilterHostTensor.hpp"
 #include "vkcnn/dev/utils/merian.hpp"
+#include "vkcnn/dev/utils/tensor_algorithms.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
 #include "vkcnn/runtime/tensor/ActivationDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/FilterDeviceTensor.hpp"
+#include "vkcnn/shaders/conv/Conv3x3mma16x16x16f16_CHWC16_RCSKC16_HR_P1.hpp"
 #include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
+#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.hpp"
 
 int main() {
 
@@ -33,23 +37,27 @@ int main() {
   query_pool->reset();
   profiler->set_query_pool(query_pool);
 
-  unsigned int W = 32;
-  unsigned int H = 16;
-  unsigned int C = 8;
-  unsigned int K = 8;
+  unsigned int W = 1920;
+  unsigned int H = 1080;
+  unsigned int C = 128;
+  unsigned int K = 128;
 
   unsigned int R = 3;
   unsigned int S = 3;
 
   vkcnn::ActivationHostTensor inputHost{{vkcnn::ActivationShape{W, H, C},
-                                         vkcnn::ActivationLayout::CHWC8,
+                                         vkcnn::ActivationLayout::CHWC16,
                                          vkcnn::FloatType::F16}};
 
+  vkcnn::ActivationHostTensorView view{inputHost};
+
+  vkcnn::tensor_algo::fill(inputHost, 1.0f);
+
   vkcnn::ActivationHostTensor outputHost{{vkcnn::ActivationShape{W, H, K},
-                                          vkcnn::ActivationLayout::CHWC8,
+                                          vkcnn::ActivationLayout::CHWC16,
                                           vkcnn::FloatType::F16}};
 
-  vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2 conv;
+  vkcnn::shaders::Conv3x3mma16x16x16_CHWC16_RCSKC16_HR_P1 conv;
   vkcnn::ConvShaderSource convSrc =
       conv.specialize(vkcnn::OpConv{{S, R, C, K},
                                     vkcnn::FloatType::F16,
@@ -61,6 +69,13 @@ int main() {
           .value();
 
   vkcnn::FilterHostTensor filterHost{convSrc.filterDesc()};
+  vkcnn::tensor_algo::fill(filterHost, 1.0f);
+
+  auto output = vkcnn::tensor_algo::conv(inputHost, filterHost, glm::uvec2(1),
+                                         glm::uvec2(1));
+  // vkcnn::tensor_algo::printActivation(output);
+
+  return 0;
 
   // =========== RUNTIME ==============
 
@@ -82,7 +97,10 @@ int main() {
   filterDevice.upload(cmd, filterHost);
   inputDevice.upload(cmd, inputHost);
 
-  convPipe.run(cmd, inputDevice, outputDevice);
+  for (unsigned int i = 0; i < 10; ++i) {
+    MERIAN_PROFILE_SCOPE_GPU(profiler, cmd, "conv-pipe");
+    convPipe.run(cmd, inputDevice, outputDevice);
+  }
 
   auto download = outputDevice.download(cmd);
 
@@ -90,6 +108,13 @@ int main() {
   queue->submit_wait(cmd);
 
   download.complete(outputHost);
+
+  vkcnn::tensor_algo::printActivation(outputHost);
+
+  profiler->collect(true, false);
+  fmt::println("{}", merian::Profiler::get_report_str(profiler->get_report()));
+
+  // vkcnn::tensor_algo::printActivation(outputHost);
 
   return 0;
 }

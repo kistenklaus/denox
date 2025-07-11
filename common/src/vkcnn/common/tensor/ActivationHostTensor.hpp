@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vkcnn/common/tensor/ActivationDescriptor.hpp"
+#include "vkcnn/common/tensor/FloatType.hpp"
 #include <cassert>
 #include <cstring>
 #include <functional>
@@ -35,37 +36,16 @@ public:
   const ActivationDescriptor &desc() const { return m_desc; }
   const ActivationShape &shape() const { return m_desc.shape; }
   ActivationLayout layout() const { return m_desc.layout; }
-  FloatType floatType() const { return m_desc.type; }
+  FloatType type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
-  template <typename F>
-  auto at(unsigned int w, unsigned int h, unsigned int c)
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_reference, std::remove_cvref_t<F> &> {
-    std::size_t linearIndex = m_desc.layout(m_desc.shape, w, h, c);
-    std::size_t offset = linearIndex * m_desc.type.size();
-    std::byte *ptr = m_buffer + offset;
-    if constexpr (std::same_as<std::remove_cvref_t<F>, f16>) {
-      return f16_reference(reinterpret_cast<f16 *>(ptr));
-    } else {
-      return *reinterpret_cast<std::remove_cvref_t<F> *>(ptr);
-    }
-  }
+  fxx_reference at(unsigned int w, unsigned int h, unsigned int c);
 
-  template <typename F>
-  auto at(unsigned int w, unsigned int h, unsigned int c) const
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_const_reference,
-                            const std::remove_cvref_t<F> &> {
-    std::size_t linearIndex = m_desc.layout(m_desc.shape, w, h, c);
-    std::size_t offset = linearIndex * m_desc.type.size();
-    const std::byte *ptr = m_buffer + offset;
-    if constexpr (std::same_as<std::remove_cvref_t<F>, f16>) {
-      return f16_const_reference(reinterpret_cast<const f16 *>(ptr));
-    } else {
-      return *reinterpret_cast<const std::remove_cvref_t<F> *>(ptr);
-    }
-  }
+  fxx_const_reference at(unsigned int w, unsigned int h, unsigned int c) const;
+
+  fxx_reference operator[](unsigned int linearIndex);
+
+  fxx_const_reference operator[](unsigned int linearIndex) const;
 
   void assignFrom(const ActivationHostTensorConstView &view);
 
@@ -95,23 +75,12 @@ public:
   const ActivationDescriptor &desc() const { return m_desc; }
   const ActivationShape &shape() const { return m_desc.shape; }
   ActivationLayout layout() const { return m_desc.layout; }
-  FloatType floatType() const { return m_desc.type; }
+  FloatType type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
-  template <typename F>
-  auto at(unsigned int w, unsigned int h, unsigned int c) const
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_const_reference,
-                            const std::remove_cvref_t<F> &> {
-    std::size_t linearIndex = m_desc.layout(m_desc.shape, w, h, c);
-    std::size_t offset = linearIndex * m_desc.type.size();
-    const std::byte *ptr = m_buffer + offset;
-    if constexpr (std::same_as<std::remove_cvref_t<F>, f16>) {
-      return f16_const_reference(reinterpret_cast<const f16 *>(ptr));
-    } else {
-      return *reinterpret_cast<const std::remove_cvref_t<F> *>(ptr);
-    }
-  }
+  fxx_const_reference at(unsigned int w, unsigned int h, unsigned int c) const;
+
+  fxx_const_reference operator[](unsigned int linearIndex) const;
 
 private:
   ActivationDescriptor m_desc;
@@ -151,7 +120,7 @@ public:
     std::byte *ptr = allocator_traits::allocate(allocator, n);
     std::memset(ptr, 0, n);
     m_storage = std::unique_ptr<std::byte[], std::function<void(std::byte *)>>(
-        ptr, [allocator, n](std::byte *p) mutable{
+        ptr, [allocator, n](std::byte *p) mutable {
           allocator_traits::deallocate(allocator, p, n);
         });
   }
@@ -169,7 +138,7 @@ public:
     if (shape() != view.shape()) {
       throw std::runtime_error("Invalid tensor shape! Shapes do not match!");
     }
-    if (layout() == view.layout() && type() == view.floatType()) {
+    if (layout() == view.layout() && type() == view.type()) {
       std::memcpy(ptr, view.data(), n);
     } else {
       ActivationHostTensorView{m_desc, ptr}.assignFrom(view);
@@ -214,19 +183,20 @@ public:
   FloatType type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
-  template <typename F>
-  auto at(unsigned int s, unsigned int r, unsigned int c, unsigned int k)
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_reference, std::remove_cvref_t<F> &> {
-    return ActivationHostTensorView{this}.at<F>(s, r, c, k);
+  fxx_reference at(unsigned int w, unsigned int h, unsigned int c) {
+    return ActivationHostTensorView{this}.at(w, h, c);
   }
 
-  template <typename F>
-  auto at(unsigned int s, unsigned int r, unsigned int c, unsigned int k) const
-      -> std::conditional_t<std::same_as<std::remove_cvref_t<F>, f16>,
-                            f16_const_reference,
-                            const std::remove_cvref_t<F> &> {
-    return ActivationHostTensorConstView{this}.at<F>(s, r, c, k);
+  fxx_const_reference at(unsigned int w, unsigned int h, unsigned int c) const {
+    return ActivationHostTensorConstView{this}.at(w, h, c);
+  }
+
+  fxx_reference operator[](unsigned int linearIndex) {
+    return ActivationHostTensorView{this}[linearIndex];
+  }
+
+  fxx_const_reference operator[](unsigned int linearIndex) const {
+    return ActivationHostTensorConstView{this}[linearIndex];
   }
 
 private:

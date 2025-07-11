@@ -78,10 +78,10 @@ int main() {
   query_pool->reset();
   profiler->set_query_pool(query_pool);
 
-  unsigned int W = 32;
-  unsigned int H = 16;
-  unsigned int C = 8;
-  unsigned int K = 8;
+  unsigned int W = 480;
+  unsigned int H = 540;
+  unsigned int C = 160;
+  unsigned int K = 96;
 
   unsigned int R = 3;
   unsigned int S = 3;

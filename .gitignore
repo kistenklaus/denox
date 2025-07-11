@@ -11,6 +11,11 @@
 
 /subprojects/*
 !/subprojects/*.wrap
+!/subprojects/patches/
+!/subprojects/patches/**
+
+!/subprojects/packagefiles/
+!/subprojects/packagefiles/**
 
 vgcore.*
 *.test
