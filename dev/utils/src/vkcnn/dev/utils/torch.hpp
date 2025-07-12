@@ -1,22 +1,25 @@
 #pragma once
 
-#include "ATen/core/ATen_fwd.h"
-#include "c10/util/ArrayRef.h"
-#include "c10/util/Exception.h"
 #include "torch/serialize/input-archive.h"
 #include "torch/types.h"
-#include "vkcnn/common/tensor/ActivationDescriptor.hpp"
 #include "vkcnn/common/tensor/ActivationHostTensor.hpp"
 #include "vkcnn/common/tensor/FilterHostTensor.hpp"
-#include <stdexcept>
+#include "vkcnn/common/tensor/FloatType.hpp"
 
 namespace vkcnn::torch {
 
 ::torch::Tensor fromActivation(ActivationHostTensorConstView activationView);
-ActivationHostTensor toActivation(::torch::Tensor tensor, ActivationLayout layout = ActivationLayout::CHW);
+ActivationHostTensor
+toActivation(::torch::Tensor tensor,
+             ActivationLayout layout = ActivationLayout::CHW,
+             FloatType type = FloatType::F16);
 
 ::torch::Tensor fromFilter(FilterHostTensorConstView filterView);
 
-FilterHostTensor toFilter(::torch::Tensor tensor);
+FilterHostTensor toFilter(::torch::Tensor tensor, FilterLayout layout, FloatType type);
+
+::torch::Dtype fromType(FloatType type);
+
+FloatType toType(::torch::Dtype dtype);
 
 } // namespace vkcnn::torch

@@ -8,6 +8,7 @@
 #include "vkcnn/runtime/tensor/SyncUse.hpp"
 #include <cstring>
 #include <fmt/base.h>
+#include <iostream>
 #include <ranges>
 
 namespace vkcnn::runtime {
@@ -85,6 +86,7 @@ void ConvPipeline::run(const ::merian::CommandBufferHandle &cmd,
   glm::uvec2 workgroupCount =
       (glm::uvec2(input.w(), input.h()) + m_tileSize - glm::uvec2(1, 1)) /
       m_tileSize;
+  // fmt::println("DISPATCH: ({},{})", workgroupCount.x, workgroupCount.y);
   cmd->dispatch(workgroupCount.x * workgroupCount.y);
 }
 } // namespace vkcnn::runtime

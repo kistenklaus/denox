@@ -56,6 +56,7 @@ private:
   const auto push_descriptor =
       std::make_shared<::merian::ExtensionVkPushDescriptor>();
 
+
   const std::vector<std::shared_ptr<::merian::Extension>> extensions = {
       core, floatAtomics, resources, debug_utils, push_descriptor, coopMat};
 

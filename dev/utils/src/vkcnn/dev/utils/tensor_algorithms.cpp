@@ -71,7 +71,7 @@ ActivationHostTensor conv(ActivationHostTensorConstView inputView,
   ::torch::Tensor output =
       ::torch::conv2d(input, filter, ::torch::Tensor(), strides_ref, paddings_ref);
 
-  return vkcnn::torch::toActivation(output);
+  return vkcnn::torch::toActivation(output, inputView.layout());
 }
 
 void printActivation(ActivationHostTensorView tensor) {

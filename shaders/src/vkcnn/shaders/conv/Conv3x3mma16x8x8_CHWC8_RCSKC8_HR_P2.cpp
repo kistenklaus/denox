@@ -17,6 +17,10 @@ bool Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2::supports(const OpConv &op) const {
     return false;
   if ((op.filterShape.c % 8) != 0)
     return false;
+
+  if (op.filterShape.c > 128)
+    return false; // numerically instable
+
   if ((op.filterShape.k % 8) != 0)
     return false;
   if (op.filterType != FloatType::F16)

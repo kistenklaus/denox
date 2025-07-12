@@ -14,14 +14,8 @@ survey_conv(const merian::ContextHandle &context) {
   vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2
       mma16x8x8_chwc8_rcskc8_hr_p2;
 
-  vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P3
-      mma16x8x8_chwc8_rcskc8_hr_p3;
-  vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2
-      mma16x8x8_chw8_rsckc8_nr_p2;
   vkcnn::shaders::ConvTemplate *shaders[] = {
       &mma16x8x8_chwc8_rcskc8_hr_p2, //
-      &mma16x8x8_chwc8_rcskc8_hr_p3, //
-      &mma16x8x8_chw8_rsckc8_nr_p2   //
   };
   using namespace vkcnn;
   using namespace vkcnn::dev::survey;

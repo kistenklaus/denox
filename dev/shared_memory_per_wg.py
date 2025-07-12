@@ -10,8 +10,8 @@ S = 3
 R = 3
 
 mmaShapeN = 16
-mmaShapeK = 16
-mmaShapeM = 16
+mmaShapeK = 8
+mmaShapeM = 8
 
 workgroupSize = 256
 subgroupSize = 32

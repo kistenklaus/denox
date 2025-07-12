@@ -42,8 +42,8 @@ ActivationDeviceTensor::use(const ::merian::CommandBufferHandle &cmd,
   m_store->sync = useFlags;
   return m_store->buffer;
 }
-ActivationDeviceTensor::Download
-ActivationDeviceTensor::download(const ::merian::CommandBufferHandle &cmd) const {
+ActivationDeviceTensor::Download ActivationDeviceTensor::download(
+    const ::merian::CommandBufferHandle &cmd) const {
   if (m_store->stageManager == nullptr) {
     throw std::runtime_error(
         "Trying to download from a ActivationDeviceTensor without a staging "

@@ -73,7 +73,12 @@ public:
   const ::merian::BufferHandle &buffer() const { return m_store->buffer; }
 
   const ::merian::BufferHandle &use(const ::merian::CommandBufferHandle &cmd,
-                                  SyncUseFlags useFlags) const;
+                                    SyncUseFlags useFlags) const;
+
+  void zero(const ::merian::CommandBufferHandle &cmd) const {
+    auto buffer = use(cmd, SyncUseFlagBits::TransferWrite);
+    cmd->fill(buffer, 0);
+  }
 
   Download download(const ::merian::CommandBufferHandle &cmd) const;
 

@@ -26,3 +26,5 @@ imgui.ini
 *.csv
 *.pdf
 *.sh
+
+dump

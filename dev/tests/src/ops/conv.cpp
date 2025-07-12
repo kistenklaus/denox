@@ -1,6 +1,6 @@
+
+
 #include "env.hpp"
-#include "torch/csrc/autograd/generated/variable_factories.h"
-#include "torch/torch.h"
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/ops/OpConv.hpp"
 #include "vkcnn/common/tensor/ActivationDescriptor.hpp"
@@ -9,15 +9,20 @@
 #include "vkcnn/common/tensor/FilterShape.hpp"
 #include "vkcnn/common/tensor/FloatType.hpp"
 #include "vkcnn/dev/utils/to_string.hpp"
+#include "vkcnn/dev/utils/torch.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x16x16f16_CHWC16_RCSKC16_HR_P1.hpp"
 #include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.hpp"
 #include "vkcnn/shaders/conv/ConvTemplate.hpp"
-#include "gtest/gtest.h"
+
+#include <ATen/ops/allclose.h>
+#include <ATen/ops/conv2d.h>
+#include <fmt/base.h>
 #include <glm/fwd.hpp>
 #include <gtest/gtest.h>
 #include <memory>
+#include <torch/csrc/autograd/generated/variable_factories.h>
+#include <torch/torch.h>
+#include <unistd.h>
 
 struct ConvTestParams {
   vkcnn::OpConv op;
@@ -34,11 +39,17 @@ protected:
 std::vector<ConvTestParams> generate_test_params() {
 
   std::vector<glm::uvec2> inputSizes = {
-      glm::uvec2(1920, 1080), glm::uvec2(960, 540), glm::uvec2(480, 270),
-      glm::uvec2(240, 135),   glm::uvec2(120, 68),
+      glm::uvec2(1999, 1111),
+      glm::uvec2(960, 540),
+      glm::uvec2(480, 270),       glm::uvec2(240, 135),
+      glm::uvec2(120, 68),        glm::uvec2(120, 72),
+      glm::uvec2(47, 16),         glm::uvec2(31, 7),
+      glm::uvec2(16, 8),          glm::uvec2(8, 8),
+      glm::uvec2(2, 2),           glm::uvec2(1, 1),
   };
 
-  std::vector<unsigned int> channelCounts = {8, 32, 48, 64, 80, 96, 112};
+  std::vector<unsigned int> channelCounts = {8,  16, 24,  32,  48, 64,
+                                             80, 96, 112, 128, 160};
   std::vector<vkcnn::ActivationLayout> layouts = {
       vkcnn::ActivationLayout::CHWC8,
   };
@@ -79,10 +90,10 @@ std::vector<ConvTestParams> generate_test_params() {
   }
 
   std::vector<std::shared_ptr<vkcnn::shaders::ConvTemplate>> shaders = {
-      std::make_shared<
-          vkcnn::shaders::Conv3x3mma16x16x16_CHWC16_RCSKC16_HR_P1>(),
+      // std::make_shared<
+      // vkcnn::shaders::Conv3x3mma16x16x16_CHWC16_RCSKC16_HR_P1>(),
       std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2>(),
-      std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2>(),
+      // std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2>(),
 
   };
 
@@ -108,45 +119,45 @@ TEST_P(OpTest, Shader) {
   auto sourceOpt = param.conv->specialize(param.op);
   ASSERT_TRUE(sourceOpt.has_value());
   auto &source = sourceOpt.value();
-  vkcnn::FilterHostTensor filterHost{{source.filterDesc()}};
-  vkcnn::runtime::FilterDeviceTensor filterDevice(filterHost.desc(),
-                                                  env->alloc());
-  vkcnn::runtime::ConvPipeline pipe{env->ctx(), env->sc(), source,
-                                    filterDevice};
 
   ::torch::Device device(::torch::cuda::is_available() ? ::torch::kCUDA
                                                        : ::torch::kCPU);
 
-  ::torch::Dtype dtype = ::torch::Dtype::Half;
-
-  ::torch::Tensor inputTorch = ::torch::rand(
-      {param.op.filterShape.c, param.inputSize.y, param.inputSize.x},
-      ::torch::TensorOptions().dtype(dtype).device(device));
+  ::torch::manual_seed(43);
   ::torch::Tensor filterTorch =
       ::torch::rand({param.op.filterShape.k, param.op.filterShape.c,
                      param.op.filterShape.r, param.op.filterShape.s},
-                    ::torch::TensorOptions().dtype(dtype).device(device));
+                    ::torch::TensorOptions()
+                        .dtype(vkcnn::torch::fromType(param.op.filterType))
+                        .device(device));
+  vkcnn::FilterHostTensor filterHost = vkcnn::torch::toFilter(
+      filterTorch, source.filterLayout(), param.op.filterType);
 
-  vkcnn::ActivationHostTensor inputHost{
-      vkcnn::ActivationDescriptor{.shape = {param.inputSize.x,
-                                            param.inputSize.y,
-                                            param.op.filterShape.c},
-                                  .layout = param.op.inputLayout,
-                                  .type = param.op.inputType},
-  };
+  vkcnn::runtime::FilterDeviceTensor filterDevice(filterHost.desc(),
+                                                  env->alloc());
 
-  vkcnn::ActivationHostTensor outputHost{
+  ::torch::Tensor inputTorch = ::torch::rand(
+      {param.op.filterShape.c, param.inputSize.y, param.inputSize.x},
+      ::torch::TensorOptions()
+          .dtype(vkcnn::torch::fromType(param.op.inputType))
+          .device(device));
+
+  vkcnn::ActivationHostTensor inputHost = vkcnn::torch::toActivation(
+      inputTorch, param.op.inputLayout, param.op.inputType);
+
+  vkcnn::runtime::ConvPipeline pipe{env->ctx(), env->sc(), source,
+                                    filterDevice};
+
+  vkcnn::runtime::ActivationDeviceTensor inputDevice(inputHost.desc(),
+                                                     env->alloc());
+
+  vkcnn::runtime::ActivationDeviceTensor outputDevice(
       vkcnn::ActivationDescriptor{.shape = {param.inputSize.x,
                                             param.inputSize.y,
                                             param.op.filterShape.k},
                                   .layout = param.op.outputLayout,
                                   .type = param.op.outputType},
-  };
-  vkcnn::runtime::ActivationDeviceTensor inputDevice(inputHost.desc(),
-                                                     env->alloc());
-
-  vkcnn::runtime::ActivationDeviceTensor outputDevice(outputHost.desc(),
-                                                      env->alloc());
+      env->alloc());
 
   merian::CommandPoolHandle cmdPool =
       std::make_shared<merian::CommandPool>(env->queue());
@@ -156,15 +167,22 @@ TEST_P(OpTest, Shader) {
 
   inputDevice.upload(cmd, inputHost);
   filterDevice.upload(cmd, filterHost);
-
   pipe.run(cmd, inputDevice, outputDevice);
-
   auto download = outputDevice.download(cmd);
 
   cmd->end();
   env->queue()->submit_wait(cmd);
 
-  download.complete(outputHost);
+  vkcnn::ActivationHostTensor outputHost = download.complete();
+
+  ::torch::Tensor outputTorch = vkcnn::torch::fromActivation(outputHost);
+
+  ::torch::Tensor outputTorchRef =
+      ::torch::conv2d(inputTorch, filterTorch, std::nullopt, {1, 1}, {1, 1})
+          .unsqueeze(0);
+
+  bool allClose = ::torch::allclose(outputTorch, outputTorchRef, 1e-2, 1e-2);
+  EXPECT_TRUE(allClose);
 }
 
 std::string convTestName(const testing::TestParamInfo<ConvTestParams> &info) {

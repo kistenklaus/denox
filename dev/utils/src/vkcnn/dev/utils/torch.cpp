@@ -7,6 +7,7 @@
 #include "torch/cuda.h"
 #include "torch/types.h"
 #include "vkcnn/common/tensor/ActivationDescriptor.hpp"
+#include "vkcnn/common/tensor/FloatType.hpp"
 #include <stdexcept>
 
 ::torch::Tensor
@@ -107,93 +108,81 @@ vkcnn::torch::fromActivation(ActivationHostTensorConstView activation) {
   return t;
 }
 
+vkcnn::ActivationHostTensor vkcnn::torch::toActivation(::torch::Tensor tensor,
+                                                       ActivationLayout layout,
+                                                       FloatType type) {
+  // --------- 0. device & batch handling ------------------------------------
 
-
-
-
-
-
-
-
-vkcnn::ActivationHostTensor vkcnn::torch::toActivation(::torch::Tensor tensor, ActivationLayout layout) {
-  if (!tensor.device().is_cpu()) {
-    tensor = tensor.cpu();
-  }
   TORCH_CHECK(tensor.dim() == 3 || tensor.dim() == 4,
               "expected 3-D (C,H,W) or 4-D (N,C,H,W) tensor");
 
   if (tensor.dim() == 4) {
     TORCH_CHECK(tensor.size(0) == 1,
                 "batch > 1 not supported by ActivationHostTensor");
-    tensor = tensor.squeeze(0);
+    tensor = tensor.squeeze(0); // (1,C,H,W) → (C,H,W)
   }
 
-  if (tensor.is_contiguous(::torch::MemoryFormat::ChannelsLast)) {
-    // 4-D (N,H,W,C)  or  3-D (H,W,C)
-    if (tensor.dim() == 4) {
-      tensor = tensor.permute({0, 3, 1, 2}); // NHWC → NCHW
-      tensor = tensor.squeeze(0);            // drop N = 1
-    } else {                                 // (H,W,C)
-      tensor = tensor.permute({2, 0, 1});    // HWC  → CHW
-    }
-    tensor = tensor.contiguous();       // real copy, row-major
-  } else if (!tensor.is_contiguous()) { // any other exotic strides
-    tensor = tensor.contiguous();       // simple row-major copy
-  }
-
-  tensor = tensor.contiguous();
-  tensor = tensor.clone();
-
-  FloatType dtype = FloatType::F16;
-
-  if (tensor.dtype() == ::torch::Dtype::Half) {
-    dtype = FloatType::F16;
-  } else if (tensor.dtype() == ::torch::Dtype::Float) {
-    dtype = FloatType::F32;
-  } else if (tensor.dtype() == ::torch::Dtype::Double) {
-    dtype = FloatType::F64;
-  } else {
-    throw std::runtime_error("Unsupported type");
-  }
-
-  // ---------- fill the descriptor -----------------------------------
-  const int64_t C = tensor.size(0);
+  // From here on tensor is 3-D.
+  const int64_t C_in = tensor.size(0);
   const int64_t H = tensor.size(1);
   const int64_t W = tensor.size(2);
+
+  // --------- 1. bring tensor into the requested memory order ---------------
+  if (layout == ActivationLayout::CHW) {
+    if (!tensor.is_contiguous())
+      tensor = tensor.contiguous();
+  } else if (layout == ActivationLayout::HWC) {
+    if (!(tensor.is_contiguous(::torch::MemoryFormat::ChannelsLast) &&
+          tensor.dim() == 3)) {
+      tensor = tensor.permute({1, 2, 0}); // H,W,C
+    }
+    tensor = tensor.contiguous();
+  } else if (layout == ActivationLayout::CHWC8 ||
+             layout == ActivationLayout::CHWC16) {
+    const int blk = (layout == ActivationLayout::CHWC8) ? 8 : 16;
+    // 1. Reorder to HWC so we can pack easily: (H,W,C)
+    if (!(tensor.is_contiguous(::torch::MemoryFormat::ChannelsLast) &&
+          tensor.dim() == 3))
+      tensor = tensor.permute({1, 2, 0}); // H,W,C
+
+    // 2. Pad channel dim up to multiple of blk
+    const int64_t C_pad = (C_in + blk - 1) / blk * blk;
+    if (C_pad != C_in) {
+      auto padSz = tensor.sizes().vec();
+      padSz.back() = C_pad - C_in; // extra channels
+      auto pad = ::torch::zeros(padSz, tensor.options());
+      tensor = ::torch::cat({tensor, pad}, -1);
+    }
+
+    // 3. Reshape to (H,W,C/blk,blk) then permute to (C/blk,H,W,blk)
+    tensor = tensor.view({H, W, C_pad / blk, blk})
+                 .permute({2, 0, 1, 3}) // Cb, H, W, blk
+                 .contiguous();
+  } else {
+    TORCH_CHECK(false, "Unsupported ActivationLayout");
+  }
+
+  tensor.to(fromType(type));
+
+  if (!tensor.device().is_cpu())
+    tensor = tensor.cpu();
+
+  // --------- 3. dtype -------------------------------------------------------
+
   ActivationDescriptor desc{
       .shape = {static_cast<unsigned int>(W), static_cast<unsigned int>(H),
-                static_cast<unsigned int>(C)},
-      .layout = ActivationLayout::CHW,
-      .type = dtype,
+                static_cast<unsigned int>(C_in)},
+      .layout = layout,
+      .type = type,
   };
+
   const std::size_t nBytes = desc.byteSize();
   return ActivationHostTensor{
       desc, std::span(reinterpret_cast<const std::byte *>(tensor.data_ptr()),
                       nBytes)};
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+//
 
 ::torch::Tensor vkcnn::torch::fromFilter(FilterHostTensorConstView filter) {
   const auto [R, S, C, K] = filter.shape(); // (r, s, c, k)
@@ -241,29 +230,28 @@ vkcnn::ActivationHostTensor vkcnn::torch::toActivation(::torch::Tensor tensor, A
   } else if (layout == FilterLayout::RSCKC8 ||
              layout == FilterLayout::RSCKC16) {
     const int blk = (layout == FilterLayout::RSCKC16) ? 16 : 8;
-    TORCH_CHECK(C % blk == 0, "C must be multiple of block size");
 
-    sz = {R, S, C / blk, K, blk};
-    st = {S * C * K, // stride R
-          C * K,     // stride S
-          K * blk,   // stride C/blk
-          blk,       // stride K
-          1};        // stride blk
+    const int64_t C_pad = ((C + blk - 1) / blk) * blk; // <-- use padded C!
 
+    sz = {R, S, C_pad / blk, K, blk};
+    st = {S * C_pad * K, // stride R
+          C_pad * K,     // stride S
+          K * blk,       // stride C_block
+          blk,           // stride K
+          1};            // stride C_inner
     sizes = {sz.data(), 5};
     strides = {st.data(), 5};
   } else if (layout == FilterLayout::RCSKC8 ||
              layout == FilterLayout::RCSKC16) {
     const int blk = (layout == FilterLayout::RCSKC16) ? 16 : 8;
-    TORCH_CHECK(C % blk == 0, "C must be multiple of block size");
+    const int64_t C_pad = ((C + blk - 1) / blk) * blk;
 
-    sz = {R, C / blk, S, K, blk};
-    st = {C * S * K,   // stride R
-          S * K * blk, // stride C/blk
-          K * blk,     // stride S
-          blk,         // stride K
-          1};          // stride blk
-
+    sz = {R, C_pad / blk, S, K, blk};
+    st = {C_pad * S * K, // stride R
+          S * K * blk,   // stride C_block
+          K * blk,       // stride S
+          blk,           // stride K
+          1};            // stride C_inner
     sizes = {sz.data(), 5};
     strides = {st.data(), 5};
   } else {
@@ -301,71 +289,108 @@ vkcnn::ActivationHostTensor vkcnn::torch::toActivation(::torch::Tensor tensor, A
   return t;
 }
 
-vkcnn::FilterHostTensor vkcnn::torch::toFilter(::torch::Tensor tensor) {
-
-  //---------------------------------------------------------------------
-  // 1) Normalise device and shape
-  //---------------------------------------------------------------------
-  if (!tensor.device().is_cpu())
-    tensor = tensor.cpu();
-
+vkcnn::FilterHostTensor vkcnn::torch::toFilter(::torch::Tensor tensor,
+                                               FilterLayout layout,
+                                               FloatType type) {
   TORCH_CHECK(tensor.dim() == 4,
-              "Expected 4-D weight tensor (K,C,R,S or permutation thereof)");
+              "Expected 4-D weight tensor of shape (K,C,R,S)");
 
-  int64_t K = tensor.size(0);
-  int64_t C = tensor.size(1);
-  int64_t R = tensor.size(2);
-  int64_t S = tensor.size(3);
+  const int64_t K = tensor.size(0);
+  const int64_t C = tensor.size(1);
+  const int64_t R = tensor.size(2);
+  const int64_t S = tensor.size(3);
 
-  //---------------------------------------------------------------------
-  // 2) Convert to row-major **K,C,R,S** (one copy at most)
-  //---------------------------------------------------------------------
-  if (!tensor.is_contiguous()) {
-    // Detect a few common permutations quickly; fall back to .contiguous()
-    //  (K,R,S,C)  →  (K,C,R,S)
-    if (tensor.stride(1) == 1) { // cheap heuristic for KRSC
-      tensor = tensor.permute({0, 3, 1, 2}).contiguous();
-    }
-    //  (R,S,C,K) or (R,S,K,C)  →  (K,C,R,S)
-    else if (tensor.stride(0) == tensor.stride(1) * tensor.size(1)) {
-      // RSCK
-      tensor = tensor.permute({3, 2, 0, 1}).contiguous();
-    } else {
-      // generic, handles ChannelsLast3D etc.
+  auto dtype = fromType(type);
+  if (tensor.dtype() != dtype)
+    tensor = tensor.to(dtype); // convert on device
+
+  if (layout == FilterLayout::KCRS) {
+    if (!tensor.is_contiguous())
       tensor = tensor.contiguous();
+
+  } else if (layout == FilterLayout::KRSC) {
+    tensor = tensor.permute({0, 2, 3, 1}).contiguous();
+
+  } else if (layout == FilterLayout::RSCK) {
+    tensor = tensor.permute({2, 3, 1, 0}).contiguous();
+
+  } else if (layout == FilterLayout::RSKC) {
+    tensor = tensor.permute({2, 3, 0, 1}).contiguous();
+
+  } else if (layout == FilterLayout::RSCKC8 ||
+             layout == FilterLayout::RSCKC16) {
+
+    int blk = layout == FilterLayout::RSCKC8 ? 8 : 16;
+    int64_t C_pad = ((C + blk - 1) / blk) * blk;
+
+    tensor = tensor.permute({2, 3, 1, 0}); // R, S, C, K
+
+    if (C_pad != C) {
+      auto pad = ::torch::zeros({R, S, C_pad - C, K}, tensor.options());
+      tensor = ::torch::cat({tensor, pad}, 2); // pad C
     }
+
+    tensor = tensor.view({R, S, C_pad / blk, blk, K})
+                 .permute({0, 1, 2, 4, 3}) // R,S,Cb,K,Ci
+                 .contiguous();
+
+  } else if (layout == FilterLayout::RCSKC8 ||
+             layout == FilterLayout::RCSKC16) {
+    int blk = layout == FilterLayout::RCSKC8 ? 8 : 16;
+    int64_t C_pad = ((C + blk - 1) / blk) * blk;
+
+    tensor = tensor.permute({2, 1, 3, 0}); // R, C, S, K
+
+    if (C_pad != C) {
+      auto pad = ::torch::zeros({R, C_pad - C, S, K}, tensor.options());
+      tensor = ::torch::cat({tensor, pad}, 1); // pad C
+    }
+
+    tensor = tensor.view({R, C_pad / blk, blk, S, K})
+                 .permute({0, 1, 3, 4, 2}) // R,Cb,S,K,Ci
+                 .contiguous();
+
+  } else {
+    TORCH_CHECK(false, "Unsupported FilterLayout");
   }
 
-  //---------------------------------------------------------------------
-  // 3) Fill descriptor (KCRS layout)
-  //---------------------------------------------------------------------
-  FloatType type = FloatType::F16;
-  if (tensor.dtype() == ::torch::Dtype::Half) {
-    type = FloatType::F16;
-  } else if (tensor.dtype() == ::torch::Dtype::Float) {
-    type = FloatType::F32;
-  } else if (tensor.dtype() == ::torch::Dtype::Double) {
-    type = FloatType::F64;
-  } else {
-    throw std::runtime_error("Unsupported torch::Dtype");
-  }
+  if (!tensor.device().is_cpu())
+    tensor = tensor.to(::torch::kCPU);
+
+  tensor = tensor.contiguous(); // make sure it's dense
 
   FilterDescriptor desc{
       .shape = {static_cast<unsigned>(R), static_cast<unsigned>(S),
                 static_cast<unsigned>(C), static_cast<unsigned>(K)},
-      .layout = FilterLayout::KCRS, // <-- change here if needed
+      .layout = layout,
       .type = type,
   };
 
-  //---------------------------------------------------------------------
-  // 4) Copy data into engine buffer
-  //---------------------------------------------------------------------
   const std::size_t nBytes = desc.byteSize();
-  std::vector<std::byte> buffer(nBytes);
-
-  std::memcpy(buffer.data(), tensor.data_ptr(), nBytes);
-
-  return FilterHostTensor(
+  return FilterHostTensor{
       desc, std::span(reinterpret_cast<const std::byte *>(tensor.data_ptr()),
-                      nBytes));
+                      nBytes)};
+}
+
+::torch::Dtype vkcnn::torch::fromType(FloatType type) {
+  if (type == FloatType::F16) {
+    return ::torch::Dtype::Half;
+  } else if (type == FloatType::F32) {
+    return ::torch::Dtype::Float;
+  } else if (type == FloatType::F64) {
+    return ::torch::Dtype::Double;
+  } else {
+    throw std::runtime_error("Invalid float type");
+  }
+}
+vkcnn::FloatType vkcnn::torch::toType(::torch::Dtype dtype) {
+  if (dtype == ::torch::Dtype::Half) {
+    return FloatType::F16;
+  } else if (dtype == ::torch::Dtype::Float) {
+    return FloatType::F32;
+  } else if (dtype == ::torch::Dtype::Double) {
+    return FloatType::F64;
+  } else {
+    throw std::runtime_error("Unsupported dtype");
+  }
 }
