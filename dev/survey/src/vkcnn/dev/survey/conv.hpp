@@ -5,6 +5,7 @@
 #include "vkcnn/common/tensor/ActivationDescriptor.hpp"
 #include "vkcnn/common/tensor/ActivationLayout.hpp"
 #include "vkcnn/common/tensor/ActivationShape.hpp"
+#include "vkcnn/dev/utils/to_string.hpp"
 #include "vkcnn/shaders/conv/ConvTemplate.hpp"
 #include "vulkan/vulkan_handles.hpp"
 #include <algorithm>
@@ -146,11 +147,19 @@ struct ConvSurvey {
         std::string configStr;
         if (var.activation.has_value()) {
           configStr =
-              fmt::format("{}:{} -{}x{}{}-> {} -> {}:{}", "F16", "CHWC8", var.s,
-                          var.r, "F16", "ReLU", "F16", "CHWC8");
+              fmt::format("{}:{} -{}x{}{}-> {} -> {}:{}",
+                          vkcnn::to_string(var.types.inputType),
+                          vkcnn::to_string(var.layouts.inputLayout), var.s,
+                          var.r, vkcnn::to_string(var.types.filterType), "ReLU",
+                          vkcnn::to_string(var.types.outputType),
+                          vkcnn::to_string(var.layouts.outputLayout));
         } else {
-          configStr = fmt::format("{}:{} -({}x{}{})-> {}:{}", "F16", "CHWC8",
-                                  var.s, var.r, "F16", "F16", "CHWC8");
+          configStr = fmt::format(
+              "{}:{} -({}x{}{})-> {}:{}", vkcnn::to_string(var.types.inputType),
+              vkcnn::to_string(var.layouts.inputLayout), var.s, var.r,
+              vkcnn::to_string(var.types.filterType),
+              vkcnn::to_string(var.types.outputType),
+              vkcnn::to_string(var.layouts.outputLayout));
         }
         fmt::println("{:-^70}", configStr);
 

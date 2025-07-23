@@ -5,6 +5,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_shader_16bit_storage                   : require
+#extension GL_EXT_scalar_block_layout : require
 #extension GL_KHR_shader_subgroup_basic                  : enable
 #extension GL_KHR_cooperative_matrix : require
 
@@ -22,26 +23,26 @@ const uint TILE_H = 8;
 const uint PADDING_W = 1;
 const uint PADDING_H = 1;
 
-const uint SUBGROUP_SIZE = 32;
-const uint WORKGROUP_SIZE = 256;
-const uint SUBGROUP_COUNT = (WORKGROUP_SIZE / SUBGROUP_SIZE);
-const uint INPUT_ROWS_PER_SUBGROUP = TILE_W * TILE_H / SUBGROUP_COUNT;
-
 // cooperative matrix size NxKxM
 const uint COOPMAT_N = 16;
 const uint COOPMAT_K = 16;
 const uint COOPMAT_M = 16;
 
+const uint CHANNEL_BLOCK = 16;
+const uint VEC_SIZE = 8; // amount of values (f16) in a uvec4
+
+const uint FRAG_C_COUNT = K / COOPMAT_M;
+
 layout(set = 0, binding = 0) readonly buffer input_tensor {
     uvec4 inputTensor[]; // CHW8 (f16)
 };
 
-layout(set = 0, binding = 1) writeonly buffer output_tensor {
-    float16_t outputTensor[]; // CHW8 (f16)
+layout(std430, set = 0, binding = 1, scalar) writeonly buffer output_tensor {
+    uvec4 outputTensor[]; // CHW8 (f16)
 };
 
 layout(set = 0, binding = 2) readonly buffer weight_tensor {
-    uvec4 weightTensor[]; // KSRC
+    uvec4 weightTensor[]; // RCSKC8 (f16)
 };
 
 layout(push_constant) uniform PushConstant {
@@ -50,116 +51,196 @@ layout(push_constant) uniform PushConstant {
 } pc;
 
 const uint PIPELINE_DEPTH = 2;
-shared f16vec2 sh_A[PIPELINE_DEPTH][TILE_W * TILE_H * COOPMAT_K / 2];
-shared f16vec2 sh_B[PIPELINE_DEPTH][COOPMAT_K * K / 2];
 
-void loadA(uint stage, uint row, uvec2 pixel, uint cSlice)
-{
-    if (gl_SubgroupInvocationID >= 16) return;
+// Static shared memory allocation (super uggly, but allows reuse of shared memory)
+const uint SH_A_SIZE = ((COOPMAT_N + (S - 1)) * COOPMAT_K * TILE_H) / VEC_SIZE;
+const uint SH_B_SIZE = ((COOPMAT_K * S) * K) / VEC_SIZE;
+const uint SH_C_SIZE = COOPMAT_N * COOPMAT_M * TILE_H / VEC_SIZE;
 
-    bool inBounds = pixel.x < pc.Input_W && pixel.y < pc.Input_H; // abuse uint underflow.
+const uint SH_PIPE_SIZE = PIPELINE_DEPTH * SH_A_SIZE + PIPELINE_DEPTH * SH_B_SIZE;
+const uint SH_WB_SIZE = SH_C_SIZE;
+const uint SH_SIZE = SH_PIPE_SIZE > SH_WB_SIZE ? SH_PIPE_SIZE : SH_WB_SIZE;
+const uint SH_A_OFFSET = 0;
+const uint SH_B_OFFSET = PIPELINE_DEPTH * SH_A_SIZE;
+const uint SH_C_OFFSET = 0;
 
-    if (inBounds) {
-        uint gIndex = ((pixel.y * pc.Input_W + pixel.x) * COOPMAT_K + cSlice * (pc.Input_W * pc.Input_H * COOPMAT_K)) / 8;
-        uvec4 v = inputTensor[gIndex];
-        sh_A[stage][row * COOPMAT_K / 2 + 0u] = unpackFloat2x16(uint32_t(v.x));
-        sh_A[stage][row * COOPMAT_K / 2 + 1u] = unpackFloat2x16(uint32_t(v.y));
-        sh_A[stage][row * COOPMAT_K / 2 + 2u] = unpackFloat2x16(uint32_t(v.z));
-        sh_A[stage][row * COOPMAT_K / 2 + 3u] = unpackFloat2x16(uint32_t(v.w));
-    } else {
-        sh_A[stage][row * COOPMAT_K / 2 + 0u] = unpackFloat2x16(0);
-        sh_A[stage][row * COOPMAT_K / 2 + 1u] = unpackFloat2x16(0);
-        sh_A[stage][row * COOPMAT_K / 2 + 2u] = unpackFloat2x16(0);
-        sh_A[stage][row * COOPMAT_K / 2 + 3u] = unpackFloat2x16(0);
+shared uvec4 sh[SH_SIZE];
+
+coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_M, gl_MatrixUseAccumulator > cFrag[FRAG_C_COUNT];
+
+void loadA(in uint stage, in uint ix, in uint iy, in uint r, in uint iOffset, in uint row) {
+    if (gl_SubgroupInvocationID < (TILE_W + (S - 1))) {
+        const bool inBounds = ix < pc.Input_W && iy < pc.Input_H;
+        if (inBounds) {
+            uint gIndex = ((r * pc.Input_W * COOPMAT_K / VEC_SIZE) + iOffset);
+            uvec4 v = inputTensor[gIndex];
+            sh[SH_A_OFFSET + stage * SH_A_SIZE + row * COOPMAT_K / VEC_SIZE] = v;
+        } else {
+            sh[SH_A_OFFSET + stage * SH_A_SIZE + row * COOPMAT_K / VEC_SIZE] = uvec4(0);
+        }
     }
 }
 
-void loadB(uint stage, uint k) {
-    const uint offset = k * K;
-    for (uint o = gl_LocalInvocationID.x; o < COOPMAT_K * K / 8; o += WORKGROUP_SIZE) {
+void loadB(in uint stage, in uint r, in uint wOffset) {
+    const uint offset = ((r * C * S * K) / 8 + wOffset);
+    for (uint o = gl_LocalInvocationID.x; o < (COOPMAT_K * K / 8) * 3; o += gl_WorkGroupSize.x) {
         uvec4 v = weightTensor[o + offset];
-        sh_B[stage][o * 4 + 0] = unpackFloat2x16(uint32_t(v.x));
-        sh_B[stage][o * 4 + 1] = unpackFloat2x16(uint32_t(v.y));
-        sh_B[stage][o * 4 + 2] = unpackFloat2x16(uint32_t(v.z));
-        sh_B[stage][o * 4 + 3] = unpackFloat2x16(uint32_t(v.w));
+        sh[SH_B_OFFSET + stage * SH_B_SIZE + o * 4 / 4] = v;
     }
 }
 
-layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+void consumeGEMM(in uint stage) {
+    uint aOffset = gl_SubgroupID * (TILE_W + (S - 1)) * COOPMAT_K / 8;
+    uint bOffset = 0;
+    for (uint s = 0; s < S; ++s, aOffset += COOPMAT_K / 8, bOffset += COOPMAT_K * K / 8) {
+        coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_K, gl_MatrixUseA > aFrag;
+        coopMatLoad(aFrag, sh, SH_A_OFFSET + stage * SH_A_SIZE + aOffset, COOPMAT_K / 8,
+            gl_CooperativeMatrixLayoutRowMajor);
+
+        for (uint o = bOffset, n = 0; n < FRAG_C_COUNT; o += (COOPMAT_M * COOPMAT_K / 8), ++n) {
+            coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_K, COOPMAT_M, gl_MatrixUseB > bFrag;
+            coopMatLoad(bFrag, sh, SH_B_OFFSET + stage * SH_B_SIZE + o, (COOPMAT_K / 8),
+                gl_CooperativeMatrixLayoutColumnMajor);
+
+            cFrag[n] = coopMatMulAdd(aFrag, bFrag, cFrag[n]);
+        }
+    }
+}
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main(void) {
-    const uint wgPerRow = pc.Input_W / TILE_W;
+    // ================== SETUP ==================
+    const uint wgPerRow = (pc.Input_W + TILE_W - 1) / TILE_W;
     const uvec2 wg2d = uvec2(gl_WorkGroupID.x % wgPerRow, gl_WorkGroupID.x / wgPerRow);
     const uvec2 wpixel = wg2d * uvec2(TILE_W, TILE_H);
 
-    const uint sid = gl_SubgroupID;
-    const uint iid = gl_SubgroupInvocationID;
-
-    const uint row = (sid << 4) + (iid & 0xF); // sid * 16 + iid % 16.
-    const uvec2 lpixel = wpixel + uvec2(iid & 0xF, sid) - uvec2(PADDING_W, PADDING_H);
-
-    const uint cFragCount = K / COOPMAT_M;
-    coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_M, gl_MatrixUseAccumulator > cFrag[cFragCount];
-
-    for (uint n = 0; n < cFragCount; ++n) {
+    for (uint n = 0; n < FRAG_C_COUNT; ++n) {
         cFrag[n] = coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_M, gl_MatrixUseAccumulator > (float16_t(0));
     }
+    subgroupBarrier();
 
-    const uint aFragOffset = (sid << 4) * (COOPMAT_K / 2);
+    const uint ix = wpixel.x + gl_SubgroupInvocationID - PADDING_W;
+    const uint row = gl_SubgroupID * (TILE_W + (S - 1)) + gl_SubgroupInvocationID; // subinvoc is in 0..17
+
+    const uint y = wpixel.y + gl_SubgroupID;
+
+    const uint yp = y - PADDING_H;
 
     uint stage = 0u;
+    uint iOffset = ix * COOPMAT_K / 8 + yp * pc.Input_W * COOPMAT_K / 8;
+    uint wOffset = 0;
 
-    loadA(stage, row, lpixel, 0);
-    loadB(stage, 0);
+    // ============= PIPE-PROLOG ==============
+    {
+        // const uint r = 0;
+        // const uint iy = yp + r;
+        // if (gl_SubgroupInvocationID < (TILE_W + (S - 1))) {
+        //     const bool inBounds = ix < pc.Input_W && iy < pc.Input_H;
+        //     if (inBounds) {
+        //         uint gIndex = ((r * pc.Input_W * COOPMAT_K / 8) + iOffset);
+        //         uvec4 v = inputTensor[gIndex];
+        //         sh[SH_A_OFFSET + stage * SH_A_SIZE + row * COOPMAT_K / 8] = v;
+        //     } else {
+        //         sh[SH_A_OFFSET + stage * SH_A_SIZE + row * COOPMAT_K / 8] = uvec4(0);
+        //     }
+        // }
+        loadA(stage, ix, yp, 0, iOffset, row);
+    }
 
-    uint c = 1;
-    uint k = 1;
-    for (uint r = 0; r < R; ++r) {
-        for (uint s = 0; s < S; ++s) {
-            uvec2 pixel = lpixel + uvec2(s, r);
-            for (; c < (C / COOPMAT_K); ++c) {
-                loadA(stage ^ 1, row, pixel, c);
-                loadB(stage ^ 1, k++);
+    {
+        // const uint r = 0;
+        // const uint offset = ((r * C * S * K) / 8 + wOffset);
+        // for (uint o = gl_LocalInvocationID.x; o < (COOPMAT_K * K / 8) * 3; o += gl_WorkGroupSize.x) {
+        //     uvec4 v = weightTensor[o + offset];
+        //     sh[SH_B_OFFSET + stage * SH_B_SIZE + o * 4 / 4] = v;
+        // }
+        loadB(stage, 0, wOffset);
+    }
+    memoryBarrierShared();
+    barrier();
 
-                memoryBarrierShared();
-                barrier();
-
-                coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_K, gl_MatrixUseA > aFrag;
-                coopMatLoad(aFrag, sh_A[stage], aFragOffset, COOPMAT_K / 2,
-                    gl_CooperativeMatrixLayoutRowMajor);
-
-                for (uint o = 0, n = 0; n < cFragCount; o += (COOPMAT_M * COOPMAT_K / 2), ++n) {
-                    coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_K, COOPMAT_M, gl_MatrixUseB > bFrag;
-
-                    coopMatLoad(bFrag, sh_B[stage], o, (COOPMAT_K / 2),
-                        gl_CooperativeMatrixLayoutColumnMajor);
-
-                    cFrag[n] = coopMatMulAdd(aFrag, bFrag, cFrag[n]);
-                }
-                stage ^= 1;
+    uint r = 1;
+    for (uint c = 0; c < (C / COOPMAT_K); ++c, iOffset += pc.Input_W * pc.Input_H * COOPMAT_K / 8, wOffset += S * K * 8 / 8) {
+        for (; r < R; ++r) {
+            // ============= PIPE-STAGE-LOADING ===============
+            uint nextStage = stage ^ 1;
+            if (y < pc.Input_H) {
+                const uint iy = yp + r;
+                // if (gl_SubgroupInvocationID < (TILE_W + (S - 1))) {
+                //     const bool inBounds = ix < pc.Input_W && iy < pc.Input_H;
+                //     if (inBounds) {
+                //         uint gIndex = ((r * pc.Input_W * COOPMAT_K / 8) + iOffset);
+                //         uvec4 v = inputTensor[gIndex];
+                //         sh[SH_A_OFFSET + nextStage * SH_A_SIZE + row * COOPMAT_K / 8] = v;
+                //     } else {
+                //         sh[SH_A_OFFSET + nextStage * SH_A_SIZE + row * COOPMAT_K / 8] = uvec4(0);
+                //     }
+                // }
+                loadA(stage ^ 1, ix, iy, r, iOffset, row);
             }
-            c = 0;
+            {
+                // const uint offset = ((r * C * S * K) / 8 + wOffset);
+                // for (uint o = gl_LocalInvocationID.x; o < (COOPMAT_K * K / 8) * 3; o += gl_WorkGroupSize.x) {
+                //     uvec4 v = weightTensor[o + offset];
+                //     sh[SH_B_OFFSET + nextStage * SH_B_SIZE + o * 4 / 4] = v;
+                // }
+                loadB(stage ^ 1, r, wOffset);
+            }
+            // ============= PIPE-STAGE-CONSUMING =============
+
+            if (y < pc.Input_H) {
+                consumeGEMM(stage);
+            }
+
+            memoryBarrierShared();
+            barrier();
+            stage ^= 1;
         }
+        r = 0;
     }
 
-    coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_N, COOPMAT_K, gl_MatrixUseA > aFrag;
-    coopMatLoad(aFrag, sh_A[stage], aFragOffset, COOPMAT_K / 2,
-        gl_CooperativeMatrixLayoutRowMajor);
-
-    for (uint o = 0, n = 0; n < cFragCount; o += (COOPMAT_M * COOPMAT_K / 2), ++n) {
-        coopmat < float16_t, gl_ScopeSubgroup, COOPMAT_K, COOPMAT_M, gl_MatrixUseB > bFrag;
-        coopMatLoad(bFrag, sh_B[stage], o, (COOPMAT_K / 2),
-            gl_CooperativeMatrixLayoutColumnMajor);
-        cFrag[n] = coopMatMulAdd(aFrag, bFrag, cFrag[n]);
+    if (y >= pc.Input_H) {
+        return;
     }
 
-    uint offset = wpixel.x * COOPMAT_M + wpixel.y * pc.Input_W * COOPMAT_M + gl_SubgroupID * COOPMAT_M * pc.Input_W;
-    uint stride = pc.Input_W * pc.Input_H * COOPMAT_M;
+    // ================= PIPE-EPILOG ==================
+    consumeGEMM(stage);
 
-    for (uint n = 0; n < cFragCount; ++n) {
-        coopMatStore(cFrag[n], outputTensor,
-            offset,
-            COOPMAT_M,
-            gl_CooperativeMatrixLayoutRowMajor);
-        offset += stride;
+    barrier();
+
+    // ================= WRITE-BACK ===================
+    bool boundaryTile = (wpixel.x + TILE_W) > pc.Input_W;
+    if (boundaryTile) {
+        uint offset = (wpixel.x * (COOPMAT_M) + (wpixel.y + gl_SubgroupID) * (pc.Input_W * COOPMAT_M)) / 8;
+        uint stride = pc.Input_W * pc.Input_H * COOPMAT_M / 8;
+
+        for (uint n = 0; n < FRAG_C_COUNT; ++n) {
+            uint sharedOffet = gl_SubgroupID * COOPMAT_N * COOPMAT_M / 8;
+            coopMatStore(cFrag[n], sh,
+                sharedOffet,
+                COOPMAT_M / 8,
+                gl_CooperativeMatrixLayoutRowMajor);
+
+            subgroupMemoryBarrierShared();
+            subgroupBarrier();
+
+            if (gl_SubgroupInvocationID < TILE_W) {
+                uvec4 v = sh[SH_C_OFFSET + sharedOffet + gl_SubgroupInvocationID];
+                if (wpixel.x + gl_SubgroupInvocationID < pc.Input_W) {
+                    outputTensor[offset + gl_SubgroupInvocationID] = v;
+                }
+            }
+            offset += stride;
+        }
+    } else {
+        uint offset = (wpixel.x * COOPMAT_M + (wpixel.y + gl_SubgroupID) * pc.Input_W * COOPMAT_M) / 8;
+        uint stride = (pc.Input_W * pc.Input_H * COOPMAT_M) / 8;
+        for (uint n = 0; n < FRAG_C_COUNT; ++n) {
+            coopMatStore(cFrag[n], outputTensor,
+                offset,
+                COOPMAT_M / 8,
+                gl_CooperativeMatrixLayoutRowMajor);
+            offset += stride;
+        }
     }
 }

@@ -103,7 +103,7 @@ vkcnn::torch::fromActivation(ActivationHostTensorConstView activation) {
   t = t.unsqueeze(0); // add batch dim.
   t = t.contiguous();
   if (::torch::cuda::is_available()) {
-    t = t.to(::torch::kCUDA, true);
+    t = t.to(::torch::kCUDA);
   }
   return t;
 }

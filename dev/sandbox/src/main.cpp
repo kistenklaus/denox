@@ -20,6 +20,7 @@
 #include "vkcnn/shaders/conv/Conv3x3mma16x16x16f16_CHWC16_RCSKC16_HR_P1.hpp"
 #include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
 #include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.hpp"
+#include "vkcnn/shaders/conv/Conv3x3mmaVectorized.hpp"
 
 int main() {
 
@@ -27,7 +28,7 @@ int main() {
   merian::ContextHandle context = vkcnn::merian::createContext();
 
   merian::ShaderCompilerHandle shaderCompiler =
-      std::make_shared<merian::ShadercCompiler>(context);
+      std::make_shared<merian::SystemGlslcCompiler>(context);
   auto resources = context->get_extension<merian::ExtensionResources>();
   merian::ResourceAllocatorHandle deviceAlloc = resources->resource_allocator();
 
@@ -50,35 +51,40 @@ int main() {
   unsigned int S = 3;
 
   vkcnn::ActivationHostTensor outputHost{{vkcnn::ActivationShape{W, H, K},
-                                          vkcnn::ActivationLayout::CHWC8,
+                                          vkcnn::ActivationLayout::CHWC16,
                                           vkcnn::FloatType::F16}};
 
-  vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2 conv;
+  vkcnn::shaders::Conv3x3mmaVectorized conv{glm::uvec3(16, 16, 16)};
+
   vkcnn::ConvShaderSource convSrc =
       conv.specialize(vkcnn::OpConv{{S, R, C, K},
                                     vkcnn::FloatType::F16,
-                                    vkcnn::ActivationLayout::CHWC8,
+                                    vkcnn::ActivationLayout::CHWC16,
                                     vkcnn::FloatType::F16,
                                     outputHost.layout(),
                                     outputHost.type(),
                                     std::nullopt})
           .value();
 
-  ::torch::manual_seed(42);
-  ::torch::Tensor filterTorch = ::torch::rand(
-      {K, C, R, S}, ::torch::TensorOptions()
-                        .dtype(vkcnn::torch::fromType(convSrc.filterType()))
-                        .device(::torch::kCUDA));
-  vkcnn::FilterHostTensor filterHost = vkcnn::torch::toFilter(
-      filterTorch, convSrc.filterLayout(), convSrc.filterType());
+  // ::torch::manual_seed(42);
+  // ::torch::Tensor filterTorch = ::torch::rand(
+  //     {K, C, R, S}, ::torch::TensorOptions()
+  //                       .dtype(vkcnn::torch::fromType(convSrc.filterType()))
+  //                       .device(::torch::kCUDA));
+  //
+  vkcnn::FilterHostTensor filterHost{convSrc.filterDesc()};
+  // vkcnn::FilterHostTensor filterHost = vkcnn::torch::toFilter(
+  //     filterTorch, convSrc.filterLayout(), convSrc.filterType());
 
-  ::torch::Tensor inputTorch = ::torch::rand(
-      {C, H, W}, ::torch::TensorOptions()
-                     .dtype(vkcnn::torch::fromType(convSrc.inputType()))
-                     .device(::torch::kCUDA));
+  // ::torch::Tensor inputTorch = ::torch::rand(
+  //     {C, H, W}, ::torch::TensorOptions()
+  //                    .dtype(vkcnn::torch::fromType(convSrc.inputType()))
+  //                    .device(::torch::kCUDA));
 
-  vkcnn::ActivationHostTensor inputHost = vkcnn::torch::toActivation(
-      inputTorch, convSrc.inputLayout(), convSrc.inputType());
+  // vkcnn::ActivationHostTensor inputHost = vkcnn::torch::toActivation(
+  //     inputTorch, convSrc.inputLayout(), convSrc.inputType());
+  vkcnn::ActivationHostTensor inputHost{
+      {{H, W, C}, convSrc.inputLayout(), convSrc.inputType()}};
 
   // =========== RUNTIME ==============
 
@@ -101,7 +107,7 @@ int main() {
   inputDevice.upload(cmd, inputHost);
   outputDevice.zero(cmd);
 
-  for (unsigned int i = 0; i < 1; ++i) {
+  for (unsigned int i = 0; i < 10; ++i) {
     MERIAN_PROFILE_SCOPE_GPU(profiler, cmd, "conv-pipe");
     convPipe.run(cmd, inputDevice, outputDevice);
   }
@@ -113,24 +119,25 @@ int main() {
 
   download.complete(outputHost);
 
+  // ::torch::Tensor outputTorch = vkcnn::torch::fromActivation(outputHost);
 
-  ::torch::Tensor outputTorch = vkcnn::torch::fromActivation(outputHost);
+  // ::torch::Tensor outputTorchRef =
+  //     ::torch::conv2d(inputTorch, filterTorch, std::nullopt, {1, 1}, {1, 1});
 
-  ::torch::Tensor outputTorchRef =
-      ::torch::conv2d(inputTorch, filterTorch, std::nullopt, {1, 1}, {1, 1});
+  // vkcnn::ActivationHostTensor outRef =
+  //     vkcnn::torch::toActivation(outputTorchRef);
+  //
+  // ::torch::Tensor diffTorch = outputTorchRef - outputTorch;
 
-  vkcnn::ActivationHostTensor outRef =
-      vkcnn::torch::toActivation(outputTorchRef);
-
-  ::torch::Tensor diffTorch = outputTorchRef - outputTorch;
-
-  vkcnn::ActivationHostTensor diff = vkcnn::torch::toActivation(diffTorch);
-
+  // vkcnn::ActivationHostTensor diff = vkcnn::torch::toActivation(diffTorch);
 
   if (W <= 32) {
+    fmt::println("REF:");
+    // vkcnn::tensor_algo::printActivation(outRef);
+    fmt::println("OUT:");
     vkcnn::tensor_algo::printActivation(outputHost);
-    vkcnn::tensor_algo::printActivation(outRef);
-    vkcnn::tensor_algo::printActivation(diff);
+    fmt::println("DIFF:");
+    // vkcnn::tensor_algo::printActivation(diff);
   }
 
   profiler->collect(true, false);

@@ -6,6 +6,7 @@
 #include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
 #include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P3.hpp"
 #include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.hpp"
+#include "vkcnn/shaders/conv/Conv3x3mmaVectorized.hpp"
 #include "vkcnn/shaders/conv/ConvTemplate.hpp"
 
 vkcnn::dev::survey::ConvSurvey
@@ -13,9 +14,15 @@ survey_conv(const merian::ContextHandle &context) {
 
   vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2
       mma16x8x8_chwc8_rcskc8_hr_p2;
+  vkcnn::shaders::Conv3x3mmaVectorized mma16x8x8_vectorized{
+      glm::uvec3(16, 8, 8)};
+  vkcnn::shaders::Conv3x3mmaVectorized mma16x16x16_vectorized{
+      glm::uvec3(16, 16, 16)};
 
   vkcnn::shaders::ConvTemplate *shaders[] = {
       &mma16x8x8_chwc8_rcskc8_hr_p2, //
+      &mma16x8x8_vectorized,         //
+      &mma16x16x16_vectorized,       //
   };
   using namespace vkcnn;
   using namespace vkcnn::dev::survey;
@@ -58,6 +65,7 @@ survey_conv(const merian::ContextHandle &context) {
       .layouts =
           {
               {ActivationLayout::CHWC8, ActivationLayout::CHWC8},
+              {ActivationLayout::CHWC16, ActivationLayout::CHWC16},
           },
       .activationFunctions = {
           std::nullopt, //
