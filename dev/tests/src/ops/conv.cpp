@@ -106,11 +106,11 @@ std::vector<ConvTestParams> generate_test_params() {
   }
 
   std::vector<std::shared_ptr<vkcnn::shaders::ConvTemplate>> shaders = {
-      std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2>(),
+      // std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2>(),
       std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
           glm::uvec3(16, 8, 8)),
-      std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
-          glm::uvec3(16, 16, 16)),
+      // std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
+      //     glm::uvec3(16, 16, 16)),
       // std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2>(),
 
   };

@@ -56,7 +56,7 @@ layout(push_constant) uniform PushConstant {
     uint Input_H;
 } pc;
 
-const uint PIPELINE_DEPTH = 2;
+const uint PIPELINE_DEPTH = 3;
 
 // Static shared memory allocation (super ugly, but allows reuse of shared memory)
 const uint SH_A_SIZE = ((COOPMAT_N + (S - 1)) * TILE_H * COOPMAT_K) / F16VEC;
@@ -170,25 +170,32 @@ void main(void) {
     const uint lane = gl_SubgroupInvocationID & (VEC_LANES - 1);
     const uint shAOffset = (gl_SubgroupID * (COOPMAT_K * (COOPMAT_N + (S - 1)))) / F16VEC;
 
-    uint stage = 0u;
     uint iOffsetBase = ((wpixel.y - PADDING_H) + gl_SubgroupID) * ((pc.Input_W * COOPMAT_K) / F16VEC);
     uint wOffset = lane * K * S + gl_LocalInvocationID.x / VEC_LANES;
 
     // ============= PIPE-PROLOG ==============
-    {
-        loadA(stage, lane, shAOffset, iy, ix, 0, 0, iOffsetBase);
-    }
+    uint c = 0;
+    uint iOffset = iOffsetBase;
 
-    {
-        loadB(stage, lane, wOffset);
+    uint stage = 0u;
+    for (; stage < PIPELINE_DEPTH - 1; ++stage) {
+        {
+            loadA(stage, lane, shAOffset, iy, ix, 0, c, iOffset);
+        }
+
+        {
+            loadB(stage, lane, wOffset);
+        }
+
+        wOffset += S * K * F16VEC * VEC_LANES / F16VEC;
+        iOffset += pc.Input_H * pc.Input_W * COOPMAT_K / F16VEC;
+        c++;
     }
+    stage -= 1;
+
     memoryBarrierShared();
     barrier();
-    wOffset += S * K * F16VEC * VEC_LANES / F16VEC;
 
-    uint c = 1;
-
-    uint iOffset = iOffsetBase + c * pc.Input_H * pc.Input_W * COOPMAT_K / F16VEC;
     for (uint r = 0; r < R; ++r) {
         for (; c < (C / COOPMAT_K); ++c, wOffset += S * K * F16VEC * VEC_LANES / F16VEC, iOffset += pc.Input_H * pc.Input_W * COOPMAT_K / F16VEC) {
             uint nextStage = (stage + 1) % PIPELINE_DEPTH;
@@ -201,12 +208,19 @@ void main(void) {
             }
             // ============ PIPE-STAGE-CONSUMING ==============
 
+            if (PIPELINE_DEPTH == 1) {
+                memoryBarrierShared();
+                barrier();
+            }
+
             if (y < pc.Input_H) {
                 consumeGEMM(stage, shAOffset);
             }
 
-            memoryBarrierShared();
-            barrier();
+            if (PIPELINE_DEPTH != 1) {
+                memoryBarrierShared();
+                barrier();
+            }
             stage = nextStage;
         }
         c = 0;
@@ -219,7 +233,10 @@ void main(void) {
     }
 
     // ================= PIPE-EPILOG ==================
-    consumeGEMM(stage, shAOffset);
+    for (uint i = 0; i < PIPELINE_DEPTH - 1; ++i) {
+        consumeGEMM(stage, shAOffset);
+        stage = (stage + 1) % PIPELINE_DEPTH;
+    }
 
     barrier();
 
