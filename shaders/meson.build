@@ -1,11 +1,12 @@
 
 vkcnn_shaders_src = files(
-  'src/vkcnn/shaders/conv/Conv3x3mma16x16x16f16_CHWC16_RCSKC16_HR_P1.cpp',
-  'src/vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.cpp',
-  'src/vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P3.cpp',
-  'src/vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.cpp',
-  'src/vkcnn/shaders/conv/Conv3x3mmaVectorized.cpp',
-  'src/vkcnn/shaders/conv/ConvTemplate.cpp'
+  # 'src/vkcnn/shaders/conv/Conv3x3mma16x16x16f16_CHWC16_RCSKC16_HR_P1.cpp',
+  # 'src/vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.cpp',
+  # 'src/vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P3.cpp',
+  # 'src/vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.cpp',
+  # 'src/vkcnn/shaders/conv/Conv3x3mmaVectorized.cpp',
+  'src/vkcnn/shaders/conv/ConvTemplate.cpp',
+  'src/vkcnn/shaders/conv/ConvGEMM.cpp',
 )
 
 vkcnn_shaders_inc = include_directories('src')

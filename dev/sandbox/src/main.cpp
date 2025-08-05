@@ -1,26 +1,25 @@
 
-#include "c10/core/DeviceType.h"
+#include "c10/util/strong_type.h"
 #include "merian/vk/extension/extension_resources.hpp"
 #include "merian/vk/memory/resource_allocator.hpp"
 #include "merian/vk/shader/shader_compiler.hpp"
-#include "merian/vk/shader/shader_compiler_shaderc.hpp"
-#include "merian/vk/shader/shader_compiler_system_glslangValidator.hpp"
 #include "merian/vk/shader/shader_compiler_system_glslc.hpp"
 #include "merian/vk/utils/profiler.hpp"
-#include "torch/cuda.h"
+#include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/shader/conv/ConvShaderSource.hpp"
 #include "vkcnn/common/tensor/ActivationHostTensor.hpp"
+#include "vkcnn/common/tensor/ActivationLayout.hpp"
+#include "vkcnn/common/tensor/BiasHostTensor.hpp"
 #include "vkcnn/common/tensor/FilterHostTensor.hpp"
+#include "vkcnn/common/tensor/FloatType.hpp"
 #include "vkcnn/dev/utils/merian.hpp"
 #include "vkcnn/dev/utils/tensor_algorithms.hpp"
-#include "vkcnn/dev/utils/torch.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
 #include "vkcnn/runtime/tensor/ActivationDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/FilterDeviceTensor.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x16x16f16_CHWC16_RCSKC16_HR_P1.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mmaVectorized.hpp"
+#include "vkcnn/shaders/conv/ConvGEMM.hpp"
+#include <fmt/base.h>
+#include <print>
 
 int main() {
 
@@ -42,28 +41,51 @@ int main() {
   query_pool->reset();
   profiler->set_query_pool(query_pool);
 
-  unsigned int W = 1920;
-  unsigned int H = 1080;
-  unsigned int C = 32;
-  unsigned int K = 32;
+  const unsigned int W = 16;
+  const unsigned int H = 16;
+  const unsigned int C = 1;
+  const unsigned int K = 1;
 
-  unsigned int R = 3;
-  unsigned int S = 3;
+  const unsigned int R = 3;
+  const unsigned int S = 3;
 
-  vkcnn::ActivationHostTensor outputHost{{vkcnn::ActivationShape{W, H, K},
-                                          vkcnn::ActivationLayout::CHWC16,
-                                          vkcnn::FloatType::F16}};
+  const glm::uvec2 stride = glm::uvec2(1, 1);
+  const glm::uvec2 padding = glm::uvec2(1, 1);
+  const bool useBias = true;
 
-  vkcnn::shaders::Conv3x3mmaVectorized conv{glm::uvec3(16, 16, 16)};
+  const vkcnn::ActivationLayout inLayout = vkcnn::ActivationLayout::HWC;
+  const vkcnn::ActivationLayout outLayout = vkcnn::ActivationLayout::HWC;
+
+  const vkcnn::FloatType outType = vkcnn::FloatType::F16;
+  const vkcnn::FloatType inType = vkcnn::FloatType::F16;
+  const vkcnn::FloatType filterType = vkcnn::FloatType::F16;
+  const vkcnn::FloatType biasType = vkcnn::FloatType::F16;
+  const vkcnn::FloatType arithmeticType = vkcnn::FloatType::F16;
+
+  std::optional<vkcnn::ActivationFunction> activationFunction = std::nullopt;
+
+  const glm::uvec3 cmShape = glm::uvec3(16, 16, 16);
+  const glm::uvec3 sgTile = glm::uvec3(1, 1, 1);
+  const glm::uvec2 wgTile = glm::uvec2(8, 1);
+
+  vkcnn::ActivationHostTensor outputHost{
+      {vkcnn::ActivationShape{W, H, K}, outLayout, outType}};
+
+  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile};
 
   vkcnn::ConvShaderSource convSrc =
       conv.specialize(vkcnn::OpConv{{S, R, C, K},
-                                    vkcnn::FloatType::F16,
-                                    vkcnn::ActivationLayout::CHWC16,
-                                    vkcnn::FloatType::F16,
-                                    outputHost.layout(),
-                                    outputHost.type(),
-                                    std::nullopt})
+                                    filterType, // filter type
+                                    (useBias ? std::optional(biasType)
+                                             : std::nullopt), // bias type
+                                    inLayout,
+                                    inType, // input type
+                                    outLayout,
+                                    outType,
+                                    activationFunction,
+                                    arithmeticType,
+                                    stride,
+                                    padding})
           .value();
 
   // ::torch::manual_seed(42);
@@ -73,6 +95,7 @@ int main() {
   //                       .device(::torch::kCUDA));
   //
   vkcnn::FilterHostTensor filterHost{convSrc.filterDesc()};
+
   // vkcnn::FilterHostTensor filterHost = vkcnn::torch::toFilter(
   //     filterTorch, convSrc.filterLayout(), convSrc.filterType());
 
@@ -81,10 +104,27 @@ int main() {
   //                    .dtype(vkcnn::torch::fromType(convSrc.inputType()))
   //                    .device(::torch::kCUDA));
 
+  std::optional<vkcnn::BiasHostTensor> biasHost;
+
+  if (useBias) {
+    biasHost.emplace(*convSrc.biasDesc());
+    for (uint k = 0; k < K; ++k) {
+      biasHost.value().at(k) = static_cast<float>(0);
+    }
+  }
+  fmt::println("BiasHost.byteSize: {}", biasHost->byteSize());
+
   // vkcnn::ActivationHostTensor inputHost = vkcnn::torch::toActivation(
   //     inputTorch, convSrc.inputLayout(), convSrc.inputType());
   vkcnn::ActivationHostTensor inputHost{
-      {{H, W, C}, convSrc.inputLayout(), convSrc.inputType()}};
+      {{W, H, C}, convSrc.inputLayout(), convSrc.inputType()}};
+  for (unsigned int h = 0; h < H; ++h) {
+    for (unsigned int w = 0; w < W; ++w) {
+      for (unsigned int c = 0; c < C; ++c) {
+        inputHost.at(w, h, c) = 1.0;
+      }
+    }
+  }
 
   // =========== RUNTIME ==============
 
@@ -97,12 +137,20 @@ int main() {
   vkcnn::runtime::FilterDeviceTensor filterDevice(filterHost.desc(),
                                                   deviceAlloc);
 
+  std::optional<vkcnn::runtime::BiasDeviceTensor> biasDevice;
+  if (biasHost.has_value()) {
+    biasDevice.emplace(biasHost->desc(), deviceAlloc);
+  }
+
   vkcnn::runtime::ConvPipeline convPipe{context, shaderCompiler, convSrc,
-                                        filterDevice};
+                                        filterDevice, biasDevice};
 
   auto cmd = std::make_shared<merian::CommandBuffer>(cmdPool);
   cmd->begin();
 
+  if (biasDevice.has_value()) {
+    biasDevice->upload(cmd, *biasHost);
+  }
   filterDevice.upload(cmd, filterHost);
   inputDevice.upload(cmd, inputHost);
   outputDevice.zero(cmd);
@@ -142,6 +190,17 @@ int main() {
 
   profiler->collect(true, false);
   fmt::println("{}", merian::Profiler::get_report_str(profiler->get_report()));
+  double lat = profiler->get_report().gpu_total();
+  std::size_t mem = outputHost.byteSize();
+  if (biasHost.has_value()) {
+    mem += biasHost->byteSize();
+  }
+  double throughput = mem / (lat * 1e-3);
+  fmt::println("Throughput: {}GB/s", throughput * 1e-9);
+
+  for (uint b = 0; b < 16; ++b) {
+    fmt::println("[{}]: 0x{:X}", b, outputHost.span()[b]);
+  }
 
   // vkcnn::tensor_algo::printActivation(outputHost);
 

@@ -56,7 +56,7 @@ layout(push_constant) uniform PushConstant {
     uint Input_H;
 } pc;
 
-const uint PIPELINE_DEPTH = 3;
+const uint PIPELINE_DEPTH = 2;
 
 // Static shared memory allocation (super ugly, but allows reuse of shared memory)
 const uint SH_A_SIZE = ((COOPMAT_N + (S - 1)) * TILE_H * COOPMAT_K) / F16VEC;

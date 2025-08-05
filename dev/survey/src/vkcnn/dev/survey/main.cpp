@@ -12,18 +12,14 @@
 vkcnn::dev::survey::ConvSurvey
 survey_conv(const merian::ContextHandle &context) {
 
-  vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2
-      mma16x8x8_chwc8_rcskc8_hr_p2;
-  vkcnn::shaders::Conv3x3mmaVectorized mma16x8x8_vectorized{
-      glm::uvec3(16, 8, 8)};
-  vkcnn::shaders::Conv3x3mmaVectorized mma16x16x16_vectorized{
-      glm::uvec3(16, 16, 16)};
+  // vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2
+  //     mma16x8x8_chwc8_rcskc8_hr_p2;
+  // vkcnn::shaders::Conv3x3mmaVectorized mma16x8x8_vectorized{
+  //     glm::uvec3(16, 8, 8)};
+  // vkcnn::shaders::Conv3x3mmaVectorized mma16x16x16_vectorized{
+  //     glm::uvec3(16, 16, 16)};
 
-  vkcnn::shaders::ConvTemplate *shaders[] = {
-      &mma16x8x8_chwc8_rcskc8_hr_p2, //
-      &mma16x8x8_vectorized,         //
-      &mma16x16x16_vectorized,       //
-  };
+  std::vector<vkcnn::shaders::ConvTemplate *> shaders = {};
   using namespace vkcnn;
   using namespace vkcnn::dev::survey;
 
@@ -67,6 +63,7 @@ survey_conv(const merian::ContextHandle &context) {
               {ActivationLayout::CHWC8, ActivationLayout::CHWC8},
               {ActivationLayout::CHWC16, ActivationLayout::CHWC16},
           },
+      .padStride = {ConvPadStride(glm::uvec2(3, 3), glm::uvec2(1, 1))},
       .activationFunctions = {
           std::nullopt, //
       }};

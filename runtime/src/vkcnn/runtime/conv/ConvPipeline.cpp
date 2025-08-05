@@ -8,7 +8,6 @@
 #include "vkcnn/runtime/tensor/SyncUse.hpp"
 #include <cstring>
 #include <fmt/base.h>
-#include <iostream>
 #include <ranges>
 
 namespace vkcnn::runtime {
@@ -16,8 +15,10 @@ namespace vkcnn::runtime {
 ConvPipeline::ConvPipeline(const ::merian::ContextHandle &context,
                            const ::merian::ShaderCompilerHandle &shaderCompiler,
                            const ConvShaderSource &source,
-                           const FilterDeviceTensor &filterWeights)
-    : m_tileSize(source.tileSize()), m_filterWeights(filterWeights)
+                           const FilterDeviceTensor &filterWeights,
+                           std::optional<BiasDeviceTensor> biasWeights)
+    : m_tileSize(source.tileSize()), m_filterWeights(filterWeights),
+      m_biasWeights(biasWeights)
 #ifndef NDEBUG
       ,
       m_inputLayout(source.inputLayout()), m_inputType(source.inputType()),
@@ -25,13 +26,21 @@ ConvPipeline::ConvPipeline(const ::merian::ContextHandle &context,
 #endif
 {
   assert(source.filterDesc() == filterWeights.desc());
+  if (biasWeights.has_value()) {
+    assert(source.biasDesc() == biasWeights->desc());
+  }
+
+  ::merian::DescriptorSetLayoutBuilder descriptorSet0Builder{};
+  descriptorSet0Builder.add_binding_storage_buffer(); // input
+  descriptorSet0Builder.add_binding_storage_buffer(); // output
+  descriptorSet0Builder.add_binding_storage_buffer(); // filter weights
+
+  if (biasWeights.has_value()) {
+    descriptorSet0Builder.add_binding_storage_buffer(); // bias
+  }
 
   const ::merian::DescriptorSetLayoutHandle descriptorSet0Layout =
-      ::merian::DescriptorSetLayoutBuilder()
-          .add_binding_storage_buffer() // input
-          .add_binding_storage_buffer() // output
-          .add_binding_storage_buffer() // filter-weights.
-          .build_push_descriptor_layout(context);
+      descriptorSet0Builder.build_push_descriptor_layout(context);
 
   std::map<std::string, std::string> defs;
   for (const auto &[def, v] : source.defines()) {
@@ -80,13 +89,22 @@ void ConvPipeline::run(const ::merian::CommandBufferHandle &cmd,
   auto &out = output.use(cmd, SyncUseFlagBits::ComputeWrite);
   auto &filterWeights = m_filterWeights.use(cmd, SyncUseFlagBits::ComputeRead);
 
-  cmd->push_constant<glm::uvec2>(m_pipe, glm::uvec2(input.w(), input.h()));
-  cmd->push_descriptor_set(m_pipe, in, out, filterWeights);
+  struct PushConstant{
+    uint32_t IN_W;
+    uint32_t IN_H;
+  };
+  cmd->push_constant<PushConstant>(m_pipe, PushConstant(input.w(), input.h()));
+  if (m_biasWeights.has_value()) {
+    auto &biasWeights = m_biasWeights->use(cmd, SyncUseFlagBits::ComputeRead);
+    cmd->push_descriptor_set(m_pipe, in, out, filterWeights, biasWeights);
+  } else {
+    cmd->push_descriptor_set(m_pipe, in, out, filterWeights);
+  }
 
-  glm::uvec2 workgroupCount =
-      (glm::uvec2(input.w(), input.h()) + m_tileSize - glm::uvec2(1, 1)) /
-      m_tileSize;
-  // fmt::println("DISPATCH: ({},{})", workgroupCount.x, workgroupCount.y);
-  cmd->dispatch(workgroupCount.x * workgroupCount.y);
+  
+
+  glm::uvec3 workgroupCount = (glm::uvec3(output.c(), input.w(), input.h()) + m_tileSize - glm::uvec3(1,1,1)) / m_tileSize;
+  fmt::println("DISPATCH: ({},{},{})", workgroupCount.x, workgroupCount.y, workgroupCount.z);
+  cmd->dispatch(workgroupCount.x, workgroupCount.y, workgroupCount.z);
 }
 } // namespace vkcnn::runtime

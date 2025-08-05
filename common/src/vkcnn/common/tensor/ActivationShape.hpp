@@ -3,6 +3,7 @@
 
 namespace vkcnn {
 
+
 struct ActivationShape {
   unsigned int w;
   unsigned int h;

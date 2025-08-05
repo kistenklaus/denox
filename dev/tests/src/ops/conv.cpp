@@ -11,8 +11,6 @@
 #include "vkcnn/dev/utils/to_string.hpp"
 #include "vkcnn/dev/utils/torch.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mmaVectorized.hpp"
 #include "vkcnn/shaders/conv/ConvTemplate.hpp"
 
 #include <ATen/ops/allclose.h>
@@ -82,19 +80,28 @@ std::vector<ConvTestParams> generate_test_params() {
     for (const auto &k : channelCounts) {
       for (const auto &kernelSize : kernelSizes) {
         for (const auto &inputType : types) {
-          for (const auto &outputType : types) {
-            for (const auto &filterType : types) {
-              for (const auto &inputLayout : layouts) {
-                for (const auto &outputLayout : layouts) {
-                  for (const auto &activation : activations) {
-                    ops.push_back(vkcnn::OpConv{
-                        .filterShape = {kernelSize.x, kernelSize.y, c, k},
-                        .filterType = filterType,
-                        .inputLayout = inputLayout,
-                        .inputType = inputType,
-                        .outputLayout = outputLayout,
-                        .outputType = outputType,
-                        .activationFunc = activation});
+          for (const auto &arithmeticType : types) {
+            for (const auto &biasType : types) {
+              for (const auto &outputType : types) {
+                for (const auto &filterType : types) {
+                  for (const auto &inputLayout : layouts) {
+                    for (const auto &outputLayout : layouts) {
+                      for (const auto &activation : activations) {
+                        ops.push_back(vkcnn::OpConv{
+                            .filterShape = {kernelSize.x, kernelSize.y, c, k},
+                            .filterType = filterType,
+                            .biasType = biasType,
+                            .inputLayout = inputLayout,
+                            .inputType = inputType,
+                            .outputLayout = outputLayout,
+                            .outputType = outputType,
+                            .activationFunc = activation,
+                            .arithmeticType = arithmeticType,
+                            .stride = glm::uvec2(1, 1),
+                            .padding = glm::uvec2(1, 1),
+                        });
+                      }
+                    }
                   }
                 }
               }
@@ -107,10 +114,12 @@ std::vector<ConvTestParams> generate_test_params() {
 
   std::vector<std::shared_ptr<vkcnn::shaders::ConvTemplate>> shaders = {
       // std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2>(),
-      std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
-          glm::uvec3(16, 8, 8)),
+      // std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
+      //     glm::uvec3(16, 8, 8)),
       // std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
       //     glm::uvec3(16, 16, 16)),
+      // std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
+      //     glm::uvec3(16, 8, 16)),
       // std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2>(),
 
   };

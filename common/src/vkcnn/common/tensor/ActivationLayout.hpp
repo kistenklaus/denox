@@ -14,7 +14,7 @@ namespace vkcnn {
 namespace details {
 class ActivationLayout {
 public:
-  enum class Tag { CHW, HWC, CHWC8, CHWC16 };
+  enum class Tag { CHW, HWC, CHWC4, CHWC8, CHWC16 };
   constexpr ActivationLayout(Tag tag) : m_tag(tag) {}
 
   __attribute__((always_inline)) inline constexpr std::size_t
@@ -27,6 +27,9 @@ public:
       return h * (shape.w * shape.c) + w * (shape.c) + c;
     case Tag::CHW:
       return c * (shape.h * shape.w) + h * (shape.w) + w;
+    case Tag::CHWC4:
+      return (c >> 2) * (shape.h * shape.w << 2) + h * (shape.w << 2) +
+             (w << 2) + (c & 0x3);
     case Tag::CHWC8:
       return (c >> 3) * (shape.h * shape.w << 3) + h * (shape.w << 3) +
              (w << 3) + (c & 0x7);
@@ -52,6 +55,9 @@ public:
       details::ActivationLayout::Tag::HWC};
   static constexpr details::ActivationLayout CHW{
       details::ActivationLayout::Tag::CHW};
+
+  static constexpr details::ActivationLayout CHWC4{
+      details::ActivationLayout::Tag::CHWC4};
 
   static constexpr details::ActivationLayout CHWC8{
       details::ActivationLayout::Tag::CHWC8};

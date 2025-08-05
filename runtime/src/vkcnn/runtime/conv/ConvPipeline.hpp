@@ -5,6 +5,7 @@
 #include "merian/vk/shader/shader_compiler.hpp"
 #include "vkcnn/common/shader/conv/ConvShaderSource.hpp"
 #include "vkcnn/runtime/tensor/ActivationDeviceTensor.hpp"
+#include "vkcnn/runtime/tensor/BiasDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/FilterDeviceTensor.hpp"
 #include <glm/fwd.hpp>
 
@@ -15,15 +16,17 @@ public:
   ConvPipeline(const ::merian::ContextHandle &context,
                const ::merian::ShaderCompilerHandle &shaderCompiler,
                const ConvShaderSource &source,
-               const FilterDeviceTensor &filterWeights);
+               const FilterDeviceTensor &filterWeights,
+               std::optional<BiasDeviceTensor> biasWeights = std::nullopt);
 
   void run(const ::merian::CommandBufferHandle &cmd,
            const ActivationDeviceTensor &input,
            const ActivationDeviceTensor &output);
 
 private:
-  glm::uvec2 m_tileSize;
+  glm::uvec3 m_tileSize;
   FilterDeviceTensor m_filterWeights;
+  std::optional<BiasDeviceTensor> m_biasWeights;
   std::string name;
 
 #ifndef NDEBUG
