@@ -7,6 +7,7 @@ vkcnn_shaders_src = files(
   # 'src/vkcnn/shaders/conv/Conv3x3mmaVectorized.cpp',
   'src/vkcnn/shaders/conv/ConvTemplate.cpp',
   'src/vkcnn/shaders/conv/ConvGEMM.cpp',
+  'src/vkcnn/shaders/preprocessing.cpp',
 )
 
 vkcnn_shaders_inc = include_directories('src')

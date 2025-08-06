@@ -11,7 +11,7 @@ namespace vkcnn::shaders {
 
 class ConvGEMM final : public ConvTemplate {
 public:
-  ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile);
+  ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile, bool asyncRead = true);
 
   bool supports(const OpConv &op) const final override;
 
@@ -24,7 +24,7 @@ private:
   glm::uvec3 m_cmShape;
   glm::uvec3 m_sgTile;
   glm::uvec2 m_wgTile;
-
+  bool m_asyncRead;
 };
 
 } // namespace vkcnn::shaders

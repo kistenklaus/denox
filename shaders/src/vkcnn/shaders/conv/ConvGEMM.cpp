@@ -3,6 +3,7 @@
 #include "fmt/format.h"
 #include "vkcnn/common/io/read_file.hpp"
 #include "vkcnn/common/tensor/BiasLayout.hpp"
+#include "vkcnn/shaders/preprocessing.hpp"
 #include <cstring>
 #include <fmt/base.h>
 #include <glm/vec3.hpp>
@@ -15,19 +16,13 @@ namespace vkcnn::shaders {
 static std::string source() {
   std::string src =
       vkcnn::readFile("./shaders/src/vkcnn/shaders/conv/conv_gemm.comp");
-
-  std::string pragmaUnroll = "#pragma unroll";
-  auto pos = src.find(pragmaUnroll);
-  while (pos != std::string::npos) {
-    src.replace(pos, pragmaUnroll.size(), "[[unroll]]");
-    pos = src.find(pragmaUnroll);
-  }
-  return src;
+  return shaders::preprocess_shader_src_pragmas(src);
 }
 
-ConvGEMM::ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile)
+ConvGEMM::ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile,
+                   bool asyncRead)
     : m_source(source()), m_cmShape(cmShape), m_sgTile(sgTile),
-      m_wgTile(wgTile) {
+      m_wgTile(wgTile), m_asyncRead(asyncRead) {
   //
 }
 
@@ -123,7 +118,7 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
     throw std::runtime_error("Not supported");
   }
 
-  ShaderDefine defines[20] = {
+  ShaderDefine defines[21] = {
       {"IN_LAYOUT", fmt::format("({})", inLayout)},
       {"OUT_LAYOUT", fmt::format("({})", outLayout)},
       {"atype", atype},
@@ -144,6 +139,7 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       {"SG_SIZE", fmt::format("({})", subgroupSize)},
       {"SG_COUNT", fmt::format("({})", subgroupCount)},
       {"USE_BIAS", op.biasType.has_value() ? "(true)" : "(false)"},
+      {"ASYNC_READ", m_asyncRead ? "(true)" : "(false)"},
   };
 
   for (const auto &def : defines) {
@@ -181,7 +177,7 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
   std::string name(this->name());
   return ConvShaderSource(
       std::move(src), ShaderLang::GLSL, SpecializationConstants{specConstants},
-      ShaderDefines{defines}, glm::uvec3(channelTile, xtile, ytile * 2), //TODO REMOVE *2 PLEASE PLEASE HELLO PLEASE REMOVE ME!!!
+      ShaderDefines{defines}, glm::uvec3(channelTile, xtile, ytile),
       op.inputLayout, op.inputType, op.outputLayout, op.outputType,
       WeightDescriptor{
           op.filterShape,

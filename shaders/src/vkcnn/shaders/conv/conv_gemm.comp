@@ -131,8 +131,16 @@ layout(set = 0, binding = 1, std430) writeonly buffer output_buf {
     ostype output_tensor_blob[];
 };
 
+#if ISTYPE_SIZE == 16
+#define fstype istype
+#elif OSTYPE_SIZE == 16
+#define fstype ostype
+#else
+#define fstype uint16_t
+#endif
+
 layout(set = 0, binding = 2, std430) readonly buffer filter_buf {
-    istype filter_blob[];
+    fstype filter_blob[];
 };
 
 layout(set = 0, binding = 3, std430) readonly buffer bias_buf {
@@ -189,8 +197,9 @@ const uint SH_OUT_OFFSET = 0;
 const uint SH_A_OFFSET = 0;
 const uint SH_B_OFFSET = SH_A_OFFSET + SH_A_SIZE8;
 
-const uint CM_K8 = CM_K / 8;
 const uint CM_M8 = CM_M / 8;
+const uint CM_K8 = CM_K / 8;
+const uint CM_N8 = CM_N / 8;
 
 // x : channel output tile.
 // y : x output / input tile.
@@ -246,6 +255,7 @@ void main() {
     //             :        :        :       :
     coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > sum[SG_N][SG_M];
 
+    #pragma begin_block(load_bias);
     // =============== Initalize Sum (with bias) ================
     if (USE_BIAS && false) {
         // NOTE: We pad the bias_blob size to a multiple of CM_N, such that we can
@@ -270,9 +280,16 @@ void main() {
             }
         }
     }
+    #pragma end_block; // load_bias
 
     uint kk = 0;
-    uint KK = ((KERNEL_X * KERNEL_Y * IN_CH) + CM_K - 1) / CM_K;
+    // TODO: Check me!
+    uint KK = ((KERNEL_X * KERNEL_Y * IN_CH) + (CM_K * SG_K) - 1) / (CM_K * SG_K);
+
+    vstype prefetch_A[PREFETCH_A_IQQ];
+    vstype prefetch_B[PREFETCH_B_IQQ];
+
+    #pragma begin_block(prefetch_A);
 
     //
     //
@@ -284,7 +301,7 @@ void main() {
     // ######################################################################################
     // ######################################################################################
     //
-    // Global memory access and implicit construction of A and B tiles,
+    // NOTE: Global memory access and implicit construction of A and B tiles,
     // Heavily depends on the layout and alignment guarantees (e.g. IN_CH % 8 == 0)
     // We expect best performance with CHWC8, HWC is expected to perform worse, because
     // It does not make any assumptions about IN_CH and uses 2byte global memory accesses
@@ -293,8 +310,6 @@ void main() {
     #if VSTYPE_SIZE == 16
     #if IN_LAYOUT == HWC
     #if ISTYPE_SIZE == 2
-    vstype prefetch_A[PREFETCH_A_IQQ];
-    vstype prefetch_B[PREFETCH_B_IQQ];
     {
         // layout: HWC, istype: float16_t
 
@@ -345,6 +360,8 @@ void main() {
         //   |      |        |        |        |        |
         //   v      +--------+--------+--------+--------+
         //
+        // Trivial copy to shared memory.
+
         // CoB : Channel out of bound
         //  #y : Pixel out of y-bound
         //  #x : Pixel out of x-bound
@@ -352,6 +369,7 @@ void main() {
         // NOTE: We call this layout : PREFETCH_A_COLUMN_MAJOR
         #define PREFETCH_A_LAYOUT_COLUMN_MAJOR
         #define PREFETCH_A_LAYOUT_LINEAR
+        #define A_LAYOUT_RSC
         //
         // NOTE: Values are spread linearly (row-major) across invocations so for example:
         // - invoc=0  => B3C3
@@ -377,13 +395,18 @@ void main() {
         // But because we can generally assume that HWC will most likely not be used with large IN_CH,
         // we ignore register pressure and instead only focus on performance here.
 
-        // column of A matrix.
-        const uint k8 = subgroupBroadcastFirst(CM_K8 * SG_K * kk);
+        // #pragma unroll
+        // for (uint q = 0; q < PREFETCH_A_IQQ; ++q) {
+        //     const uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
+        //     if (liq8 < PREFETCH_A_SQQ) {
+        //         const uint siq8 = sgni * PREFETCH_A_SQQ + liq8;
+        //         sh_buf[sgmi * PREFETCH_A_QQ + siq8] = prefetch_A[q];
+        //     }
+        // }
 
+        const uint k = subgroupBroadcastFirst(CM_K * SG_K * kk);
         #pragma unroll
         for (uint q = 0; q < PREFETCH_A_IQQ; ++q) {
-            //
-
             uvec4 v = uvec4(0);
             const uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
             if (liq8 < PREFETCH_A_SQQ) {
@@ -393,13 +416,12 @@ void main() {
 
                 const uint sgij8 = siq8 % (CM_M8 * CM_K * SG_K);
 
-                const uint sgk8 = (sgij8 / CM_M8);
+                const uint sgk = (sgij8 / CM_M8);
                 const uint zm8 = (sgij8 % CM_M8);
 
-                const uint zk = k8 + sgk8 * 8; // "gloabl" column index of A matrix.
-                const uint zrs = zk / IN_CH;
+                const uint zk = k + sgk; // "gloabl" column index of A matrix.
 
-                // NOTE: guaranteed to be inbound, because of % IN_CH!
+                const uint zrs = zk / IN_CH;
                 const uint zc = zk % IN_CH; // <- uniform across 16byte access.
 
                 const uint zr = zrs / KERNEL_X;
@@ -407,10 +429,11 @@ void main() {
 
                 // NOTE: We abuse uint underflow here, as because we use zero padding anyway and
                 // we only have to detect if we are out of bound not where we went out of bound.
-                const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - (PADDING_Y * 6); // y-pixel position <- uniform across 16byte access.
+                const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+
                 const uint zx = wgxy.x + zs + zm8 * 8 - PADDING_X; // x-pixel position <- non-uniform across 16byte access.
 
-                if (zy < pc.IN_H) {
+                if (zy < pc.IN_H && zk < KERNEL_X * KERNEL_Y * IN_CH) {
                     // NOTE: Because we abuse uint underflow we additionally have to check zx < pc.IN_W.
                     const uint o = zy * (pc.IN_W * IN_CH) + zx * IN_CH + zc;
                     if ((zx < pc.IN_W && zx + 8 < pc.IN_W)) {
@@ -450,9 +473,6 @@ void main() {
         }
     }
 
-    // Input layout: HWC, istype : uint16_t, vstype : uvec4
-    // #### Prefetch B:
-
     #else
     NOT_IMPLEMENTED; // iotype != float16_t
     #endif
@@ -464,6 +484,151 @@ void main() {
     #else
     NOT_IMPLEMENTED; // vstype != uvec4
     #endif
+    #pragma end_block; // prefetch_A
+
+    #pragma begin_block(prefetch_B)
+    #if VSTYPE_SIZE == 16
+    #ifdef A_LAYOUT_RSC
+    // => B_LAYOUT: RSCxN
+    //
+    //         <-------SG_K------>        <------SG_N------->
+    //   ^     +--CM_K--+--------+        +--CM_N--+--------+   ^
+    //   |     |        |        |        |        |        |   |
+    //   |   CM_M       |        |      CM_K       |        |   |
+    //   |     |        |        |        |        |        |   |
+    //  SG_M   +--------A--------+   x    +--------B--------+  SG_K
+    //   |     |        |        |        |        |        |   |
+    //   |     |        |        |        |        |        |   |
+    //   |     |        |        |        |        |        |   |
+    //   v     +--------+--------+        +--------+--------+   v
+
+    // conceptual layout B
+    // WG_N = 2
+    // WG_M = 4
+    // NOTE: The Letter denotes the input channel (NOT positions) and the number denotes the output channel.
+    // If a symbol repeats vertically it denotes the filter value for a different filter position.
+    //
+    //             |---------------WG_N---------------->
+    //             <-------SG_N------>
+    //     ^   ^   +--CM_N--+--------+--------+--------+--------+--------+--------+--------+
+    //     |   |   |A0A1A2A3|A4A5A6  |        |        |        |        |        |        |
+    //     |  CM_K |B0B1B2B3|B4B5B6  |        |        |        |        |        |        |
+    //     |   |   |D0D1D2D3|D4D5D6  |        |        |        |        |        |        |
+    //     |   |   |C0C1C2C3|C4C5C6  |        |        |        |        |        |        |
+    //   SG_K  v   +-------SG0-------+-------SG1-------+-------SG2-------+-------SG3-------+
+    //     |       |        |        |        |        |        |        |        |        |
+    //     |       |        |        |        |        |        |        |        |        |
+    //     |       |        |        |        |        |        |        |        |        |
+    //     |       |        |        |        |        |        |        |        |        |
+    //     v       +--------+--------+--------+--------+--------+--------+--------+--------+
+
+    // NOTE: We find that depending on the properties of IN_CH or OUT_CH the optimal loading
+    // strategy either uses a row-major or a specialized column-major layout.
+    // - if OUT_CH % 8 == 0, then loading a CM_KxCM_N tile row-major with uvec4 and afterwards a linear copy to shared memory
+    //   results in a row-major layout in shared memory, which comes with the minor overhead of having to transpose
+    //   B (implicitly done by coopMatLoad).
+    //   This ofcause also means that we have to modify the global memory laoyut to a RSKCK(CM_N) layout, where K is OUT_CH (i.e. ).
+    // - if IN_CH % 8 == 0, then loading a CM_KxCM_N tile colum-major with uvec4 and afterwards a linear copy to shared memory, this optimal,
+    //   because coopmat performance is best if we load B with column-major.
+    //   This ofcause also means that we have to modify the global memory layout to a RSCKC(CM_K) layout, where K is OUT_CH (i.e. RSCKC8 or RSCKC16)
+    //   With this layout all global memory accesses are guaranteed to be contigous 16byte access, which is optimal.
+    // - if both IN_CH % 8 == 0 and OUT_CH % 8 == 0, we use the same stategy as in the case with IN_CH % 8 == 0.
+    //   The only minor difference here, is that we get less branch divergence when we perform the n out of bound checks, but performance should be really similar.
+    // - Otherwise. If non of the alignment guarantees are given, we have to fallback to 2byte accesses.
+    //   Here we read a CM_KxCM_N tile row-major, but each invocation loads 8 values with a stride of CM_N, which results
+    //   In a column-major layout beeing stored in the registers.
+    //   In the example above invocation 0 would first load A0, meanwhile invocation 2 loads A1 and invocation 4 loads A2,
+    //   which results in decently contigous accesses. This now means that the global memory layout is just RSCK
+    //   This is far from optimal, but the permutations that we would have to
+    //   apply to the global memory layout to make this optimal (i.e. 64 byte contigous access across a subgroup) introduces
+    //   to much complexity. <- This is not a very common case, in most cases either IN_CH or OUT_CH is well formed.
+    //
+    //
+    //
+
+    #if ISTYPE_SIZE == 16
+
+    NOT_YET_IMPLEMENTED;
+
+    #elif ISTYPE_SIZE == 2
+
+    #if OSTYPE_SIZE == 16
+    NOT_IMPLEMENTED; // OUT_CH % 8 == 0
+    #elif OSTYPE_SIZE == 2
+
+    //
+
+    //             |---------------WG_N---------------->
+    //             <-------SG_N------>
+    //     -   ^   +--CM_N--+--------+--------+--------+--------+--------+--------+--------+
+    //     |   |   |A0A1A2A3|A4A5A6  |        |        |        |        |        |        |
+    //     |  CM_K |B0B1B2B3|B4B5B6  |        |        |        |        |        |        |
+    //   SG_K  |   |D0D1D2D3|D4D5D6  |        |        |        |        |        |        |
+    //     |   |   |C0C1C2C3|C4C5C6  |        |        |        |        |        |        |
+    //     v   v   +-------SG0-------+-------SG1-------+-------SG2-------+-------SG3-------+
+    //
+
+    // Flatted (with linear layout of WG_M subgroups [column-major in registers spread across subgroups])
+    //             <----------------CM_K-------------->
+    //             <--CM_N-->
+    //  ^   ^   ^  +--------+--------+--------+--------+
+    //  |   |   |  |A0A1A2A3|B0B1B2B3|D0D1D2D3|C0C1C2C3|
+    //  |   | SG_N +--------+--------+--------+--------+
+    //  |   |   |  |A4A5A6#x|B4B5B6#x|D4D5D6#x|C4C5C6#x|
+    //  |  SG_K v  +--------+--------+--------+--------+
+    //  |   |      |   #k   |   #k   |   #k   |   #k   |
+    //  |   |      +--------+--------+--------+--------+
+    //  |   |      |        |        |        |        |
+    //  |   v      +--------+--------+--------+--------+
+    //  |          |        |        |        |        |
+    // WG_N        +--------+--------+--------+--------+
+    //  |          |        |        |        |        |
+    //  v          +--------+--------+--------+--------+
+    //
+    // NOTE: In global memory we simply have RSCK here.
+
+    // const uint PREFETCH_B_QQ = (CM_K * CM_N / (VSTYPE_SIZE / ATYPE_SIZE)) * SG_K * SG_N; // 16byte accesses per WG_M subgroups.
+    // const uint PREFETCH_B_SQQ = PREFETCH_B_QQ / WG_M; // 16byte accesses per subgroup.
+    // const uint PREFETCH_B_IQQ = (PREFETCH_B_SQQ + SG_SIZE - 1) / SG_SIZE; // 16byte accesses per invocation.
+
+    for (uint q = 0; q < PREFETCH_B_IQQ; ++q) {
+        uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
+        uvec4 v = uvec4(0);
+        if (liq8 < PREFETCH_B_SQQ) {
+            const uint siq8 = sgmi * PREFETCH_B_SQQ + liq8;
+
+            const uint sgk = siq8 / (CM_N8 * CM_K * SG_N);
+            const uint sgij8 = siq8 % (CM_N8 * CM_K * SG_N);
+
+            const uint sgn = sgij8 / (CM_N8 * CM_K);
+            const uint zkn8 = sgij8 % (CM_N8 * CM_K);
+
+            const uint zn8 = sgn * CM_N8 + zkn8 % CM_N8;
+
+            const uint zk = sgk * CM_K + zkn8 / CM_N8;
+
+            if (false) {
+                // NOTE: fastpath
+            } else {}
+        }
+        prefetch_B[q] = v;
+    }
+
+    #endif
+
+    #else
+    NOT_IMPLEMENTED; // istype != uint16_t && istype != uvec4
+    #endif
+
+    #else
+    INVALID_A_LAYOUT; // Undefined layout
+    #endif
+
+    #else
+    NOT_IMPLEMENTED; // vstype != null
+    #endif
+
+    #pragma end_block; // prefetch_B
 
     //
     // ######################################################################################
@@ -481,24 +646,17 @@ void main() {
     // independent on the input layout.
 
     // #### Copy prefetch_A to shared.
+    #pragma begin_block(copy_prefetch_A);
     #if VSTYPE_SIZE == 16
     #ifdef PREFETCH_A_LAYOUT_LINEAR
     {
-        if (gl_SubgroupID == 0) {
-            // Trivial copy to shared memory.
-            #pragma unroll
-            for (uint q = 0; q < PREFETCH_A_IQQ; ++q) {
-                const uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
-                if (liq8 < PREFETCH_A_SQQ) {
-                    const uint siq8 = sgni * PREFETCH_A_SQQ + liq8;
-                    sh_buf[sgmi * PREFETCH_A_QQ + siq8] = prefetch_A[q];
-
-                    // const float16_t x = float16_t(1.0);
-                    // const uint16_t x1 = float16BitsToUint16(x);
-                    // const uint x2 = uint(0x3C003C00);
-                    // sh_buf[SH_A_OFFSET + sgmi * PREFETCH_A_QQ + siq8] = uvec4(x2, x2, x2, x2);
-                    // sh_buf[gl_SubgroupInvocationID] = uvec4(x2, x2, x2, x2);
-                }
+        // Trivial copy to shared memory.
+        #pragma unroll
+        for (uint q = 0; q < PREFETCH_A_IQQ; ++q) {
+            const uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
+            if (liq8 < PREFETCH_A_SQQ) {
+                const uint siq8 = sgni * PREFETCH_A_SQQ + liq8;
+                sh_buf[SH_A_OFFSET + sgmi * PREFETCH_A_QQ + siq8] = prefetch_A[q];
             }
         }
     }
@@ -510,107 +668,105 @@ void main() {
     #else
     NOT_IMPLEMENTED; // vstype != uvec4.
     #endif
+    #pragma end_block; // copy_prefetch_A
 
-    barrier();
+    #pragma begin_block(copy_prefetch_B);
 
-    // ######################################################################################
-    // ######################################################################################
-    // ######################################################################################
-    // =========================== Matrix-Multiply-Accumulate ===============================
-    // ######################################################################################
-    // ######################################################################################
-    // ######################################################################################
-    //
-    //
-    coopmat < atype, gl_ScopeSubgroup, CM_M, CM_K, gl_MatrixUseAccumulator > A[SG_M];
-    coopmat < atype, gl_ScopeSubgroup, CM_K, CM_N, gl_MatrixUseB > B[SG_N];
+    #pragma end_block; // copy_prefetch_B
 
-    #pragma unroll
-    for (uint zk = 0; zk < SG_K; ++zk) {
+    #pragma begin_block(gemm);
+    {
+        // ######################################################################################
+        // ######################################################################################
+        // ######################################################################################
+        // ====================================== GEMM ==========================================
+        // ######################################################################################
+        // ######################################################################################
+        // ######################################################################################
+        //
+        // Multiply accumulate of A and B tile.
+        //
+        //
+        //         <-------SG_K------>        <------SG_N------->
+        //   ^     +--CM_K--+--------+        +--CM_N--+--------+   ^
+        //   |     |        |        |        |        |        |   |
+        //   |   CM_M       |        |      CM_K       |        |   |
+        //   |     |        |        |        |        |        |   |
+        //  SG_M   +--------A--------+   x    +--------B--------+  SG_K
+        //   |     |        |        |        |        |        |   |
+        //   |     |        |        |        |        |        |   |
+        //   |     |        |        |        |        |        |   |
+        //   v     +--------+--------+        +--------+--------+   v
+        //
+        //  Each k iteration we multiply accumulate iteration:
+        //                           <------SG_N------->
+        //   ^     +--CM_K--+        +--CM_N--+--------+
+        //   |     |        |        |        |        |
+        //   |   CM_M       |      CM_K       |        |
+        //   |     |        |        |        |        |
+        //  SG_M   +---A----+   x    +--------+--------+
+        //   |     |        |
+        //   |     |        |
+        //   |     |        |
+        //   v     +--------+
+        //
 
-        // Load A
-        #pragma unroll
-        for (uint zm = 0; zm < SG_M; ++zm) {
-            #ifdef PREFETCH_A_LAYOUT_COLUMN_MAJOR
-            {
-                const uint CM_M_VS = CM_M / (VSTYPE_SIZE / ATYPE_SIZE);
-                coopMatLoad(A[zm],
-                    sh_buf,
-                    sgmi * PREFETCH_A_QQ + (zm * SG_K + zk) * (CM_M_VS * CM_K),
-                    CM_M_VS,
-                    gl_CooperativeMatrixLayoutColumnMajor);
+        coopmat < atype, gl_ScopeSubgroup, CM_M, CM_K, gl_MatrixUseA > A[SG_M];
+        coopmat < atype, gl_ScopeSubgroup, CM_K, CM_N, gl_MatrixUseB > B[SG_N];
+        for (uint zk = 0; zk < SG_K; ++zk) {
+
+            // Load A
+            for (uint zm = 0; zm < SG_M; ++zm) {
+                #ifdef PREFETCH_A_LAYOUT_COLUMN_MAJOR
+                {
+                    const uint CM_M_VS = CM_M / (VSTYPE_SIZE / ATYPE_SIZE);
+                    coopMatLoad(A[zm],
+                        sh_buf,
+                        SH_A_OFFSET + sgmi * PREFETCH_A_QQ + (zm * SG_K + zk) * (CM_M_VS * CM_K),
+                        CM_M_VS,
+                        gl_CooperativeMatrixLayoutColumnMajor);
+                }
+                #elif PREFETCH_A_LAYOUT_ROW_MAJOR
+                {
+                    const uint CM_K_VS = CM_K / (VSTYPE_SIZE / ATYPE_SIZE);
+                    coopMatLoad(A[zm],
+                        sh_buf,
+                        sgmi * PREFETCH_A_QQ + (zm * SG_K + zk) * (CM_M * CM_K_VS),
+                        CM_K_VS,
+                        gl_CooperativeMatrixLayoutRowMajor);
+                }
+                #else
+                NOT_SUPPORTED; // Unsupported prefetch_A layout.
+                #endif
             }
-            #elif PREFETCH_A_LAYOUT_ROW_MAJOR
-            {
-                const uint CM_K_VS = CM_K / (VSTYPE_SIZE / ATYPE_SIZE);
-                coopMatLoad(A[zm],
-                    sh_buf,
-                    sgmi * PREFETCH_A_QQ + (zm * SG_K + zk) * (CM_M * CM_K_VS),
-                    CM_K_VS,
-                    gl_CooperativeMatrixLayoutRowMajor);
-            }
-            #else
-            NOT_SUPPORTED; // Unsupported prefetch_A layout.
-            #endif
-        }
 
-        // Load B
-        // TODO: Actually implement me.
-        #pragma unroll
-        for (uint zn = 0; zn < SG_N; zn++) {
-            B[zn] = coopmat < atype, gl_ScopeSubgroup, CM_K, CM_N, gl_MatrixUseB > (1.0);
-        }
-
-        #pragma unroll
-        for (uint zn = 0; zn < SG_N; zn++) {
-            for (uint zm = 0; zm < SG_M; zm++) {
-                // sum[zn][zm] = coopMatMulAdd(A[zm], B[zn], sum[zn][zm]);
+            // Load B
+            // TODO: Actually implement me.
+            for (uint zn = 0; zn < SG_N; zn++) {
+                B[zn] = coopmat < atype, gl_ScopeSubgroup, CM_K, CM_N, gl_MatrixUseB > (1.0);
             }
+
+            for (uint zn = 0; zn < SG_N; zn++) {
+                for (uint zm = 0; zm < SG_M; zm++) {
+                    sum[zn][zm] = coopMatMulAdd(A[zm], B[zn], sum[zn][zm]);
+                }
+            }
+            // sum[0][0] = coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator >(1.0);
+            // sum[0][1] = coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator >(0.0);
+            // sum[0][2] = coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator >(0.0);
+            // sum[0][3] = coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator >(0.0);
         }
     }
-    barrier();
-    if (gl_SubgroupID == 0) {
-        const uint CM_M_VS = CM_M / (VSTYPE_SIZE / ATYPE_SIZE);
+    #pragma end_block; // gemm
 
-        // for (uint x = 0; x < CM_M_VS * CM_K; ++x) {
-        //   sh_buf[x] = uvec4(0);
-        // }
-
-        const uint x2 = uint(0x3C003C00);
-
-        // sh_buf[0] = uvec4(x2,x2,x2,x2);
-        // sh_buf[1] = uvec4(x2,x2,x2,x2);
-        // sh_buf[2] = uvec4(x2,x2,x2,x2);
-
-        barrier();
-
-        const uint zm = 0; 
-        const uint zk = 0;
-        coopMatLoad(A[0],
-            sh_buf,
-            SH_A_OFFSET + sgmi * PREFETCH_A_QQ + (zm * SG_K + zk) * (CM_M_VS * CM_K),
-            CM_M_VS,
-            gl_CooperativeMatrixLayoutColumnMajor);
-
-        // A[0] = coopmat < atype, gl_ScopeSubgroup, CM_M, CM_K, gl_MatrixUseAccumulator > (1.0);
-
-        coopMatStore(A[0], output_tensor_blob, 0, CM_K, gl_CooperativeMatrixLayoutRowMajor);
-    }
-    return;
-
-    // TODO Pipelined GEMM loop
-
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    // ============= Apply activation function ======================
+    #pragma begin_block(activation)
+    // ######################################################################################
+    // ######################################################################################
+    // ######################################################################################
+    // =========================== Apply activation function ================================
+    // ######################################################################################
+    // ######################################################################################
+    // ######################################################################################
     //
     // NOTE: Maybe we should actually consider applying the activation
     // later during the global memory write just to hide the latency of the
@@ -630,19 +786,16 @@ void main() {
     #else
     NOT_IMPLEMENTED; // activation not one of {None, ReLU}
     #endif
+    #pragma end_block; // activation
 
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    // ============= Writeback sum to global memory ==================
+    #pragma begin_block(writeback);
+    // ######################################################################################
+    // ######################################################################################
+    // ######################################################################################
+    // =========================== Writeback sum to global memory ===========================
+    // ######################################################################################
+    // ######################################################################################
+    // ######################################################################################
     //
     // NOTE: Write sum back to global memory.
     //
@@ -690,14 +843,39 @@ void main() {
     // the alignment of channels.
     // Further the writeback might actually seem worse that it actually is we still mostly have
     // 16 or 32 (depending on the CM shape) invocations that write to a contiguous chunk of memory,
-    // but the transaction is only 64byte large because we HAVE TO use float16_t here.
+    // but the transaction is only 64byte large because we HAVE TO use 2 byte accesses here.
     //
     // We think that vectorization is actually impossible with HWC,
     // because for example for C=9,
     // For which channels can we use vectorized write instructions like uvec4.
     // And even if we would have a single invocation write a 4 byte contigous region,
-    // than we would still be hoping for the driver to combine the two 2byte writes into a
+    // than we would still be hoping for the driver to combine the two 2 byte writes into a
     // 4byte write which it will not do unless it can prove alignment, which it CAN'T!!!
+
+    // sum[zn][zm] layout.
+    //
+    // Letters denote pixel positions and numbers denote the channel
+    //
+    //                     <--------WG_N--------->
+    //             |-------SG_N-----|
+    //
+    //      -      +--CM_N--+--------+-------+---...
+    //      |      |A0A1A2A3|A4A5    |  ...  |
+    //  ^   | CM_M |B0B1B2B3|B4B5    |  ...  |
+    //  |   |      |C0C1C2C3|C4C5    |  ...  |
+    //  |   |      |D0D1D2D3|D4D5    |  ...  |
+    //  |  SG_M    +-------SG0-------+------SG1--...
+    //  |   |      |W0W1W2W3|W4W5    |  ...  |
+    //  |   |      |        |        |  ...  |
+    //  |   |      |        |        |  ...  |
+    //  |   |      |        |        |  ...  |
+    // WG_M -      +--------+--------+-------+--...
+    //  |          |   :    |   :    |       |
+    //  |          |   :    |   :    |       |
+    //  |          |   :    |   :    |       |
+    //  |          +-------SG2-------+------SG3--...
+    //  v          |        |        |       |
+    //             :        :        :       :
 
     for (uint zn = 0; zn < SG_N; zn++) {
         for (uint zm = 0; zm < SG_M; zm++) {
@@ -732,7 +910,8 @@ void main() {
     //
 
     for (uint sgm = 0; sgm < SG_M; ++sgm) {
-        const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgm * (SG_N * CM_M * CM_N / VSTYPE_SIZE);
+
+        const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgm * (SG_N * CM_M * CM_N / (VSTYPE_SIZE / ATYPE_SIZE));
         // const uint y = wgxy.y + sgm * SG_M + sgi;
         // const uint y = wgxy.y + sgmi * SG_M + sgm;
         const uint y = wgxy.y + sgmi * SG_M + sgm;
@@ -1040,4 +1219,82 @@ void main() {
     #else
     NOT_IMPLEMENTED; // vstype != uvec4
     #endif
+    #pragma end_block(writeback);
+
+    #if ASYNC_READ == true
+    // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    // ######################################################################################
+    // ######################################################################################
+    // ######################################################################################
+    // ================================== Pipeline Stages ===================================
+    // ######################################################################################
+    // ######################################################################################
+    // ######################################################################################
+    // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+    // NOTE: The pipeline prolog is the intial prefetch to get the pipeline started, we
+    // prefetch A and B into registers, such that in later pipeline iterations, we can
+    // interleave prefetching of A and B with GEMM.
+    //
+    // NOTE: We implement 2 pipeline stages, prefetching of A and B tiles and the GEMM.
+    // We interleave both stages.
+    // - Prefetching: Prefetch A and B from global memory into registers.
+    // - GEMM:
+    //   1. Copy prefetch of A and B into shared memory.
+    //   2. Load coopmats from shared memory.
+    //   3. GEMM loop.
+
+    // NOTE: Below we show a non pipelined version, simply for illustrative purposes.
+
+    // === Pipeline Prolog ===
+    #pragma inline_block(load_bias);
+
+    #pragma inline_block(prefetch_A);
+    #pragma inline_block(prefetch_B);
+    kk += 1;
+
+    // === Pipeline Process ===
+    for (; kk < KK; ++kk) {
+        #pragma inline_block(copy_prefetch_A);
+        #pragma inline_block(copy_prefetch_B);
+        barrier();
+        #pragma inline_block(prefetch_A);
+        #pragma inline_block(prefetch_B);
+        #pragma inline_block(gemm);
+        barrier();
+    }
+    // === Pipeline Epilog ===
+    #pragma inline_block(copy_prefetch_A);
+    #pragma inline_block(copy_prefetch_B);
+    barrier();
+    #pragma inline_block(gemm);
+
+    #else
+    // NOTE: Naive non pipelined gemm loop.
+    // For small IN_CH, the additional register overhead of a async reading of input and
+    // weights might not be worth, therefor we also provide a naive GEMM loop without pipelined execution.
+    // NOTE: This is definitely not optimal, but probably good enough! (Not a common path)
+
+    #pragma inline_block(load_bias);
+
+    for (; kk < KK; ++kk) {
+        #pragma inline_block(prefetch_A);
+        #pragma inline_block(prefetch_B);
+        #pragma inline_block(copy_prefetch_A);
+        #pragma inline_block(copy_prefetch_B);
+        memoryBarrierShared();
+        barrier();
+        #pragma inline_block(gemm);
+        memoryBarrierShared();
+        barrier();
+    }
+    #endif
+
+    // === Writeback ===
+    barrier();
+    #pragma inline_block(writeback);
 }

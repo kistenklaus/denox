@@ -42,7 +42,7 @@ int main() {
   profiler->set_query_pool(query_pool);
 
   const unsigned int W = 16;
-  const unsigned int H = 16;
+  const unsigned int H = 4;
   const unsigned int C = 1;
   const unsigned int K = 1;
 
@@ -65,13 +65,13 @@ int main() {
   std::optional<vkcnn::ActivationFunction> activationFunction = std::nullopt;
 
   const glm::uvec3 cmShape = glm::uvec3(16, 16, 16);
-  const glm::uvec3 sgTile = glm::uvec3(1, 1, 1);
-  const glm::uvec2 wgTile = glm::uvec2(8, 1);
+  const glm::uvec3 sgTile = glm::uvec3(4, 1, 1);
+  const glm::uvec2 wgTile = glm::uvec2(1, 1);
 
   vkcnn::ActivationHostTensor outputHost{
       {vkcnn::ActivationShape{W, H, K}, outLayout, outType}};
 
-  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile};
+  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile, false};
 
   vkcnn::ConvShaderSource convSrc =
       conv.specialize(vkcnn::OpConv{{S, R, C, K},
@@ -168,7 +168,7 @@ int main() {
   download.complete(outputHost);
 
   // ::torch::Tensor outputTorch = vkcnn::torch::fromActivation(outputHost);
-
+  //
   // ::torch::Tensor outputTorchRef =
   //     ::torch::conv2d(inputTorch, filterTorch, std::nullopt, {1, 1}, {1, 1});
 
@@ -195,6 +195,7 @@ int main() {
   if (biasHost.has_value()) {
     mem += biasHost->byteSize();
   }
+  mem += inputHost.byteSize();
   double throughput = mem / (lat * 1e-3);
   fmt::println("Throughput: {}GB/s", throughput * 1e-9);
 
