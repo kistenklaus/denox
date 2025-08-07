@@ -22,7 +22,10 @@ static std::string source() {
 ConvGEMM::ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile,
                    bool asyncRead)
     : m_source(source()), m_cmShape(cmShape), m_sgTile(sgTile),
-      m_wgTile(wgTile), m_asyncRead(asyncRead) {
+      m_wgTile(wgTile), m_asyncRead(asyncRead),
+      m_name(fmt::format("conv_gemm_WG{}x{}_SG{}x{}x{}_CM{}x{}x{}{}", m_wgTile.x,
+                         m_wgTile.y, m_sgTile.x, m_sgTile.y, m_sgTile.z,
+                         m_cmShape.x, m_cmShape.y, m_cmShape.z, m_asyncRead ? "_async" :  "")) {
   //
 }
 
@@ -72,7 +75,7 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       paddingX,       //
       paddingY,       //
   };
-  fmt::println("Padding = ({},{})", op.padding.x, op.padding.y);
+  // fmt::println("Padding = ({},{})", op.padding.x, op.padding.y);
   std::string atype;
   if (op.arithmeticType == FloatType::F16) {
     atype = "float16_t";
@@ -142,33 +145,33 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       {"ASYNC_READ", m_asyncRead ? "(true)" : "(false)"},
   };
 
-  for (const auto &def : defines) {
-    fmt::println("#define {} {}", def.name, def.value);
-  }
+  // for (const auto &def : defines) {
+  //   fmt::println("#define {} {}", def.name, def.value);
+  // }
 
   std::optional<WeightDescriptor::Bias> bias = std::nullopt;
   if (op.biasType.has_value()) {
     if (m_cmShape.z == 16) {
-      fmt::println("BiasLayout: C16");
+      // fmt::println("BiasLayout: C16");
       bias.emplace(BiasLayout::C16, *op.biasType);
     } else if (m_cmShape.z == 8) {
-      fmt::println("BiasLayout: C8");
+      // fmt::println("BiasLayout: C8");
       bias.emplace(BiasLayout::C8, *op.biasType);
     } else {
       throw std::runtime_error("Not supported");
     }
   }
 
-  fmt::println("CM_M: {}", m_cmShape.x);
-  fmt::println("CM_K: {}", m_cmShape.y);
-  fmt::println("CM_N: {}", m_cmShape.z);
-
-  fmt::println("SG_M: {}", m_sgTile.x);
-  fmt::println("SG_K: {}", m_sgTile.y);
-  fmt::println("SG_N: {}", m_sgTile.z);
-
-  fmt::println("WG_M: {}", m_wgTile.x);
-  fmt::println("WG_N: {}", m_wgTile.y);
+  // fmt::println("CM_M: {}", m_cmShape.x);
+  // fmt::println("CM_K: {}", m_cmShape.y);
+  // fmt::println("CM_N: {}", m_cmShape.z);
+  //
+  // fmt::println("SG_M: {}", m_sgTile.x);
+  // fmt::println("SG_K: {}", m_sgTile.y);
+  // fmt::println("SG_N: {}", m_sgTile.z);
+  //
+  // fmt::println("WG_M: {}", m_wgTile.x);
+  // fmt::println("WG_N: {}", m_wgTile.y);
 
   const unsigned int channelTile = m_cmShape.z * m_sgTile.z * m_wgTile.y;
   const unsigned int xtile = m_cmShape.x;
@@ -181,13 +184,15 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       op.inputLayout, op.inputType, op.outputLayout, op.outputType,
       WeightDescriptor{
           op.filterShape,
-          FilterLayout::RCSKC8,
+          FilterLayout::RSCK,
           FloatType::F16,
           bias,
       },
       op.stride, op.padding, name);
 }
 
-std::string_view ConvGEMM::name() const { return "conv"; };
+std::string_view ConvGEMM::name() const {
+  return m_name;
+};
 
 } // namespace vkcnn::shaders

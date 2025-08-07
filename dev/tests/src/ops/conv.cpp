@@ -11,6 +11,7 @@
 #include "vkcnn/dev/utils/to_string.hpp"
 #include "vkcnn/dev/utils/torch.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
+#include "vkcnn/shaders/conv/ConvGEMM.hpp"
 #include "vkcnn/shaders/conv/ConvTemplate.hpp"
 
 #include <ATen/ops/allclose.h>
@@ -38,34 +39,34 @@ protected:
 std::vector<ConvTestParams> generate_test_params() {
 
   std::vector<glm::uvec2> inputSizes = {
-      glm::uvec2(1999, 1111), //
-      // glm::uvec2(960, 540),   //
-      // glm::uvec2(480, 270),   //
-      // glm::uvec2(240, 135),   //
-      glm::uvec2(120, 68), //
-      glm::uvec2(120, 72), //
-      glm::uvec2(47, 16),  //
-      glm::uvec2(31, 7),   //
-      glm::uvec2(16, 8),   //
-      // glm::uvec2(8, 8),       //
-      // glm::uvec2(2, 2),       //
-      glm::uvec2(1, 1), //
+      glm::uvec2(960, 540), //
+      glm::uvec2(480, 270), //
+      glm::uvec2(240, 135), //
+      glm::uvec2(120, 68),  //
+      glm::uvec2(120, 72),  //
+      glm::uvec2(47, 16),   //
+      glm::uvec2(31, 7),    //
+      glm::uvec2(16, 8),    //
+      glm::uvec2(8, 8),     //
+      glm::uvec2(2, 2),     //
+      glm::uvec2(1, 1),     //
   };
 
   std::vector<unsigned int> channelCounts = {
-      16, //
-      32, //
-      48, //
+      1, 3, 9, 12, 31,
+      // 16, //
+      // 32, //
+      // 48, //
       // 64,  //
       // 80,  //
       // 96,  //
       // 112, //
-      128, //
-           // 160  //
+      // 128, //
+      // 160  //
   };
   std::vector<vkcnn::ActivationLayout> layouts = {
-      vkcnn::ActivationLayout::CHWC8,
-      vkcnn::ActivationLayout::CHWC16,
+      vkcnn::ActivationLayout::HWC,
+      // vkcnn::ActivationLayout::CHWC16,
   };
   std::vector<vkcnn::FloatType> types = {
       vkcnn::FloatType::F16,
@@ -113,15 +114,12 @@ std::vector<ConvTestParams> generate_test_params() {
   }
 
   std::vector<std::shared_ptr<vkcnn::shaders::ConvTemplate>> shaders = {
-      // std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2>(),
-      // std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
-      //     glm::uvec3(16, 8, 8)),
-      // std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
-      //     glm::uvec3(16, 16, 16)),
-      // std::make_shared<vkcnn::shaders::Conv3x3mmaVectorized>(
-      //     glm::uvec3(16, 8, 16)),
-      // std::make_shared<vkcnn::shaders::Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2>(),
-
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 16), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
   };
 
   std::vector<ConvTestParams> params;

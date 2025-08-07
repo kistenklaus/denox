@@ -78,11 +78,9 @@ std::string preprocess_shader_src_pragmas(std::string &src) {
       std::smatch m;
       if (std::regex_search(lines[i], m, begin_block_syntax)) {
         startOfBlock = i;
-        fmt::println("FOUND MATCH at line {}", i);
         blockId = m[1].str();
 
       } else if (std::regex_search(lines[i], m, inline_block_syntax)) {
-        fmt::println("Inlinable block!");
         std::string blockId = m[1];
         auto it = std::ranges::find_if(
             blocks, [&](const Block &b) { return b.id == blockId; });
@@ -97,7 +95,6 @@ std::string preprocess_shader_src_pragmas(std::string &src) {
     } else {
       std::smatch m;
       if (std::regex_search(lines[i], m, end_block_syntax)) {
-        fmt::println("Closing block at {}", i);
         std::size_t endOfBlock = i;
         std::string blockSrc;
         for (std::size_t i = startOfBlock + 1; i < endOfBlock; ++i) {
@@ -109,7 +106,6 @@ std::string preprocess_shader_src_pragmas(std::string &src) {
         auto e = lines.begin() + endOfBlock + 1;
         lines.erase(s, e);
         i -= std::distance(s, e);
-        fmt::println("Juming Back to {}", i);
         startOfBlock = npos;
       } else if (std::regex_search(lines[i], m, begin_block_syntax)) {
         throw std::runtime_error("Recursive #pragma blocks are not supported");

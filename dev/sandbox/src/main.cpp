@@ -42,9 +42,9 @@ int main() {
   profiler->set_query_pool(query_pool);
 
   const unsigned int W = 16;
-  const unsigned int H = 4;
-  const unsigned int C = 1;
-  const unsigned int K = 1;
+  const unsigned int H = 8;
+  const unsigned int C = 3;
+  const unsigned int K = 3;
 
   const unsigned int R = 3;
   const unsigned int S = 3;
@@ -64,9 +64,9 @@ int main() {
 
   std::optional<vkcnn::ActivationFunction> activationFunction = std::nullopt;
 
-  const glm::uvec3 cmShape = glm::uvec3(16, 16, 16);
-  const glm::uvec3 sgTile = glm::uvec3(4, 1, 1);
-  const glm::uvec2 wgTile = glm::uvec2(1, 1);
+  const glm::uvec3 cmShape = glm::uvec3(16, 8, 8);
+  const glm::uvec3 sgTile = glm::uvec3(1, 1, 1);
+  const glm::uvec2 wgTile = glm::uvec2(8, 1);
 
   vkcnn::ActivationHostTensor outputHost{
       {vkcnn::ActivationShape{W, H, K}, outLayout, outType}};
@@ -95,6 +95,16 @@ int main() {
   //                       .device(::torch::kCUDA));
   //
   vkcnn::FilterHostTensor filterHost{convSrc.filterDesc()};
+
+  for (unsigned int r = 0; r < R; ++r) {
+    for (unsigned int s = 0; s < S; ++s) {
+      for (unsigned int c = 0; c < C; ++c) {
+        for (unsigned int k = 0; k < K; ++k) {
+          filterHost.at(s, r, c, k) = 1.0;
+        }
+      }
+    }
+  }
 
   // vkcnn::FilterHostTensor filterHost = vkcnn::torch::toFilter(
   //     filterTorch, convSrc.filterLayout(), convSrc.filterType());
@@ -196,6 +206,7 @@ int main() {
     mem += biasHost->byteSize();
   }
   mem += inputHost.byteSize();
+  mem += filterHost.byteSize();
   double throughput = mem / (lat * 1e-3);
   fmt::println("Throughput: {}GB/s", throughput * 1e-9);
 

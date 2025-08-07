@@ -25,6 +25,7 @@ private:
   glm::uvec3 m_sgTile;
   glm::uvec2 m_wgTile;
   bool m_asyncRead;
+  std::string m_name;
 };
 
 } // namespace vkcnn::shaders
