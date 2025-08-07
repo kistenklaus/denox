@@ -71,7 +71,7 @@ int main() {
   vkcnn::ActivationHostTensor outputHost{
       {vkcnn::ActivationShape{W, H, K}, outLayout, outType}};
 
-  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile, false};
+  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile, true};
 
   vkcnn::ConvShaderSource convSrc =
       conv.specialize(vkcnn::OpConv{{S, R, C, K},
@@ -98,14 +98,11 @@ int main() {
 
   for (unsigned int c = 0; c < C; ++c) {
     for (unsigned int k = 0; k < K; ++k) {
-      if (k == 31) {
-        filterHost.at(1, 1, c, k) = 1.0;
+      for (unsigned int r = 0; r < R; ++r) {
+        for (unsigned int s = 0; s < S; ++s) {
+          filterHost.at(s, r, c, k) = 1.0;
+        }
       }
-      // for (unsigned int r = 0; r < R; ++r) {
-      //   for (unsigned int s = 0; s < S; ++s) {
-      //     filterHost.at(s, r, c, k) = 1.0;
-      //   }
-      // }
     }
   }
 

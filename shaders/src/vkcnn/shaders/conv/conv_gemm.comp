@@ -363,6 +363,150 @@ void main() {
         }
     }
 
+    #elif defined(IN_LAYOUT_HWC8)
+    {
+        // Input tile:
+        //   (Letters without numbers denote all channels (in a contigous linear layout)
+        //
+        //       +--CM_M---+  -
+        //       | A B C D |  |
+        //       | G H I J |  (SG_M x WG_M) = WG_TILE_Y
+        //       | W X Y Z |  |
+        //       |    :    |  |
+        //       +---------+  -
+        //
+        // A layout: HWxRSC
+        //
+        //       +---RSC---+
+        //       |ABCGHIWXY|
+        //    HW |BCDHIJXYZ|
+        //       |   ...   |
+        //       +---------+
+        //
+        // A tile (i.e SG_MxCM_M rows of A loaded by WG_N subgroups)
+        //
+        //            |--------------------KK/CM_K----------------->
+        //
+        //                              <--------SG_K----->
+        //     ^      +--CM_K--+--------+--------+--------+--------+---- ...
+        //     |      |A0A1B0B1|C0C1G0G1|H0H1I0I1|W0W1X0X1|Y0Y1 #k |
+        //    SG_M    |B0B1C0C1|D0D1H0H1|I0I1J0J1|X0X1Y0Y1|Z0Z1 #k |
+        //     |    CM_M       |        |        |        |        :  <- SG0
+        //     |      |  ...   |  ...   |  ...   |  ...   |
+        //     |      +--------+--------+--------+--------+-- ...
+        //     v      :        :        :        :        :           <- SG1 (assuming WG_N = 2)
+        //
+
+        // => Linearlized
+        //
+        //             <-------------CM_M------------>
+        //          <--CM_K-->
+        //   ^   ^  +--------+--------+--------+--------+
+        //   |   |  |H0H1I0I1|I0I1J0J1|  ...   |   ...  |
+        //   | SG_K +--------+--------+--------+--------+
+        //   |   |  |W0W1X0X1|X0X1Y0Y1|  ...   |   ...  |
+        //   |   v  +--------+--------+--------+--------+
+        //  SG_M    |        |        |        |        |
+        //   |      +--------+-------#y--------+--------+
+        //   |      |        |        |        |        |
+        //   v      +--------+--------+--------+--------+
+        //
+
+        #define PREFETCH_A_LAYOUT_ROW_MAJOR
+        #define PREFETCH_A_LAYOUT_LINEAR
+        #define A_LAYOUT_RSC
+
+        const uint k8 = subgroupBroadcastFirst(CM_K8 * SG_K * kk);
+        const uint IN_CH8 = IN_CH / 8;
+        for (uint q = 0; q < PREFETCH_A_IQQ; ++q) {
+            uvec4 v = uvec4(0);
+            const uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
+            if (liq8 < PREFETCH_A_SQQ) {
+                const uint siq8 = sgni * PREFETCH_A_SQQ + liq8;
+
+                const uint sgm = siq8 / (CM_M * CM_K8 * SG_K);
+                const uint sgij8 = siq8 % (CM_M * CM_K8 * SG_K);
+
+                const uint sgk = sgij8 / (CM_M * CM_K8);
+                const uint zkm8 = sgij8 % (CM_M * CM_K8);
+
+                const uint zm = zkm8 / CM_K8;
+                const uint zk8 = k8 + sgk * CM_K8 + zkm8 % CM_K8;
+
+                // NOTE: Because HWC8 => IN_CH % 8 == 0, we know that for k in [zk8*8-(zk8+1)*8) k will map to the same (r,s,c) index.
+                // We also know that zm and sgm is uniform across k, which means that zx,zy,zc are also uniform.
+                const uint zrs = zk8 / IN_CH8;
+                const uint zc8 = zk8 % IN_CH8; // <- uniform across 16byte access.
+
+                const uint zr = zrs / KERNEL_X;
+                const uint zs = zrs % KERNEL_X;
+
+                const uint zx = wgxy.x + zs + zm - PADDING_X;
+                const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+
+                if (zx < pc.IN_W && zy < pc.IN_H && zc8 < IN_CH8) {
+                    const uint o = zy * (pc.IN_W * IN_CH8) + zx * IN_CH8 + zc8;
+                    v = input_tensor_blob[o];
+                }
+            }
+            prefetch_A[q] = v;
+        }
+    }
+
+    #elif defined(IN_LAYOUT_CHWC8)
+    // Input tile:
+    //   (Letters without numbers denote all channels (in a contigous linear layout)
+    //
+    //       +--CM_M---+  -
+    //       | A B C D |  |
+    //       | G H I J |  (SG_M x WG_M) = WG_TILE_Y
+    //       | W X Y Z |  |
+    //       |    :    |  |
+    //       +---------+  -
+    //
+    // A layout: HWxRSC
+    //
+    //       +---RSC---+
+    //       |ABCGHIWXY|
+    //    HW |BCDHIJXYZ|
+    //       |   ...   |
+    //       +---------+
+    //
+    // A tile (i.e SG_MxCM_M rows of A loaded by WG_N subgroups)
+    //
+    //            |--------------------KK/CM_K----------------->
+    //
+    //                              <--------SG_K----->
+    //     ^      +--CM_K--+--------+--------+--------+--------+---- ...
+    //     |      |A0A1B0B1|C0C1G0G1|H0H1I0I1|W0W1X0X1|Y0Y1 #k |
+    //    SG_M    |B0B1C0C1|D0D1H0H1|I0I1J0J1|X0X1Y0Y1|Z0Z1 #k |
+    //     |    CM_M       |        |        |        |        :  <- SG0
+    //     |      |  ...   |  ...   |  ...   |  ...   |
+    //     |      +--------+--------+--------+--------+-- ...
+    //     v      :        :        :        :        :           <- SG1 (assuming WG_N = 2)
+    //
+
+    // => Linearlized
+    //
+    //             <-------------CM_M------------>
+    //          <--CM_K-->
+    //   ^   ^  +--------+--------+--------+--------+
+    //   |   |  |H0H1I0I1|I0I1J0J1|  ...   |   ...  |
+    //   | SG_K +--------+--------+--------+--------+
+    //   |   |  |W0W1X0X1|X0X1Y0Y1|  ...   |   ...  |
+    //   |   v  +--------+--------+--------+--------+
+    //  SG_M    |        |        |        |        |
+    //   |      +--------+-------#y--------+--------+
+    //   |      |        |        |        |        |
+    //   v      +--------+--------+--------+--------+
+    //
+
+    #define PREFETCH_A_LAYOUT_ROW_MAJOR
+    #define PREFETCH_A_LAYOUT_LINEAR
+    #define A_LAYOUT_RSC
+
+    IN_LAYOUT_CHWC8_NOT_IMPLEMENTED; //TODO
+
     #else
     UNDEFINED_INPUT_LAYOUT;
     #endif

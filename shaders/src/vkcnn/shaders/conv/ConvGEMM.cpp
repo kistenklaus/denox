@@ -47,8 +47,7 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
 
   ActivationLayout inputLayout = op.inputLayout;
   if (inputLayout == ActivationLayout::HWC && inputChannels % 8 == 0) {
-    // TODO: This is commented out because it's not implemented yet!!!
-    inputLayout = ActivationLayout::HWC; // promote layout (HWC == HWC8)
+    inputLayout = ActivationLayout::HWC8; // promote layout (HWC == HWC8)
   }
   std::string inputLayoutMacro;
   std::string istype;
@@ -194,9 +193,9 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       {"ASYNC_READ", m_asyncRead ? "(true)" : "(false)"},
   };
 
-  // for (const auto &def : defines) {
-  //   fmt::println("#define {} {}", def.name, def.value);
-  // }
+  for (const auto &def : defines) {
+    fmt::println("#define {} {}", def.name, def.value);
+  }
 
   std::optional<WeightDescriptor::Bias> bias = std::nullopt;
   if (op.biasType.has_value()) {
