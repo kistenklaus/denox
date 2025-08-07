@@ -91,7 +91,7 @@ std::vector<ConvTestParams> generate_test_params() {
                         ops.push_back(vkcnn::OpConv{
                             .filterShape = {kernelSize.x, kernelSize.y, c, k},
                             .filterType = filterType,
-                            .biasType = biasType,
+                            .biasType = std::nullopt,
                             .inputLayout = inputLayout,
                             .inputType = inputType,
                             .outputLayout = outputLayout,
@@ -117,9 +117,48 @@ std::vector<ConvTestParams> generate_test_params() {
       std::make_shared<vkcnn::shaders::ConvGEMM>(
           glm::uvec3(16, 16, 16), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
       std::make_shared<vkcnn::shaders::ConvGEMM>(
-          glm::uvec3(16, 8, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
+          glm::uvec3(16, 16, 16), glm::uvec3(2, 1, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 16), glm::uvec3(1, 2, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 16), glm::uvec3(1, 1, 2), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(4, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(2, 1)),
+
       std::make_shared<vkcnn::shaders::ConvGEMM>(
           glm::uvec3(16, 16, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 8), glm::uvec3(2, 1, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 8), glm::uvec3(1, 2, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 8), glm::uvec3(1, 1, 2), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 8), glm::uvec3(2, 2, 2), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 8), glm::uvec3(2, 2, 2), glm::uvec2(4, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 16, 8), glm::uvec3(2, 2, 2), glm::uvec2(2, 1)),
+
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(2, 1, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(1, 2, 1), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(1, 1, 2), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(2, 2, 2), glm::uvec2(8, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(2, 2, 2), glm::uvec2(4, 1)),
+      std::make_shared<vkcnn::shaders::ConvGEMM>(
+          glm::uvec3(16, 8, 8), glm::uvec3(2, 2, 2), glm::uvec2(2, 1)),
+
   };
 
   std::vector<ConvTestParams> params;

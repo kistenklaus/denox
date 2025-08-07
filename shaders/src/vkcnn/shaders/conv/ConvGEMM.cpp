@@ -23,9 +23,10 @@ ConvGEMM::ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile,
                    bool asyncRead)
     : m_source(source()), m_cmShape(cmShape), m_sgTile(sgTile),
       m_wgTile(wgTile), m_asyncRead(asyncRead),
-      m_name(fmt::format("conv_gemm_WG{}x{}_SG{}x{}x{}_CM{}x{}x{}{}", m_wgTile.x,
-                         m_wgTile.y, m_sgTile.x, m_sgTile.y, m_sgTile.z,
-                         m_cmShape.x, m_cmShape.y, m_cmShape.z, m_asyncRead ? "_async" :  "")) {
+      m_name(fmt::format("conv_gemm_WG{}x{}_SG{}x{}x{}_CM{}x{}x{}{}",
+                         m_wgTile.x, m_wgTile.y, m_sgTile.x, m_sgTile.y,
+                         m_sgTile.z, m_cmShape.x, m_cmShape.y, m_cmShape.z,
+                         m_asyncRead ? "_async" : "")) {
   //
 }
 
@@ -65,15 +66,13 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
   unsigned int subgroupSize = 32; // TODO get from VkPhysicalDevice
   unsigned int subgroupCount = m_wgTile.x * m_wgTile.y;
 
-  std::uint32_t specConstants[8] = {
-      inputChannels,  //
-      outputChannels, //
-      kernelWidth,    //
-      kernelHeight,   //
-      strideX,        //
-      strideY,        //
-      paddingX,       //
-      paddingY,       //
+  std::uint32_t specConstants[6] = {
+      kernelWidth,  //
+      kernelHeight, //
+      strideX,      //
+      strideY,      //
+      paddingX,     //
+      paddingY,     //
   };
   // fmt::println("Padding = ({},{})", op.padding.x, op.padding.y);
   std::string atype;
@@ -121,7 +120,30 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
     throw std::runtime_error("Not supported");
   }
 
-  ShaderDefine defines[21] = {
+  FilterLayout filterLayout = FilterLayout::RSCK;
+  std::string filterLayoutMacro;
+  std::string fstype;
+  if ((outputChannels % m_cmShape.z == 0) &&
+      (m_cmShape.z == 8 || m_cmShape.z == 16)) {
+    if (m_cmShape.z == 8) {
+      filterLayout = FilterLayout::KRSCK8;
+      filterLayoutMacro = "FILTER_LAYOUT_KRSCK8";
+      fstype = "uvec4";
+      fmt::println("Picked KRSCK8 filter layout");
+    } else if (m_cmShape.z == 16) {
+      filterLayout = FilterLayout::KRSCK16;
+      filterLayoutMacro = "FILTER_LAYOUT_KRSCK16";
+      fstype = "uvec4";
+      fmt::println("Picked KRSCK16 filter layout");
+    } else {
+      throw std::runtime_error("Unreachable");
+    }
+  } else {
+    filterLayoutMacro = "FILTER_LAYOUT_RSCK";
+    fstype = "uint16_t";
+  }
+
+  ShaderDefine defines[25] = {
       {"IN_LAYOUT", fmt::format("({})", inLayout)},
       {"OUT_LAYOUT", fmt::format("({})", outLayout)},
       {"atype", atype},
@@ -141,13 +163,17 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       {"SG_N", fmt::format("({})", m_sgTile.z)},
       {"SG_SIZE", fmt::format("({})", subgroupSize)},
       {"SG_COUNT", fmt::format("({})", subgroupCount)},
-      {"USE_BIAS", op.biasType.has_value() ? "(true)" : "(false)"},
+      {op.biasType.has_value() ? "USE_BIAS" : "NUSE_BIAS", "(1)"},
       {"ASYNC_READ", m_asyncRead ? "(true)" : "(false)"},
+      {"IN_CH", fmt::format("({})", inputChannels)},
+      {"OUT_CH", fmt::format("({})", outputChannels)},
+      {filterLayoutMacro, "(1)"},
+      {"fstype", fstype},
   };
 
-  // for (const auto &def : defines) {
-  //   fmt::println("#define {} {}", def.name, def.value);
-  // }
+  for (const auto &def : defines) {
+    fmt::println("#define {} {}", def.name, def.value);
+  }
 
   std::optional<WeightDescriptor::Bias> bias = std::nullopt;
   if (op.biasType.has_value()) {
@@ -184,15 +210,13 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       op.inputLayout, op.inputType, op.outputLayout, op.outputType,
       WeightDescriptor{
           op.filterShape,
-          FilterLayout::RSCK,
-          FloatType::F16,
+          filterLayout,
+          op.filterType,
           bias,
       },
       op.stride, op.padding, name);
 }
 
-std::string_view ConvGEMM::name() const {
-  return m_name;
-};
+std::string_view ConvGEMM::name() const { return m_name; };
 
 } // namespace vkcnn::shaders

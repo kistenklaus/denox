@@ -41,17 +41,17 @@ int main() {
   query_pool->reset();
   profiler->set_query_pool(query_pool);
 
-  const unsigned int W = 16;
-  const unsigned int H = 8;
-  const unsigned int C = 3;
-  const unsigned int K = 3;
+  const unsigned int W = 1920;
+  const unsigned int H = 1080;
+  const unsigned int C = 9;
+  const unsigned int K = 32;
 
   const unsigned int R = 3;
   const unsigned int S = 3;
 
   const glm::uvec2 stride = glm::uvec2(1, 1);
   const glm::uvec2 padding = glm::uvec2(1, 1);
-  const bool useBias = true;
+  const bool useBias = false;
 
   const vkcnn::ActivationLayout inLayout = vkcnn::ActivationLayout::HWC;
   const vkcnn::ActivationLayout outLayout = vkcnn::ActivationLayout::HWC;
@@ -64,14 +64,14 @@ int main() {
 
   std::optional<vkcnn::ActivationFunction> activationFunction = std::nullopt;
 
-  const glm::uvec3 cmShape = glm::uvec3(16, 8, 8);
-  const glm::uvec3 sgTile = glm::uvec3(1, 1, 1);
+  const glm::uvec3 cmShape = glm::uvec3(16, 16, 8);
+  const glm::uvec3 sgTile = glm::uvec3(2, 1, 4);
   const glm::uvec2 wgTile = glm::uvec2(8, 1);
 
   vkcnn::ActivationHostTensor outputHost{
       {vkcnn::ActivationShape{W, H, K}, outLayout, outType}};
 
-  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile, false};
+  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile, true};
 
   vkcnn::ConvShaderSource convSrc =
       conv.specialize(vkcnn::OpConv{{S, R, C, K},
@@ -122,7 +122,6 @@ int main() {
       biasHost.value().at(k) = static_cast<float>(0);
     }
   }
-  fmt::println("BiasHost.byteSize: {}", biasHost->byteSize());
 
   // vkcnn::ActivationHostTensor inputHost = vkcnn::torch::toActivation(
   //     inputTorch, convSrc.inputLayout(), convSrc.inputType());
