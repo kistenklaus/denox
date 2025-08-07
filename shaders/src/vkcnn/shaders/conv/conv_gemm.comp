@@ -15,98 +15,6 @@
 
 #pragma use_vulkan_memory_model
 
-layout(constant_id = 0) const uint KERNEL_X = 3;
-layout(constant_id = 1) const uint KERNEL_Y = 3;
-
-layout(constant_id = 2) const uint STRIDE_X = 1;
-layout(constant_id = 3) const uint STRIDE_Y = 1;
-
-layout(constant_id = 4) const uint PADDING_X = 1;
-layout(constant_id = 5) const uint PADDING_Y = 1;
-
-// layout(constant_id = 8) const uint SG_M = 1;
-// layout(constant_id = 9) const uint SG_K = 1;
-// layout(constant_id = 10) const uint SG_N = 1;
-
-// layout(constant_id = 8) const uint SG_SIZE = 1;
-
-// layout(constant_id = 12) const uint WG_M = 8;
-// layout(constant_id = 13) const uint WG_N = 1;
-
-// layout(constant_id = 9) const uint UINT_USE_BIAS = 0;
-// layout(constant_id = 10) const uint SG_COUNT = 1;
-
-#ifndef CM_M
-#define CM_M (16)
-#endif
-
-#ifndef CM_N
-#define CM_N (16)
-#endif
-
-#ifndef CM_K
-#define CM_K (16)
-#endif
-
-#ifndef WG_M
-#define WG_M (8)
-#endif
-#ifndef WG_N
-#define WG_N (8)
-#endif
-
-#ifndef SG_M
-#define SG_M (1)
-#endif
-
-#ifndef SG_K
-#define SG_K (1)
-#endif
-
-#ifndef SG_N
-#define SG_N (1)
-#endif
-
-#ifndef SG_SIZE
-#define (32)
-#endif
-
-#ifndef SG_COUNT
-#define WG_N * WG_M
-#endif
-
-#define HWC (0)
-#define CHW (1)
-#define CHWC4 (2)
-#define CHWC8 (3)
-#define CHWC16 (4)
-
-// aritmetic type
-// NOTE: The type that is actually used with coopmat, therefor
-// together with CM_* they have to form a valid coopmat shape.
-#ifndef atype
-#define atype float16_t
-#define ATYPE_SIZE 2
-#endif
-
-// storage type.
-// NOTE: Input channels must be divisible and writable with this type.
-#ifndef istype
-#define istype uint16_t
-#define ISTYPE_SIZE 2
-#endif
-
-#ifndef ostype
-#define ostype uint16_t
-#define OSTYPE_SIZE 2
-#endif
-
-#define ACTIVATION_NONE (0)
-#define ACTIVATION_ReLU (1)
-#ifndef ACTIVATION
-#define ACTIVATION (ACTIVATION_NONE)
-#endif
-
 // Vectorized memory storage type.
 // NOTE: After loading from global memory we can always vectorize.
 // For example for register to shared memory copy or coopMatLoad from shared memory.
@@ -301,9 +209,7 @@ void main() {
     //
     //
     #if VSTYPE_SIZE == 16
-
-    #if IN_LAYOUT == HWC
-    #if ISTYPE_SIZE == 2
+    #if defined(IN_LAYOUT_HWC)
     {
         // layout: HWC, istype: float16_t
 
@@ -458,11 +364,7 @@ void main() {
     }
 
     #else
-    NOT_IMPLEMENTED; // iotype != float16_t
-    #endif
-
-    #else
-    NOT_IMPLEMENTED; // IN_LAYOUT != HWC
+    UNDEFINED_INPUT_LAYOUT;
     #endif
 
     #else
@@ -533,7 +435,7 @@ void main() {
     //
 
     #if defined(FILTER_LAYOUT_KRSCK8) || defined(FILTER_LAYOUT_KRSCK16)
-    // => ostype : uvec4, istype != uvec4, vstype : uvec4
+    // => fstype: uvec4, vstype : uvec4
     // => filter memory layout: KRSCK(CM_N)
 
     // NOTE: With this memory layout, all cooperative filter matricies are already inlinear in global memory
@@ -576,6 +478,7 @@ void main() {
     #define PREFETCH_B_LAYOUT_LINEAR
     #define PREFETCH_B_LAYOUT_ROW_MAJOR
 
+    const uint k = subgroupBroadcastFirst(CM_K * SG_K * kk);
     for (uint q = 0; q < PREFETCH_B_IQQ; ++q) {
         uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
         uvec4 v = uvec4(0);
@@ -585,12 +488,85 @@ void main() {
             const uint sgn = siq8 / (CM_N8 * CM_K * SG_K);
             const uint sgij8 = siq8 % (CM_N8 * CM_K * SG_K);
 
-            const uint zk = sgij8 / CM_N8;
+            const uint zk = k + sgij8 / CM_N8;
             const uint zn8 = sgij8 % CM_N8;
 
             if (zk < RSC) {
-                const uint o = sgn * (KERNEL_X * KERNEL_Y * IN_CH * CM_N8)
-                        + zk * CM_N8;
+                // KRSCK(CM_N)
+                // => sgn = RSC
+                // const uint o = (sgn) * (RSC * CM_N8) + zk * CM_N8 + zn8;
+                const uint o = (wgni / CM_N + sgn) * (RSC * CM_N8) + zk * CM_N8 + zn8;
+                v = filter_blob[o];
+            }
+        }
+        prefetch_B[q] = v;
+    }
+
+    #elif defined(FILTER_LAYOUT_RSCKC8) || defined(FILTER_LAYOUT_RSCKC16)
+    // => IN_CH % CM_K == 0, fstype: uvec4, vstype: uvec4
+    // => filter memory layout: RSCKC(CM_K)
+
+    // NOTE: With this layout we are guaranteed that each B matrix tile is contigous in
+    // global memory in a column-major layout.
+    // This case is optimal because regarless of cm shape, CM_N * CM_K > 128 and CM_N * CM_K % 128 == 0,
+    // Therefor each cooperative matrix can be loaded with between 2 or 4 perfectly aligned 128 byte accesses
+    // (assuming filter_blob has a alignment of 128 byte).
+    // Importantly this layout does not guarantee that the OUT_CH is divisible by CM_N or 8, therefor
+    // we still require bound checks for zn.
+
+    //
+    //             |---------------WG_N------------------------------------------------------->
+    //             |---------------performed by WG_M subgroups -->
+    //             <-------SG_N------>
+    //     -   ^   +--CM_N--+--------+--------+--------+--------+--------+--------+--------+
+    //     |   |   |A0A1A2A3|A4A5A6  |        |        |        |        |        |        |
+    //     |  CM_K |B0B1B2B3|B4B5B6  |        |        |        |        |        |        |   sgk = 0
+    //     |   |   |C0C1C2C3|C4C5C6  |        |        |        |        |        |        |
+    //     |   |   |D0D1D2D3|D4D5D6  |        |        |        |        |        |        |
+    //   SG_K  v   +-------SG0-------+-------SG1-------+-------SG2-------+-------SG3-------+
+    //     |       |        |        |        |        |        |        |        |        |
+    //     |       |        |        |        |        |        |        |        |        |   sgk = 1
+    //     |       |        |        |        |        |        |        |        |        |
+    //     |       |        |        |        |        |        |        |        |        |
+    //     v       +--------+--------+--------+--------+--------+--------+--------+--------+
+
+    //  => Linearlized. RSCKC(CM_K) (per WG_M subgroups)
+    //             <----------------CM_N-------------->
+    //             <--CM_K-->
+    //  ^   ^   ^  +--------+--------+--------+--------+
+    //  |   |   |  |A0B0C0D0|A1B1C1D1|A2B2C2D2|A3B3C3D3|
+    //  |   | SG_N +--------+--------+--------+--------+
+    //  |   |   |  |A4B4C5D4|A5B5C5D5|A6B6C6D6|   #n   |
+    //  |  SG_K v  +--------+--------+--------+--------+
+    //  |   |      |   :    |   :    |   :    |   :    |
+    //  |   |      +--------+--------+--------+--------+
+    //  |   |      |   :    |   :    |   :    |   :    |
+    //  |   v      +--------+--------+--------+--------+
+    //  |          |  #n    |   #n   |   #n   |   #n   |
+    // WG_M        +--------+--------+--------+--------+
+    //  |          |        |        |        |        |
+    //  v          +--------+--------+--------+--------+
+    //
+
+    #define PREFETCH_B_LAYOUT_LINEAR
+    #define PREFETCH_B_LAYOUT_COLUMN_MAJOR
+
+    for (uint q = 0; q < PREFETCH_B_IQQ; ++q) {
+        uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
+        uvec4 v = uvec4(0);
+        if (liq8 < PREFETCH_B_SQQ) {
+            const uint siq8 = sgmi * PREFETCH_B_SQQ + liq8;
+
+            const uint sgk = siq8 / (CM_K8 * CM_N * SG_N);
+            const uint sgij8 = siq8 % (CM_K8 * CM_N * SG_N);
+
+            const uint zn = wgni + sgni * (SG_N * CM_N) + sgij8 / CM_K8;
+            const uint zk8 = sgij8 % CM_K8;
+
+            if (zn < OUT_CH) {
+                // RSCKC(CM_K)
+                // => sgk <- (RSC)
+                const uint o = (kk * SG_K + sgk) * (OUT_CH * CM_K8) + zn * CM_K8 + zk8;
                 v = filter_blob[o];
             }
         }
@@ -843,7 +819,7 @@ void main() {
                 const uint CM_N_VS = CM_N / (VSTYPE_SIZE / ATYPE_SIZE);
                 coopMatLoad(B[zn],
                     sh_buf,
-                    SH_B_OFFSET + sgni * PREFETCH_B_QQ + (zk * SG_N + zn) * (CM_N_VS * CM_K),
+                    SH_B_OFFSET + sgni * PREFETCH_B_QQ + (zn * SG_K + zk) * (CM_N_VS * CM_K),
                     CM_N_VS,
                     gl_CooperativeMatrixLayoutRowMajor);
                 #else
@@ -873,9 +849,8 @@ void main() {
     // NOTE: Maybe we should actually consider applying the activation
     // later during the global memory write just to hide the latency of the
     // operaitons. TODO: Benchmark this
-    #if ACTIVATION == ACTIVATION_NONE
-    // nothing to do here.
-    #elif ACTIVATION == ACTIVATION_ReLU
+    #if defined(ACTIVATION_NONE)
+    #elif defined(ACTIVATION_ReLU)
     for (uint zn = 0; zn < SG_N; zn++) {
         for (uint zm = 0; zm < SG_M; zm++) {
             for (uint i = 0; i < sum[zn][zm].length(); ++i) {
@@ -886,7 +861,7 @@ void main() {
         }
     }
     #else
-    NOT_IMPLEMENTED; // activation not one of {None, ReLU}
+    UNDEFINED_ACTIVATION; // activation not one of {None, ReLU}
     #endif
     #pragma end_block; // activation
 
@@ -931,9 +906,7 @@ void main() {
 
     #if VSTYPE_SIZE == 16
 
-    #if   OUT_LAYOUT == HWC
-
-    #if OSTYPE_SIZE == 2
+    #if defined(OUT_LAYOUT_HWC)
     // ostype: uint16_t
     #if ATYPE_SIZE == 2
 
@@ -1071,9 +1044,10 @@ void main() {
     }
 
     #else
-    NOT_IMPLEMENTED // atype != float16_t
+    NOT_SUPPORTED; // atype != float16_t
     #endif
-    #elif OSTYPE_SIZE == 16
+
+    #elif defined(OUT_LAYOUT_HWC8)
     // ostype: uvec4 <=> vstype: uvec4
     #if ATYPE_SIZE == 2
     // atype : float16_t
@@ -1194,13 +1168,7 @@ void main() {
     NOT_IMPLEMENTED; // atype != float16_t
     #endif
 
-    #else
-    NOT_IMPLEMENTED; // ostype (not in) {uint16_t, uvec4)
-    #endif
-
-    #elif OUT_LAYOUT == CHWC8
-
-    #if OSTYPE_SIZE == 16
+    #elif defined(OUT_LAYOUT_CHWC8)
     // ostype: uvec4 <=> vstype
     #if ATYPE_SIZE == 2
     // atype : float16_t
@@ -1292,12 +1260,9 @@ void main() {
     #else
     NOT_IMPLEMENTED; // atype != float16_t
     #endif
-    #else
-    NOT_SUPPORTED; // CHWC8 only supports ostype: uvec4
-    #endif
 
     #else
-    NOT_IMPLEMENTED; // out layout != HWC
+    UNDEFINED_OUT_LAYOUT;
     #endif
 
     #else

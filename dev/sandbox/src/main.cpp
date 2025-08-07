@@ -43,7 +43,7 @@ int main() {
 
   const unsigned int W = 1920;
   const unsigned int H = 1080;
-  const unsigned int C = 9;
+  const unsigned int C = 32;
   const unsigned int K = 32;
 
   const unsigned int R = 3;
@@ -64,14 +64,14 @@ int main() {
 
   std::optional<vkcnn::ActivationFunction> activationFunction = std::nullopt;
 
-  const glm::uvec3 cmShape = glm::uvec3(16, 16, 8);
-  const glm::uvec3 sgTile = glm::uvec3(2, 1, 4);
+  const glm::uvec3 cmShape = glm::uvec3(16, 16, 16);
+  const glm::uvec3 sgTile = glm::uvec3(2, 1, 2);
   const glm::uvec2 wgTile = glm::uvec2(8, 1);
 
   vkcnn::ActivationHostTensor outputHost{
       {vkcnn::ActivationShape{W, H, K}, outLayout, outType}};
 
-  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile, true};
+  vkcnn::shaders::ConvGEMM conv{cmShape, sgTile, wgTile, false};
 
   vkcnn::ConvShaderSource convSrc =
       conv.specialize(vkcnn::OpConv{{S, R, C, K},
@@ -96,13 +96,16 @@ int main() {
   //
   vkcnn::FilterHostTensor filterHost{convSrc.filterDesc()};
 
-  for (unsigned int r = 0; r < R; ++r) {
-    for (unsigned int s = 0; s < S; ++s) {
-      for (unsigned int c = 0; c < C; ++c) {
-        for (unsigned int k = 0; k < K; ++k) {
-          filterHost.at(s, r, c, k) = 1.0;
-        }
+  for (unsigned int c = 0; c < C; ++c) {
+    for (unsigned int k = 0; k < K; ++k) {
+      if (k == 31) {
+        filterHost.at(1, 1, c, k) = 1.0;
       }
+      // for (unsigned int r = 0; r < R; ++r) {
+      //   for (unsigned int s = 0; s < S; ++s) {
+      //     filterHost.at(s, r, c, k) = 1.0;
+      //   }
+      // }
     }
   }
 

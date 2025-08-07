@@ -104,7 +104,7 @@ void ConvPipeline::run(const ::merian::CommandBufferHandle &cmd,
   
 
   glm::uvec3 workgroupCount = (glm::uvec3(output.c(), input.w(), input.h()) + m_tileSize - glm::uvec3(1,1,1)) / m_tileSize;
-  fmt::println("DISPATCH: ({},{},{})", workgroupCount.x, workgroupCount.y, workgroupCount.z);
+  // fmt::println("DISPATCH: ({},{},{})", workgroupCount.x, workgroupCount.y, workgroupCount.z);
   cmd->dispatch(workgroupCount.x, workgroupCount.y, workgroupCount.z);
 }
 } // namespace vkcnn::runtime

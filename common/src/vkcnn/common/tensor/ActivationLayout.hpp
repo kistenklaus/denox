@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vkcnn/common/tensor/ActivationShape.hpp"
+#include <cassert>
 #include <compare>
 #include <cstddef>
 #include <stdexcept>
@@ -14,7 +15,7 @@ namespace vkcnn {
 namespace details {
 class ActivationLayout {
 public:
-  enum class Tag { CHW, HWC, CHWC4, CHWC8, CHWC16 };
+  enum class Tag { CHW, HWC, HWC8, CHWC4, CHWC8, CHWC16 };
   constexpr ActivationLayout(Tag tag) : m_tag(tag) {}
 
   __attribute__((always_inline)) inline constexpr std::size_t
@@ -24,6 +25,9 @@ public:
     // for better arithmetic optimizations and to avoid overflows.
     switch (m_tag) {
     case Tag::HWC:
+      return h * (shape.w * shape.c) + w * (shape.c) + c;
+    case Tag::HWC8:
+      assert(shape.c % 8 == 0);
       return h * (shape.w * shape.c) + w * (shape.c) + c;
     case Tag::CHW:
       return c * (shape.h * shape.w) + h * (shape.w) + w;
@@ -53,6 +57,9 @@ public:
       : m_layout(layout) {}
   static constexpr details::ActivationLayout HWC{
       details::ActivationLayout::Tag::HWC};
+  static constexpr details::ActivationLayout HWC8{
+      details::ActivationLayout::Tag::HWC8};
+
   static constexpr details::ActivationLayout CHW{
       details::ActivationLayout::Tag::CHW};
 

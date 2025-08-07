@@ -53,16 +53,16 @@ std::vector<ConvTestParams> generate_test_params() {
   };
 
   std::vector<unsigned int> channelCounts = {
-      1, 3, 9, 12, 31,
-      // 16, //
-      // 32, //
-      // 48, //
-      // 64,  //
-      // 80,  //
-      // 96,  //
-      // 112, //
-      // 128, //
-      // 160  //
+      1,   3, 9, 12, 31,
+      16,  //
+      32,  //
+      48,  //
+      64,  //
+      80,  //
+      96,  //
+      112, //
+      128, //
+      160  //
   };
   std::vector<vkcnn::ActivationLayout> layouts = {
       vkcnn::ActivationLayout::HWC,
@@ -82,26 +82,24 @@ std::vector<ConvTestParams> generate_test_params() {
       for (const auto &kernelSize : kernelSizes) {
         for (const auto &inputType : types) {
           for (const auto &arithmeticType : types) {
-            for (const auto &biasType : types) {
-              for (const auto &outputType : types) {
-                for (const auto &filterType : types) {
-                  for (const auto &inputLayout : layouts) {
-                    for (const auto &outputLayout : layouts) {
-                      for (const auto &activation : activations) {
-                        ops.push_back(vkcnn::OpConv{
-                            .filterShape = {kernelSize.x, kernelSize.y, c, k},
-                            .filterType = filterType,
-                            .biasType = std::nullopt,
-                            .inputLayout = inputLayout,
-                            .inputType = inputType,
-                            .outputLayout = outputLayout,
-                            .outputType = outputType,
-                            .activationFunc = activation,
-                            .arithmeticType = arithmeticType,
-                            .stride = glm::uvec2(1, 1),
-                            .padding = glm::uvec2(1, 1),
-                        });
-                      }
+            for (const auto &outputType : types) {
+              for (const auto &filterType : types) {
+                for (const auto &inputLayout : layouts) {
+                  for (const auto &outputLayout : layouts) {
+                    for (const auto &activation : activations) {
+                      ops.push_back(vkcnn::OpConv{
+                          .filterShape = {kernelSize.x, kernelSize.y, c, k},
+                          .filterType = filterType,
+                          .biasType = std::nullopt,
+                          .inputLayout = inputLayout,
+                          .inputType = inputType,
+                          .outputLayout = outputLayout,
+                          .outputType = outputType,
+                          .activationFunc = activation,
+                          .arithmeticType = arithmeticType,
+                          .stride = glm::uvec2(1, 1),
+                          .padding = glm::uvec2(1, 1),
+                      });
                     }
                   }
                 }
@@ -128,7 +126,7 @@ std::vector<ConvTestParams> generate_test_params() {
           glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(4, 1)),
       std::make_shared<vkcnn::shaders::ConvGEMM>(
           glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(2, 1)),
-
+      
       std::make_shared<vkcnn::shaders::ConvGEMM>(
           glm::uvec3(16, 16, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
       std::make_shared<vkcnn::shaders::ConvGEMM>(
@@ -143,7 +141,7 @@ std::vector<ConvTestParams> generate_test_params() {
           glm::uvec3(16, 16, 8), glm::uvec3(2, 2, 2), glm::uvec2(4, 1)),
       std::make_shared<vkcnn::shaders::ConvGEMM>(
           glm::uvec3(16, 16, 8), glm::uvec3(2, 2, 2), glm::uvec2(2, 1)),
-
+      
       std::make_shared<vkcnn::shaders::ConvGEMM>(
           glm::uvec3(16, 8, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
       std::make_shared<vkcnn::shaders::ConvGEMM>(
@@ -187,7 +185,7 @@ TEST_P(OpTest, Shader) {
   ::torch::Device device(::torch::cuda::is_available() ? ::torch::kCUDA
                                                        : ::torch::kCPU);
 
-  ::torch::manual_seed(43);
+  ::torch::manual_seed(42);
   ::torch::Tensor filterTorch =
       ::torch::rand({param.op.filterShape.k, param.op.filterShape.c,
                      param.op.filterShape.r, param.op.filterShape.s},

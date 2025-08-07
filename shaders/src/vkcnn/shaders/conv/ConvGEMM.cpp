@@ -45,36 +45,56 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
   unsigned int paddingX = op.padding.x;
   unsigned int paddingY = op.padding.y;
 
-  auto actiLayoutOrd = [](ActivationLayout layout) {
-    if (layout == ActivationLayout::HWC) {
-      return 0;
-    } else if (layout == ActivationLayout::CHW) {
-      throw std::runtime_error("Not supported");
-    } else if (layout == ActivationLayout::CHWC4) {
-      throw std::runtime_error("Not supported");
-    } else if (layout == ActivationLayout::CHWC8) {
-      return 3;
-    } else if (layout == ActivationLayout::CHWC16) {
-      throw std::runtime_error("Not supported");
-    } else {
-      throw std::runtime_error("Unsupported specialization");
-    }
-  };
-  unsigned int inLayout = actiLayoutOrd(op.inputLayout);
-  unsigned int outLayout = actiLayoutOrd(op.outputLayout);
+  ActivationLayout inputLayout = op.inputLayout;
+  if (inputLayout == ActivationLayout::HWC && inputChannels % 8 == 0) {
+    // TODO: This is commented out because it's not implemented yet!!!
+    inputLayout = ActivationLayout::HWC; // promote layout (HWC == HWC8)
+  }
+  std::string inputLayoutMacro;
+  std::string istype;
+  unsigned int istype_size;
+  if (inputLayout == ActivationLayout::HWC) {
+    inputLayoutMacro = "IN_LAYOUT_HWC";
+    istype = "uint16_t";
+    istype_size = 2;
+  } else if (inputLayout == ActivationLayout::HWC8) {
+    inputLayoutMacro = "IN_LAYOUT_HWC8";
+    istype = "uvec4";
+    istype_size = 16;
+  } else if (inputLayout == ActivationLayout::CHWC8) {
+    inputLayoutMacro = "IN_LAYOUT_CHWC8";
+    istype = "uvec4";
+    istype_size = 16;
+  } else {
+    throw std::runtime_error("Unsupported inputLayout");
+  }
+
+  ActivationLayout outputLayout = op.outputLayout;
+  if (outputLayout == ActivationLayout::HWC && outputChannels % 8 == 0) {
+    outputLayout = ActivationLayout::HWC8;
+  }
+  std::string outputLayoutMacro;
+  std::string ostype;
+  unsigned int ostype_size;
+  if (outputLayout == ActivationLayout::HWC) {
+    outputLayoutMacro = "OUT_LAYOUT_HWC";
+    ostype = "uint16_t";
+    ostype_size = 2;
+  } else if (outputLayout == ActivationLayout::HWC8) {
+    outputLayoutMacro = "OUT_LAYOUT_HWC8";
+    ostype = "uvec4";
+    ostype_size = 16;
+  } else if (outputLayout == ActivationLayout::CHWC8) {
+    outputLayoutMacro = "OUT_LAYOUT_CHWC8";
+    ostype = "uvec4";
+    ostype_size = 16;
+  } else {
+    throw std::runtime_error("Unsupported inputLayout");
+  }
 
   unsigned int subgroupSize = 32; // TODO get from VkPhysicalDevice
   unsigned int subgroupCount = m_wgTile.x * m_wgTile.y;
 
-  std::uint32_t specConstants[6] = {
-      kernelWidth,  //
-      kernelHeight, //
-      strideX,      //
-      strideY,      //
-      paddingX,     //
-      paddingY,     //
-  };
-  // fmt::println("Padding = ({},{})", op.padding.x, op.padding.y);
   std::string atype;
   if (op.arithmeticType == FloatType::F16) {
     atype = "float16_t";
@@ -86,76 +106,76 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
     throw std::runtime_error("Unsupported arithmetic type");
   }
 
-  auto deriveSType =
-      [](unsigned int channelSize) -> std::pair<std::string, unsigned int> {
-    if (channelSize % 16 == 0) {
-      return {"uvec4", 16};
-    } else if (channelSize % 2 == 0) {
-      return {"uint16_t", 2};
-    } else {
-      throw std::runtime_error("Unsupported channelSize");
-    }
-  };
-  auto [istype, istypesize] = deriveSType(inputChannels * op.inputType.size());
-  auto [ostype, ostypesize] =
-      deriveSType(outputChannels * op.outputType.size());
-
-  unsigned int actiFuncOrd;
+  std::string activationMacro;
   if (op.activationFunc.has_value()) {
     switch (op.activationFunc.value()) {
     case ActivationFunction::ReLU:
-      actiFuncOrd = 1;
+      activationMacro = "ACTIVATION_ReLU";
       break;
     default:
       throw std::runtime_error("Activation function is not supported");
     }
   } else {
-    actiFuncOrd = 0;
-  }
-
-  // assert CM_M8 * CM_K * SG_M * SG_K % WG_N == 0
-  if (op.inputLayout == ActivationLayout::HWC &&
-      (m_cmShape.x / 8 * m_cmShape.y * m_sgTile.x * m_sgTile.y) % m_wgTile.y !=
-          0) {
-    throw std::runtime_error("Not supported");
+    activationMacro = "ACTIVATION_NONE";
   }
 
   FilterLayout filterLayout = FilterLayout::RSCK;
   std::string filterLayoutMacro;
   std::string fstype;
-  if ((outputChannels % m_cmShape.z == 0) &&
-      (m_cmShape.z == 8 || m_cmShape.z == 16)) {
+  unsigned int fstype_size;
+  if ((inputChannels % m_cmShape.y == 0) &&
+      (m_cmShape.y == 8 || m_cmShape.y == 16)) {
+    if (m_cmShape.y == 8) {
+      filterLayout = FilterLayout::RSCKC8;
+      filterLayoutMacro = "FILTER_LAYOUT_RSCKC8";
+      fstype = "uvec4";
+      fstype_size = 16;
+    } else if (m_cmShape.y == 16) {
+      filterLayout = FilterLayout::RSCKC16;
+      filterLayoutMacro = "FILTER_LAYOUT_RSCKC16";
+      fstype = "uvec4";
+      fstype_size = 16;
+    } else {
+      throw std::runtime_error("Invalid specialization");
+    }
+  } else if ((outputChannels % m_cmShape.z == 0) &&
+             (m_cmShape.z == 8 || m_cmShape.z == 16)) {
     if (m_cmShape.z == 8) {
       filterLayout = FilterLayout::KRSCK8;
       filterLayoutMacro = "FILTER_LAYOUT_KRSCK8";
       fstype = "uvec4";
-      fmt::println("Picked KRSCK8 filter layout");
+      fstype_size = 16;
     } else if (m_cmShape.z == 16) {
       filterLayout = FilterLayout::KRSCK16;
       filterLayoutMacro = "FILTER_LAYOUT_KRSCK16";
       fstype = "uvec4";
-      fmt::println("Picked KRSCK16 filter layout");
+      fstype_size = 16;
     } else {
-      throw std::runtime_error("Unreachable");
+      throw std::runtime_error("Invalid specialization");
     }
   } else {
     filterLayoutMacro = "FILTER_LAYOUT_RSCK";
     fstype = "uint16_t";
+    fstype_size = 2;
   }
 
-  ShaderDefine defines[25] = {
-      {"IN_LAYOUT", fmt::format("({})", inLayout)},
-      {"OUT_LAYOUT", fmt::format("({})", outLayout)},
+  ShaderDefine defines[32] = {
+      {"IN_CH", fmt::format("({})", inputChannels)},
+      {"OUT_CH", fmt::format("({})", outputChannels)},
+      {inputLayoutMacro, "(1)"},
+      {outputLayoutMacro, "(1)"},
+      {filterLayoutMacro, "(1)"},
       {"atype", atype},
       {"ATYPE_SIZE", fmt::format("({})", op.arithmeticType.size())},
       {"istype", istype},
-      {"ISTYPE_SIZE", fmt::format("({})", istypesize)},
+      {"ISTYPE_SIZE", fmt::format("({})", istype_size)},
       {"ostype", ostype},
-      {"OSTYPE_SIZE", fmt::format("({})", ostypesize)},
+      {"OSTYPE_SIZE", fmt::format("({})", ostype_size)},
+      {"fstype", fstype},
+      {"FSTYPE_SIZE", fmt::format("({})", fstype_size)},
       {"CM_M", fmt::format("({})", m_cmShape.x)},
       {"CM_K", fmt::format("({})", m_cmShape.y)},
       {"CM_N", fmt::format("({})", m_cmShape.z)},
-      {"ACTIVATION", fmt::format("({})", actiFuncOrd)},
       {"WG_M", fmt::format("({})", m_wgTile.x)},
       {"WG_N", fmt::format("({})", m_wgTile.y)},
       {"SG_M", fmt::format("({})", m_sgTile.x)},
@@ -163,17 +183,20 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       {"SG_N", fmt::format("({})", m_sgTile.z)},
       {"SG_SIZE", fmt::format("({})", subgroupSize)},
       {"SG_COUNT", fmt::format("({})", subgroupCount)},
+      {"KERNEL_X", fmt::format("{}", kernelWidth)},
+      {"KERNEL_Y", fmt::format("{}", kernelHeight)},
+      {"PADDING_X", fmt::format("{}", paddingX)},
+      {"PADDING_Y", fmt::format("{}", paddingY)},
+      {"STRIDE_X", fmt::format("{}", strideX)},
+      {"STRIDE_Y", fmt::format("{}", strideY)},
+      {activationMacro, "(1)"},
       {op.biasType.has_value() ? "USE_BIAS" : "NUSE_BIAS", "(1)"},
       {"ASYNC_READ", m_asyncRead ? "(true)" : "(false)"},
-      {"IN_CH", fmt::format("({})", inputChannels)},
-      {"OUT_CH", fmt::format("({})", outputChannels)},
-      {filterLayoutMacro, "(1)"},
-      {"fstype", fstype},
   };
 
-  for (const auto &def : defines) {
-    fmt::println("#define {} {}", def.name, def.value);
-  }
+  // for (const auto &def : defines) {
+  //   fmt::println("#define {} {}", def.name, def.value);
+  // }
 
   std::optional<WeightDescriptor::Bias> bias = std::nullopt;
   if (op.biasType.has_value()) {
@@ -188,33 +211,22 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
     }
   }
 
-  // fmt::println("CM_M: {}", m_cmShape.x);
-  // fmt::println("CM_K: {}", m_cmShape.y);
-  // fmt::println("CM_N: {}", m_cmShape.z);
-  //
-  // fmt::println("SG_M: {}", m_sgTile.x);
-  // fmt::println("SG_K: {}", m_sgTile.y);
-  // fmt::println("SG_N: {}", m_sgTile.z);
-  //
-  // fmt::println("WG_M: {}", m_wgTile.x);
-  // fmt::println("WG_N: {}", m_wgTile.y);
-
   const unsigned int channelTile = m_cmShape.z * m_sgTile.z * m_wgTile.y;
   const unsigned int xtile = m_cmShape.x;
   const unsigned int ytile = m_sgTile.x * m_wgTile.x;
 
   std::string name(this->name());
-  return ConvShaderSource(
-      std::move(src), ShaderLang::GLSL, SpecializationConstants{specConstants},
-      ShaderDefines{defines}, glm::uvec3(channelTile, xtile, ytile),
-      op.inputLayout, op.inputType, op.outputLayout, op.outputType,
-      WeightDescriptor{
-          op.filterShape,
-          filterLayout,
-          op.filterType,
-          bias,
-      },
-      op.stride, op.padding, name);
+  return ConvShaderSource(std::move(src), ShaderLang::GLSL,
+                          SpecializationConstants{}, ShaderDefines{defines},
+                          glm::uvec3(channelTile, xtile, ytile), op.inputLayout,
+                          op.inputType, op.outputLayout, op.outputType,
+                          WeightDescriptor{
+                              op.filterShape,
+                              filterLayout,
+                              op.filterType,
+                              bias,
+                          },
+                          op.stride, op.padding, name);
 }
 
 std::string_view ConvGEMM::name() const { return m_name; };

@@ -350,6 +350,24 @@ vkcnn::FilterHostTensor vkcnn::torch::toFilter(::torch::Tensor tensor,
                  .permute({0, 1, 3, 4, 2}) // R,Cb,S,K,Ci
                  .contiguous();
 
+  } else if (layout == FilterLayout::KRSCK8 ||
+             layout == FilterLayout::KRSCK16) {
+
+    const int blk = layout == FilterLayout::KRSCK8 ? 8 : 16;
+
+    const int64_t K_pad = ((K + blk - 1) / blk) * blk;
+
+    tensor = tensor.permute({0, 2, 3, 1}); // K, R, S, C
+
+    if (K_pad != K) {
+      auto pad = ::torch::zeros({K_pad - K, R, S, C}, tensor.options());
+      tensor = ::torch::cat({tensor, pad}, 0); // pad K
+    }
+
+    tensor = tensor.view({K_pad / blk, blk, R, S, C})
+                 .permute({0, 2, 3, 4, 1}) // Kb, R, S, C, Ki
+                 .contiguous();
+
   } else {
     TORCH_CHECK(false, "Unsupported FilterLayout");
   }
@@ -360,7 +378,7 @@ vkcnn::FilterHostTensor vkcnn::torch::toFilter(::torch::Tensor tensor,
   tensor = tensor.contiguous(); // make sure it's dense
 
   FilterDescriptor desc{
-      .shape = {static_cast<unsigned>(R), static_cast<unsigned>(S),
+      .shape = {static_cast<unsigned>(S), static_cast<unsigned>(R),
                 static_cast<unsigned>(C), static_cast<unsigned>(K)},
       .layout = layout,
       .type = type,
