@@ -3,10 +3,6 @@
 #include "src/vkcnn/dev/survey/conv.hpp"
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/dev/utils/merian.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P2.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RCSKC8_HR_P3.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mma16x8x8_CHWC8_RSCKC8_NR_P2.hpp"
-#include "vkcnn/shaders/conv/Conv3x3mmaVectorized.hpp"
 #include "vkcnn/shaders/conv/ConvTemplate.hpp"
 
 vkcnn::dev::survey::ConvSurvey

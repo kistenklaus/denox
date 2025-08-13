@@ -88,11 +88,13 @@ std::vector<ConvTestParams> generate_test_params() {
             for (const auto &outputType : types) {
               for (const auto &filterType : types) {
                 for (const auto &inputLayout : layouts) {
-                  if (inputLayout == vkcnn::ActivationLayout::CHWC8) {
+                  if (inputLayout == vkcnn::ActivationLayout::CHWC8 &&
+                      (c % 8 != 0)) {
                     continue;
                   }
                   for (const auto &outputLayout : layouts) {
-                    if (outputLayout == vkcnn::ActivationLayout::CHWC8 && (k % 8 != 0)) {
+                    if (outputLayout == vkcnn::ActivationLayout::CHWC8 &&
+                        (k % 8 != 0)) {
                       continue;
                     }
                     for (const auto &activation : activations) {

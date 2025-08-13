@@ -1,12 +1,12 @@
 
-#include "c10/util/strong_type.h"
 #include "merian/vk/extension/extension_resources.hpp"
 #include "merian/vk/memory/resource_allocator.hpp"
 #include "merian/vk/shader/shader_compiler.hpp"
 #include "merian/vk/shader/shader_compiler_system_glslc.hpp"
 #include "merian/vk/utils/profiler.hpp"
 #include "vkcnn/common/ActivationFunction.hpp"
-#include "vkcnn/common/shader/conv/ConvShaderSource.hpp"
+#include "vkcnn/common/ops/OpCopy.hpp"
+#include "vkcnn/common/shader/ConvShaderSource.hpp"
 #include "vkcnn/common/tensor/ActivationHostTensor.hpp"
 #include "vkcnn/common/tensor/ActivationLayout.hpp"
 #include "vkcnn/common/tensor/BiasHostTensor.hpp"
@@ -15,14 +15,15 @@
 #include "vkcnn/dev/utils/merian.hpp"
 #include "vkcnn/dev/utils/tensor_algorithms.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
+#include "vkcnn/runtime/copy/CopyPipeline.hpp"
 #include "vkcnn/runtime/tensor/ActivationDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/FilterDeviceTensor.hpp"
 #include "vkcnn/shaders/conv/ConvGEMM.hpp"
+#include "vkcnn/shaders/copy/CopyTransform.hpp"
 #include <fmt/base.h>
 #include <print>
 
-int main() {
-
+void conv_sandbox() {
   // Setup
   merian::ContextHandle context = vkcnn::merian::createContext();
 
@@ -53,8 +54,8 @@ int main() {
   const glm::uvec2 padding = glm::uvec2(1, 1);
   const bool useBias = false;
 
-  const vkcnn::ActivationLayout inLayout = vkcnn::ActivationLayout::HWC;
-  const vkcnn::ActivationLayout outLayout = vkcnn::ActivationLayout::HWC;
+  const vkcnn::ActivationLayout inLayout = vkcnn::ActivationLayout::CHWC8;
+  const vkcnn::ActivationLayout outLayout = vkcnn::ActivationLayout::CHWC8;
 
   const vkcnn::FloatType outType = vkcnn::FloatType::F16;
   const vkcnn::FloatType inType = vkcnn::FloatType::F16;
@@ -65,7 +66,7 @@ int main() {
   std::optional<vkcnn::ActivationFunction> activationFunction = std::nullopt;
 
   const glm::uvec3 cmShape = glm::uvec3(16, 16, 16);
-  const glm::uvec3 sgTile = glm::uvec3(2, 1, 2);
+  const glm::uvec3 sgTile = glm::uvec3(2, 2, 2);
   const glm::uvec2 wgTile = glm::uvec2(8, 1);
 
   vkcnn::ActivationHostTensor outputHost{
@@ -200,20 +201,150 @@ int main() {
   profiler->collect(true, false);
   fmt::println("{}", merian::Profiler::get_report_str(profiler->get_report()));
   double lat = profiler->get_report().gpu_total();
-  std::size_t mem = outputHost.byteSize();
+  std::size_t mem = 0;
   if (biasHost.has_value()) {
     mem += biasHost->byteSize();
   }
   mem += inputHost.byteSize();
   mem += filterHost.byteSize();
+  mem += outputHost.byteSize();
+
   double throughput = mem / (lat * 1e-3);
   fmt::println("Throughput: {}GB/s", throughput * 1e-9);
 
-  for (uint b = 0; b < 16; ++b) {
-    fmt::println("[{}]: 0x{:X}", b, outputHost.span()[b]);
-  }
+  // for (uint b = 0; b < 16; ++b) {
+  //   fmt::println("[{}]: 0x{:X}", b, outputHost.span()[b]);
+  // }
 
   // vkcnn::tensor_algo::printActivation(outputHost);
+}
 
+void copy_transform_sandbox() {
+  merian::ContextHandle context = vkcnn::merian::createContext();
+
+  merian::ShaderCompilerHandle shaderCompiler =
+      std::make_shared<merian::SystemGlslcCompiler>(context);
+  auto resources = context->get_extension<merian::ExtensionResources>();
+  merian::ResourceAllocatorHandle deviceAlloc = resources->resource_allocator();
+
+  merian::QueueHandle queue = context->get_queue_GCT();
+  merian::CommandPoolHandle cmdPool =
+      std::make_shared<merian::CommandPool>(queue);
+
+  merian::ProfilerHandle profiler = std::make_shared<merian::Profiler>(context);
+  merian::QueryPoolHandle<vk::QueryType::eTimestamp> query_pool =
+      std::make_shared<merian::QueryPool<vk::QueryType::eTimestamp>>(context);
+  query_pool->reset();
+  profiler->set_query_pool(query_pool);
+
+  const unsigned int W = 1920;
+  const unsigned int H = 1080;
+  const unsigned int C = 8;
+  const unsigned int IN_C = C;
+  const unsigned int OUT_C = C;
+
+
+  unsigned int outChannelOffset = 0;
+  unsigned int inChannelOffset = 0;
+
+  const vkcnn::ActivationLayout inLayout = vkcnn::ActivationLayout::CHWC8;
+  const vkcnn::ActivationLayout outLayout = vkcnn::ActivationLayout::CHWC8;
+
+  const vkcnn::FloatType outType = vkcnn::FloatType::F16;
+  const vkcnn::FloatType inType = vkcnn::FloatType::F16;
+
+
+  vkcnn::shaders::CopyTransform copyTransform{};
+
+  vkcnn::ActivationHostTensor inputHost{
+      {vkcnn::ActivationShape{W, H, IN_C}, inLayout, inType}};
+  vkcnn::ActivationHostTensor outputHost{
+      {vkcnn::ActivationShape{W, H, OUT_C}, outLayout, outType}};
+
+  vkcnn::OpCopy copy{inLayout,        inType,           IN_C,
+                     inChannelOffset, outLayout,        outType,
+                     OUT_C,           outChannelOffset, C};
+
+  vkcnn::CopyShaderSource copySrc = copyTransform.do_specialize(copy);
+
+  for (unsigned int h = 0; h < H; ++h) {
+    for (unsigned int w = 0; w < W; ++w) {
+      for (unsigned int c = 0; c < IN_C; ++c) {
+        inputHost.at(w, h, c) = static_cast<float>(c + 1);
+      }
+    }
+  }
+
+  // =========== RUNTIME ==============
+
+  vkcnn::runtime::ActivationDeviceTensor inputDevice{inputHost.desc(),
+                                                     deviceAlloc};
+
+  vkcnn::runtime::ActivationDeviceTensor outputDevice{outputHost.desc(),
+                                                      deviceAlloc};
+
+  vkcnn::runtime::CopyPipeline copyPipe{context, shaderCompiler, copySrc};
+
+  auto cmd = std::make_shared<merian::CommandBuffer>(cmdPool);
+  cmd->begin();
+
+  inputDevice.upload(cmd, inputHost);
+  outputDevice.zero(cmd);
+
+  for (unsigned int i = 0; i < 100; ++i) {
+    MERIAN_PROFILE_SCOPE_GPU(profiler, cmd, "copy-transform");
+    copyPipe.run(cmd, inputDevice, outputDevice);
+  }
+
+  auto download = outputDevice.download(cmd);
+
+  cmd->end();
+  queue->submit_wait(cmd);
+
+  download.complete(outputHost);
+
+  // ::torch::Tensor outputTorch = vkcnn::torch::fromActivation(outputHost);
+  //
+  // ::torch::Tensor outputTorchRef =
+  //     ::torch::conv2d(inputTorch, filterTorch, std::nullopt, {1, 1}, {1, 1});
+
+  // vkcnn::ActivationHostTensor outRef =
+  //     vkcnn::torch::toActivation(outputTorchRef);
+  //
+  // ::torch::Tensor diffTorch = outputTorchRef - outputTorch;
+
+  // vkcnn::ActivationHostTensor diff = vkcnn::torch::toActivation(diffTorch);
+
+  if (W <= 32) {
+    fmt::println("REF:");
+    // vkcnn::tensor_algo::printActivation(outRef);
+    fmt::println("OUT:");
+    vkcnn::tensor_algo::printActivation(outputHost);
+    fmt::println("DIFF:");
+    // vkcnn::tensor_algo::printActivation(diff);
+  }
+
+  profiler->collect(true, false);
+  fmt::println("{}", merian::Profiler::get_report_str(profiler->get_report()));
+  double lat = profiler->get_report().gpu_total();
+  std::size_t mem = 0;
+  mem +=
+      inputHost.shape().h * inputHost.shape().w * C * inputHost.type().size();
+  mem += outputHost.shape().h * outputHost.shape().w * C *
+         outputHost.type().size();
+
+  double throughput = mem / (lat * 1e-3);
+  fmt::println("Throughput: {}GB/s", throughput * 1e-9);
+
+  // for (uint b = 0; b < 16; ++b) {
+  //   fmt::println("[{}]: 0x{:X}", b, outputHost.span()[b]);
+  // }
+
+  // vkcnn::tensor_algo::printActivation(outputHost);
+}
+
+int main() {
+  // conv_sandbox();
+  copy_transform_sandbox();
   return 0;
 }

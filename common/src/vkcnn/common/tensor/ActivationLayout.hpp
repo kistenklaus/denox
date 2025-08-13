@@ -32,12 +32,15 @@ public:
     case Tag::CHW:
       return c * (shape.h * shape.w) + h * (shape.w) + w;
     case Tag::CHWC4:
+      assert(shape.c % 4 == 0);
       return (c >> 2) * (shape.h * shape.w << 2) + h * (shape.w << 2) +
              (w << 2) + (c & 0x3);
     case Tag::CHWC8:
+      assert(shape.c % 8 == 0);
       return (c >> 3) * (shape.h * shape.w << 3) + h * (shape.w << 3) +
              (w << 3) + (c & 0x7);
     case Tag::CHWC16:
+      assert(shape.c % 16 == 0);
       return (c >> 4) * (shape.h * shape.w << 4) + h * (shape.w << 4) +
              (w << 4) + (c & 0xF);
     }

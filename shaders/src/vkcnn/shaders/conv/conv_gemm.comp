@@ -478,8 +478,8 @@ void main() {
     //
     //                              <--------SG_K----->
     //     ^      +--CM_K--+--------+--------+--------+--------+---- ...
-    //     |      |A0A1B0B1|C0C1G0G1|H0H1I0I1|W0W1X0X1|Y0Y1 #k |
-    //    SG_M    |B0B1C0C1|D0D1H0H1|I0I1J0J1|X0X1Y0Y1|Z0Z1 #k |
+    //     |      |A0A1A2A3|B0B1B2B3|C0C1C2C3|G0G1G2G3|H0H1H2H3|
+    //    SG_M    |B0B1B2B3|C0C1C2C3|D0D1D2D3|H0H1H2H3|I0I1I2I3|
     //     |    CM_M       |        |        |        |        :  <- SG0
     //     |      |  ...   |  ...   |  ...   |  ...   |
     //     |      +--------+--------+--------+--------+-- ...
@@ -491,21 +491,66 @@ void main() {
     //             <-------------CM_M------------>
     //          <--CM_K-->
     //   ^   ^  +--------+--------+--------+--------+
-    //   |   |  |H0H1I0I1|I0I1J0J1|  ...   |   ...  |
+    //   |   |  |C0C1C2C3|D0D1D2D3|  ...   |   ...  |
     //   | SG_K +--------+--------+--------+--------+
-    //   |   |  |W0W1X0X1|X0X1Y0Y1|  ...   |   ...  |
+    //   |   |  |G0G1G2G3|H0H1H2H3|  ...   |   ...  |
     //   |   v  +--------+--------+--------+--------+
     //  SG_M    |        |        |        |        |
     //   |      +--------+-------#y--------+--------+
     //   |      |        |        |        |        |
     //   v      +--------+--------+--------+--------+
     //
+    // NOTE: CHWC8 is a really cool layout, which maps perfectly to implicit GEMM!
+    // If we look at the linearlized layout above as an example:
+    // - invoc 0: loads C0C1
+    // - invoc 1: lodas C2C3
+    // - invoc 2: loads D0D1
+    // - invoc 3: lodas D2D3
+    // Here we say that C0C1 are 16 byte (8 channels).
+    // Now altough invocations 0 and 1 don't access a contigous range we still get perfect memory coalessing,
+    // because the rows of the CM_MxCM_K matrix always correspond to horizontally neigboring pixels,
+    // this means that invoc 0 and 2 access a contigous range C0C1D0D1.
+    // Generally this means that even and odd invocations access a perfectly aligned contigous 256 byte range (CM_M=16, CM_K=16).
 
     #define PREFETCH_A_LAYOUT_ROW_MAJOR
     #define PREFETCH_A_LAYOUT_LINEAR
     #define A_LAYOUT_RSC
 
-    IN_LAYOUT_CHWC8_NOT_IMPLEMENTED; //TODO
+    const uint k8 = subgroupBroadcastFirst(CM_K8 * SG_K * kk);
+    const uint IN_CH8 = IN_CH / 8;
+    for (uint q = 0; q < PREFETCH_A_IQQ; ++q) {
+        uvec4 v = uvec4(0);
+        const uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
+        if (liq8 < PREFETCH_A_SQQ) {
+            const uint siq8 = sgni * PREFETCH_A_SQQ + liq8;
+
+            const uint sgm = siq8 / (CM_M * CM_K8 * SG_K);
+            const uint sgij8 = siq8 % (CM_M * CM_K8 * SG_K);
+
+            const uint sgk = sgij8 / (CM_M * CM_K8);
+            const uint zkm8 = sgij8 % (CM_M * CM_K8);
+
+            const uint zm = zkm8 / CM_K8;
+            const uint zk8 = k8 + sgk * CM_K8 + zkm8 % CM_K8;
+
+            // NOTE: Because HWC8 => IN_CH % 8 == 0, we know that for k in [zk8*8-(zk8+1)*8) k will map to the same (r,s,c) index.
+            // We also know that zm and sgm is uniform across k, which means that zx,zy,zc are also uniform.
+            const uint zrs = zk8 / IN_CH8;
+            const uint zc8 = zk8 % IN_CH8; // <- uniform across 16byte access.
+
+            const uint zr = zrs / KERNEL_X;
+            const uint zs = zrs % KERNEL_X;
+
+            const uint zx = wgxy.x + zs + zm - PADDING_X;
+            const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+
+            if (zx < pc.IN_W && zy < pc.IN_H && zc8 < IN_CH8) {
+                const uint o = zc8 * (pc.IN_W * pc.IN_H) + zy * (pc.IN_W) + zx;
+                v = input_tensor_blob[o];
+            }
+        }
+        prefetch_A[q] = v;
+    }
 
     #else
     UNDEFINED_INPUT_LAYOUT;
@@ -1414,7 +1459,7 @@ void main() {
     #endif
     #pragma end_block(writeback);
 
-    #if ASYNC_READ == true
+    #if defined(ASYNC_READ)
     // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     // xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

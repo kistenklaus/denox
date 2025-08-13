@@ -1,7 +1,7 @@
 #pragma once
 
 #include "vkcnn/common/ops/OpConv.hpp"
-#include "vkcnn/common/shader/conv/ConvShaderSource.hpp"
+#include "vkcnn/common/shader/ConvShaderSource.hpp"
 #include "vkcnn/shaders/conv/ConvTemplate.hpp"
 #include <fmt/base.h>
 

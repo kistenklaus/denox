@@ -1,0 +1,156 @@
+#version 460
+
+#extension GL_EXT_control_flow_attributes : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_shader_16bit_storage                   : require
+
+layout(set = 0, binding = 0, std430) readonly buffer input_buf {
+    istype input_tensor_blob[];
+};
+
+layout(set = 0, binding = 1, std430) writeonly buffer output_buf {
+    ostype output_tensor_blob[];
+};
+
+layout(push_constant) uniform PushConstant {
+    uint W;
+    uint H;
+} pc;
+
+const uint TILE_C = WG_C * INVOC_C;
+const uint TILE_H = WG_H * INVOC_H;
+const uint TILE_W = WG_W * INVOC_W;
+
+layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
+void main() {
+    #if IN_ATYPE_SIZE == 2 && OUT_ATYPE_SIZE == 2
+    #if defined(IN_LAYOUT_HWC) && defined(OUT_LAYOUT_HWC)
+    // => istype: uint16_t, ostype: uint16_t, atype: float16_t
+
+    // NOTE: It might not be immediatly obvious why a memcpy kernel, does have
+    // to use small 2 byte accesses. The reason is that if we
+    // cannot make any assumptions about C, the total amount of bytes
+    // in a HWC tensor, could not be divisible by let's say 16, we can only
+    // guarantee that the HWC tensor size is divisible by atype, which is 2 byte.
+
+    const uint wgc0 = gl_WorkGroupID.x * TILE_C;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c0 = wgc0 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+
+    #pragma unroll
+    for (uint zh = 0; zh < INVOC_H; ++zh) {
+        #pragma unroll
+        for (uint zw = 0; zw < INVOC_W; ++zw) {
+            #pragma unroll
+            for (uint zc = 0; zc < INVOC_C; ++zc) {
+                const uint h = h0 + zh * WG_H;
+                const uint w = w0 + zw * WG_W;
+                const uint c = c0 + zc * WG_C;
+
+                const uint ic = IN_CH_OFFSET + c;
+                if (h < H && w < W && ic < IN_CH) {
+                    // NOTE: We assume output_tensor_blob to be inbounds if input_tensor is inbound!
+                    output_tensor_blob[h * W * OUT_CH + w * OUT_CH + (OUT_CH_OFFSET + c)] = input_tensor_blob[h * W * IN_CH + w * IN_CH + ic];
+                }
+            }
+        }
+    }
+
+    #elif defined(IN_LAYOUT_HWC8) && defined(OUT_LAYOUT_HWC8)
+    const uint TILE_C8 = TILE_C / 8;
+    const uint INVOC_C8 = INVOC_C / 8;
+    const uint CH8 = CH / 8;
+    const uint IN_CH8 = IN_CH / 8;
+    const uint OUT_CH8 = OUT_CH / 8;
+    const uint IN_CH_OFFSET8 = IN_CH_OFFSET / 8;
+    const uint OUT_CH_OFFSET8 = OUT_CH_OFFSET / 8;
+
+    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c08 = wgc08 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+
+    #pragma unroll
+    for (uint zh = 0; zh < INVOC_H; ++zh) {
+        #pragma unroll
+        for (uint zw = 0; zw < INVOC_W; ++zw) {
+            #pragma unroll
+            for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+                const uint h = h0 + zh * WG_H;
+                const uint w = w0 + zw * WG_W;
+                const uint c8 = c08 + zc8 * WG_C;
+                const uint ic8 = IN_CH_OFFSET8 + c8;
+                if (h < pc.H && w < pc.W && ic8 < IN_CH8) {
+                    output_tensor_blob[h * pc.W * OUT_CH8 + w * OUT_CH8 + (OUT_CH_OFFSET8 + c8)]
+                        = input_tensor_blob[h * pc.W * IN_CH8 + w * IN_CH8 + ic8];
+                }
+            }
+        }
+    }
+
+    #elif defined(IN_LAYOUT_CHWC8) && defined(OUT_LAYOUT_CHWC8)
+
+    const uint TILE_C8 = TILE_C / 8;
+    const uint INVOC_C8 = INVOC_C / 8;
+    const uint CH8 = CH / 8;
+    const uint IN_CH8 = IN_CH / 8;
+    const uint OUT_CH8 = OUT_CH / 8;
+    const uint IN_CH_OFFSET8 = IN_CH_OFFSET / 8;
+    const uint OUT_CH_OFFSET8 = OUT_CH_OFFSET / 8;
+
+    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c08 = wgc08 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+    for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+        const uint c8 = c08 + zc8 * WG_C;
+        const uint ic8 = IN_CH_OFFSET8 + c8;
+        if (ic8 >= IN_CH8) {
+            break;
+        }
+        const uint oc8 = OUT_CH_OFFSET8 + c8;
+
+        for (uint zh = 0; zh < INVOC_H; ++zh) {
+            const uint h = h0 + zh * WG_H;
+            if (h >= pc.H) {
+                break;
+            }
+            for (uint zw = 0; zw < INVOC_W; ++zw) {
+                const uint w = w0 + zw * WG_W;
+                if (w < pc.W) {
+                    output_tensor_blob[oc8 * pc.W * pc.H + h * pc.W + w] =
+                        input_tensor_blob[ic8 * pc.W * pc.H + h * pc.W + w];
+                }
+            }
+        }
+    }
+
+    #else
+    NOT_IMPLEMENTED;
+    #endif
+
+    #else
+    NOT_IMPLEMENTED; // we only support f16 for now.
+    #endif
+}

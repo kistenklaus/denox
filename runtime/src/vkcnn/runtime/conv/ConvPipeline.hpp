@@ -3,7 +3,7 @@
 #include "merian/vk/command/command_buffer.hpp"
 #include "merian/vk/pipeline/pipeline.hpp"
 #include "merian/vk/shader/shader_compiler.hpp"
-#include "vkcnn/common/shader/conv/ConvShaderSource.hpp"
+#include "vkcnn/common/shader/ConvShaderSource.hpp"
 #include "vkcnn/runtime/tensor/ActivationDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/BiasDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/FilterDeviceTensor.hpp"

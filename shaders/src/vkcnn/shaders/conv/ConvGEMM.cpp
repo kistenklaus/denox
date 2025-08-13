@@ -157,6 +157,7 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
     fstype = "uint16_t";
     fstype_size = 2;
   }
+  std::string asyncReadMacro = m_asyncRead ? "ASYNC_READ" : "NASYNC_READ";
 
   ShaderDefine defines[32] = {
       {"IN_CH", fmt::format("({})", inputChannels)},
@@ -190,7 +191,7 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
       {"STRIDE_Y", fmt::format("{}", strideY)},
       {activationMacro, "(1)"},
       {op.biasType.has_value() ? "USE_BIAS" : "NUSE_BIAS", "(1)"},
-      {"ASYNC_READ", m_asyncRead ? "(true)" : "(false)"},
+      {asyncReadMacro, "(1)"},
   };
 
   for (const auto &def : defines) {
