@@ -12,8 +12,8 @@
 #include "vkcnn/dev/utils/to_string.hpp"
 #include "vkcnn/dev/utils/torch.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
-#include "vkcnn/shaders/conv/ConvGEMM.hpp"
-#include "vkcnn/shaders/conv/ConvTemplate.hpp"
+#include "vkcnn/shaders/conv/DirectConvShader.hpp"
+#include "vkcnn/shaders/conv/IConvShader.hpp"
 #include <random>
 
 #include <ATen/ops/allclose.h>
@@ -29,7 +29,7 @@
 
 struct ConvTestParams {
   vkcnn::OpConv op;
-  std::shared_ptr<vkcnn::shaders::ConvTemplate> conv;
+  std::shared_ptr<vkcnn::shaders::IConvShader> conv;
   glm::uvec2 inputSize;
 };
 class OpTest : public ::testing::TestWithParam<ConvTestParams> {
@@ -122,29 +122,29 @@ std::vector<ConvTestParams> generate_test_params() {
     }
   }
 
-  std::vector<std::shared_ptr<vkcnn::shaders::ConvTemplate>> shaders = {
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+  std::vector<std::shared_ptr<vkcnn::shaders::IConvShader>> shaders = {
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 16), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 16), glm::uvec3(2, 1, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 16), glm::uvec3(1, 2, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 16), glm::uvec3(1, 1, 2), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(4, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 16), glm::uvec3(2, 2, 2), glm::uvec2(2, 1)),
 
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 8), glm::uvec3(2, 1, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 8), glm::uvec3(1, 2, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 16, 8), glm::uvec3(1, 1, 2), glm::uvec2(8, 1)),
       // std::make_shared<vkcnn::shaders::ConvGEMM>(
       //     glm::uvec3(16, 16, 8), glm::uvec3(2, 2, 2), glm::uvec2(8, 1)),
@@ -153,13 +153,13 @@ std::vector<ConvTestParams> generate_test_params() {
       // std::make_shared<vkcnn::shaders::ConvGEMM>(
       //     glm::uvec3(16, 16, 8), glm::uvec3(2, 2, 2), glm::uvec2(2, 1)),
 
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 8, 8), glm::uvec3(1, 1, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 8, 8), glm::uvec3(2, 1, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 8, 8), glm::uvec3(1, 2, 1), glm::uvec2(8, 1)),
-      std::make_shared<vkcnn::shaders::ConvGEMM>(
+      std::make_shared<vkcnn::shaders::DirectConvShader>(
           glm::uvec3(16, 8, 8), glm::uvec3(1, 1, 2), glm::uvec2(8, 1)),
       // std::make_shared<vkcnn::shaders::ConvGEMM>(
       //     glm::uvec3(16, 8, 8), glm::uvec3(2, 2, 2), glm::uvec2(8, 1)),

@@ -1,4 +1,4 @@
-#include "./ConvGEMM.hpp"
+#include "./DirectConvShader.hpp"
 
 #include "fmt/format.h"
 #include "vkcnn/common/io/read_file.hpp"
@@ -15,24 +15,24 @@ namespace vkcnn::shaders {
 
 static std::string source() {
   std::string src =
-      vkcnn::readFile("./shaders/src/vkcnn/shaders/conv/conv_gemm.comp");
+      vkcnn::readFile("./shaders/src/vkcnn/shaders/conv/direct_conv.comp");
   return shaders::preprocess_shader_src_pragmas(src);
 }
 
-ConvGEMM::ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile,
-                   bool asyncRead)
+DirectConvShader::DirectConvShader(glm::uvec3 cmShape, glm::uvec3 sgTile,
+                                   glm::uvec2 wgTile, bool asyncRead)
     : m_source(source()), m_cmShape(cmShape), m_sgTile(sgTile),
       m_wgTile(wgTile), m_asyncRead(asyncRead),
-      m_name(fmt::format("conv_gemm_WG{}x{}_SG{}x{}x{}_CM{}x{}x{}{}",
+      m_name(fmt::format("direct_conv_WG{}x{}_SG{}x{}x{}_CM{}x{}x{}{}",
                          m_wgTile.x, m_wgTile.y, m_sgTile.x, m_sgTile.y,
                          m_sgTile.z, m_cmShape.x, m_cmShape.y, m_cmShape.z,
                          m_asyncRead ? "_async" : "")) {
   //
 }
 
-bool ConvGEMM::supports(const OpConv &_) const { return true; }
+bool DirectConvShader::supports(const OpConv &_) const { return true; }
 
-ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
+ConvShaderSource DirectConvShader::do_specialize(const OpConv &op) const {
   std::vector<std::byte> src{m_source.size() * sizeof(std::string::value_type)};
   std::memcpy(src.data(), m_source.data(), src.size());
 
@@ -229,6 +229,6 @@ ConvShaderSource ConvGEMM::do_specialize(const OpConv &op) const {
                           op.stride, op.padding, name);
 }
 
-std::string_view ConvGEMM::name() const { return m_name; };
+std::string_view DirectConvShader::name() const { return m_name; };
 
 } // namespace vkcnn::shaders

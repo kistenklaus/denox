@@ -4,9 +4,9 @@
 #include "vkcnn/common/shader/CopyShaderSource.hpp"
 namespace vkcnn::shaders {
 
-class Copy {
+class ICopyShader {
 public:
-  virtual ~Copy() = default;
+  virtual ~ICopyShader() = default;
 
   virtual bool supports(const OpCopy &op) const = 0;
 

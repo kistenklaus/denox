@@ -1,17 +1,17 @@
 #pragma once
 #include "vkcnn/common/ops/OpCopy.hpp"
 #include "vkcnn/common/shader/CopyShaderSource.hpp"
-#include "vkcnn/shaders/copy/Copy.hpp"
+#include "vkcnn/shaders/copy/ICopyShader.hpp"
 #include <glm/vec3.hpp>
 
 namespace vkcnn::shaders {
 
-class CopyTransform : public Copy {
+class CopyTransformShader : public ICopyShader {
 public:
-  explicit CopyTransform(glm::uvec3 wTile, glm::uvec3 iTile);
+  explicit CopyTransformShader(glm::uvec3 wTile, glm::uvec3 iTile);
 
   /// NOTE: Autotuning constructor.
-  CopyTransform();
+  CopyTransformShader();
 
   bool supports(const OpCopy &op) const final override;
 

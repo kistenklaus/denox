@@ -1441,8 +1441,6 @@ void main() {
                 uvec4 v = sh_buf[o + q];
                 output_tensor_blob[n8 * IN_HW + y * pc.IN_W + sgx] = v;
             }
-
-            //
         }
     }
 

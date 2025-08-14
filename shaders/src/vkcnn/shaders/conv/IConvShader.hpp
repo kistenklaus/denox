@@ -6,9 +6,9 @@
 #include <glm/ext/vector_uint2.hpp>
 namespace vkcnn::shaders {
 
-class ConvTemplate {
+class IConvShader {
 public:
-  virtual ~ConvTemplate() = default;
+  virtual ~IConvShader() = default;
 
   virtual bool supports(const OpConv &op) const = 0;
 

@@ -3,7 +3,7 @@
 #include "merian/vk/context.hpp"
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/tensor/ActivationLayout.hpp"
-#include "vkcnn/shaders/conv/ConvTemplate.hpp"
+#include "vkcnn/shaders/conv/IConvShader.hpp"
 #include <fmt/base.h>
 #include <glm/ext/vector_uint2.hpp>
 #include <vector>
@@ -78,6 +78,6 @@ struct ConvMatrix {
 };
 
 ConvSurvey conv(const merian::ContextHandle &context,
-                std::span<shaders::ConvTemplate *> shaders, ConvMatrix configs);
+                std::span<shaders::IConvShader *> shaders, ConvMatrix configs);
 
 } // namespace vkcnn::dev::survey

@@ -6,7 +6,7 @@
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
 #include "vkcnn/runtime/tensor/ActivationDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/FilterDeviceTensor.hpp"
-#include "vkcnn/shaders/conv/ConvTemplate.hpp"
+#include "vkcnn/shaders/conv/IConvShader.hpp"
 #include "vkcnn/dev/utils/to_string.hpp"
 #include <algorithm>
 #include <optional>
@@ -16,7 +16,7 @@ using namespace vkcnn;
 static constexpr std::size_t ITERATIONS = 100;
 
 static dev::survey::ConvSurveyEntry survey_conv_template(
-    const merian::ContextHandle &context, shaders::ConvTemplate *conv,
+    const merian::ContextHandle &context, shaders::IConvShader *conv,
     const dev::survey::ConvInOut &inout, glm::uvec2 kernelSize,
     dev::survey::ConvTypes types, dev::survey::ConvLayouts layouts,
     dev::survey::ConvPadStride padStride,
@@ -106,7 +106,7 @@ static dev::survey::ConvSurveyEntry survey_conv_template(
 
 vkcnn::dev::survey::ConvSurvey
 vkcnn::dev::survey::conv(const merian::ContextHandle &context,
-                         std::span<shaders::ConvTemplate *> shaders,
+                         std::span<shaders::IConvShader *> shaders,
                          ConvMatrix matrix) {
   ConvSurvey survey;
   for (auto shader : shaders) {

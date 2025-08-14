@@ -2,16 +2,17 @@
 
 #include "vkcnn/common/ops/OpConv.hpp"
 #include "vkcnn/common/shader/ConvShaderSource.hpp"
-#include "vkcnn/shaders/conv/ConvTemplate.hpp"
+#include "vkcnn/shaders/conv/IConvShader.hpp"
 #include <fmt/base.h>
 
 #include <glm/vec3.hpp>
 
 namespace vkcnn::shaders {
 
-class ConvGEMM final : public ConvTemplate {
+class DirectConvShader final : public IConvShader {
 public:
-  ConvGEMM(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile, bool asyncRead = true);
+  DirectConvShader(glm::uvec3 cmShape, glm::uvec3 sgTile, glm::uvec2 wgTile,
+                   bool asyncRead = true);
 
   bool supports(const OpConv &op) const final override;
 

@@ -1,9 +1,9 @@
-#include "./ConvTemplate.hpp"
+#include "./ICopyShader.hpp"
 
 namespace vkcnn::shaders {
 
-std::optional<ConvShaderSource>
-ConvTemplate::specialize(const OpConv &op) const {
+std::optional<CopyShaderSource>
+ICopyShader::specialize(const OpCopy &op) const {
   if (!this->supports(op)) {
     return std::nullopt;
   } else {

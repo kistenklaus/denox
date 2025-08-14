@@ -5,6 +5,8 @@ merian = merian_proj.get_variable('merian_dep')
 vkcnn_runtime_src = files(
   'src/vkcnn/runtime/conv/ConvPipeline.cpp',
   'src/vkcnn/runtime/copy/CopyPipeline.cpp',
+  'src/vkcnn/runtime/activation/ActivationPipeline.cpp',
+  'src/vkcnn/runtime/upsample/UpsamplePipeline.cpp',
   'src/vkcnn/runtime/tensor/ActivationDeviceTensor.cpp',
   'src/vkcnn/runtime/tensor/FilterDeviceTensor.cpp',
   'src/vkcnn/runtime/tensor/BiasDeviceTensor.cpp',

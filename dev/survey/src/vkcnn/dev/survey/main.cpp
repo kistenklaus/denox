@@ -3,7 +3,7 @@
 #include "src/vkcnn/dev/survey/conv.hpp"
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/dev/utils/merian.hpp"
-#include "vkcnn/shaders/conv/ConvTemplate.hpp"
+#include "vkcnn/shaders/conv/IConvShader.hpp"
 
 vkcnn::dev::survey::ConvSurvey
 survey_conv(const merian::ContextHandle &context) {
@@ -15,7 +15,7 @@ survey_conv(const merian::ContextHandle &context) {
   // vkcnn::shaders::Conv3x3mmaVectorized mma16x16x16_vectorized{
   //     glm::uvec3(16, 16, 16)};
 
-  std::vector<vkcnn::shaders::ConvTemplate *> shaders = {};
+  std::vector<vkcnn::shaders::IConvShader *> shaders = {};
   using namespace vkcnn;
   using namespace vkcnn::dev::survey;
 

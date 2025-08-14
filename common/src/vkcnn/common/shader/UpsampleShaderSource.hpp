@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vkcnn/common/ActivationFunction.hpp"
+#include "vkcnn/common/FilterMode.hpp"
 #include "vkcnn/common/shader/ShaderDefines.hpp"
 #include "vkcnn/common/shader/ShaderLang.hpp"
 #include "vkcnn/common/shader/SpecializationConstants.hpp"
@@ -9,11 +9,10 @@
 #include <cstddef>
 #include <glm/vec3.hpp>
 #include <memory>
-#include <string>
 #include <vector>
 namespace vkcnn {
 
-class ActivationShaderSource {
+class UpsampleShaderSource {
 public:
   struct DebugInfo {
     ActivationLayout inputLayout;
@@ -23,8 +22,9 @@ public:
     FloatType outputType;
 
     unsigned int channels;
+    unsigned int scalingFactor;
 
-    ActivationFunction function;
+    FilterMode filterMode;
 
     std::string name;
   };
@@ -37,7 +37,10 @@ private:
 
     SpecializationConstants specConstants;
     ShaderDefines defines;
+
+    // byte-tile or {(channel), (x-tile), (y-tile)}
     glm::uvec3 tileSize;
+
 #ifndef NDEBUG
     DebugInfo debugInfo;
 #endif
@@ -45,27 +48,25 @@ private:
 
 public:
   template <typename Alloc = std::allocator<std::byte>>
-  explicit ActivationShaderSource(std::vector<std::byte> src, ShaderLang lang,
-                                  SpecializationConstants specConstants,
-                                  ShaderDefines defines, glm::uvec3 tileSize,
-                                  const Alloc &alloc = {})
+  explicit UpsampleShaderSource(std::vector<std::byte> src, ShaderLang lang,
+                                SpecializationConstants specConstants,
+                                ShaderDefines defines, glm::uvec3 tileSize,
+                                const Alloc &alloc = {})
       : m_store(std::allocate_shared<Storage>(
             alloc, std::move(src), lang, std::move(specConstants),
             std::move(defines), tileSize,
-            DebugInfo{ActivationLayout::HWC, FloatType::F16,
-                      ActivationLayout::HWC, FloatType::F16, 0,
-                      ActivationFunction::ReLU, "activation-no-debug-info"})) {}
+            DebugInfo(ActivationLayout::HWC, FloatType::F16,
+                      ActivationLayout::HWC, FloatType::F16, 0, 0,
+                      FilterMode::Nearest, "upsample-no-debug-info"))) {}
 
-#ifndef NDEBUG
   template <typename Alloc = std::allocator<std::byte>>
-  explicit ActivationShaderSource(std::vector<std::byte> src, ShaderLang lang,
-                                  SpecializationConstants specConstants,
-                                  ShaderDefines defines, glm::uvec3 tileSize,
-                                  DebugInfo debugInfo, const Alloc &alloc = {})
+  explicit UpsampleShaderSource(std::vector<std::byte> src, ShaderLang lang,
+                                SpecializationConstants specConstants,
+                                ShaderDefines defines, glm::uvec3 tileSize,
+                                DebugInfo debugInfo, const Alloc &alloc = {})
       : m_store(std::allocate_shared<Storage>(
             alloc, std::move(src), lang, std::move(specConstants),
             std::move(defines), tileSize, std::move(debugInfo))) {}
-#endif
 
   std::span<const std::byte> src() const { return m_store->src; }
   ShaderLang lang() const { return m_store->lang; }
@@ -74,7 +75,6 @@ public:
   }
   const ShaderDefines &defines() const { return m_store->defines; }
   glm::uvec3 tileSize() const { return m_store->tileSize; }
-
 #ifndef NDEBUG
   const DebugInfo &debugInfo() const { return m_store->debugInfo; }
 #endif

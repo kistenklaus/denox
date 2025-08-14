@@ -1,0 +1,187 @@
+#version 460
+
+#extension GL_EXT_control_flow_attributes : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_shader_16bit_storage                   : require
+
+layout(set = 0, binding = 0, std430) readonly buffer input_buf {
+    istype input_tensor_blob[];
+};
+
+layout(set = 0, binding = 1, std430) writeonly buffer output_buf {
+    ostype output_tensor_blob[];
+};
+
+layout(push_constant) uniform PushConstant {
+    uint W;
+    uint H;
+} pc;
+
+const uint TILE_C = WG_C * INVOC_C;
+const uint TILE_H = WG_H * INVOC_H;
+const uint TILE_W = WG_W * INVOC_W;
+
+out_atype activation(in_atype v) {
+    #ifdef ACTIVATION_ReLU
+    return out_atype(max(v, in_atype(0)));
+    #else
+    NOT_IMPLEMENTED;
+    #endif
+}
+
+layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
+void main() {
+    #if IN_ATYPE_SIZE == 2 && OUT_ATYPE_SIZE == 2
+    #if defined(IN_LAYOUT_HWC) && defined(OUT_LAYOUT_HWC)
+    // => istype: uint16_t, ostype: uint16_t, atype: float16_t
+
+    // NOTE: It might not be immediatly obvious why a memcpy kernel, does have
+    // to use small 2 byte accesses. The reason is that if we
+    // cannot make any assumptions about C, the total amount of bytes
+    // in a HWC tensor, could not be divisible by let's say 16, we can only
+    // guarantee that the HWC tensor size is divisible by atype, which is 2 byte.
+
+    const uint wgc0 = gl_WorkGroupID.x * TILE_C;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c0 = wgc0 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+
+    for (uint zh = 0; zh < INVOC_H; ++zh) {
+        for (uint zw = 0; zw < INVOC_W; ++zw) {
+            for (uint zc = 0; zc < INVOC_C; ++zc) {
+                const uint h = h0 + zh * WG_H;
+                const uint w = w0 + zw * WG_W;
+                const uint c = c0 + zc * WG_C;
+                if (h < H && w < W && c < CH) {
+                    // NOTE: We assume output_tensor_blob to be inbounds if input_tensor is inbound!
+                    const uint o = h * W * CH + w * CH + c;
+                    const uint16_t v0 = input_tensor_blob[o];
+                    const float16_t v1 = uint16BitsToFloat16(v0);
+                    const float16_t v2 = activation(v1);
+                    const uint16_t v3 = float16BitsToInt16(v2);
+                    output_tensor_blob[o] = v3;
+                }
+            }
+        }
+    }
+
+    #elif defined(IN_LAYOUT_HWC8) && defined(OUT_LAYOUT_HWC8)
+    const uint TILE_C8 = TILE_C / 8;
+    const uint INVOC_C8 = INVOC_C / 8;
+    const uint CH8 = CH / 8;
+
+    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c08 = wgc08 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+
+    for (uint zh = 0; zh < INVOC_H; ++zh) {
+        for (uint zw = 0; zw < INVOC_W; ++zw) {
+            for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+                const uint h = h0 + zh * WG_H;
+                const uint w = w0 + zw * WG_W;
+                const uint c8 = c08 + zc8 * WG_C;
+                if (h < H && w < W && c8 < CH8) {
+                    const uint o = h * W * CH8 + w * CH8 + c8;
+                    const uvec4 v0 = input_tensor_blob[o];
+                    const u16vec2 v1x = unpackUint2x16(v0.x);
+                    const u16vec2 v1y = unpackUint2x16(v0.y);
+                    const u16vec2 v1z = unpackUint2x16(v0.z);
+                    const u16vec2 v1w = unpackUint2x16(v0.w);
+                    const f16vec2 v2x = f16vec2(uint16BitsToFloat16(v1x.x), uint16BitsToFloat16(v1x.y));
+                    const f16vec2 v2y = f16vec2(uint16BitsToFloat16(v1y.x), uint16BitsToFloat16(v1y.y));
+                    const f16vec2 v2z = f16vec2(uint16BitsToFloat16(v1z.x), uint16BitsToFloat16(v1z.y));
+                    const f16vec2 v2w = f16vec2(uint16BitsToFloat16(v1w.x), uint16BitsToFloat16(v1w.y));
+                    const f16vec2 v3x = f16vec2(activation(v2x.x), activation(v2x.y));
+                    const f16vec2 v3y = f16vec2(activation(v2y.x), activation(v2y.y));
+                    const f16vec2 v3z = f16vec2(activation(v2z.x), activation(v2z.y));
+                    const f16vec2 v3w = f16vec2(activation(v2w.x), activation(v2w.y));
+                    const u16vec2 v4x = u16vec2(float16BitsToUint16(v3x.x), float16BitsToUint16(v3x.y));
+                    const u16vec2 v4y = u16vec2(float16BitsToUint16(v3y.x), float16BitsToUint16(v3y.y));
+                    const u16vec2 v4z = u16vec2(float16BitsToUint16(v3z.x), float16BitsToUint16(v3z.y));
+                    const u16vec2 v4w = u16vec2(float16BitsToUint16(v3w.x), float16BitsToUint16(v3w.y));
+                    const uvec4 v5 = uvec4(packUint2x16(v4x), packUint2x16(v4y), packUint2x16(v4z), packUint2x16(v4w));
+                    output_tensor_blob[o] = v5;
+                }
+            }
+        }
+    }
+
+    #elif defined(IN_LAYOUT_CHWC8) && defined(OUT_LAYOUT_CHWC8)
+
+    const uint TILE_C8 = TILE_C / 8;
+    const uint INVOC_C8 = INVOC_C / 8;
+    const uint CH8 = CH / 8;
+
+    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c08 = wgc08 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+    for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+        const uint c8 = c08 + zc8 * WG_C;
+        if (c8 >= CH8) {
+            break;
+        }
+
+        for (uint zh = 0; zh < INVOC_H; ++zh) {
+            const uint h = h0 + zh * WG_H;
+            if (h >= H) {
+                break;
+            }
+            for (uint zw = 0; zw < INVOC_W; ++zw) {
+                const uint w = w0 + zw * WG_W;
+                if (w < W) {
+                    const uint o = c8 * W * H + h * W + w;
+
+                    uvec4 v0 = input_tensor_blob[o];
+                    const u16vec2 v1x = unpackUint2x16(v0.x);
+                    const u16vec2 v1y = unpackUint2x16(v0.y);
+                    const u16vec2 v1z = unpackUint2x16(v0.z);
+                    const u16vec2 v1w = unpackUint2x16(v0.w);
+                    const f16vec2 v2x = f16vec2(uint16BitsToFloat16(v1x.x), uint16BitsToFloat16(v1x.y));
+                    const f16vec2 v2y = f16vec2(uint16BitsToFloat16(v1y.x), uint16BitsToFloat16(v1y.y));
+                    const f16vec2 v2z = f16vec2(uint16BitsToFloat16(v1z.x), uint16BitsToFloat16(v1z.y));
+                    const f16vec2 v2w = f16vec2(uint16BitsToFloat16(v1w.x), uint16BitsToFloat16(v1w.y));
+                    const f16vec2 v3x = f16vec2(activation(v2x.x), activation(v2x.y));
+                    const f16vec2 v3y = f16vec2(activation(v2y.x), activation(v2y.y));
+                    const f16vec2 v3z = f16vec2(activation(v2z.x), activation(v2z.y));
+                    const f16vec2 v3w = f16vec2(activation(v2w.x), activation(v2w.y));
+                    const u16vec2 v4x = u16vec2(float16BitsToUint16(v3x.x), float16BitsToUint16(v3x.y));
+                    const u16vec2 v4y = u16vec2(float16BitsToUint16(v3y.x), float16BitsToUint16(v3y.y));
+                    const u16vec2 v4z = u16vec2(float16BitsToUint16(v3z.x), float16BitsToUint16(v3z.y));
+                    const u16vec2 v4w = u16vec2(float16BitsToUint16(v3w.x), float16BitsToUint16(v3w.y));
+                    const uvec4 v5 = uvec4(packUint2x16(v4x), packUint2x16(v4y), packUint2x16(v4z), packUint2x16(v4w));
+                    output_tensor_blob[o] = v5;
+                }
+            }
+        }
+    }
+
+    #else
+    NOT_IMPLEMENTED;
+    #endif
+
+    #else
+    NOT_IMPLEMENTED; // we only support f16 for now.
+    #endif
+}

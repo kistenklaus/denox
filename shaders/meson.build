@@ -1,8 +1,13 @@
 
 vkcnn_shaders_src = files(
-  'src/vkcnn/shaders/conv/ConvTemplate.cpp',
-  'src/vkcnn/shaders/conv/ConvGEMM.cpp',
-  'src/vkcnn/shaders/copy/CopyTransform.cpp',
+  'src/vkcnn/shaders/conv/IConvShader.cpp',
+  'src/vkcnn/shaders/conv/DirectConvShader.cpp',
+  'src/vkcnn/shaders/copy/CopyTransformShader.cpp',
+  'src/vkcnn/shaders/copy/ICopyShader.cpp',
+  'src/vkcnn/shaders/activation/ActivationShader.cpp',
+  'src/vkcnn/shaders/activation/IActivationShader.cpp',
+  'src/vkcnn/shaders/upsample/DirectUpsampleShader.cpp',
+  'src/vkcnn/shaders/upsample/IUpsampleShader.cpp',
   'src/vkcnn/shaders/preprocessing.cpp',
 )
 
