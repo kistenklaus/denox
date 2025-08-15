@@ -1,5 +1,8 @@
-#include "./DirectUpsampleShader.hpp"
+#include "./DirectPoolShader.hpp"
+#include "vkcnn/common/PoolFunction.hpp"
 #include "vkcnn/common/io/read_file.hpp"
+#include "vkcnn/common/ops/OpPool.hpp"
+#include "vkcnn/common/shader/PoolShaderSource.hpp"
 #include "vkcnn/shaders/preprocessing.hpp"
 #include <cstring>
 #include <fmt/format.h>
@@ -7,8 +10,8 @@
 namespace vkcnn::shaders {
 
 static std::vector<std::byte> source() {
-  std::string srcStr = vkcnn::readFile(
-      "./shaders/src/vkcnn/shaders/upsample/direct_upsample.comp");
+  std::string srcStr =
+      vkcnn::readFile("./shaders/src/vkcnn/shaders/pool/direct_pool.comp");
 
   std::string str = vkcnn::shaders::preprocess_shader_src_pragmas(srcStr);
 
@@ -17,33 +20,31 @@ static std::vector<std::byte> source() {
   return src;
 }
 
-DirectUpsampleShader::DirectUpsampleShader(glm::uvec3 iTile, glm::uvec3 wTile)
+DirectPoolShader::DirectPoolShader(glm::uvec3 iTile, glm::uvec3 wTile)
     : m_tileSizes(TileSizes(wTile, iTile)), m_source(source()),
-      m_name(fmt::format("direct_upsample_W{}x{}x{}_I{}x{}x{}", wTile.x,
-                         wTile.y, wTile.z, iTile.x, iTile.y, iTile.z)) {}
+      m_name(fmt::format("direct_pool_W{}x{}x{}_I{}x{}x{}", wTile.x, wTile.y,
+                         wTile.z, iTile.x, iTile.y, iTile.z)) {}
 
-DirectUpsampleShader::DirectUpsampleShader()
-    : m_tileSizes(std::nullopt), m_source(source()), m_name("direct_upsample") {
-}
+DirectPoolShader::DirectPoolShader()
+    : m_tileSizes(std::nullopt), m_source(source()), m_name("direct_pool") {}
 
-bool DirectUpsampleShader::supports(const OpUpsample &op) const {
+bool DirectPoolShader::supports(const OpPool &op) const {
   if (op.inputLayout != op.outputLayout) {
     return false;
   }
   if (op.inputType != op.outputType) {
     return false;
   }
-  if (op.filterMode != FilterMode::Nearest) {
+  if (op.poolingFunc != PoolFunction::Max) {
     return false;
   }
   return true;
 }
 
-UpsampleShaderSource
-DirectUpsampleShader::do_specialize(const OpUpsample &op) const {
+PoolShaderSource DirectPoolShader::do_specialize(const OpPool &op) const {
   ActivationLayout inLayout = op.inputLayout;
   if (inLayout == ActivationLayout::HWC && op.channels % 8 == 0) {
-    inLayout = ActivationLayout::HWC8;
+    // inLayout = ActivationLayout::HWC8;
   }
 
   std::string inLayoutMacro;
@@ -103,7 +104,7 @@ DirectUpsampleShader::do_specialize(const OpUpsample &op) const {
 
   ActivationLayout outLayout = op.outputLayout;
   if (outLayout == ActivationLayout::HWC && op.channels % 8 == 0) {
-    outLayout = ActivationLayout::HWC8; // promote layout
+    // outLayout = ActivationLayout::HWC8; // promote layout
   }
 
   std::string outLayoutMacro;
@@ -177,12 +178,17 @@ DirectUpsampleShader::do_specialize(const OpUpsample &op) const {
     if (inLayout == ActivationLayout::HWC) {
       // NOTE: With HWC (i.e. 2 byte accesses) we try to spread all channel
       // loads across invocations.
-      if (op.channels >= 16) {
-        iTile = glm::uvec3(2, 2, 1);
+      if (op.channels <= 24) {
+        unsigned int ix = (op.channels + 4 - 1) / 4;
+        iTile = glm::uvec3(ix, 1, 1);
+        wTile = glm::uvec3(4, 64, 1);
+      } else if (op.channels <= 48) {
+        unsigned int ix = (op.channels + 8 - 1) / 8;
+        iTile = glm::uvec3(ix, 1, 1);
         wTile = glm::uvec3(8, 32, 1);
       } else {
-        iTile = glm::uvec3(1, 4, 1);
-        wTile = glm::uvec3(op.channels, 32, 1);
+        wTile = glm::uvec3(16, 16, 1);
+        iTile = glm::uvec3(2, 2, 1);
       }
     } else if (inLayout == ActivationLayout::HWC8) {
       if (op.channels >= 32) {
@@ -203,9 +209,9 @@ DirectUpsampleShader::do_specialize(const OpUpsample &op) const {
     }
   }
 
-  std::string filterModeMacro;
-  if (op.filterMode == FilterMode::Nearest) {
-    filterModeMacro = "FILTER_MODE_NEAREST";
+  std::string poolFuncMacro;
+  if (op.poolingFunc == PoolFunction::Max) {
+    poolFuncMacro = "POOL_FUNC_MAX";
   } else {
     throw std::runtime_error("Not supported");
   }
@@ -228,7 +234,7 @@ DirectUpsampleShader::do_specialize(const OpUpsample &op) const {
     throw std::runtime_error("Not supported");
   }
 
-  ShaderDefine defines[20] = {
+  ShaderDefine defines[25] = {
       {"SG_SIZE", fmt::format("({})", subgroupSize)}, //
 
       {"WG_C", fmt::format("({})", wTile.x)}, //
@@ -247,16 +253,23 @@ DirectUpsampleShader::do_specialize(const OpUpsample &op) const {
       {"ostype", ostype},                                //
       {"OSTYPE_SIZE", fmt::format("({})", ostype_size)}, //
 
+      {"in_atype", in_atype},                                //
+      {"IN_ATYPE_SIZE", fmt::format("({})", in_atype_size)}, //
+
+      {"out_atype", out_atype},                                //
+      {"OUT_ATYPE_SIZE", fmt::format("({})", out_atype_size)}, //
+
       {"CH", fmt::format("({})", op.channels)}, //
 
-      {filterModeMacro, "(1)"},                                  //
-      {"SCALING_FACTOR", fmt::format("({})", op.scalingFactor)}, //
-                                                                 //
-      {"in_atype", in_atype},                                         //
-      {"IN_ATYPE_SIZE", fmt::format("({})", in_atype_size)},          //
-                                                                      //
-      {"out_atype", out_atype},                                       //
-      {"OUT_ATYPE_SIZE", fmt::format("({})", out_atype_size)},        //
+      {poolFuncMacro, "(1)"}, //
+
+      {"KERNEL_X", fmt::format("({})", op.kernelSize.x)}, //
+      {"KERNEL_Y", fmt::format("({})", op.kernelSize.y)}, //
+      {"STRIDE_X", fmt::format("({})", op.stride.x)},     //
+      {"STRIDE_Y", fmt::format("({})", op.stride.y)},     //
+      {"PADDING_X", fmt::format("({})", op.padding.x)},   //
+      {"PADDING_Y", fmt::format("({})", op.padding.y)},   //
+
   };
   for (const ShaderDefine &def : defines) {
     fmt::println("#define {} {}", def.name, def.value);
@@ -264,14 +277,14 @@ DirectUpsampleShader::do_specialize(const OpUpsample &op) const {
 
   glm::uvec3 tileSize = wTile * iTile;
 
-  return UpsampleShaderSource(
-      m_source, ShaderLang::GLSL, SpecializationConstants{},
-      ShaderDefines{defines}, tileSize,
-      UpsampleShaderSource::DebugInfo(
-          op.inputLayout, op.inputType, op.outputLayout, op.outputType,
-          op.channels, op.scalingFactor, op.filterMode, m_name));
+  return PoolShaderSource(m_source, ShaderLang::GLSL, SpecializationConstants{},
+                          ShaderDefines{defines}, tileSize,
+                          PoolShaderSource::DebugInfo(
+                              op.inputLayout, op.inputType, op.outputLayout,
+                              op.outputType, op.channels, op.kernelSize,
+                              op.stride, op.padding, op.poolingFunc, m_name));
 }
 
-std::string_view DirectUpsampleShader::name() const { return m_name; }
+std::string_view DirectPoolShader::name() const { return m_name; }
 
 } // namespace vkcnn::shaders

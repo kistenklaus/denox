@@ -7,7 +7,7 @@ namespace vkcnn::shaders {
 
 class DirectUpsampleShader : public IUpsampleShader {
 public:
-  explicit DirectUpsampleShader(glm::uvec3 iTile, glm::uvec3 wTile);
+  DirectUpsampleShader(glm::uvec3 iTile, glm::uvec3 wTile);
   DirectUpsampleShader();
 
   bool supports(const OpUpsample &op) const final override;

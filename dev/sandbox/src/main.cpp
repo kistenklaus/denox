@@ -6,8 +6,10 @@
 #include "merian/vk/utils/profiler.hpp"
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/FilterMode.hpp"
+#include "vkcnn/common/PoolFunction.hpp"
 #include "vkcnn/common/ops/OpActivation.hpp"
 #include "vkcnn/common/ops/OpCopy.hpp"
+#include "vkcnn/common/ops/OpPool.hpp"
 #include "vkcnn/common/ops/OpUpsample.hpp"
 #include "vkcnn/common/shader/ActivationShaderSource.hpp"
 #include "vkcnn/common/shader/ConvShaderSource.hpp"
@@ -21,12 +23,14 @@
 #include "vkcnn/runtime/activation/ActivationPipeline.hpp"
 #include "vkcnn/runtime/conv/ConvPipeline.hpp"
 #include "vkcnn/runtime/copy/CopyPipeline.hpp"
+#include "vkcnn/runtime/pool/PoolPipeline.hpp"
 #include "vkcnn/runtime/tensor/ActivationDeviceTensor.hpp"
 #include "vkcnn/runtime/tensor/FilterDeviceTensor.hpp"
 #include "vkcnn/runtime/upsample/UpsamplePipeline.hpp"
 #include "vkcnn/shaders/activation/ActivationShader.hpp"
 #include "vkcnn/shaders/conv/DirectConvShader.hpp"
 #include "vkcnn/shaders/copy/CopyTransformShader.hpp"
+#include "vkcnn/shaders/pool/DirectPoolShader.hpp"
 #include "vkcnn/shaders/upsample/DirectUpsampleShader.hpp"
 #include <fmt/base.h>
 #include <print>
@@ -457,7 +461,6 @@ void upsample_sandbox() {
   query_pool->reset();
   profiler->set_query_pool(query_pool);
 
-
   const unsigned int scalingFactor = 2;
 
   const unsigned int W = 1920 / scalingFactor;
@@ -509,7 +512,7 @@ void upsample_sandbox() {
                                                       deviceAlloc};
 
   vkcnn::runtime::UpsamplePipeline upsamplePipe{context, shaderCompiler,
-                                              upsampleSrc};
+                                                upsampleSrc};
 
   auto cmd = std::make_shared<merian::CommandBuffer>(cmdPool);
   cmd->begin();
@@ -546,10 +549,118 @@ void upsample_sandbox() {
   fmt::println("Throughput: {}GB/s", throughput * 1e-9);
 }
 
+void pool_sandbox() {
+  merian::ContextHandle context = vkcnn::merian::createContext();
+
+  merian::ShaderCompilerHandle shaderCompiler =
+      std::make_shared<merian::SystemGlslcCompiler>(context);
+  auto resources = context->get_extension<merian::ExtensionResources>();
+  merian::ResourceAllocatorHandle deviceAlloc = resources->resource_allocator();
+
+  merian::QueueHandle queue = context->get_queue_GCT();
+  merian::CommandPoolHandle cmdPool =
+      std::make_shared<merian::CommandPool>(queue);
+
+  merian::ProfilerHandle profiler = std::make_shared<merian::Profiler>(context);
+  merian::QueryPoolHandle<vk::QueryType::eTimestamp> query_pool =
+      std::make_shared<merian::QueryPool<vk::QueryType::eTimestamp>>(context);
+  query_pool->reset();
+  profiler->set_query_pool(query_pool);
+
+  glm::uvec2 kernelSize = glm::uvec2(2, 2);
+
+  const unsigned int IN_W = 1920;
+  const unsigned int IN_H = 1080;
+
+  const unsigned int C = 32;
+
+  const unsigned int OUT_W = IN_W / kernelSize.x;
+  const unsigned int OUT_H = IN_H / kernelSize.y;
+
+  const vkcnn::PoolFunction poolFunc = vkcnn::PoolFunction::Max;
+
+  const vkcnn::ActivationLayout inLayout = vkcnn::ActivationLayout::CHWC8;
+  const vkcnn::ActivationLayout outLayout = vkcnn::ActivationLayout::CHWC8;
+
+  const vkcnn::FloatType outType = vkcnn::FloatType::F16;
+  const vkcnn::FloatType inType = vkcnn::FloatType::F16;
+
+  vkcnn::shaders::DirectPoolShader poolShader{};
+
+  vkcnn::ActivationHostTensor inputHost{
+      {vkcnn::ActivationShape{IN_W, IN_H, C}, inLayout, inType}};
+  vkcnn::ActivationHostTensor outputHost{
+      {vkcnn::ActivationShape{OUT_W, OUT_H, C}, outLayout, outType}};
+
+  vkcnn::OpPool pool{
+      inLayout,   inType,     outLayout,        outType,  C,
+      kernelSize, kernelSize, glm::uvec2(0, 0), poolFunc,
+  };
+
+  vkcnn::PoolShaderSource poolSrc = poolShader.do_specialize(pool);
+
+  for (unsigned int h = 0; h < IN_H; ++h) {
+    for (unsigned int w = 0; w < IN_W; ++w) {
+      for (unsigned int c = 0; c < C; ++c) {
+        inputHost.at(w, h, c) = static_cast<float>(w + 1 + h + 1);
+      }
+    }
+  }
+
+  // =========== RUNTIME ==============
+
+  vkcnn::runtime::ActivationDeviceTensor inputDevice{inputHost.desc(),
+                                                     deviceAlloc};
+
+  vkcnn::runtime::ActivationDeviceTensor outputDevice{outputHost.desc(),
+                                                      deviceAlloc};
+
+  vkcnn::runtime::PoolPipeline poolPipe{context, shaderCompiler, poolSrc};
+
+  auto cmd = std::make_shared<merian::CommandBuffer>(cmdPool);
+  cmd->begin();
+
+  inputDevice.upload(cmd, inputHost);
+  outputDevice.zero(cmd);
+
+  for (unsigned int i = 0; i < 1; ++i) {
+    MERIAN_PROFILE_SCOPE_GPU(profiler, cmd, "upsample");
+    poolPipe.run(cmd, inputDevice, outputDevice);
+  }
+
+  auto download = outputDevice.download(cmd);
+
+  cmd->end();
+  queue->submit_wait(cmd);
+
+  download.complete(outputHost);
+
+  if (OUT_W <= 32 || false) {
+    vkcnn::tensor_algo::printActivation(inputHost);
+
+    fmt::println("Output:");
+
+    vkcnn::tensor_algo::printActivation(outputHost);
+  }
+
+  profiler->collect(true, false);
+  fmt::println("{}", merian::Profiler::get_report_str(profiler->get_report()));
+  double lat = profiler->get_report().gpu_total();
+  std::size_t mem = 0;
+  mem +=
+      inputHost.shape().h * inputHost.shape().w * C * inputHost.type().size();
+  mem += outputHost.shape().h * outputHost.shape().w * C *
+         outputHost.type().size();
+
+  double throughput = mem / (lat * 1e-3);
+  fmt::println("Throughput: {}GB/s", throughput * 1e-9);
+}
+
 int main() {
   // conv_sandbox();
   // copy_transform_sandbox();
   // activation_sandbox();
-  upsample_sandbox();
+  // upsample_sandbox();
+  pool_sandbox();
   return 0;
 }

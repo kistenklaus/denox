@@ -8,6 +8,8 @@ vkcnn_shaders_src = files(
   'src/vkcnn/shaders/activation/IActivationShader.cpp',
   'src/vkcnn/shaders/upsample/DirectUpsampleShader.cpp',
   'src/vkcnn/shaders/upsample/IUpsampleShader.cpp',
+  'src/vkcnn/shaders/pool/IPoolShader.cpp',
+  'src/vkcnn/shaders/pool/DirectPoolShader.cpp',
   'src/vkcnn/shaders/preprocessing.cpp',
 )
 
