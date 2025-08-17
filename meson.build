@@ -14,6 +14,7 @@ project('vkcnn',
 
 subdir('common')
 subdir('shaders')
+subdir('graph')
 subdir('runtime')
 
 tests_enabled = get_option('dev')
