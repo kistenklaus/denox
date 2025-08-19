@@ -10,9 +10,9 @@
 #include <stdexcept>
 #include <utility>
 
-namespace vkcnn::graph {
+namespace vkcnn {
 
-class ComputeGraph;
+class Model;
 
 struct ComputeOpConv {
   struct Storage {
@@ -80,7 +80,6 @@ enum class ComputeOpTag {
   Concat,
 };
 
-// TODO build custom discriminated type union (fat type).
 class ComputeOp {
 public:
   ComputeOp(ComputeOpConv conv)
@@ -174,7 +173,7 @@ public:
   }
 
 private:
-  friend ComputeGraph;
+  friend Model;
   union Uni {
     ComputeOpConv conv;
     ComputeOpActivation activation;

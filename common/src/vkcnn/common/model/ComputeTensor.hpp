@@ -5,13 +5,15 @@
 
 #include <optional>
 
-namespace vkcnn::graph {
+namespace vkcnn {
 
-class ComputeGraph;
+class Model;
+class Tensor;
 
 class ComputeTensor {
 public:
-  friend ComputeGraph;
+  friend Model;
+  friend Tensor;
   explicit ComputeTensor(unsigned int channels,
                        std::optional<ActivationLayout> layout,
                        std::optional<FloatType> type)

@@ -5,25 +5,24 @@
 #include "vkcnn/common/hypergraph/AdjGraph.hpp"
 #include "vkcnn/common/hypergraph/ConstGraph.hpp"
 #include "vkcnn/common/hypergraph/NodeId.hpp"
+#include "vkcnn/common/model/ComputeOp.hpp"
+#include "vkcnn/common/model/ComputeTensor.hpp"
 #include "vkcnn/common/tensor/ActivationLayout.hpp"
-#include "vkcnn/common/tensor/BiasHostTensor.hpp"
-#include "vkcnn/common/tensor/FilterHostTensor.hpp"
 #include "vkcnn/common/tensor/FloatType.hpp"
-#include "vkcnn/graph/ComputeOp.hpp"
-#include "vkcnn/graph/ComputeTensor.hpp"
 #include <glm/fwd.hpp>
 #include <glm/vec2.hpp>
-#include <iterator>
 #include <optional>
 
-namespace vkcnn::graph {
+namespace vkcnn {
 
-class ComputeGraph;
+class Model;
+class Tensor;
 
 namespace details {
 
 struct ComputeGraphControlBlock {
-  friend ComputeGraph;
+  friend Model;
+  friend Tensor;
 
 private:
   static constexpr hypergraph::NodeId NullNode{static_cast<std::size_t>(-1)};
@@ -40,7 +39,27 @@ private:
 
 class Tensor {
 public:
-  friend ComputeGraph;
+  friend Model;
+
+  std::optional<ActivationLayout> layout() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).m_layout;
+  }
+
+  void setLayout(std::optional<ActivationLayout> layout) {
+    m_controlBlock->hypergraph.get(m_nodeId).m_layout = layout;
+  }
+
+  std::optional<FloatType> type() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).m_type;
+  }
+
+  void setType(std::optional<FloatType> type) {
+    m_controlBlock->hypergraph.get(m_nodeId).m_type = type;
+  }
+
+  unsigned int channels() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).m_channels;
+  }
 
 private:
   Tensor(hypergraph::NodeId id,
@@ -51,7 +70,7 @@ private:
   std::shared_ptr<details::ComputeGraphControlBlock> m_controlBlock;
 };
 
-class ComputeGraph {
+class Model {
 public:
   Tensor input(unsigned int channels,
                std::optional<ActivationLayout> layout = std::nullopt,
@@ -132,6 +151,20 @@ public:
 
   void output(const Tensor &src) { m_controlBlock->output = src.m_nodeId; }
 
+
+  void setLayout(const Tensor &tensor, std::optional<ActivationLayout> layout) {
+    m_controlBlock->hypergraph.get(tensor.m_nodeId).m_layout = layout;
+  }
+
+  void setType(const Tensor &tensor, std::optional<FloatType> type) {
+    m_controlBlock->hypergraph.get(tensor.m_nodeId).m_type = type;
+  }
+
+  Tensor Conv3x3(const Tensor &src, unsigned int K, bool bias = true) {
+    return conv2d(src, glm::uvec2{3, 3}, K, bias, glm::uvec2{1, 1},
+                  glm::uvec2{1, 1});
+  }
+
   Tensor ReLU(const Tensor &src) {
     return activation(src, ActivationFunction::ReLU);
   }
@@ -148,22 +181,13 @@ public:
     return upsample(src, scalingFactor, FilterMode::Nearest);
   }
 
+  hypergraph::ConstGraph<ComputeTensor, ComputeOp> freeze() const {
+    return hypergraph::ConstGraph<ComputeTensor, ComputeOp>(
+        m_controlBlock->hypergraph);
+  }
+
 private:
   std::shared_ptr<details::ComputeGraphControlBlock> m_controlBlock;
 };
 
-static void foo() {
-
-  ComputeGraph nn;
-
-  auto in = nn.input(3);
-  auto x = nn.conv2d(in, glm::uvec2(3, 3), 32, true, glm::uvec2(1, 1),
-                     glm::uvec2(1, 1));
-  auto y = nn.ReLU(x);
-  auto z = nn.MaxPool(y, glm::uvec2(2, 2));
-
-  nn.output(z);
-
-}
-
-} // namespace vkcnn::graph
+} // namespace vkcnn
