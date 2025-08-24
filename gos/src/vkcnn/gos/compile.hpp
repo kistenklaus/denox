@@ -2,7 +2,6 @@
 
 #include "vkcnn/common/model/CompileModel.hpp"
 #include "vkcnn/common/model/Model.hpp"
-#include "vkcnn/common/mr/MemoryRequirements.hpp"
 #include <shaderc/shaderc.hpp>
 namespace vkcnn {
 
@@ -10,6 +9,7 @@ CompiledModel compile(const Model &graph);
 
 } // namespace vkcnn
 
+[[maybe_unused]]
 static void foo() {
 
   vkcnn::Model nn;
@@ -31,4 +31,9 @@ static void foo() {
   nn.output(c);
 
   auto cnn = vkcnn::compile(nn);
+
+  auto op = cnn.schedule()[0];
+  vkcnn::ParameterList params = op.getDispatch().parameters();
+  [[maybe_unused]]
+  std::span<const std::byte> p = params[0];
 }

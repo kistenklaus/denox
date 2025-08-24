@@ -5,14 +5,30 @@
 #include "vkcnn/common/hypergraph/NodeId.hpp"
 #include "vkcnn/common/hypergraph/NullWeight.hpp"
 #include <algorithm>
-#include <numeric>
+
+#include <fmt/base.h>
 #include <span>
 #include <vector>
 namespace vkcnn::hypergraph {
 
 template <typename V, typename E, typename W = NullWeight> class ConstGraph {
 public:
+  struct Node {
+    std::size_t incomingBegin;
+    std::size_t incomingEnd;
+    std::size_t outgoingBegin;
+    std::size_t outgoingEnd;
+  };
+
+  struct Edge {
+    W weight;
+    std::size_t srcBegin;
+    std::size_t srcEnd;
+    NodeId dst;
+  };
+
   explicit ConstGraph(const AdjGraph<V, E, W> &graph) {
+
     std::size_t nodeCount = graph.nodeCount();
     std::size_t edgeCount = graph.edgeCount();
 
@@ -23,26 +39,29 @@ public:
 
     // Pass 0: Compact IDs and build remapping tables.
     std::size_t maxNodeId{0};
-    for (const auto &n : graph.nodes()) {
+    for (const typename hypergraph::AdjGraph<V, E>::const_node_iterator::Node
+             &n : graph.nodes()) {
       maxNodeId = std::max(static_cast<std::size_t>(n.id()), maxNodeId);
     }
     std::size_t maxEdgeId{0};
-    for (const auto &e : graph.edges()) {
+    for (const typename hypergraph::AdjGraph<
+             V, E>::const_edge_iterator::EdgeInfo &e : graph.edges()) {
       maxEdgeId = std::max(static_cast<std::size_t>(e.id()), maxEdgeId);
     }
-
     std::vector<NodeId> nodeRemap(maxNodeId + 1, NodeId{0});
     {
       std::size_t ix = 0;
-      for (const auto &n : graph.nodes()) {
-        nodeRemap[n.id()] = ix++;
+      for (const typename hypergraph::AdjGraph<V, E>::const_node_iterator::Node
+               &n : graph.nodes()) {
+        nodeRemap[n.id()] = hypergraph::NodeId{ix++};
       }
     }
     std::vector<EdgeId> edgeRemap(maxEdgeId + 1, EdgeId{0});
     {
       std::size_t ix = 0;
-      for (const auto &e : graph.edges()) {
-        edgeRemap[e.id()] = ix++;
+      for (const typename hypergraph::AdjGraph<
+               V, E>::const_edge_iterator::EdgeInfo &e : graph.edges()) {
+        edgeRemap[e.id()] = hypergraph::EdgeId{ix++};
       }
     }
 
@@ -88,7 +107,8 @@ public:
     //         Populate id arrays.
     {
       std::size_t idx = 0;
-      for (const auto &n : graph.nodes()) {
+      for (const typename hypergraph::AdjGraph<V, E>::const_node_iterator::Node
+               &n : graph.nodes()) {
         m_nodeData.emplace_back(n.node());
         m_nodes.emplace_back(indegPrefix[idx], indegPrefix[idx] + indeg[idx],
                              outdegPrefix[idx],
@@ -98,7 +118,8 @@ public:
     }
     {
       std::size_t idx = 0;
-      for (const auto &e : graph.edges()) {
+      for (const typename hypergraph::AdjGraph<
+               V, E>::const_edge_iterator::EdgeInfo &e : graph.edges()) {
         m_edgeData.emplace_back(e.edge().payload());
         NodeId di{nodeRemap[e.edge().dst()]};
         m_edges.emplace_back(e.edge().weight(), srclenPrefix[idx],
@@ -137,21 +158,10 @@ public:
 
   NodeId dst(EdgeId edge) const { return m_edges[edge].dst; }
 
+  std::size_t nodeCount() const { return m_nodes.size(); }
+  std::size_t edgeCount() const { return m_edges.size(); }
+
 private:
-  struct Node {
-    std::size_t incomingBegin;
-    std::size_t incomingEnd;
-    std::size_t outgoingBegin;
-    std::size_t outgoingEnd;
-  };
-
-  struct Edge {
-    W weight;
-    std::size_t srcBegin;
-    std::size_t srcEnd;
-    NodeId dst;
-  };
-
   std::vector<NodeId> m_nodeIds;
   std::vector<EdgeId> m_edgeIds;
 

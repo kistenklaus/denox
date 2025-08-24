@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <fmt/base.h>
 #include <iterator>
 #include <optional>
 #include <ranges>
@@ -71,7 +72,8 @@ public:
                  W weight = {}) noexcept {
     if (m_edgeFreelist.empty()) {
       EdgeId id{m_edges.size()};
-      m_edges.emplace_back(src0, src1, dst, edge, weight);
+      m_edges.push_back(
+          std::optional<Edge>(Edge(src0, src1, dst, edge, weight)));
       return id;
     } else {
       EdgeId id{m_edgeFreelist.back()};
@@ -125,12 +127,12 @@ public:
   struct const_node_iterator {
     struct Node {
       friend struct const_node_iterator;
-      NodeId id() const { return m_id; }
+      NodeId id() const { return NodeId{m_id}; }
       const V &node() const { return m_node->value(); }
 
     private:
       Node(NodeId id, const std::optional<V> *node) : m_id(id), m_node(node) {}
-      NodeId m_id;
+      std::uint64_t m_id;
       const std::optional<V> *m_node;
     };
     struct NodePtr {
@@ -148,22 +150,22 @@ public:
     using reference = Node;
     explicit const_node_iterator(const std::optional<V> *nodes, std::size_t idx,
                                  std::size_t end)
-        : m_current(idx, nodes), m_end(end) {}
+        : m_current(NodeId{idx}, nodes), m_end(end) {}
 
-    const_node_iterator() : m_current(0, nullptr), m_end(0) {}
+    const_node_iterator() : m_current(NodeId{0}, nullptr), m_end(0) {}
 
     reference operator*() const { return m_current; }
     pointer operator->() const { return NodePtr(m_current); }
 
     const_node_iterator &operator++() {
       do {
-        ++m_current.id;
-        if (m_current.id == m_end) {
-          m_current.node = nullptr;
+        ++m_current.m_id;
+        if (m_current.m_id == m_end) {
+          m_current.m_node = nullptr;
           break;
         }
-        ++m_current.node;
-      } while (!m_current.node->has_value());
+        ++m_current.m_node;
+      } while (!m_current.m_node->has_value());
       return *this;
     }
     const_node_iterator operator++(int) {
@@ -174,11 +176,11 @@ public:
 
     friend bool operator==(const const_node_iterator &a,
                            const const_node_iterator &b) {
-      return a.m_current.node == b.m_current.node;
+      return a.m_current.m_id == b.m_current.m_id;
     };
     friend bool operator!=(const const_node_iterator &a,
                            const const_node_iterator &b) {
-      return a.m_current.node != b.m_current.node;
+      return a.m_current.m_id != b.m_current.m_id;
     };
 
   private:
@@ -220,14 +222,14 @@ public:
   struct const_edge_iterator {
     struct EdgeInfo {
       friend struct const_edge_iterator;
-      EdgeId id() const { return m_id; }
+      EdgeId id() const { return EdgeId{m_id}; }
       const Edge &edge() const { return m_edge->value(); }
 
     private:
       EdgeInfo(EdgeId id, const std::optional<Edge> *edge)
           : m_id(id), m_edge(edge) {}
 
-      EdgeId m_id;
+      std::uint64_t m_id;
       const std::optional<Edge> *m_edge;
     };
     struct EdgePtr {
@@ -245,22 +247,22 @@ public:
     using reference = EdgeInfo;
     explicit const_edge_iterator(const std::optional<Edge> *edge,
                                  std::size_t idx, std::size_t end)
-        : m_current(idx, edge), m_end(end) {}
+        : m_current(EdgeId{idx}, edge), m_end(end) {}
 
-    const_edge_iterator() : m_current(0, nullptr), m_end(0) {}
+    const_edge_iterator() : m_current(EdgeId{0}, nullptr), m_end(0) {}
 
     reference operator*() const { return m_current; }
     pointer operator->() const { return EdgePtr(m_current); }
 
     const_edge_iterator &operator++() {
       do {
-        ++m_current.id;
-        if (m_current.id == m_end) {
-          m_current.edge = nullptr;
+        ++m_current.m_id;
+        if (m_current.m_id == m_end) {
+          m_current.m_edge = nullptr;
           break;
         }
-        ++m_current.edge;
-      } while (!m_current.edge->has_value());
+        ++m_current.m_edge;
+      } while (!m_current.m_edge->has_value());
       return *this;
     }
     const_edge_iterator operator++(int) {
@@ -271,11 +273,11 @@ public:
 
     friend bool operator==(const const_edge_iterator &a,
                            const const_edge_iterator &b) {
-      return a.m_current.edge == b.m_current.edge;
+      return a.m_current.m_id == b.m_current.m_id;
     };
     friend bool operator!=(const const_edge_iterator &a,
                            const const_edge_iterator &b) {
-      return a.m_current.edge != b.m_current.edge;
+      return a.m_current.m_id != b.m_current.m_id;
     };
 
   private:
@@ -292,7 +294,8 @@ public:
     }
     std::size_t idx = std::distance(m_nodes.begin(), it);
     const_node_iterator begin{m_nodes.data() + idx, idx, m_nodes.size()};
-    return {begin, const_node_iterator{}};
+    return {begin, const_node_iterator{m_nodes.data() + m_nodes.size(),
+                                       m_nodes.size(), m_nodes.size()}};
   }
 
   [[nodiscard]] std::ranges::subrange<const_edge_iterator>
@@ -304,7 +307,7 @@ public:
     }
     std::size_t idx = std::distance(m_edges.begin(), it);
     const_edge_iterator begin{m_edges.data() + idx, idx, m_edges.size()};
-    return {begin, const_edge_iterator{}};
+    return {begin, const_edge_iterator{m_edges.data() + m_edges.size(), m_edges.size(), m_edges.size()}};
   }
 
 private:

@@ -7,12 +7,17 @@
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/FilterMode.hpp"
 #include "vkcnn/common/PoolFunction.hpp"
+#include "vkcnn/common/containers/small_vector.hpp"
+#include "vkcnn/common/hypergraph/NodeId.hpp"
 #include "vkcnn/common/ops/OpActivation.hpp"
 #include "vkcnn/common/ops/OpCopy.hpp"
 #include "vkcnn/common/ops/OpPool.hpp"
 #include "vkcnn/common/ops/OpUpsample.hpp"
 #include "vkcnn/common/shader/ActivationShaderSource.hpp"
 #include "vkcnn/common/shader/ConvShaderSource.hpp"
+#include "vkcnn/common/symbolic/SymAdjGraph.hpp"
+#include "vkcnn/common/symbolic/SymGraph.hpp"
+#include "vkcnn/common/symbolic/modsolve.hpp"
 #include "vkcnn/common/tensor/ActivationHostTensor.hpp"
 #include "vkcnn/common/tensor/ActivationLayout.hpp"
 #include "vkcnn/common/tensor/BiasHostTensor.hpp"
@@ -32,6 +37,7 @@
 #include "vkcnn/shaders/copy/CopyTransformShader.hpp"
 #include "vkcnn/shaders/pool/DirectPoolShader.hpp"
 #include "vkcnn/shaders/upsample/DirectUpsampleShader.hpp"
+#include <cassert>
 #include <fmt/base.h>
 #include <print>
 
@@ -656,11 +662,24 @@ void pool_sandbox() {
   fmt::println("Throughput: {}GB/s", throughput * 1e-9);
 }
 
+void sym_expr_sandbox() {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(), B = g.createParameter(),
+       C = g.createParameter();
+
+  auto lhs = g.mul(g.mul(A, B), C);
+  auto rhs = g.mul(A, g.mul(B, C));
+
+  g.debug();
+  assert(lhs == rhs);
+}
+
 int main() {
   // conv_sandbox();
   // copy_transform_sandbox();
   // activation_sandbox();
   // upsample_sandbox();
-  pool_sandbox();
+  // pool_sandbox();
+  sym_expr_sandbox();
   return 0;
 }

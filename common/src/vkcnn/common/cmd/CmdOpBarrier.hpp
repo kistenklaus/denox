@@ -1,18 +1,20 @@
 #pragma once
 
-#include <array>
-#include <memory>
-#include <vector>
+#include "vkcnn/common/cmd/record/CmdRecordBarrier.hpp"
 
 namespace vkcnn {
 
-// NOTE: This is a FAM (Flexible array layout) struct. Don't try to naivly
-// instantiate it!
-// The primary reason for FAM is easy and fast serialization!
-// TODO!!
+class CmdOpSchedule;
+
 class CmdOpBarrier {
 public:
+  friend CmdOpSchedule;
+  unsigned int inputTensor() const { return m_record->inputTensor; }
+  unsigned int outputTensor() const { return m_record->outputTensor; }
+
 private:
+  CmdOpBarrier(const CmdRecordBarrier *record) : m_record(record) {}
+  const CmdRecordBarrier *m_record;
 };
 
 } // namespace vkcnn

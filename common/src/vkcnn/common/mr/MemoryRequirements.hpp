@@ -1,12 +1,13 @@
 #pragma once
 
+#include "vkcnn/common/symbolic/SymGraph.hpp"
 namespace vkcnn {
 
 class MemoryRequirements {
-  public:
+public:
+  SymGraph m_symGraph;
 
-  private:
-
+private:
 };
 
-}
+} // namespace vkcnn

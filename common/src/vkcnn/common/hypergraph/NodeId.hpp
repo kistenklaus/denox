@@ -1,16 +1,24 @@
 #pragma once
 
-#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <compare>
+
 namespace vkcnn::hypergraph {
 
 struct NodeId {
 public:
-  explicit constexpr NodeId(std::size_t id) : m_id(id) {}
+  static constexpr std::uint64_t NullId{
+      std::numeric_limits<std::uint64_t>::max()};
 
-  constexpr operator std::size_t() const { return m_id; }
+  explicit constexpr NodeId(std::uint64_t id) : m_id(id) {}
+
+  constexpr operator std::uint64_t() const { return m_id; }
+
+  constexpr auto operator<=>(const NodeId &) const = default;
 
 private:
-  std::size_t m_id;
+  std::uint64_t m_id;
 };
 
 } // namespace vkcnn::hypergraph
