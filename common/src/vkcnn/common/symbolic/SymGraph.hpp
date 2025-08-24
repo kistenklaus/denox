@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ATen/core/interned_strings.h"
 #include "vkcnn/common/containers/small_vector.hpp"
 #include <algorithm>
 #include <cassert>
@@ -10,6 +11,8 @@
 #include <fmt/format.h>
 #include <memory>
 #include <numeric>
+#include <regex>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -145,7 +148,7 @@ public:
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym div(L lhs, R rhs, bool ceil = false, bool dno = true) {
+  Sym div(L lhs, R rhs, bool dno = true) {
     Sym a;
     if constexpr (std::same_as<L, Sym>) {
       a = reduce_sym(lhs);
@@ -158,7 +161,7 @@ public:
     } else {
       b = Sym::Const(rhs);
     }
-    return div_xx(a, b, ceil, dno);
+    return div_xx(a, b, dno);
   }
 
   template <typename L, typename R>
@@ -198,20 +201,9 @@ public:
         break;
       case ExprType::NonAffine:
         throw std::runtime_error("Invalid state");
-      case ExprType::CeilDiv:
+      case ExprType::Div:
         assert(expr.symbols.size() == 2);
-        fmt::print("CeilDiv({}, {})", form(expr.symbols[0]),
-                   form(expr.symbols[1]));
-        break;
-      case ExprType::FloorDiv:
-        assert(expr.symbols.size() == 2);
-        fmt::print("FloorDiv({}, {})", form(expr.symbols[0]),
-                   form(expr.symbols[1]));
-        break;
-      case ExprType::AlignUp:
-        assert(expr.symbols.size() == 2);
-        fmt::print("AlignUp({}, {})", form(expr.symbols[0]),
-                   form(expr.symbols[1]));
+        fmt::print("Div({}, {})", form(expr.symbols[0]), form(expr.symbols[1]));
         break;
       case ExprType::Mod:
         assert(expr.symbols.size() == 2);
@@ -230,26 +222,6 @@ public:
         break;
       case ExprType::Add:
         throw std::runtime_error("Invalid state. Add is affine");
-      case ExprType::Max:
-        fmt::print("Max(");
-        for (std::size_t c = 0; c < expr.symbols.size(); ++c) {
-          if (c != 0) {
-            fmt::print(", ");
-          }
-          fmt::print("{}", form(expr.symbols[c]));
-        }
-        fmt::print(")");
-        break;
-      case ExprType::Min:
-        fmt::print("Min(");
-        for (std::size_t c = 0; c < expr.symbols.size(); ++c) {
-          if (c != 0) {
-            fmt::print(", ");
-          }
-          fmt::print("{}", form(expr.symbols[c]));
-        }
-        fmt::print(")");
-        break;
       }
       fmt::println(" -> [{}]", expr.sym);
     }
@@ -283,14 +255,8 @@ public:
       case ExprType::NonAffine:
         exprStr = fmt::format("NonAffine -> ({})", a.sym());
         break;
-      case ExprType::CeilDiv:
-        exprStr = fmt::format("{} cdiv {}", avar, bvar);
-        break;
-      case ExprType::FloorDiv:
+      case ExprType::Div:
         exprStr = fmt::format("{} div {}", avar, bvar);
-        break;
-      case ExprType::AlignUp:
-        exprStr = fmt::format("alignup({}, {})", avar, bvar);
         break;
       case ExprType::Mod:
         exprStr = fmt::format("{} mod {}", avar, bvar);
@@ -303,12 +269,6 @@ public:
         break;
       case ExprType::Add:
         exprStr = fmt::format("{} + {}", avar, bvar);
-        break;
-      case ExprType::Max:
-        exprStr = fmt::format("max({}, {})", avar, bvar);
-        break;
-      case ExprType::Min:
-        exprStr = fmt::format("min({}, {})", avar, bvar);
         break;
       }
       std::string affineStr;
@@ -345,7 +305,7 @@ private:
   struct AffineExpr {
     // NOTE: The coef are always sorted by sym (Invariant)
     containers::small_vector<AffineCoef, 2> coef;
-    value_type constant;
+    value_type constant = value_type(0);
 
     bool isPureConstant() const { return coef.empty(); }
   };
@@ -388,15 +348,12 @@ private:
   enum class ExprType {
     Identity,  // (a = 0, b = 0)=
     NonAffine, // (a -> nonaffine cache)
-    CeilDiv,   // (a + b - 1) / b
-    FloorDiv,  // a / b
-    AlignUp,   // ((a+b-1)/b)*b   #b must be a power of 2!
+               //
+    Div,       // a / b
     Mod,       // a % b
-    Sub,       // a-b
-    Mul,       // a*b*c
-    Add,       // a+b+c
-    Max,       // max(a,b,c)
-    Min,       // min(a,b,c)
+    Sub,       // a - b
+    Mul,       // a * b
+    Add,       // a + b
   };
 
   struct Expr {
@@ -637,65 +594,58 @@ private:
                               affine, dno);
   }
 
-  Sym div_xx(Sym lhs, Sym rhs, bool ceilMode, bool dno) {
+  Sym div_xx(Sym lhs, Sym rhs, bool dno) {
     if (lhs.isConstant() && rhs.isConstant()) {
-      return div_cc(lhs.constant(), rhs.constant(), ceilMode, dno);
+      return div_cc(lhs.constant(), rhs.constant(), dno);
     } else if (lhs.isConstant()) {
-      return div_cs(lhs.constant(), rhs.sym(), ceilMode, dno);
+      return div_cs(lhs.constant(), rhs.sym(), dno);
     } else if (rhs.isConstant()) {
-      return div_sc(lhs.sym(), rhs.constant(), ceilMode, dno);
+      return div_sc(lhs.sym(), rhs.constant(), dno);
     } else {
-      return div_ss(lhs.sym(), rhs.sym(), ceilMode, dno);
+      return div_ss(lhs.sym(), rhs.sym(), dno);
     }
   }
 
-  Sym div_ss(symbol lhs, symbol rhs, bool ceilMode, bool dno) {
+  Sym div_ss(symbol lhs, symbol rhs, bool dno) {
     const auto &a = m_expressions[lhs];
     const auto &b = m_expressions[rhs];
-    std::optional<AffineExpr> affine = affine_div(a.affine, b.affine, ceilMode);
+    std::optional<AffineExpr> affine = affine_div(a.affine, b.affine);
     if (affine.has_value()) {
-      return require_affine_sym(
-          ceilMode ? ExprType::CeilDiv : ExprType::FloorDiv, Sym::Symbol(lhs),
-          Sym::Symbol(rhs), *affine, dno);
+      return require_affine_sym(ExprType::Div, Sym::Symbol(lhs),
+                                Sym::Symbol(rhs), *affine, dno);
     } else {
-      return nonaffine_div(Sym::Symbol(lhs), Sym::Symbol(rhs), ceilMode, dno);
+      return nonaffine_div(Sym::Symbol(lhs), Sym::Symbol(rhs), dno);
     }
   }
 
-  Sym div_sc(symbol lhs, value_type rhs, bool ceilMode, bool dno) {
+  Sym div_sc(symbol lhs, value_type rhs, bool dno) {
     const auto &a = m_expressions[lhs];
-    std::optional<AffineExpr> affine = affine_div(a.affine, rhs, ceilMode);
+    std::optional<AffineExpr> affine = affine_div(a.affine, rhs);
     if (affine.has_value()) {
-      return require_affine_sym(
-          ceilMode ? ExprType::CeilDiv : ExprType::FloorDiv, Sym::Symbol(lhs),
-          Sym::Const(rhs), *affine, dno);
+      return require_affine_sym(ExprType::Div, Sym::Symbol(lhs),
+                                Sym::Const(rhs), *affine, dno);
     } else {
-      return nonaffine_div(Sym::Symbol(lhs), Sym::Const(rhs), ceilMode, dno);
+      return nonaffine_div(Sym::Symbol(lhs), Sym::Const(rhs), dno);
     }
   }
 
-  Sym div_cs(value_type lhs, symbol rhs, bool ceilMode, bool dno) {
+  Sym div_cs(value_type lhs, symbol rhs, bool dno) {
     if (lhs == 0) {
       AffineExpr affine;
       affine.constant = 0;
-      return require_affine_sym(ceilMode ? ExprType::CeilDiv
-                                         : ExprType::FloorDiv,
-                                Sym::Const(lhs), Sym::Symbol(rhs), affine, dno);
+      return require_affine_sym(ExprType::Div, Sym::Const(lhs),
+                                Sym::Symbol(rhs), affine, dno);
     } else {
-      return nonaffine_div(Sym::Const(lhs), Sym::Symbol(rhs), ceilMode, dno);
+      return nonaffine_div(Sym::Const(lhs), Sym::Symbol(rhs), dno);
     }
   }
 
-  Sym div_cc(value_type lhs, value_type rhs, bool ceilMode, bool dno) {
+  Sym div_cc(value_type lhs, value_type rhs, bool dno) {
     AffineExpr affine;
     assert(rhs > 0);
-    if (ceilMode) {
-      affine.constant = (lhs + rhs - 1) / rhs;
-    } else {
-      affine.constant = lhs / rhs;
-    }
-    return require_affine_sym(ceilMode ? ExprType::CeilDiv : ExprType::FloorDiv,
-                              Sym::Const(lhs), Sym::Const(rhs), affine, dno);
+    affine.constant = lhs / rhs;
+    return require_affine_sym(ExprType::Div, Sym::Const(lhs), Sym::Const(rhs),
+                              affine, dno);
   }
 
   Sym mod_xx(Sym lhs, Sym rhs, bool dno) {
@@ -775,6 +725,9 @@ private:
 
   Sym require_const_sym(ExprType type, Sym lhs, Sym rhs, value_type constant,
                         bool dno) {
+    if (!dno) {
+      return Sym::Const(constant);
+    }
     AffineExpr affine;
     affine.constant = constant;
     return require_affine_sym(type, lhs, rhs, affine, dno);
@@ -829,7 +782,7 @@ private:
     if (rhs == 0) {
       AffineExpr affine;
       affine.constant = 0;
-      return affine;affine;
+      return affine;
     }
     AffineExpr out = lhs;
     for (std::size_t c = 0; c < out.coef.size(); ++c) {
@@ -927,55 +880,44 @@ private:
     return k;
   }
 
-  std::optional<AffineExpr> affine_div(const AffineExpr &lhs, value_type rhs,
-                                       bool ceilMode) {
+  template <class T> static inline std::pair<T, T> floordivmod(T a, T b) {
+    assert(b > 0);
+    T q = a / b;
+    T r = a % b;
+    if (r < 0) {
+      --q;
+      r += b;
+    }
+    return {q, r};
+  }
+
+  std::optional<AffineExpr> affine_div(const AffineExpr &lhs, value_type rhs) {
     assert(rhs > 0);
-    if (rhs == 1) {
+    if (rhs == 1)
       return lhs;
-    }
-    if (lhs.coef.empty()) {
-      // NOTE: constant folding
-      AffineExpr out;
-      if (lhs.constant == 0) {
-        return out;
-      } else {
-        if (ceilMode) {
-          out.constant = (lhs.constant + rhs - 1) / rhs;
-        } else {
-          out.constant = lhs.constant / rhs;
-        }
+
+    // All variable coefficients must be divisible by rhs
+    AffineExpr out;
+    out.coef.reserve(lhs.coef.size());
+    for (auto const &c : lhs.coef) {
+      if (c.factor % rhs != 0) {
+        return std::nullopt; // non-affine residual -> bail
       }
-      return out;
+      out.coef.push_back({c.sym, c.factor / rhs});
     }
-    value_type div = rhs;
-    assert(div != 0);
-    bool allDivisible = true;
-    if (lhs.constant % div != 0) {
-      // bail.
-      allDivisible = false;
-    }
-    for (std::size_t c = 0; c < lhs.coef.size() && allDivisible; ++c) {
-      if (lhs.coef[c].factor % div != 0) {
-        allDivisible = false;
-      }
-    }
-    if (allDivisible) {
-      AffineExpr out;
-      out = lhs;
-      for (auto &coef : out.coef) {
-        coef.factor /= div;
-      }
-      out.constant /= div;
-      return out;
-    }
-    return std::nullopt;
+
+    // Constant term uses floor division
+    auto [q, _] = floordivmod<value_type>(lhs.constant, rhs);
+    out.constant = q;
+
+    return out;
   }
 
   std::optional<AffineExpr> affine_div(const AffineExpr &lhs,
-                                       const AffineExpr &rhs, bool ceilMode) {
+                                       const AffineExpr &rhs) {
     if (rhs.coef.empty()) {
       assert(rhs.constant > 0);
-      return affine_div(lhs, rhs.constant, ceilMode);
+      return affine_div(lhs, rhs.constant);
     }
 
     if (lhs.coef.empty()) {
@@ -1061,11 +1003,7 @@ private:
       auto a = lhs.coef.front();
       auto b = rhs.coef.front();
       assert(a.sym == b.sym);
-      if (ceilMode) {
-        out.constant = (a.factor + b.factor - 1) / b.factor;
-      } else {
-        out.constant = a.factor / b.factor;
-      }
+      out.constant = a.factor / b.factor;
       return out;
     }
 
@@ -1210,62 +1148,52 @@ private:
 
     if ((a.expr == ExprType::Identity || a.expr == ExprType::NonAffine) &&
         (b.expr == ExprType::Identity || b.expr == ExprType::NonAffine)) {
-      NonAffineExpr nonaffine;
-      nonaffine.expr = ExprType::Mul;
-      if (a.expr == ExprType::NonAffine) {
-        const auto a_nonaffine = m_nonAffineCache.expressions[a.lhs.sym()];
-        if (a_nonaffine.expr == ExprType::Mul) {
-          value_type constant = 1;
-          for (std::size_t c = 0; c < a_nonaffine.symbols.size(); ++c) {
-            const auto sym = a_nonaffine.symbols[c];
-            if (sym.isConstant()) {
-              constant *= sym.constant();
-            } else {
-              nonaffine_add_sym_associative(nonaffine, sym);
-            }
-          }
-          if (constant != 1) {
-            nonaffine_add_sym_associative(nonaffine, Sym::Const(constant));
-          }
-
-        } else {
-          nonaffine_add_sym_associative(nonaffine, Sym::Symbol(lhs));
-        }
-      } else {
-        // lhs is identity A.
-        // if rhs is identity -> simply produce AX
+      if (a.expr == ExprType::Identity && b.expr == ExprType::Identity) {
+        NonAffineExpr nonaffine;
+        nonaffine.expr = ExprType::Mul;
+        nonaffine_add_sym_associative(nonaffine, Sym::Symbol(lhs));
+        nonaffine_add_sym_associative(nonaffine, Sym::Symbol(rhs));
+        return Sym::Symbol(require_nonaffine_sym(nonaffine));
+      } else if (a.expr != b.expr) {
         if (b.expr == ExprType::Identity) {
-          // rhs is identity and
-          nonaffine_add_sym_associative(nonaffine, Sym::Symbol(lhs));
-        } else {
-          // lhs is identity and rhs is nonaffine, forward to associative case.
-          std::swap(a,b);
+          std::swap(a, b);
           std::swap(lhs, rhs);
         }
-      }
-      if (b.expr == ExprType::NonAffine) {
-        const auto &b_nonaffine = m_nonAffineCache.expressions[b.lhs.sym()];
+        assert(a.expr == ExprType::Identity);
+        assert(b.expr == ExprType::NonAffine);
+        auto b_nonaffine = m_nonAffineCache.expressions[b.lhs.sym()];
         if (b_nonaffine.expr == ExprType::Mul) {
-          value_type constant = 1;
-          for (std::size_t c = 0; c < b_nonaffine.symbols.size(); ++c) {
-            const auto sym = b_nonaffine.symbols[c];
-            if (sym.isConstant()) {
-              constant *= sym.constant();
-            } else {
-              nonaffine_add_sym_associative(nonaffine, sym);
-            }
-          }
-          if (constant != 1) {
-            nonaffine_add_sym_associative(nonaffine, Sym::Const(constant));
-          }
-        } else {
-          nonaffine_add_sym_associative(nonaffine, Sym::Symbol(rhs));
+          NonAffineExpr nonaffine;
+          nonaffine.expr = ExprType::Mul;
+          nonaffine.symbols = b_nonaffine.symbols;
+          nonaffine_add_sym_associative(nonaffine, Sym::Symbol(lhs));
+          return Sym::Symbol(require_nonaffine_sym(nonaffine));
         }
+
       } else {
-        nonaffine_add_sym_associative(nonaffine, Sym::Symbol(rhs));
+        assert(a.expr == ExprType::NonAffine);
+        assert(b.expr == ExprType::NonAffine);
+        auto a_nonaffine = m_nonAffineCache.expressions[a.lhs.sym()];
+        auto b_nonaffine = m_nonAffineCache.expressions[b.lhs.sym()];
+        if (a_nonaffine.expr == ExprType::Mul &&
+            b_nonaffine.expr == ExprType::Mul) {
+          NonAffineExpr nonaffine;
+          nonaffine.expr = ExprType::Mul;
+          nonaffine.symbols = a_nonaffine.symbols;
+          for (const Sym &sym : b_nonaffine.symbols) {
+            nonaffine_add_sym_associative(nonaffine, sym);
+          }
+          return Sym::Symbol(require_nonaffine_sym(nonaffine));
+        }
       }
+      NonAffineExpr nonaffine;
+      nonaffine.expr = ExprType::Mul;
+      nonaffine_add_sym_associative(nonaffine, Sym::Symbol(lhs));
+      nonaffine_add_sym_associative(nonaffine, Sym::Symbol(rhs));
       return Sym::Symbol(require_nonaffine_sym(nonaffine));
     }
+    // NOTE: Resolve affine expressions into nonaffine or identities.
+    // (A + B) * C = AB + BC
     AffineExpr affine;
     // Constant term.
     affine.constant = a.affine.constant * b.affine.constant;
@@ -1300,96 +1228,234 @@ private:
                               affine, dno);
   }
 
-  Sym nonaffine_div(Sym lhs, Sym rhs, bool ceilMode, bool dno) {
+  // Split an affine A as A = d*Q + R, with 0 <= R.constant < d and
+  // for every symbol coefficient c: c = d*(c/d) + (c%d)
+  static inline void split_affine_by_const(const AffineExpr &A, value_type d,
+                                           AffineExpr &Q, AffineExpr &R) {
+    Q.constant = 0;
+    R.constant = 0;
+    Q.coef.clear();
+    Q.coef.reserve(A.coef.size());
+    R.coef.clear();
+    R.coef.reserve(A.coef.size());
+
+    for (auto const &c : A.coef) {
+      value_type q = c.factor / d;
+      value_type r =
+          c.factor % d; // d>0 → r in [0..d-1] for unsigned; OK for signed too
+      if (q)
+        Q.coef.emplace_back(c.sym, q);
+      if (r)
+        R.coef.emplace_back(c.sym, r);
+    }
+    auto [qc, rc] = floordivmod(A.constant, d);
+    Q.constant = qc;
+    R.constant = rc;
+  }
+
+  static bool includes_multiset(std::span<const Sym> term_syms,
+                                std::span<const Sym> denom_syms) {
+    std::size_t i = 0, j = 0;
+    while (i < term_syms.size() && j < denom_syms.size()) {
+      if (term_syms[i].sym() < denom_syms[j].sym()) {
+        ++i;
+      } else if (denom_syms[j].sym() < term_syms[i].sym()) {
+        return false;
+      } else {
+        ++i;
+        ++j;
+      }
+    }
+    return j == denom_syms.size();
+  }
+  static containers::small_vector<Sym, 2>
+  multiset_diff(std::span<const Sym> term_syms, std::span<Sym> denom_syms) {
+    containers::small_vector<Sym, 2> out;
+    std::size_t i = 0, j = 0;
+    while (i < term_syms.size() && j < denom_syms.size()) {
+      if (term_syms[i].sym() < denom_syms[j].sym()) {
+        out.push_back(term_syms[i++]);
+      } else if (denom_syms[j].sym() < term_syms[i].sym()) {
+        // should not happen under precondition; guard anyway
+        ++j;
+      } else {
+        // equal -> cancel one occurrence
+        ++i;
+        ++j;
+      }
+    }
+    for (; i < term_syms.size(); ++i)
+      out.push_back(term_syms[i]);
+    return out;
+  }
+
+  /// Build a symbol for a product of factors already sorted (1, 2, ... or
+  /// symbols) Returns:
+  ///  - constant 1 if empty,
+  ///  - identity if single symbol,
+  ///  - non-affine Mul otherwise.
+  Sym rebuild_product_sum(std::span<const Sym> syms, Sym lhs, Sym rhs,
+                          bool dno) {
+    if (syms.empty()) {
+      return require_const_sym(ExprType::Mul, lhs, rhs, 1, dno);
+    }
+    if (syms.size() == 1) {
+      // Ensure it’s materialized as an identity symbol (affine)
+      AffineExpr a;
+      a.coef.emplace_back(syms[0].sym(), 1);
+      return require_affine_sym(ExprType::Mul, syms[0], Sym{}, a,
+                                /*dno*/ false);
+    }
+    NonAffineExpr nonaffine;
+    nonaffine.expr = ExprType::Mul;
+    nonaffine.symbols.assign(syms.begin(), syms.end());
+    return Sym::Symbol(require_nonaffine_sym(nonaffine));
+  }
+
+  /// true iff R has the exact affine shape: 1*rhs + (-t) with t>0 and no other
+  /// terms
+  bool residual_is_sub_rhs_t(const AffineExpr &R, symbol rhs) {
+    if (R.coef.size() != 1)
+      return false;
+    if (R.coef[0].sym != rhs || R.coef[0].factor != 1)
+      return false;
+    // constant must be negative to represent (rhs - t)
+    return (R.constant < 0);
+  }
+
+  void insert_coef_sorted(std::span<const Sym> vec, symbol s, value_type f) {
+    if (f == 0) {
+      return;
+    }
+    auto it =
+        std::lower_bound(vec.begin(), vec.end(), s,
+                         [](auto const &c, symbol key) { return c.sym < key; });
+    if (it != vec.end() && it->sym == s) {
+      it->factor += f;
+      if (it->factor == 0)
+        vec.erase(it);
+    } else {
+      vec.insert(it, {s, f});
+    }
+  }
+
+  Sym nonaffine_div(Sym lhs, Sym rhs, bool dno) {
     // NOTE: either lhs or rhs are symbolics, if both are const, then they
     // would have been handled by affine_div.
     assert(lhs.isSymbolic() || rhs.isSymbolic());
     if (lhs.isConstant()) {
+      // NOTE: Constant / Symbolic
       if (lhs.constant() == 0) {
         assert(rhs.isSymbolic());
-        // NOTE: Trivial case 0 / X == 0
-        return require_const_sym(ceilMode ? ExprType::CeilDiv
-                                          : ExprType::FloorDiv,
-                                 lhs, rhs, 0, dno);
-      } else if (lhs.constant() == 1) {
-        // NOTE: This uses the fact that if rhs == 0, we would get UB so we
-        // assume that it does not occure, and can optimize this case!
-        return require_const_sym(ceilMode ? ExprType::CeilDiv
-                                          : ExprType::FloorDiv,
-                                 lhs, rhs, ceilMode ? 1 : 0, dno);
-      } else {
-        NonAffineExpr nonaffine;
-        nonaffine.expr = ceilMode ? ExprType::CeilDiv : ExprType::FloorDiv;
-        nonaffine.symbols = {lhs, rhs};
-        return Sym::Symbol(require_nonaffine_sym(nonaffine));
-      }
-    }
-
-    if (rhs.isConstant()) {
-      assert(lhs.isSymbolic());
-      const auto &a = m_expressions[lhs.sym()];
-      if (a.expr == ExprType::NonAffine) {
-        const auto &a_nonaffine = m_nonAffineCache.expressions[a.lhs.sym()];
-        if (ceilMode) {
-          if (a_nonaffine.expr == ExprType::CeilDiv) {
-            if (a_nonaffine.symbols[1].isConstant()) {
-              assert(a_nonaffine.symbols[0].isSymbolic());
-              NonAffineExpr nonaffine;
-              value_type div =
-                  a_nonaffine.symbols[1].constant() * rhs.constant();
-              nonaffine.expr = ExprType::CeilDiv;
-              nonaffine.symbols = {a_nonaffine.symbols[0], Sym::Const(div)};
-              return Sym::Symbol(require_nonaffine_sym(nonaffine));
-              return Sym::Symbol(require_nonaffine_sym(nonaffine));
-            } else if (a_nonaffine.symbols[0].isConstant()) {
-              // NOTE: Given (c0 cdiv X) cdiv c1, if c0 < c1 we can prove that
-              // c0 cdiv X < c1. We also know that c0 cdiv X != 0, because
-              // that's only the case if c0 is 0, which is a trivial case that
-              // would have been handeled by the affine_div. This implies that
-              // (c0 cdiv X) cdiv c1 with c0 < c1 is always 1.
-              value_type c0 = a_nonaffine.symbols[0].isConstant();
-              value_type c1 = rhs.constant();
-              if (c0 < c1) {
-                return require_const_sym(ExprType::FloorDiv, lhs, rhs, 1, dno);
-              }
-            }
-          }
-        } else {
-          if (a_nonaffine.expr == ExprType::FloorDiv) {
-            if (a_nonaffine.symbols[1].isConstant()) {
-              assert(a_nonaffine.symbols[0].isSymbolic());
-              NonAffineExpr nonaffine;
-              value_type div =
-                  a_nonaffine.symbols[1].constant() * rhs.constant();
-              nonaffine.expr = ExprType::FloorDiv;
-              nonaffine.symbols = {a_nonaffine.symbols[1], Sym::Const(div)};
-              return Sym::Symbol(require_nonaffine_sym(nonaffine));
-            } else if (a_nonaffine.symbols[0].isConstant()) {
-              // NOTE: Given (c0 div X) div c1, if c0 < c1 we can prove that c0
-              // div X < c1 which implies that (c0 div X) div c1 = 0.
-              value_type c0 = a_nonaffine.symbols[0].isConstant();
-              value_type c1 = rhs.constant();
-              if (c0 < c1) {
-                return require_const_sym(ExprType::FloorDiv, lhs, rhs, 0, dno);
-              }
-            }
-          }
-        }
+        // Trivial case 0 / X == 0
+        return require_const_sym(ExprType::Div, lhs, rhs, 0, dno);
       }
 
-      // NOTE: Bail
       NonAffineExpr nonaffine;
-      nonaffine.expr = ceilMode ? ExprType::CeilDiv : ExprType::FloorDiv;
+      nonaffine.expr = ExprType::Div;
       nonaffine.symbols = {lhs, rhs};
       return Sym::Symbol(require_nonaffine_sym(nonaffine));
     }
 
+    if (rhs.isConstant()) {
+      assert(lhs.isSymbolic());
+      const value_type d = rhs.constant();
+      assert(d > 0);
+      if (d == 1)
+        return lhs; // X / 1 == X
+
+      auto insert_coef_sorted = [](auto &v, symbol s, value_type f) {
+        if (f == 0)
+          return;
+        auto it = std::lower_bound(
+            v.begin(), v.end(), s,
+            [](auto const &c, symbol key) { return c.sym < key; });
+        if (it != v.end() && it->sym == s) {
+          it->factor += f;
+          if (it->factor == 0)
+            v.erase(it);
+        } else {
+          v.insert(it, {s, f});
+        }
+      };
+
+      const auto &a = m_expressions[lhs.sym()];
+      if (a.expr == ExprType::NonAffine) {
+        const auto nonaffine_div_constant = [&](symbol lhs_sym,
+                                                value_type d) -> Sym {
+          const auto &ae = m_expressions[lhs_sym];
+          const auto &na = m_nonAffineCache.expressions[ae.lhs.sym()];
+          if (na.expr == ExprType::Div) {
+            if (na.symbols[1].isConstant()) {
+              // (A div c0) div c1 => A div (c0*c1)
+              Sym A = na.symbols[0];
+              value_type c0 = na.symbols[1].constant();
+              value_type c1 = d;
+              value_type div = c0 * c1; // UB on overflow is fine per your model
+              NonAffineExpr out;
+              out.expr = ExprType::Div;
+              out.symbols = {A, Sym::Const(div)};
+              return Sym::Symbol(require_nonaffine_sym(out));
+            } else if (na.symbols[0].isConstant()) {
+              // (c0 div X) div c1  =>  0  if c0 < c1  (since X>0 by UB rule)
+              value_type c0 = na.symbols[0].constant();
+              value_type c1 = d;
+              if (c0 < c1) {
+                return require_const_sym(ExprType::Div, Sym::Symbol(lhs_sym),
+                                         Sym::Const(d), 0, dno);
+              }
+            }
+          }
+          NonAffineExpr out;
+          out.expr = ExprType::Div;
+          out.symbols = {Sym::Symbol(lhs_sym), Sym::Const(d)};
+          return Sym::Symbol(require_nonaffine_sym(out));
+        };
+        return nonaffine_div_constant(lhs.sym(), d);
+      }
+
+      if (a.expr == ExprType::Identity) {
+        // A / d  -> leave as a single non-affine Div node
+        NonAffineExpr out;
+        out.expr = ExprType::Div;
+        out.symbols = {lhs, rhs};
+        return Sym::Symbol(require_nonaffine_sym(out));
+      }
+
+      {
+        AffineExpr Q, R;
+        split_affine_by_const(a.affine, d, Q, R);
+
+        // If R has no symbolic part, then 0 <= R.const < d ⇒ floor(R/d)==0
+        if (R.coef.empty()) {
+          return require_affine_sym(ExprType::Div, lhs, rhs, Q, dno);
+        }
+
+        // Build Rsym (affine) and the single residual non-affine div node divR
+        // = div(R, d)
+        Sym Rsym =
+            require_affine_sym(ExprType::Div, lhs, rhs, R, /*dno*/ false);
+        NonAffineExpr div_na;
+        div_na.expr = ExprType::Div;
+        div_na.symbols = {Rsym, rhs};
+        Sym divR = Sym::Symbol(require_nonaffine_sym(div_na));
+
+        AffineExpr out = Q;
+        insert_coef_sorted(out.coef, divR.sym(), value_type{1});
+        return require_affine_sym(ExprType::Div, lhs, rhs, out, dno);
+      }
+    }
+
     assert(lhs.isSymbolic() && rhs.isSymbolic());
 
-    // NOTE: This case should be covered by affine_div.
+    // NOTE: Case A/A is handled by affine_div.
     assert(lhs.sym() != rhs.sym());
     const auto &a = m_expressions[lhs.sym()];
     const auto &b = m_expressions[rhs.sym()];
+
+    // NOTE: Cases that we cover here.
+    // (3A + 2B) / A -> produces a new symbol.
+    // (AB) / A -> reduces to B. (exact division)
 
     if (a.expr == ExprType::NonAffine) {
       const auto &a_nonaffine = m_nonAffineCache.expressions[a.lhs.sym()];
@@ -1452,6 +1518,7 @@ private:
       } else if (b.expr == ExprType::Identity) {
 
         if (a_nonaffine.expr == ExprType::Mul) {
+          // Case: AB / A
           const symbol bsym = b.lhs.sym();
           NonAffineExpr nonaffine;
           bool cancelled = false;
@@ -1478,10 +1545,12 @@ private:
         }
       }
     } else if (a.expr == ExprType::Identity) {
+      // Case A / symbolic
       if (b.expr == ExprType::NonAffine) {
         const symbol asym = a.lhs.sym();
         const auto &b_nonaffine = m_nonAffineCache.expressions[b.lhs.sym()];
         if (b_nonaffine.expr == ExprType::Mul) {
+          // Case A / AB
           bool cancelled = false;
           assert(b_nonaffine.symbols.size() >= 2);
           for (const auto &bsym : b_nonaffine.symbols) {
@@ -1492,25 +1561,195 @@ private:
             }
           }
           if (cancelled) {
-            if (ceilMode) {
-              // NOTE: A cdiv ABC = 1 unless A is 0, but if A = 0, then
-              // ABC = 0, which is UB. We therefor assume that A != 0,
-              // which means that A cdiv ABC = 1.
-              return require_const_sym(ExprType::CeilDiv, lhs, rhs, 1, dno);
-            } else {
-              // NOTE: A div ABC = 0 iff. BC > 0. Because BC apears in the
-              // denominator BC = 0 would imply ABC = 0, which is a division by
-              // zero. Because division by zero is UB we can safely assume that
-              // BC > 0.
-              return require_const_sym(ExprType::FloorDiv, lhs, rhs, 0, dno);
-            }
+            // NOTE: A div ABC = 0 iff. BC > 0. Because BC apears in the
+            // denominator BC = 0 would imply ABC = 0, which is a division by
+            // zero. Because division by zero is UB we can safely assume that
+            // BC > 0.
+            return require_const_sym(ExprType::Div, lhs, rhs, 0, dno);
           }
         }
       }
-    }
+    } else {
+      // We know that A is affine.
+      if (b.expr == ExprType::Identity && a.affine.constant == 0) {
+        // Case: (xAB + yBC + 0) / B = xA + yC
+        symbol B = rhs.sym();
+        bool exactMultiple = true;
+        for (const auto &coef : a.affine.coef) {
+          auto c = m_expressions[coef.sym];
+          if (c.expr == ExprType::NonAffine) {
+            auto c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
+            if (c_nonaffine.expr != ExprType::Mul) {
+              exactMultiple = false;
+              break;
+            }
+            bool prodContainsB = false;
+            for (const auto &sym : c_nonaffine.symbols) {
+              assert(sym.isSymbolic());
+              if (sym.sym() == B) {
+                prodContainsB = true;
+                break;
+              }
+            }
+            if (!prodContainsB) {
+              exactMultiple = false;
+              break;
+            }
+          } else if (c.expr == ExprType::Identity && coef.sym == B) {
+            // cancels.
+          } else {
+            exactMultiple = false;
+            break;
+          }
+        }
+        if (exactMultiple) {
+          AffineExpr affine;
+          for (const auto &coef : a.affine.coef) {
+            auto c = m_expressions[coef.sym];
+            if (c.expr == ExprType::NonAffine) {
+              auto c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
+              assert(c_nonaffine.expr == ExprType::Mul);
+              NonAffineExpr coef_nonaffine;
+              coef_nonaffine.expr = ExprType::Mul;
+              bool added = false;
+              for (const auto &sym : c_nonaffine.symbols) {
+                if (!added && sym.sym() == B) {
+                  added = true;
+                  continue;
+                }
+                // NOTE: c_nonaffine.symbols is already sorted so a
+                // trivial push_back retains invariant.
+                // nonaffine_add_sym_associative(c_nonaffine, sym);
+                coef_nonaffine.symbols.push_back(sym);
+              }
+              Sym csym;
+              if (coef_nonaffine.symbols.size() == 0) {
+                csym = require_const_sym(ExprType::Div, Sym::Symbol(coef.sym),
+                                         rhs, 1, false);
+              } else if (coef_nonaffine.symbols.size() == 1) {
+                // Reduce to an affine expression.
+                AffineExpr c_affine;
+                c_affine.coef.emplace_back(coef_nonaffine.symbols[0].sym(), 1);
+                // NOTE: this should never actually create a new symbol, it
+                // should always just return the identity symbol
+                csym = require_affine_sym(ExprType::Div, Sym::Symbol(coef.sym),
+                                          rhs, c_affine, false);
+                assert(m_expressions[csym.sym()].expr == ExprType::Identity);
+              } else {
+                csym = Sym::Symbol(require_nonaffine_sym(coef_nonaffine));
+              }
 
+              if (csym.isConstant()) {
+                affine.constant += csym.constant() * coef.factor;
+              } else {
+                // NOTE: Again push_back retains invariant of coefficients,
+                // because we iterate in order.
+                affine.coef.emplace_back(csym.sym(), coef.factor);
+              }
+            }
+          }
+          return require_affine_sym(ExprType::Div, lhs, rhs, affine, dno);
+        }
+        // Not a exact multiple we fall through and bail!
+      } else if (b.expr == ExprType::NonAffine && a.affine.constant == 0) {
+        // Case: (xABX + yBCX + 0) / BX = xA + yC
+        auto b_nonaffine = m_nonAffineCache.expressions[b.lhs.sym()];
+        bool exactMultiple = true;
+        for (const auto &coef : a.affine.coef) {
+          auto c = m_expressions[coef.sym];
+          if (c.expr == ExprType::NonAffine) {
+            auto c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
+            if (c_nonaffine.expr != ExprType::Mul) {
+              exactMultiple = false;
+              break;
+            }
+            bool prodContainsB = true;
+            std::size_t i = 0, j = 0;
+            while (i < c_nonaffine.symbols.size() &&
+                   j < b_nonaffine.symbols.size()) {
+              const auto &x = c_nonaffine.symbols[i];
+              const auto &y = b_nonaffine.symbols[j];
+              if (x.sym() < y.sym()) {
+                ++i;
+              } else if (y.sym() < x.sym()) {
+                prodContainsB = false;
+                break;
+              } else {
+                ++i;
+                ++j;
+              }
+            }
+            if (j != b_nonaffine.symbols.size()) {
+              prodContainsB = false;
+            }
+            if (!prodContainsB) {
+              exactMultiple = false;
+              break;
+            }
+          } else if (c.expr == ExprType::Identity) {
+            exactMultiple = false;
+            break;
+          } else {
+            exactMultiple = false;
+            break;
+          }
+        }
+        if (exactMultiple) {
+          AffineExpr affine;
+          for (const auto &coef : a.affine.coef) {
+            auto c = m_expressions[coef.sym];
+            assert(c.expr == ExprType::NonAffine);
+            auto c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
+            assert(c_nonaffine.expr == ExprType::Mul);
+
+            // Now let's compute the set difference so c_nonaffine.symbols -
+            // b_nonaffine.symbols.
+            NonAffineExpr nonaffine;
+            std::size_t i = 0, j = 0;
+            while (i < c_nonaffine.symbols.size() &&
+                   j < b_nonaffine.symbols.size()) {
+              const auto &x = c_nonaffine.symbols[i];
+              const auto &y = b_nonaffine.symbols[j];
+              if (x.sym() < y.sym()) {
+                nonaffine.symbols.emplace_back(x);
+                ++i;
+              }
+              assert(y.sym() >= x.sym());
+              ++i;
+              ++j;
+            }
+            for (; i < c_nonaffine.symbols.size(); ++i) {
+              nonaffine.symbols.emplace_back(c_nonaffine.symbols[i]);
+            }
+            Sym csym;
+            if (nonaffine.symbols.size() == 0) {
+              // Everything canceled out.
+              csym = require_const_sym(ExprType::Div, Sym::Symbol(coef.sym),
+                                       rhs, 1, false);
+            } else if (nonaffine.symbols.size() == 1) {
+              // Reduce to affine expression. More specifically a identity.
+              AffineExpr affine;
+              affine.coef.emplace_back(nonaffine.symbols[0].sym(), 1);
+              csym = require_affine_sym(ExprType::Div, Sym::Symbol(coef.sym),
+                                        rhs, affine, false);
+            } else {
+              nonaffine.expr = ExprType::Div;
+              csym = Sym::Symbol(require_nonaffine_sym(nonaffine));
+            }
+            if (csym.isConstant()) {
+              affine.constant += coef.factor * csym.constant();
+            } else {
+              // NOTE: Again push_back retains invariant of coefficients,
+              // because we iterate in order.
+              affine.coef.emplace_back(csym.sym(), coef.factor);
+            }
+          }
+          return require_affine_sym(ExprType::Div, lhs, rhs, affine, dno);
+        }
+      }
+    }
     NonAffineExpr nonaffine;
-    nonaffine.expr = ceilMode ? ExprType::CeilDiv : ExprType::FloorDiv;
+    nonaffine.expr = ExprType::Div;
     nonaffine.symbols = {lhs, rhs};
     return Sym::Symbol(require_nonaffine_sym(nonaffine));
   }

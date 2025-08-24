@@ -219,7 +219,6 @@ TEST(symbolic, affine_div_fold_all_divisible) {
   EXPECT_EQ(x, expected);
 }
 
-
 TEST(symbolic, affine_mod_one) {
   vkcnn::SymGraph graph;
   auto A = graph.createParameter();
@@ -247,7 +246,7 @@ TEST(symbolic, affine_inner_const_fold) {
 TEST(symbolic, affine_mod_scaled_same_base) {
   vkcnn::SymGraph g;
   auto A = g.createParameter();
-  auto E = g.add(A, 1);              // E = A+1
+  auto E = g.add(A, 1); // E = A+1
 
   auto x1 = g.resolve(g.mod(g.mul(6, E), g.mul(4, E))); // (6 % 4) * E = 2E
   auto exp1 = g.mul(2, E);
@@ -260,8 +259,8 @@ TEST(symbolic, affine_mod_scaled_same_base) {
 TEST(symbolic, affine_div_all_terms_divisible) {
   vkcnn::SymGraph g;
   auto A = g.createParameter();
-  auto E = g.add(g.mul(4, A), 8);    // 4A + 8
-  auto q = g.resolve(g.div(E, 4));   // -> A + 2
+  auto E = g.add(g.mul(4, A), 8);  // 4A + 8
+  auto q = g.resolve(g.div(E, 4)); // -> A + 2
   auto expected = g.add(A, 2);
   EXPECT_EQ(q, expected);
 }
@@ -278,10 +277,11 @@ TEST(symbolic, affine_merge_same_symbol) {
 
 TEST(symbolic, affine_add_assoc_comm) {
   vkcnn::SymGraph g;
-  auto A = g.createParameter(), B = g.createParameter(), C = g.createParameter();
+  auto A = g.createParameter(), B = g.createParameter(),
+       C = g.createParameter();
   auto e1 = g.add(A, g.add(B, C));
   auto e2 = g.add(g.add(C, A), B);
-  auto d  = g.resolve(g.sub(e1, e2));
+  auto d = g.resolve(g.sub(e1, e2));
   ASSERT_FALSE(d.isSymbolic());
   EXPECT_EQ(d.value(), 0);
 }
@@ -289,7 +289,7 @@ TEST(symbolic, affine_add_assoc_comm) {
 TEST(symbolic, affine_mod_same_base_scaled) {
   vkcnn::SymGraph g;
   auto A = g.createParameter();
-  auto E = g.add(A, 1);                 // E = A+1
+  auto E = g.add(A, 1); // E = A+1
 
   auto r1 = g.resolve(g.mod(g.mul(6, E), g.mul(4, E))); // (6%4)=2 → 2E
   EXPECT_EQ(r1, g.mul(2, E));
@@ -328,8 +328,8 @@ TEST(symbolic, affine_mod_same_base_unit_remainder) {
 TEST(symbolic, affine_mod_constant_only_constant_residue) {
   vkcnn::SymGraph g;
   auto A = g.createParameter();
-  auto e = g.add(g.mul(6, A), 5);    // 6A + 5
-  auto r = g.resolve(g.mod(e, 3));   // 6A%3=0, 5%3=2
+  auto e = g.add(g.mul(6, A), 5);  // 6A + 5
+  auto r = g.resolve(g.mod(e, 3)); // 6A%3=0, 5%3=2
   ASSERT_FALSE(r.isSymbolic());
   EXPECT_EQ(r.value(), 2);
 }
@@ -343,10 +343,11 @@ TEST(symbolic, affine_div_all_terms_divisible_with_zero_const) {
 
 TEST(symbolic, affine_add_large_permutation_equal) {
   vkcnn::SymGraph g;
-  auto A=g.createParameter(), B=g.createParameter(), C=g.createParameter(), D=g.createParameter();
+  auto A = g.createParameter(), B = g.createParameter(),
+       C = g.createParameter(), D = g.createParameter();
   auto e1 = g.add(g.add(A, g.add(C, B)), D);
   auto e2 = g.add(g.add(D, A), g.add(B, C));
-  auto d  = g.resolve(g.sub(e1, e2));
+  auto d = g.resolve(g.sub(e1, e2));
   ASSERT_FALSE(d.isSymbolic());
   EXPECT_EQ(d.value(), 0);
 }
@@ -362,10 +363,94 @@ TEST(symbolic, affine_mod_same_base_zero_scale_canonical) {
 
 TEST(symbolic, affine_linearity_holds) {
   vkcnn::SymGraph g;
-  auto A=g.createParameter(), B=g.createParameter();
-  auto left  = g.mul(5, g.add(g.add(A, 2), B));       // 5*(A+2+B)
+  auto A = g.createParameter(), B = g.createParameter();
+  auto left = g.mul(5, g.add(g.add(A, 2), B));             // 5*(A+2+B)
   auto right = g.add(g.add(g.mul(5, A), 10), g.mul(5, B)); // 5A+10+5B
   auto d = g.resolve(g.sub(left, right));
   ASSERT_FALSE(d.isSymbolic());
   EXPECT_EQ(d.value(), 0);
 }
+
+TEST(symbolic, affine_ceildiv) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+
+  auto A2 = g.mul(A, 2);
+  auto rhs = A;
+  auto lhs = g.div(g.add(A2, 2 - 1), 2);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_div_with_common_factor) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+  auto B = g.createParameter();
+
+  auto lhs = g.div(g.add(g.add(g.mul(4, A), g.mul(2, B)), 3), 2);
+  auto rhs = g.add(g.add(g.mul(2, A), g.mul(1, B)), 1);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_div_with_neg_constant) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+
+  auto lhs = g.div(g.sub(g.mul(2, A), 1), 2);
+  auto rhs = g.sub(A, 1);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_div_with_pos_constant) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+
+  auto lhs = g.div(g.add(g.mul(2, A), 1), 2);
+  auto rhs = A;
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_floordiv_coefficients) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+  auto B = g.createParameter();
+  auto lhs = g.div(g.add(g.add(g.mul(6, A), g.mul(10, B)), 7), 2);
+  auto rhs = g.add(g.add(g.mul(3, A), g.mul(5, B)), 3);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_div_exact_no_residual) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+  // (6A + 10B + 8)/2 -> 3A + 5B + 4
+  auto lhs = g.div(g.add(g.add(g.mul(6, A), g.mul(10, B)), 8), 2);
+  auto rhs = g.add(g.add(g.mul(3, A), g.mul(5, B)), 4);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_div_constant_remainder_only) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+  // (6A + 10B + 7)/2 -> 3A + 5B + 3   (Euclidean floor on constant)
+  auto lhs = g.div(g.add(g.add(g.mul(6, A), g.mul(10, B)), 7), 2);
+  auto rhs = g.add(g.add(g.mul(3, A), g.mul(5, B)), 3);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_div_negative_constant_euclidean) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+  // (2A - 1)/2 -> A - 1
+  auto lhs = g.div(g.sub(g.mul(2, A), 1), 2);
+  auto rhs = g.sub(A, 1);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, affine_div_k_times_w_plus_k_minus_one_over_k) {
+  vkcnn::SymGraph g;
+  auto W = g.createParameter();
+  std::size_t k = 5;
+  // (k*W + (k-1))/k -> W
+  auto lhs = g.div(g.add(g.mul(k, W), k - 1), k);
+  EXPECT_EQ(W, lhs);
+}
+

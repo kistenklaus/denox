@@ -9,6 +9,7 @@ vkcnn_dev_tests_src = files(
   'src/symbolic/affine.cpp',
   'src/symbolic/nonaffine.cpp',
   'src/symbolic/unsolvable.cpp',
+  'src/symbolic/common.cpp',
 )
 
 vkcnn_dev_tests = executable('vkcnn-tests',

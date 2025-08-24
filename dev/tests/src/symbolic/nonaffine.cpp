@@ -395,28 +395,132 @@ TEST(symbolic, nonaffine_div_mod_reconstruction_structural) {
 }
 
 
-// Ceil(k*a, a) == k
-TEST(symbolic, nonaffine_ceildiv_exact_multiple) {
-  vkcnn::SymGraph g;
-  auto a=g.createParameter(), k=g.createParameter();
-  auto ceildiv = g.div(g.add(g.mul(k, a), g.sub(a, 1)), a);
-  EXPECT_EQ(ceildiv, k);
-}
-
-// Ceil(a*b + (a-1), a) == b + 1
+// (A*B + A - 1) / A == B
 TEST(symbolic, nonaffine_ceildiv_one_more_block) {
   vkcnn::SymGraph g;
   auto a=g.createParameter(), b=g.createParameter();
   auto ceildiv = g.div(g.add(g.mul(a, b), g.sub(a, 1)), a);
-  auto expect  = g.add(b, 1);
+  auto expect  = b;
   EXPECT_EQ(ceildiv, expect);
 }
 
-// Ceil((a*(b+c)), a) == (b+c)
-TEST(symbolic, nonaffine_ceildiv_cancel_factor_sum) {
+TEST(symbolic, nonaffine_floordiv_coefficients_complex) {
   vkcnn::SymGraph g;
-  auto a=g.createParameter(), b=g.createParameter(), c=g.createParameter();
-  auto ceildiv = g.div(g.add(g.mul(a, g.add(b,c)), g.sub(a,1)), a);
-  auto expect  = g.add(b, c); // since a*(b+c) already multiple of a
-  EXPECT_EQ(ceildiv, expect);
+  auto A = g.createParameter();
+  auto B = g.createParameter();
+
+  auto lhs = g.div(g.add(g.add(g.mul(4, A), g.mul(3, B)), 3), 2);
+  auto rhs = g.add(g.mul(2, A), g.div(g.add(g.mul(3, B), 3), 2));
+  EXPECT_EQ(rhs, lhs);
+}
+
+
+TEST(symbolic, nonaffine_div_exact_no_residual) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+
+  auto lhs = g.div(g.add(g.add(g.mul(6, A), g.mul(10, B)), 8), 2);   // (6A + 10B + 8)/2
+  auto rhs = g.add(g.add(g.mul(3, A), g.mul(5, B)), 4);              // 3A + 5B + 4
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_div_constant_remainder_only) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+
+  auto lhs = g.div(g.add(g.add(g.mul(6, A), g.mul(10, B)), 7), 2);   // (6A + 10B + 7)/2
+  auto rhs = g.add(g.add(g.mul(3, A), g.mul(5, B)), 3);              // 3A + 5B + 3
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_div_mixed_single_residual) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+
+  auto lhs = g.div(g.add(g.add(g.mul(4, A), g.mul(3, B)), 3), 2); // (4A + 3B + 3)/2
+
+  // Correct canonical: 2A + B + 1 + div(B + 1, 2)
+  auto t0  = g.add(g.mul(2, A), B);                 // 2A + B
+  auto t1  = g.add(t0, 1);                          // 2A + B + 1
+  auto rhs = g.add(t1, g.div(g.add(B, 1), 2));      // + div(B+1, 2)
+
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_div_mixed_normalizes_equal) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+
+  auto t1 = g.div(g.add(g.add(g.mul(4, A), g.mul(3, B)), 3), 2);
+  auto t2 = g.add(g.mul(2, A), g.div(g.add(g.mul(3, B), 3), 2)); // 2A + div(3B+3,2)
+
+  // Canonical: 2A + B + 1 + div(B + 1, 2)
+  auto t0  = g.add(g.mul(2, A), B);
+  auto can = g.add(g.add(t0, 1), g.div(g.add(B, 1), 2));
+
+  EXPECT_EQ(can, t1);
+  EXPECT_EQ(can, t2);
+}
+
+TEST(symbolic, nonaffine_div_negative_constant_euclidean) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+
+  auto lhs = g.div(g.sub(g.mul(2, A), 1), 2);
+  auto rhs = g.sub(A, 1);
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_div_pure_constant_residual_dropped) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+
+  auto lhs = g.div(g.add(g.add(g.mul(8, A), g.mul(6, B)), 4), 2);    // (8A + 6B + 4)/2
+  auto rhs = g.add(g.add(g.mul(4, A), g.mul(3, B)), 2);              // 4A + 3B + 2
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_div_by_one_is_identity) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+
+  auto prod = g.mul(A, B);                  // NonAffine: Mul(A,B)
+  auto lhs  = g.div(prod, 1);               // (A*B)/1
+  EXPECT_EQ(prod, lhs);
+}
+
+TEST(symbolic, nonnested_div_constants_compose) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter();
+
+  auto lhs = g.div(g.div(A, 4), 2);         // (A div 4) div 2
+  auto rhs = g.div(A, 8);                    // A div 8
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonconstant_over_symbol_then_div_by_bigger_constant_is_zero) {
+  vkcnn::SymGraph g;
+  auto X = g.createParameter();
+
+  auto lhs = g.div(g.div(1, X), 2);         // (1 div X) div 2  -> 0  (since 1 < 2)
+  auto rhs = g.mul(0, X);                    // canonical zero (or g.add(0,0) if you prefer)
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_div_k_times_w_plus_k_minus_one_over_k) {
+  vkcnn::SymGraph g;
+  auto W = g.createParameter();
+
+  std::size_t k = 5;
+  auto lhs = g.div(g.add(g.mul(k, W), k - 1), k);
+  EXPECT_EQ(W, lhs);
+}
+
+TEST(symbolic, nonaffine_div_mixed_order_insensitive) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(); auto B = g.createParameter();
+
+  auto e1 = g.div(g.add(g.add(g.mul(4, A), g.mul(3, B)), 3), 2);
+  auto e2 = g.div(g.add(g.add(g.mul(3, B), 3), g.mul(4, A)), 2);
+  EXPECT_EQ(e1, e2);
 }
