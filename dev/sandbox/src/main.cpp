@@ -664,20 +664,21 @@ void pool_sandbox() {
 
 void sym_expr_sandbox() {
   vkcnn::SymGraph g;
-  auto W = g.createParameter();
+  auto A = g.createParameter(), B = g.createParameter();
+  auto X = g.mul(g.add(A, 1), g.add(B, 2));
+  const unsigned m = 5;
 
-  // Conv (k=2,s=2,p=0,d=1): floor((W - 2)/2) + 1  == floor(W/2)
-  auto c0   = g.sub(W, 1);
-  auto c1   = g.sub(c0, 1);
-  auto conv = g.add(g.div(c1, 2), 1);
+  auto lhs = X;
+  auto rhs = g.add(g.mul(m, g.div(X, m)), g.mod(X, m));
 
-  // Deconv (k=2,s=2,p=0,d=1,output_padding=0): (conv - 1)*2 + (k - 1) + 1 = (conv - 1)*2 + 2
-  auto deconv = g.add(g.mul(g.sub(conv, 1), 2), 2);
+  g.debug();
 
-  // Reference: 2 * floor(W/2)
-  auto ref = g.mul(g.div(W, 2), 2);
-
-  assert(deconv == ref);
+  // if (!g.resolve(lhs).isSymbolic()) {
+  //   fmt::println("lhs = {}", lhs.value());
+  // }
+  // if (!g.resolve(rhs).isSymbolic()) {
+  //   fmt::println("rhs = {}", rhs.value());
+  // }
 }
 
 int main() {

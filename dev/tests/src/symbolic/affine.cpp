@@ -454,3 +454,44 @@ TEST(symbolic, affine_div_k_times_w_plus_k_minus_one_over_k) {
   EXPECT_EQ(W, lhs);
 }
 
+TEST(symbolic, affine_mod_const_only) {
+  vkcnn::SymGraph g;
+  // Build directly at the AffineExpr level if you can; otherwise use g API:
+  auto A = g.createParameter();
+  auto e = g.add(g.mul(0, A), -5); // just -5 as a constant
+  auto m = g.mod(e, 3);            // expect 1
+  auto r = g.resolve(m);
+  ASSERT_FALSE(r.isSymbolic());
+  EXPECT_EQ(1, r.value());
+}
+
+TEST(symbolic, affine_mod_all_coeffs_divisible) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter();
+  // (6A + 10B + 7) % 2  ==  1
+  auto e = g.add(g.add(g.mul(6, A), g.mul(10, B)), 7);
+  auto m = g.mod(e, 2);
+  auto r = g.resolve(m);
+  ASSERT_FALSE(r.isSymbolic());
+  EXPECT_EQ(1, r.value());
+}
+
+TEST(symbolic, affine_mod_all_coeffs_divisible_zero) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter();
+  // (4A + 6B + 8) % 2 == 0
+  auto e = g.add(g.add(g.mul(4, A), g.mul(6, B)), 8);
+  auto m = g.mod(e, 2);
+  auto r = g.resolve(m);
+  ASSERT_FALSE(r.isSymbolic());
+  EXPECT_EQ(0, r.value());
+}
+
+TEST(symbolic, affine_mod_negative_constant_euclidean) {
+  vkcnn::SymGraph g; auto A=g.createParameter();
+  // (2A - 3) % 2 == 1 (since 2A % 2 == 0)
+  auto e = g.sub(g.mul(2, A), 3);
+  auto m = g.mod(e, 2);
+  auto r = g.resolve(m);
+  ASSERT_FALSE(r.isSymbolic());
+  EXPECT_EQ(1, r.value());
+}
+

@@ -524,3 +524,156 @@ TEST(symbolic, nonaffine_div_mixed_order_insensitive) {
   auto e2 = g.div(g.add(g.add(g.mul(3, B), 3), g.mul(4, A)), 2);
   EXPECT_EQ(e1, e2);
 }
+
+TEST(symbolic, nonaffine_affineNumerator_div_symbolic_den_rebalance_Aminus1) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(), B = g.createParameter();
+  auto lhs = g.div(g.add(g.mul(A, B), g.sub(A, 1)), A);
+  EXPECT_EQ(B, lhs);
+}
+
+TEST(symbolic, nonaffine_affineNumerator_div_symbolic_den_rebalance_Aminus1_sum) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(), B = g.createParameter(), C = g.createParameter();
+  auto lhs = g.div(g.add(g.mul(A, g.add(B, C)), g.sub(A, 1)), A);
+  auto expect = g.add(B, C);
+  EXPECT_EQ(expect, lhs);
+}
+
+
+TEST(symbolic, nonaffine_div_cancels_into_div) {
+  vkcnn::SymGraph g;
+  auto A = g.createParameter(), B = g.createParameter(), C = g.createParameter();
+  auto lhs = g.div(g.mul(A, B), g.mul(A, C));
+  auto expect = g.div(B, C);
+  EXPECT_EQ(expect, lhs);
+}
+
+
+TEST(symbolic, nonaffine_prod_gcd_simple) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter(), C=g.createParameter();
+  auto lhs = g.div(g.mul(A,B), g.mul(A,C));      // AB / AC
+  auto rhs = g.div(B, C);                        // B / C
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_prod_gcd_equal) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter();
+  auto lhs = g.resolve(g.div(g.mul(A,B), g.mul(A,B)));      // AB / AB
+  ASSERT_FALSE(lhs.isSymbolic());;
+  EXPECT_EQ(1, lhs.value());                   // == 1 (use any canonical 1)
+}
+
+TEST(symbolic, nonaffine_prod_gcd_superset_den) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter(), C=g.createParameter();
+  auto lhs = g.div(g.mul(A,B), g.mul(g.mul(A,B), C));   // AB / (AB*C)
+  auto rhs = g.div(1, C);                               // 1 / C
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_prod_gcd_powers) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), C=g.createParameter();
+  auto num = g.mul(A, C);                // A*C
+  auto den = g.mul(g.mul(A, C), C);      // A*C*C
+  auto lhs = g.div(num, den);            // (A*C)/(A*C*C)
+  auto rhs = g.div(1, C);      // 1/(C*C)
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_prod_gcd_reduce_to_symbol) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter(), C=g.createParameter();
+  auto lhs = g.div(g.mul(g.mul(A,B),C), g.mul(A,B));    // ABC / AB
+  EXPECT_EQ(C, lhs);
+}
+
+// -------------------- nonaffine: nested div composition --------------------
+
+TEST(symbolic, nonaffine_nested_div_symbolic) {
+  vkcnn::SymGraph g; auto X=g.createParameter(), A=g.createParameter(), B=g.createParameter();
+  auto lhs = g.div(g.div(X, A), B);        // (X/A)/B
+  auto rhs = g.div(X, g.mul(A, B));        // X/(A*B)
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_nested_div_symbolic_and_const) {
+  vkcnn::SymGraph g; auto X=g.createParameter(), A=g.createParameter();
+  auto lhs = g.div(g.div(X, A), 2);        // (X/A)/2
+  auto rhs = g.div(X, g.mul(A, 2));        // X/(A*2)
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_nested_div_constants) {
+  vkcnn::SymGraph g; auto X=g.createParameter();
+  auto lhs = g.div(g.div(X, 4), 2);        // (X div 4) div 2
+  auto rhs = g.div(X, 8);                  // X div 8
+  EXPECT_EQ(rhs, lhs);
+}
+
+// -------------------- nonaffine: affine numerator ÷ symbolic denom --------------------
+
+TEST(symbolic, nonaffine_affine_over_symbolic_rebalance_Aminus1) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter();
+  auto lhs = g.div(g.add(g.mul(A,B), g.sub(A,1)), A);   // (AB + A - 1)/A
+  EXPECT_EQ(B, lhs);
+}
+
+TEST(symbolic, nonaffine_affine_over_composite_rebalance) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter(), X=g.createParameter();
+  auto D   = g.mul(g.mul(A,B), X);                      // D = A*B*X
+  auto lhs = g.resolve(g.div(g.add(D, g.sub(D,1)), D));            // (D + D - 1)/D
+  ASSERT_FALSE(lhs.isSymbolic());
+  EXPECT_EQ(1, lhs.value());                           // == 1
+}
+
+TEST(symbolic, nonaffine_termwise_cancellation_with_residual_div) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), X=g.createParameter(), Y=g.createParameter(), Z=g.createParameter();
+  auto lhs = g.div(g.add(g.add(g.mul(g.mul(2, A), X), g.mul(g.mul(3, A), Y)), Z), A);
+  // Expect: 2X + 3Y + div(Z, A)
+  auto rhs = g.add(g.add(g.mul(2, X), g.mul(3, Y)), g.div(Z, A));
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_residual_constant_one_kept) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter();
+  auto lhs = g.div(g.add(g.add(g.mul(A,B), A), 1), A);  // (AB + A + 1)/A
+  auto rhs = g.add(g.add(B, 1), g.div(1, A));           // B + 1 + (1/A)
+  EXPECT_EQ(rhs, lhs);
+}
+
+
+// ---------- simple wins
+
+TEST(symbolic, nonaffine_mod_const_absorption_gcd) {
+  vkcnn::SymGraph g; auto X=g.createParameter();
+  auto lhs = g.mod(g.mod(X, 6), 4);   // (X % 6) % 4
+  auto rhs = g.mod(X, 2);             // X % gcd(6,4) = X % 2
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_mod_idempotent_symbolic) {
+  vkcnn::SymGraph g; auto X=g.createParameter(), A=g.createParameter();
+  auto lhs = g.mod(g.mod(X, A), A);   // (X % A) % A
+  auto rhs = g.mod(X, A);             // X % A
+  EXPECT_EQ(rhs, lhs);
+}
+
+TEST(symbolic, nonaffine_mod_product_divides_zero) {
+  vkcnn::SymGraph g; auto A=g.createParameter(), B=g.createParameter(), C=g.createParameter();
+  EXPECT_EQ(g.mul(0,A), g.mod(g.mul(A,B), A));        // (A*B) % A == 0
+  EXPECT_EQ(g.mul(0,A), g.mod(g.mul(g.mul(A,B),C), g.mul(A,B))); // (A*B*C) % (A*B) == 0
+}
+
+TEST(symbolic, nonaffine_mod_same_symbol_zero) {
+  vkcnn::SymGraph g; auto A=g.createParameter();
+  EXPECT_EQ(g.mul(0,A), g.mod(A, A));                // A % A == 0
+}
+
+TEST(symbolic, nonaffine_mod_trivial_constants) {
+  vkcnn::SymGraph g; auto X=g.createParameter();
+  EXPECT_EQ(g.mul(0,X), g.mod(0, X));                // 0 % X == 0
+  auto one = g.resolve(g.mod(X, 1));                 // X % 1 == 0
+  ASSERT_FALSE(one.isSymbolic());
+  EXPECT_EQ(0, one.value());
+}
+
+
