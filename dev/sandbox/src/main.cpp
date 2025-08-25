@@ -664,14 +664,27 @@ void pool_sandbox() {
 
 void sym_expr_sandbox() {
   vkcnn::SymGraph g;
-  auto A = g.createParameter(), B = g.createParameter();
-  auto X = g.mul(g.add(A, 1), g.add(B, 2));
-  const unsigned m = 5;
+  auto W = g.var();
 
-  auto lhs = X;
-  auto rhs = g.add(g.mul(m, g.div(X, m)), g.mod(X, m));
+  std::size_t alignment = 2;
+  auto W_aligned = g.add(W, g.sub(alignment, g.mod(W, alignment)));
+
+  auto W_post_pool = g.pool(W_aligned, 2, 0, 2);
+
+  auto W_post_upsample = g.mul(W_post_pool, 2);
+
+  fmt::println("W_post_upsample : [{}]", W_post_upsample.sym());
+
+  fmt::println("W_aligned       : [{}]", W_aligned.sym());
+  fmt::println("W_post_pool     : [{}]", W_post_pool.sym());
 
   g.debug();
+
+  //
+  //
+  //
+  //
+  // g.debug();
 
   // if (!g.resolve(lhs).isSymbolic()) {
   //   fmt::println("lhs = {}", lhs.value());

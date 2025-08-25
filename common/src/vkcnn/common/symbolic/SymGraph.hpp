@@ -78,13 +78,9 @@ public:
   SymGraph &operator=(const SymGraph &) = delete;
 
 public:
-  Sym resolve(Sym sym) const { return reduce_sym(sym); }
-
   // NOTE: Order in which they are added is important, because it's later
   // used as the parameter index.
-  Sym createParameter() {
-    return Sym::Symbol(create_variable(ExprType::Identity));
-  }
+  Sym var() { return Sym::Symbol(create_variable(ExprType::Identity)); }
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
@@ -92,17 +88,34 @@ public:
   Sym add(L lhs, R rhs, bool dno = true) {
     Sym a;
     if constexpr (std::same_as<L, Sym>) {
-      a = reduce_sym(lhs);
+      a = resolve(lhs);
     } else {
       a = Sym::Const(lhs);
     }
     Sym b;
     if constexpr (std::same_as<R, Sym>) {
-      b = reduce_sym(rhs);
+      b = resolve(rhs);
     } else {
       b = Sym::Const(rhs);
     }
     return add_xx(a, b, dno);
+  }
+
+  template <typename X, typename Y, typename Z>
+    requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
+            (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
+            (std::same_as<Z, Sym> || std::is_integral_v<Z>)
+  Sym add(X x, Y y, Z z, bool dno = true) {
+    return add(add(x, y, false), z, dno);
+  }
+
+  template <typename X, typename Y, typename Z, typename W>
+    requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
+            (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
+            (std::same_as<Z, Sym> || std::is_integral_v<Z>) &&
+            (std::same_as<W, Sym> || std::is_integral_v<W>)
+  Sym add(X x, Y y, Z z, W w, bool dno = true) {
+    return add(add(x, y, false), add(z, w, false), dno);
   }
 
   template <typename L, typename R>
@@ -111,13 +124,13 @@ public:
   Sym sub(L lhs, R rhs, bool dno = true) {
     Sym a;
     if constexpr (std::same_as<L, Sym>) {
-      a = reduce_sym(lhs);
+      a = resolve(lhs);
     } else {
       a = Sym::Const(lhs);
     }
     Sym b;
     if constexpr (std::same_as<R, Sym>) {
-      b = reduce_sym(rhs);
+      b = resolve(rhs);
     } else {
       b = Sym::Const(rhs);
     }
@@ -130,17 +143,51 @@ public:
   Sym mul(L lhs, R rhs, bool dno = true) {
     Sym a;
     if constexpr (std::same_as<L, Sym>) {
-      a = reduce_sym(lhs);
+      a = resolve(lhs);
     } else {
       a = Sym::Const(lhs);
     }
     Sym b;
     if constexpr (std::same_as<R, Sym>) {
-      b = reduce_sym(rhs);
+      b = resolve(rhs);
     } else {
       b = Sym::Const(rhs);
     }
     return mul_xx(a, b, dno);
+  }
+
+  template <typename X, typename Y, typename Z>
+    requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
+            (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
+            (std::same_as<Z, Sym> || std::is_integral_v<Z>)
+  Sym mul(X x, Y y, Z z, bool dno = true) {
+    return mul(mul(x, y, false), z, dno);
+  }
+
+  template <typename X, typename Y, typename Z, typename W>
+    requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
+            (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
+            (std::same_as<Z, Sym> || std::is_integral_v<Z>) &&
+            (std::same_as<W, Sym> || std::is_integral_v<W>)
+  Sym mul(X x, Y y, Z z, W w, bool dno = true) {
+    return mul(mul(x, y, false), mul(z, w, false), dno);
+  }
+
+  template <typename L>
+    requires(std::same_as<L, Sym> || std::is_integral_v<L>)
+  Sym pow(L lhs, value_type rhs, bool dno = true) {
+    Sym p = Sym::Const(1);
+    if (rhs > 0) {
+      for (std::size_t n = 0; n < static_cast<std::size_t>(rhs); ++n) {
+        p = mul(p, lhs);
+      }
+      return p;
+    } else if (rhs < 0) {
+      // NOTE: 1 / X == 1 / X^2 == 1 / X^3 (unsigned arithmetics)
+      return div(1, lhs);
+    } else {
+      return require_const_sym(ExprType::Div, p, p, 1, dno);
+    }
   }
 
   template <typename L, typename R>
@@ -149,13 +196,13 @@ public:
   Sym div(L lhs, R rhs, bool dno = true) {
     Sym a;
     if constexpr (std::same_as<L, Sym>) {
-      a = reduce_sym(lhs);
+      a = resolve(lhs);
     } else {
       a = Sym::Const(lhs);
     }
     Sym b;
     if constexpr (std::same_as<R, Sym>) {
-      b = reduce_sym(rhs);
+      b = resolve(rhs);
     } else {
       b = Sym::Const(rhs);
     }
@@ -165,20 +212,87 @@ public:
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
+  Sym cdiv(L lhs, R rhs, bool dno = true) {
+    const auto r = resolve(rhs);
+    if (r.isConstant() && r.constant() - 1 >= 0) {
+      return div(add(lhs, r.constant() - 1, true), rhs, dno);
+    }
+    return div(sub(add(lhs, rhs, false), 1), rhs, dno);
+  }
+
+  template <typename L, typename R>
+    requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
+            (std::same_as<R, Sym> || std::is_integral_v<R>)
   Sym mod(L lhs, R rhs = false, bool dno = true) {
     Sym a;
     if constexpr (std::same_as<L, Sym>) {
-      a = reduce_sym(lhs);
+      a = resolve(lhs);
     } else {
       a = Sym::Const(lhs);
     }
     Sym b;
     if constexpr (std::same_as<R, Sym>) {
-      b = reduce_sym(rhs);
+      b = resolve(rhs);
     } else {
       b = Sym::Const(rhs);
     }
     return mod_xx(a, b, dno);
+  }
+
+  template <typename L, typename R>
+    requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
+            (std::same_as<R, Sym> || std::is_integral_v<R>)
+  Sym alignUp(L sym, R alignment) {
+    return mul(cdiv(sym, alignment), alignment);
+  }
+
+  template <typename L, typename R>
+    requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
+            (std::same_as<R, Sym> || std::is_integral_v<R>)
+  Sym alignDown(L sym, R alignment) {
+    return mul(div(sym, alignment), alignment);
+  }
+
+  template <typename E, typename K, typename P, typename S,
+            typename D = value_type>
+    requires(std::same_as<E, Sym> || std::is_integral_v<E>) &&
+            (std::same_as<K, Sym> || std::is_integral_v<K>) &&
+            (std::same_as<P, Sym> || std::is_integral_v<P>) &&
+            (std::same_as<S, Sym> || std::is_integral_v<S>) &&
+            (std::same_as<D, Sym> || std::is_integral_v<D>)
+  Sym pool(E extent, K kernelSize, P padding, S stride,
+           D dilation = value_type(1), bool dno = true) {
+    // (E + 2 * P - ((K - 1) * D +1)) div S + 1
+    auto num = sub(
+        add(extent, mul(2, padding, false), false),
+        add(mul(sub(kernelSize, 1, false), dilation, false), 1, false), false);
+    auto denom = stride;
+    return add(div(num, denom, false), 1, dno);
+  }
+
+  template <typename E, typename K, typename P, typename S, typename D>
+    requires(std::same_as<E, Sym> || std::is_integral_v<E>) &&
+            (std::same_as<K, Sym> || std::is_integral_v<K>) &&
+            (std::same_as<P, Sym> || std::is_integral_v<P>) &&
+            (std::same_as<S, Sym> || std::is_integral_v<S>) &&
+            (std::same_as<D, Sym> || std::is_integral_v<D>)
+  Sym cpool(E extent, K kernelSize, P padding, S stride, D dilation = 1,
+            bool dno = true) {
+    // (E + 2 * P - ((K - 1) * D +1)) cdiv S + 1
+    auto num = sub(add(extent, mul(2, padding)),
+                   add(mul(sub(kernelSize, 1), dilation), 1));
+    auto denom = stride;
+    return add(div(num, denom), 1, dno);
+  }
+
+  Sym resolve(value_type v) const { return Sym::Const(v); }
+
+  Sym resolve(Sym sym) const {
+    if (sym.isSymbolic()) {
+      return reduce_symbol(sym.sym());
+    } else {
+      return Sym::Const(sym.constant());
+    }
   }
 
   void debug() const {
@@ -463,14 +577,6 @@ private:
     }
   }
 
-  Sym reduce_sym(Sym sym) const {
-    if (sym.isSymbolic()) {
-      return reduce_symbol(sym.sym());
-    } else {
-      return Sym::Const(sym.constant());
-    }
-  }
-
   Sym add_xx(Sym lhs, Sym rhs, bool dno = true) {
     if (lhs.isConstant() && rhs.isConstant()) {
       return add_cc(lhs.constant(), rhs.constant(), dno);
@@ -581,6 +687,18 @@ private:
 
   Sym mul_sc(symbol lhs, value_type rhs, bool dno) {
     const auto &a = m_expressions[lhs];
+
+    if (a.expr == ExprType::NonAffine) {
+      // NOTE: Case NonAffine div Constant 
+      // We can try to run the modsolver, here,
+      // if lhs mod rhs == 0, we know that the division was exact, therefor we 
+      // can recover the symbol.
+      // Example:
+      // (X div 2) * 2.
+      // If we now know that X mod 2 == 0, we know that 
+      // (X div 2) * 2 == X.
+      // TODO: recover X.
+    }
 
     AffineExpr affine = affine_mul(a.affine, rhs);
     return require_affine_sym(ExprType::Mul, Sym::Symbol(lhs), Sym::Const(rhs),
@@ -1237,30 +1355,31 @@ private:
                               affine, dno);
   }
 
-  // Split an affine A as A = d*Q + R, with 0 <= R.constant < d and
-  // for every symbol coefficient c: c = d*(c/d) + (c%d)
+  // Split A = d*Q + R, extracting only terms whose coeff is divisible by d.
+  // Constants still use Euclidean split so 0 <= R.constant < d.
   static inline void split_affine_by_const(const AffineExpr &A, value_type d,
                                            AffineExpr &Q, AffineExpr &R) {
     assert(d > 0);
-    Q.constant = 0;
-    R.constant = 0;
     Q.coef.clear();
-    Q.coef.reserve(A.coef.size());
+    Q.constant = 0;
     R.coef.clear();
+    R.constant = 0;
+    Q.coef.reserve(A.coef.size());
     R.coef.reserve(A.coef.size());
 
     for (auto const &c : A.coef) {
-      // Coefficients should be non-negative in your IR; document with an
-      // assert.
-      assert(c.factor >= 0);
-      value_type q = c.factor / d;
-      value_type r = c.factor % d; // d>0 ⇒ r in [0..d-1] for nonneg factors
-      if (q)
-        Q.coef.emplace_back(c.sym, q);
-      if (r)
-        R.coef.emplace_back(c.sym, r);
+      if (c.factor % d == 0) {
+        // exact multiple → quotient term
+        auto q = c.factor / d;
+        if (q != 0)
+          Q.coef.emplace_back(c.sym, q);
+      } else {
+        // not divisible → whole term stays in residual
+        R.coef.emplace_back(c.sym, c.factor);
+      }
     }
-    auto [qc, rc] = floordivmod(A.constant, d); // Euclidean: 0 <= rc < d
+
+    auto [qc, rc] = floordivmod<value_type>(A.constant, d); // 0 <= rc < d
     Q.constant = qc;
     R.constant = rc;
   }
@@ -1872,18 +1991,11 @@ private:
     }
     auto it = m_modSolverCache.find(rhs);
     if (it == m_modSolverCache.end()) {
-      if (rhs.isSymbolic()) {
-        fmt::println("modsolve[{}] does not exist yet creating", rhs.sym());
-      } else {
-        fmt::println("modsolve {}  does not exist yet creating",
-                     rhs.constant());
-      }
       auto solver = std::make_unique<ModSolver>();
       std::optional<value_type> mod = modsolve_resume_solver(solver, lhs, rhs);
       m_modSolverCache.insert(it, std::make_pair(rhs, std::move(solver)));
       return mod;
     } else {
-      fmt::println("Reusing modsolver");
       auto &solver = it->second;
       return modsolve_resume_solver(solver, lhs, rhs);
     }
