@@ -202,7 +202,7 @@ Sym SymGraph::cpool(E extent, K kernelSize, P padding, S stride, D dilation,
   auto num = sub(add(extent, mul(2, padding)),
                  add(mul(sub(kernelSize, 1), dilation), 1));
   auto denom = stride;
-  return add(div(num, denom), 1, dno);
+  return add(cdiv(num, denom), 1, dno);
 }
 
 } // namespace vkcnn

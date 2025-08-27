@@ -16,7 +16,4 @@
 
 #include "./SymGraph_api.inl"
 
-
-namespace vkcnn {
-
-} // namespace vkcnn
+#include "./SymGraph_debug.inl"

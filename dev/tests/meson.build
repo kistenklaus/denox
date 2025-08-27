@@ -11,7 +11,6 @@ vkcnn_dev_tests_src = files(
   'src/symbolic/unsolvable.cpp',
   'src/symbolic/common.cpp',
   'src/symbolic/modsolve.cpp',
-  'src/symbolic/modsolve2.cpp',
 )
 
 vkcnn_dev_tests = executable('vkcnn-tests',

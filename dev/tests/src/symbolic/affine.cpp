@@ -1,28 +1,32 @@
 #include "vkcnn/common/symbolic/SymGraph.hpp"
 #include <gtest/gtest.h>
 
+// ---------- Helpers: normalize-then-compare & idempotence ----------
+#define NF(g, e) (g).resolve((e))
+#define EQ_NF(g, a, b) EXPECT_EQ(NF(g, a), NF(g, b))
+
 TEST(symbolic, constant_folding) {
   vkcnn::SymGraph graph;
 
   auto x = graph.resolve(graph.sub(5, 5));
   ASSERT_TRUE(!x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 
   auto y = graph.resolve(graph.add(7, 3));
   ASSERT_TRUE(!y.isSymbolic());
-  EXPECT_EQ(y.value(), 10);
+  EXPECT_EQ(y.constant(), 10);
 
   auto z = graph.resolve(graph.mul(4, 3));
   ASSERT_TRUE(!z.isSymbolic());
-  EXPECT_EQ(z.value(), 12);
+  EXPECT_EQ(z.constant(), 12);
 
   auto w = graph.resolve(graph.div(4, 3));
   ASSERT_TRUE(!w.isSymbolic());
-  EXPECT_EQ(w.value(), 1);
+  EXPECT_EQ(w.constant(), 1);
 
   auto m = graph.resolve(graph.mod(12, 5));
   ASSERT_TRUE(!m.isSymbolic());
-  EXPECT_EQ(m.value(), 2);
+  EXPECT_EQ(m.constant(), 2);
 }
 
 TEST(symbolic, affine_constant_folding) {
@@ -32,7 +36,7 @@ TEST(symbolic, affine_constant_folding) {
   auto x1 = graph.add(A, 2);
   auto x2 = graph.resolve(graph.sub(x0, x1));
   ASSERT_TRUE(!x2.isSymbolic());
-  EXPECT_EQ(x2.value(), 8);
+  EXPECT_EQ(x2.constant(), 8);
 }
 
 TEST(symbolic, affine_add_neutral) {
@@ -87,11 +91,11 @@ TEST(symbolic, affine_div_elimination) {
   auto A = graph.var();
   auto x0 = graph.resolve(graph.div(A, A));
   ASSERT_FALSE(x0.isSymbolic());
-  EXPECT_EQ(x0.value(), 1);
+  EXPECT_EQ(x0.constant(), 1);
 
   auto x2 = graph.resolve(graph.div(graph.mul(4, A), graph.add(A, A)));
   ASSERT_FALSE(x2.isSymbolic());
-  EXPECT_EQ(x2.value(), 2);
+  EXPECT_EQ(x2.constant(), 2);
 }
 
 TEST(symbolic, affine_trivial_sub_elimination) {
@@ -102,7 +106,7 @@ TEST(symbolic, affine_trivial_sub_elimination) {
   auto x = graph.resolve(graph.sub(A, A));
 
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 }
 
 TEST(symbolic, affine_sub_elimination) {
@@ -123,7 +127,7 @@ TEST(symbolic, affine_sub_elimination) {
   auto x = graph.resolve(graph.sub(ABC5, ABC5));
 
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 }
 
 TEST(symbolic, affine_cross_term_elimination) {
@@ -135,7 +139,7 @@ TEST(symbolic, affine_cross_term_elimination) {
   auto x = graph.resolve(expr);
 
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 }
 
 TEST(symbolic, affine_mixed_const_fold) {
@@ -147,7 +151,7 @@ TEST(symbolic, affine_mixed_const_fold) {
   auto x = graph.resolve(graph.sub(lhs, rhs));
 
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 2);
+  EXPECT_EQ(x.constant(), 2);
 }
 
 TEST(symbolic, affine_mul_zero) {
@@ -156,11 +160,11 @@ TEST(symbolic, affine_mul_zero) {
 
   auto x = graph.resolve(graph.mul(0, A));
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 
   auto y = graph.resolve(graph.mul(A, 0));
   ASSERT_FALSE(y.isSymbolic());
-  EXPECT_EQ(y.value(), 0);
+  EXPECT_EQ(y.constant(), 0);
 }
 
 TEST(symbolic, affine_div_constant_multiple) {
@@ -183,7 +187,7 @@ TEST(symbolic, affine_mod_multiple) {
   auto x = graph.resolve(expr);
 
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 }
 
 TEST(symbolic, affine_const_cancel) {
@@ -195,7 +199,7 @@ TEST(symbolic, affine_const_cancel) {
   auto x = graph.resolve(graph.sub(lhs, rhs));
 
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 }
 
 TEST(symbolic, affine_nested_neutral) {
@@ -227,7 +231,7 @@ TEST(symbolic, affine_mod_one) {
   auto x = graph.resolve(expr);
 
   ASSERT_FALSE(x.isSymbolic());
-  EXPECT_EQ(x.value(), 0);
+  EXPECT_EQ(x.constant(), 0);
 }
 
 TEST(symbolic, affine_inner_const_fold) {
@@ -272,7 +276,7 @@ TEST(symbolic, affine_merge_same_symbol) {
   auto rhs = g.mul(3, A);
   auto d = g.resolve(g.sub(lhs, rhs));
   ASSERT_FALSE(d.isSymbolic());
-  EXPECT_EQ(d.value(), 0);
+  EXPECT_EQ(d.constant(), 0);
 }
 
 TEST(symbolic, affine_add_assoc_comm) {
@@ -283,7 +287,7 @@ TEST(symbolic, affine_add_assoc_comm) {
   auto e2 = g.add(g.add(C, A), B);
   auto d = g.resolve(g.sub(e1, e2));
   ASSERT_FALSE(d.isSymbolic());
-  EXPECT_EQ(d.value(), 0);
+  EXPECT_EQ(d.constant(), 0);
 }
 
 TEST(symbolic, affine_mod_same_base_scaled) {
@@ -296,7 +300,7 @@ TEST(symbolic, affine_mod_same_base_scaled) {
 
   auto r2 = g.resolve(g.mod(g.mul(6, E), g.mul(3, E))); // (6%3)=0 → 0
   ASSERT_FALSE(r2.isSymbolic());
-  EXPECT_EQ(r2.value(), 0);
+  EXPECT_EQ(r2.constant(), 0);
 }
 
 TEST(symbolic, affine_cancel_inside) {
@@ -305,7 +309,7 @@ TEST(symbolic, affine_cancel_inside) {
   auto e = g.sub(g.add(A, 5), g.add(A, 5));
   auto r = g.resolve(e);
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(r.value(), 0);
+  EXPECT_EQ(r.constant(), 0);
 }
 
 TEST(symbolic, affine_mod_same_base_zero_remainder) {
@@ -314,7 +318,7 @@ TEST(symbolic, affine_mod_same_base_zero_remainder) {
   auto E = g.add(A, 5);
   auto r = g.resolve(g.mod(g.mul(8, E), g.mul(4, E))); // 8%4=0
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(r.value(), 0);
+  EXPECT_EQ(r.constant(), 0);
 }
 
 TEST(symbolic, affine_mod_same_base_unit_remainder) {
@@ -331,7 +335,7 @@ TEST(symbolic, affine_mod_constant_only_constant_residue) {
   auto e = g.add(g.mul(6, A), 5);  // 6A + 5
   auto r = g.resolve(g.mod(e, 3)); // 6A%3=0, 5%3=2
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(r.value(), 2);
+  EXPECT_EQ(r.constant(), 2);
 }
 
 TEST(symbolic, affine_div_all_terms_divisible_with_zero_const) {
@@ -349,7 +353,7 @@ TEST(symbolic, affine_add_large_permutation_equal) {
   auto e2 = g.add(g.add(D, A), g.add(B, C));
   auto d = g.resolve(g.sub(e1, e2));
   ASSERT_FALSE(d.isSymbolic());
-  EXPECT_EQ(d.value(), 0);
+  EXPECT_EQ(d.constant(), 0);
 }
 
 TEST(symbolic, affine_mod_same_base_zero_scale_canonical) {
@@ -358,7 +362,7 @@ TEST(symbolic, affine_mod_same_base_zero_scale_canonical) {
   auto E = g.add(A, 3);
   auto r = g.resolve(g.mod(g.mul(6, E), g.mul(3, E))); // 6%3=0
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(r.value(), 0);
+  EXPECT_EQ(r.constant(), 0);
 }
 
 TEST(symbolic, affine_linearity_holds) {
@@ -368,7 +372,7 @@ TEST(symbolic, affine_linearity_holds) {
   auto right = g.add(g.add(g.mul(5, A), 10), g.mul(5, B)); // 5A+10+5B
   auto d = g.resolve(g.sub(left, right));
   ASSERT_FALSE(d.isSymbolic());
-  EXPECT_EQ(d.value(), 0);
+  EXPECT_EQ(d.constant(), 0);
 }
 
 TEST(symbolic, affine_ceildiv) {
@@ -462,7 +466,7 @@ TEST(symbolic, affine_mod_const_only) {
   auto m = g.mod(e, 3);            // expect 1
   auto r = g.resolve(m);
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(1, r.value());
+  EXPECT_EQ(1, r.constant());
 }
 
 TEST(symbolic, affine_mod_all_coeffs_divisible) {
@@ -472,7 +476,7 @@ TEST(symbolic, affine_mod_all_coeffs_divisible) {
   auto m = g.mod(e, 2);
   auto r = g.resolve(m);
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(1, r.value());
+  EXPECT_EQ(1, r.constant());
 }
 
 TEST(symbolic, affine_mod_all_coeffs_divisible_zero) {
@@ -482,7 +486,7 @@ TEST(symbolic, affine_mod_all_coeffs_divisible_zero) {
   auto m = g.mod(e, 2);
   auto r = g.resolve(m);
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(0, r.value());
+  EXPECT_EQ(0, r.constant());
 }
 
 TEST(symbolic, affine_mod_negative_constant_euclidean) {
@@ -492,6 +496,8 @@ TEST(symbolic, affine_mod_negative_constant_euclidean) {
   auto m = g.mod(e, 2);
   auto r = g.resolve(m);
   ASSERT_FALSE(r.isSymbolic());
-  EXPECT_EQ(1, r.value());
+  EXPECT_EQ(1, r.constant());
 }
+
+
 

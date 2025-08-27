@@ -1,3 +1,4 @@
+#pragma once
 #include "./SymGraph.hpp"
 
 namespace vkcnn {

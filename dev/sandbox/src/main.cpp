@@ -7,17 +7,13 @@
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/FilterMode.hpp"
 #include "vkcnn/common/PoolFunction.hpp"
-#include "vkcnn/common/containers/small_vector.hpp"
-#include "vkcnn/common/hypergraph/NodeId.hpp"
 #include "vkcnn/common/ops/OpActivation.hpp"
 #include "vkcnn/common/ops/OpCopy.hpp"
 #include "vkcnn/common/ops/OpPool.hpp"
 #include "vkcnn/common/ops/OpUpsample.hpp"
 #include "vkcnn/common/shader/ActivationShaderSource.hpp"
 #include "vkcnn/common/shader/ConvShaderSource.hpp"
-#include "vkcnn/common/symbolic/SymAdjGraph.hpp"
 #include "vkcnn/common/symbolic/SymGraph.hpp"
-#include "vkcnn/common/symbolic/modsolve.hpp"
 #include "vkcnn/common/tensor/ActivationHostTensor.hpp"
 #include "vkcnn/common/tensor/ActivationLayout.hpp"
 #include "vkcnn/common/tensor/BiasHostTensor.hpp"
@@ -39,7 +35,6 @@
 #include "vkcnn/shaders/upsample/DirectUpsampleShader.hpp"
 #include <cassert>
 #include <fmt/base.h>
-#include <print>
 
 void conv_sandbox() {
   // Setup
@@ -664,19 +659,11 @@ void pool_sandbox() {
 
 void sym_expr_sandbox() {
   vkcnn::SymGraph g;
-  auto W = g.var();
+  auto B = g.var(), X = g.var();
+  auto lhs = g.div(g.mul(B, X), g.mul(4, B));
+  auto rhs = g.div(X, 4);
 
-  auto U = g.add(g.sub(W, g.mod(W, 16)), 14); // U ≡ 14 (mod 16)
-  auto Z = g.div(U, 4);
-
-  auto X = g.mod(Z, 4);
-
-  fmt::println("Z = [{}]", Z.sym());
-  if (X.isSymbolic()) {
-    fmt::println("X = [{}]", X.sym());
-  } else {
-    fmt::println("X = {}", X.value());
-  }
+  fmt::println("lhs = {}, rhs = {}", lhs.sym(), rhs.sym());
 
   g.debugDump();
 }
