@@ -1,7 +1,6 @@
 #include "vkcnn/common/symbolic/SymGraph.hpp"
 #include <gtest/gtest.h>
 
-
 TEST(symbolic, modsolver_const_const_nested) {
   vkcnn::SymGraph g;
   // (13 % 7) % 5 = 6 % 5 = 1
@@ -395,11 +394,11 @@ TEST(symbolic, modsolver_div_symbolic_symbolic_bails) {
   EXPECT_TRUE(r.isSymbolic()); // stays symbolic
 }
 
-
 // ============ BASIC PARITY CASE ============
 
 TEST(symbolic, modsolve_parity_evenizer_k2) {
-  vkcnn::SymGraph g; auto X = g.var();
+  vkcnn::SymGraph g;
+  auto X = g.var();
   // (X + (2 - (X % 2))) % 2 == 0
   auto expr = g.mod(g.add(X, g.sub(2, g.mod(X, 2))), 2);
   auto r = g.resolve(expr);
@@ -410,7 +409,8 @@ TEST(symbolic, modsolve_parity_evenizer_k2) {
 // ============ GENERAL k (same outer modulus) ============
 
 TEST(symbolic, modsolve_evenizer_general_k_equal_modulus) {
-  vkcnn::SymGraph g; auto E = g.var();
+  vkcnn::SymGraph g;
+  auto E = g.var();
   std::size_t k = 12;
   // (E + (k - (E % k))) % k == 0
   auto expr = g.mod(g.add(E, g.sub((int)k, g.mod(E, (int)k))), (int)k);
@@ -422,7 +422,8 @@ TEST(symbolic, modsolve_evenizer_general_k_equal_modulus) {
 // ============ m | k (outer modulus divides inner k) ============
 
 TEST(symbolic, modsolve_evenizer_outer_divides_inner) {
-  vkcnn::SymGraph g; auto E = g.var();
+  vkcnn::SymGraph g;
+  auto E = g.var();
   std::size_t k = 12, m = 4; // m | k
   // Since k ≡ 0 (mod m), we still get 0:
   // (E + (k - (E % k))) % m == 0
@@ -435,8 +436,9 @@ TEST(symbolic, modsolve_evenizer_outer_divides_inner) {
 // ============ Affine E also works ============
 
 TEST(symbolic, modsolve_evenizer_affine_E_k2) {
-  vkcnn::SymGraph g; auto X = g.var();
-  auto E = g.add(g.mul(5, X), 3);          // E = 5X + 3
+  vkcnn::SymGraph g;
+  auto X = g.var();
+  auto E = g.add(g.mul(5, X), 3); // E = 5X + 3
   auto expr = g.mod(g.add(E, g.sub(2, g.mod(E, 2))), 2);
   auto r = g.resolve(expr);
   ASSERT_FALSE(r.isSymbolic());
@@ -444,7 +446,8 @@ TEST(symbolic, modsolve_evenizer_affine_E_k2) {
 }
 
 TEST(symbolic, modsolve_evenizer_affine_E_general_k) {
-  vkcnn::SymGraph g; auto X = g.var();
+  vkcnn::SymGraph g;
+  auto X = g.var();
   auto E = g.add(g.mul(5, X), 3);
   int k = 8;
   auto expr = g.mod(g.add(E, g.sub(k, g.mod(E, k))), k);
@@ -456,22 +459,80 @@ TEST(symbolic, modsolve_evenizer_affine_E_general_k) {
 // ============ Add extra multiples of k (should still be 0) ============
 
 TEST(symbolic, modsolve_evenizer_plus_multiple_of_k) {
-  vkcnn::SymGraph g; auto X = g.var();
+  vkcnn::SymGraph g;
+  auto X = g.var();
   int k = 10;
   // + 3k doesn't change residue mod k
-  auto expr = g.mod(g.add(g.add(X, g.sub(k, g.mod(X, k))), 3*k), k);
+  auto expr = g.mod(g.add(g.add(X, g.sub(k, g.mod(X, k))), 3 * k), k);
   auto r = g.resolve(expr);
   ASSERT_FALSE(r.isSymbolic());
   EXPECT_EQ(0, r.value());
 }
 
-// ============ Negative case: m does NOT divide k (not guaranteed 0) ============
+// ============ Negative case: m does NOT divide k (not guaranteed 0)
+// ============
 
 TEST(symbolic, modsolve_evenizer_m_not_dividing_k_stays_symbolic) {
-  vkcnn::SymGraph g; auto E = g.var();
+  vkcnn::SymGraph g;
+  auto E = g.var();
   int k = 6, m = 4; // m !| k
   // (E + (6 - (E % 6))) % 4 is NOT necessarily 0; should remain symbolic.
   auto expr = g.mod(g.add(E, g.sub(k, g.mod(E, k))), m);
   auto r = g.resolve(expr);
   EXPECT_TRUE(r.isSymbolic()); // we don't claim a constant here
 }
+
+
+TEST(symbolic, modsolver_mod16_mod4) {
+  vkcnn::SymGraph g;
+  auto X = g.var();
+  auto a = g.mod(g.mod(X, 16), 4);
+  auto b = g.mod(X, 4);
+  EXPECT_EQ(a, b);
+}
+
+TEST(symbolic, modsolver_sub_mod16_mod4) {
+  vkcnn::SymGraph g;
+  auto X = g.var();
+  auto a = g.mod(g.mod(X, 16), 4);
+  auto b = g.mod(X, 4);
+  EXPECT_EQ(a, b);
+}
+
+TEST(symbolic, modsolver_sub_mod16_mod4_add_const) {
+  vkcnn::SymGraph g;
+  auto X = g.var();
+  auto U = g.add(g.sub(X, g.mod(X, 16)), 14);
+  auto m = g.resolve(g.mod(U, 4));
+  ASSERT_FALSE(m.isSymbolic());
+  EXPECT_EQ(2, m.value());
+}
+
+
+
+TEST(symbolic, modsolver_div_lifting_Y_mod_2) {
+  vkcnn::SymGraph g;
+  auto W = g.var();
+
+  // U = W - (W mod 16) + 14
+  auto U = g.add(g.sub(W, g.mod(W, 16)), 14);
+
+  // Sanity: U mod 4 == 2
+  auto U_mod4 = g.resolve(g.mod(U, 4));
+  ASSERT_FALSE(U_mod4.isSymbolic());
+  EXPECT_EQ(2, U_mod4.value());
+
+  // Y = U div 2  ⇒  Y mod 2 must be 1 (requires lifting to modulus 4
+  // internally)
+  auto Y = g.div(U, 2);
+  auto Y_mod2 = g.resolve(g.mod(Y, 2));
+  ASSERT_FALSE(Y_mod2.isSymbolic());
+  EXPECT_EQ(1, Y_mod2.value());
+
+  // And (Y - 1) is even
+  auto even_mod = g.resolve(g.mod(g.sub(Y, 1), 2));
+  ASSERT_FALSE(even_mod.isSymbolic());
+  EXPECT_EQ(0, even_mod.value());
+}
+
+

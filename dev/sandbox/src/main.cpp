@@ -666,32 +666,19 @@ void sym_expr_sandbox() {
   vkcnn::SymGraph g;
   auto W = g.var();
 
-  std::size_t alignment = 2;
-  auto W_aligned = g.add(W, g.sub(alignment, g.mod(W, alignment)));
+  auto U = g.add(g.sub(W, g.mod(W, 16)), 14); // U ≡ 14 (mod 16)
+  auto Z = g.div(U, 4);
 
-  auto W_post_pool = g.pool(W_aligned, 2, 0, 2);
+  auto X = g.mod(Z, 4);
 
-  auto W_post_upsample = g.mul(W_post_pool, 2);
+  fmt::println("Z = [{}]", Z.sym());
+  if (X.isSymbolic()) {
+    fmt::println("X = [{}]", X.sym());
+  } else {
+    fmt::println("X = {}", X.value());
+  }
 
-  fmt::println("W_post_upsample : [{}]", W_post_upsample.sym());
-
-  fmt::println("W_aligned       : [{}]", W_aligned.sym());
-  fmt::println("W_post_pool     : [{}]", W_post_pool.sym());
-
-  g.debug();
-
-  //
-  //
-  //
-  //
-  // g.debug();
-
-  // if (!g.resolve(lhs).isSymbolic()) {
-  //   fmt::println("lhs = {}", lhs.value());
-  // }
-  // if (!g.resolve(rhs).isSymbolic()) {
-  //   fmt::println("rhs = {}", rhs.value());
-  // }
+  g.debugDump();
 }
 
 int main() {

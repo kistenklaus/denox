@@ -6,6 +6,8 @@ vkcnn_common_src = files(
   'src/vkcnn/common/tensor/BiasHostTensor.cpp',
   'src/vkcnn/common/tensor/FloatType.cpp',
   'src/vkcnn/common/symbolic/modsolve.cpp',
+  'src/vkcnn/common/symbolic/SymGraph.cpp',
+  'src/vkcnn/common/symbolic/SymGraph_debug.cpp',
 )
 
 vkcnn_common_inc = include_directories('src')

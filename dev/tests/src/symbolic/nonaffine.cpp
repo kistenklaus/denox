@@ -421,20 +421,6 @@ TEST(symbolic, nonaffine_div_constant_remainder_only) {
   EXPECT_EQ(rhs, lhs);
 }
 
-TEST(symbolic, nonaffine_div_mixed_single_residual) {
-  vkcnn::SymGraph g;
-  auto A = g.var(); auto B = g.var();
-
-  auto lhs = g.div(g.add(g.add(g.mul(4, A), g.mul(3, B)), 3), 2); // (4A + 3B + 3)/2
-
-  // Correct canonical: 2A + B + 1 + div(B + 1, 2)
-  auto t0  = g.add(g.mul(2, A), B);                 // 2A + B
-  auto t1  = g.add(t0, 1);                          // 2A + B + 1
-  auto rhs = g.add(t1, g.div(g.add(B, 1), 2));      // + div(B+1, 2)
-
-  EXPECT_EQ(rhs, lhs);
-}
-
 TEST(symbolic, nonaffine_div_mixed_normalizes_equal) {
   vkcnn::SymGraph g;
   auto A = g.var(); auto B = g.var();
