@@ -5,7 +5,6 @@ namespace vkcnn {
 
 class MemoryRequirements {
 public:
-  SymGraph m_symGraph;
 
 private:
 };

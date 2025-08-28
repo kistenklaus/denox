@@ -1,5 +1,6 @@
 #pragma once
 #include "./SymGraph.hpp"
+#include <numeric>
 
 namespace vkcnn {
 
@@ -70,6 +71,7 @@ SymGraph::modsolve_resume_solver(const ModSolverHandle &solver, symbol lhs,
         case ExprType::NonAffine:
         case ExprType::Add:
         case ExprType::Sub:
+          break;
         case symbolic::details::ExprType::Const:
           throw std::runtime_error(
               "Invalid state. ID, NoAffine, Add or Sub are not valid "
@@ -82,6 +84,8 @@ SymGraph::modsolve_resume_solver(const ModSolverHandle &solver, symbol lhs,
           modexpr = modsolve_mod(solver, m, nonaffine.symbols[0],
                                  nonaffine.symbols[1]);
           break;
+        case ExprType::Min:
+        case ExprType::Max:
         case ExprType::Mul:
           // always bail.
           break;
@@ -108,19 +112,16 @@ SymGraph::modsolve_resume_solver(const ModSolverHandle &solver, symbol lhs,
         modexpr = modsolve_add(solver, m, expr.lhs, expr.rhs);
         break;
       }
-      case ExprType::Const:
+      case ExprType::Const: {
         ModExpr constmodexpr;
         constmodexpr.affine.constant = emod(expr.lhs.constant(), m);
         modexpr = constmodexpr;
         break;
       }
-
-      if (modexpr.has_value()) {
-        if (auto r = modsolve_reverse_peel(modexpr->affine, m)) {
-          ModExpr unpeeled;
-          unpeeled.affine.constant = *r;
-          modexpr = unpeeled;
-        }
+      case ExprType::Min:
+      case ExprType::Max:
+        // always bail.
+        break;
       }
 
       if (modexpr.has_value()) {
@@ -282,7 +283,7 @@ SymGraph::modsolve_peel_by_d(const AffineExpr &lhs, value_type d) {
 }
 
 SymGraph::ModExpr SymGraph::modsolve_add(const ModSolverHandle &solver,
-                                              value_type m, Sym lhs, Sym rhs) {
+                                         value_type m, Sym lhs, Sym rhs) {
   assert(m > 0);
   if (lhs.isConstant() && rhs.isConstant()) {
     ModExpr modexpr;
@@ -351,8 +352,9 @@ SymGraph::ModExpr SymGraph::modsolve_sub(const ModSolverHandle &solver,
   emod_affine(modexpr.affine, m);
   return modexpr;
 }
-std::optional<SymGraph::ModExpr> SymGraph::modsolve_mul(const ModSolverHandle &solver,
-                                              value_type m, Sym lhs, Sym rhs) {
+std::optional<SymGraph::ModExpr>
+SymGraph::modsolve_mul(const ModSolverHandle &solver, value_type m, Sym lhs,
+                       Sym rhs) {
   assert(m > 0);
   if (lhs.isConstant() && rhs.isConstant()) {
     ModExpr modexpr;
@@ -377,7 +379,8 @@ std::optional<SymGraph::ModExpr> SymGraph::modsolve_mul(const ModSolverHandle &s
   emod_affine(modexpr.affine, m);
   return modexpr;
 }
-std::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, Sym lhs, Sym rhs) {
+std::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, Sym lhs,
+                                                        Sym rhs) {
   assert(m > 0);
 
   // --- Constant / Constant: trivial
@@ -478,8 +481,9 @@ std::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, Sym lhs, S
   // --- Symbolic / Symbolic: out of scope for the modsolver now
   return std::nullopt;
 }
-std::optional<SymGraph::ModExpr> SymGraph::modsolve_mod(const ModSolverHandle &solver,
-                                              value_type m, Sym lhs, Sym rhs) {
+std::optional<SymGraph::ModExpr>
+SymGraph::modsolve_mod(const ModSolverHandle &solver, value_type m, Sym lhs,
+                       Sym rhs) {
   assert(m > 0);
   if (lhs.isConstant() && rhs.isConstant()) {
     ModExpr modexpr;

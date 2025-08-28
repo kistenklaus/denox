@@ -33,7 +33,8 @@ public:
   template <typename... Args> NodeId emplaceNode(Args &&...args) noexcept {
     if (m_nodeFreelist.empty()) {
       NodeId id{m_nodes.size()};
-      m_nodes.emplace_back(std::forward<Args>(args)...);
+      m_nodes.emplace_back();
+      m_nodes.back().emplace(std::forward<Args>(args)...);
       return id;
     } else {
       NodeId id{m_nodeFreelist.back()};
@@ -58,7 +59,7 @@ public:
   EdgeId addEdge(NodeId src, NodeId dst, E edge, W weight = {}) noexcept {
     if (m_edgeFreelist.empty()) {
       EdgeId id{m_edges.size()};
-      m_edges.emplace_back(src, dst, edge, weight);
+      m_edges.push_back(Edge{src, dst, edge, weight});
       return id;
     } else {
       EdgeId id{m_edgeFreelist.back()};

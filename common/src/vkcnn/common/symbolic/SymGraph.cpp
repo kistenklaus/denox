@@ -13,7 +13,9 @@
 #include "./SymGraph_mod_entry.inl"
 #include "./SymGraph_mul_entry.inl"
 #include "./SymGraph_sub_entry.inl"
+#include "./SymGraph_min_entry.inl"
 
 #include "./SymGraph_api.inl"
 
 #include "./SymGraph_debug.inl"
+

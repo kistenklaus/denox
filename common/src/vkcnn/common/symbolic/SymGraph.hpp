@@ -124,6 +124,16 @@ public:
   Sym cpool(E extent, K kernelSize, P padding, S stride, D dilation = 1,
             bool dno = true);
 
+  template <typename L, typename R>
+    requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
+            (std::same_as<R, Sym> || std::is_integral_v<R>)
+  Sym min(L lhs, R rhs);
+
+  template <typename L, typename R>
+    requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
+            (std::same_as<R, Sym> || std::is_integral_v<R>)
+  Sym max(L lhs, R rhs);
+
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;
   void debugDump() const;
@@ -170,6 +180,9 @@ private:
   Sym mod_sc(symbol lhs, value_type rhs, bool dno);
   Sym mod_cs(value_type lhs, symbol rhs, bool dno);
   Sym mod_cc(value_type lhs, value_type rhs, bool dno);
+
+  Sym min_xx(Sym lhs, Sym rhs, bool dno);
+  Sym max_xx(Sym lhs, Sym rhs, bool dno);
 
   // Affine Solvers
   static void affine_add_sym(AffineExpr &lhs, symbol s, value_type factor);

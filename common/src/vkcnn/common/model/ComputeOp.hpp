@@ -1,13 +1,14 @@
 #pragma once
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/FilterMode.hpp"
+#include "vkcnn/common/PaddingMode.hpp"
 #include "vkcnn/common/PoolFunction.hpp"
+#include "vkcnn/common/symbolic/Sym.hpp"
 #include "vkcnn/common/tensor/FloatType.hpp"
 #include <cassert>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <memory>
-#include <stdexcept>
 #include <utility>
 
 namespace vkcnn {
@@ -20,7 +21,7 @@ struct ComputeOpConv {
     unsigned int K;
     bool bias;
     glm::uvec2 padding;
-    glm::uvec3 stride;
+    glm::uvec2 stride;
 
     std::optional<FloatType> atype;
   };
@@ -30,11 +31,11 @@ struct ComputeOpConv {
   const Storage *operator->() const { return m_store.get(); }
   Storage *operator->() { return m_store.get(); }
 
-  ComputeOpConv(glm::uvec2 kernelSize, unsigned int K,
-                bool bias, glm::uvec2 padding, glm::uvec2 stride,
+  ComputeOpConv(glm::uvec2 kernelSize, unsigned int K, bool bias,
+                glm::uvec2 padding, glm::uvec2 stride,
                 std::optional<FloatType> atype)
-      : m_store(std::make_shared<Storage>(kernelSize, K, bias, padding,
-                                          stride, atype)) {}
+      : m_store(std::make_shared<Storage>(kernelSize, K, bias, padding, stride,
+                                          atype)) {}
 
 private:
   std::shared_ptr<Storage> m_store;
@@ -72,12 +73,52 @@ private:
 
 struct ComputeOpConcat {};
 
+struct ComputeOpPad {
+  struct Storage {
+    Sym left;
+    Sym right;
+    Sym top;
+    Sym bottom;
+    PaddingMode mode;
+  };
+
+  const Storage &operator*() const { return *m_store; }
+  Storage &operator*() { return *m_store; }
+  const Storage *operator->() const { return m_store.get(); }
+  Storage *operator->() { return m_store.get(); }
+
+  ComputeOpPad(Sym left, Sym right, Sym top, Sym bottom, PaddingMode mode)
+      : m_store(std::make_shared<Storage>(left, right, top, bottom, mode)) {}
+  std::shared_ptr<Storage> m_store;
+};
+
+struct ComputeOpSlice {
+  struct Storage {
+    Sym left;
+    Sym right;
+    Sym top;
+    Sym bottom;
+  };
+
+  const Storage &operator*() const { return *m_store; }
+  Storage &operator*() { return *m_store; }
+  const Storage *operator->() const { return m_store.get(); }
+  Storage *operator->() { return m_store.get(); }
+
+  ComputeOpSlice(Sym left, Sym right, Sym top, Sym bottom)
+      : m_store(std::make_shared<Storage>(left, right, top, bottom)) {}
+  std::shared_ptr<Storage> m_store;
+};
+
 enum class ComputeOpTag {
+  None,
   Conv,
   Activation,
   Upsample,
   Pool,
   Concat,
+  Pad,
+  Slice,
 };
 
 class ComputeOp {
@@ -97,6 +138,69 @@ public:
   ComputeOp(ComputeOpConcat concat)
       : m_tag(ComputeOpTag::Concat), m_uni(std::move(concat)) {}
 
+  ComputeOp(ComputeOpPad pad)
+      : m_tag(ComputeOpTag::Pad), m_uni(std::move(pad)) {}
+
+  ComputeOp(ComputeOpSlice slice)
+      : m_tag(ComputeOpTag::Slice), m_uni(std::move(slice)) {}
+
+  ComputeOp(const ComputeOp &o) : m_tag(o.m_tag) {
+    switch (o.m_tag) {
+    case ComputeOpTag::Conv:
+      new (&m_uni.conv) ComputeOpConv(o.m_uni.conv);
+      break;
+    case ComputeOpTag::Activation:
+      new (&m_uni.activation) ComputeOpActivation(o.m_uni.activation);
+      break;
+    case ComputeOpTag::Upsample:
+      new (&m_uni.upsample) ComputeOpUpsample(o.m_uni.upsample);
+      break;
+    case ComputeOpTag::Pool:
+      new (&m_uni.pool) ComputeOpPool(o.m_uni.pool);
+      break;
+    case ComputeOpTag::Concat:
+      new (&m_uni.concat) ComputeOpConcat(o.m_uni.concat);
+      break;
+    case ComputeOpTag::Pad:
+      new (&m_uni.pad) ComputeOpPad(o.m_uni.pad);
+      break;
+    case ComputeOpTag::Slice:
+      new (&m_uni.slice) ComputeOpSlice(o.m_uni.slice);
+      break;
+    case ComputeOpTag::None:
+      break;
+    }
+  }
+
+  ComputeOp(ComputeOp &&o) : m_tag(o.m_tag) {
+    switch (o.m_tag) {
+    case ComputeOpTag::Conv:
+      new (&m_uni.conv) ComputeOpConv(std::move(o.m_uni.conv));
+      break;
+    case ComputeOpTag::Activation:
+      new (&m_uni.activation)
+          ComputeOpActivation(std::move(o.m_uni.activation));
+      break;
+    case ComputeOpTag::Upsample:
+      new (&m_uni.upsample) ComputeOpUpsample(std::move(o.m_uni.upsample));
+      break;
+    case ComputeOpTag::Pool:
+      new (&m_uni.pool) ComputeOpPool(std::move(o.m_uni.pool));
+      break;
+    case ComputeOpTag::Concat:
+      new (&m_uni.concat) ComputeOpConcat(std::move(o.m_uni.concat));
+      break;
+    case ComputeOpTag::Pad:
+      new (&m_uni.pad) ComputeOpPad(std::move(o.m_uni.pad));
+      break;
+    case ComputeOpTag::Slice:
+      new (&m_uni.slice) ComputeOpSlice(std::move(o.m_uni.slice));
+      break;
+    case ComputeOpTag::None:
+      break;
+    }
+  }
+
   ~ComputeOp() {
     switch (m_tag) {
     case ComputeOpTag::Conv:
@@ -114,12 +218,14 @@ public:
     case ComputeOpTag::Concat:
       std::destroy_at(&m_uni.concat);
       break;
-    default:
-#ifndef NDEBUG
-      throw std::runtime_error("Not implemented");
-#else
-      std::unreachable();
-#endif
+    case ComputeOpTag::Pad:
+      std::destroy_at(&m_uni.pad);
+      break;
+    case ComputeOpTag::Slice:
+      std::destroy_at(&m_uni.slice);
+      break;
+    case ComputeOpTag::None:
+      break;
     }
   }
 
@@ -172,20 +278,47 @@ public:
     return m_uni.concat;
   }
 
+  const ComputeOpPad &pad() const {
+    assert(m_tag == ComputeOpTag::Pad);
+    return m_uni.pad;
+  }
+
+  ComputeOpPad &pad() {
+    assert(m_tag == ComputeOpTag::Pad);
+    return m_uni.pad;
+  }
+
+  const ComputeOpSlice &slice() const {
+    assert(m_tag == ComputeOpTag::Slice);
+    return m_uni.slice;
+  }
+
+  ComputeOpSlice &slice() {
+    assert(m_tag == ComputeOpTag::Slice);
+    return m_uni.slice;
+  }
+
 private:
   friend Model;
   union Uni {
+    char m_raw = 0;
     ComputeOpConv conv;
     ComputeOpActivation activation;
     ComputeOpUpsample upsample;
     ComputeOpPool pool;
     ComputeOpConcat concat;
+    ComputeOpPad pad;
+    ComputeOpSlice slice;
 
     Uni(ComputeOpConv conv) : conv(std::move(conv)) {}
     Uni(ComputeOpActivation acti) : activation(std::move(acti)) {}
     Uni(ComputeOpUpsample upsample) : upsample(std::move(upsample)) {}
     Uni(ComputeOpPool pool) : pool(std::move(pool)) {}
     Uni(ComputeOpConcat concat) : concat(std::move(concat)) {}
+    Uni(ComputeOpPad pad) : pad(std::move(pad)) {}
+    Uni(ComputeOpSlice slice) : slice(std::move(slice)) {}
+
+    Uni() {}
 
     ~Uni() {}
   };
@@ -193,4 +326,4 @@ private:
   Uni m_uni;
 };
 
-} // namespace vkcnn::graph
+} // namespace vkcnn

@@ -7,6 +7,7 @@
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/FilterMode.hpp"
 #include "vkcnn/common/PoolFunction.hpp"
+#include "vkcnn/common/model/Model.hpp"
 #include "vkcnn/common/ops/OpActivation.hpp"
 #include "vkcnn/common/ops/OpCopy.hpp"
 #include "vkcnn/common/ops/OpPool.hpp"
@@ -659,13 +660,70 @@ void pool_sandbox() {
 
 void sym_expr_sandbox() {
   vkcnn::SymGraph g;
-  auto B = g.var(), X = g.var();
-  auto lhs = g.div(g.mul(B, X), g.mul(4, B));
-  auto rhs = g.div(X, 4);
+  auto W = g.var();
 
-  fmt::println("lhs = {}, rhs = {}", lhs.sym(), rhs.sym());
+  auto alignment = 8;
+  auto W_padded = g.add(W, g.sub(alignment, g.mod(W, alignment)));
+
+  auto p0 = g.add(g.div(g.sub(W_padded, 2), 2), 1);
+  auto p1 = g.add(g.div(g.sub(p0, 2), 2), 1);
+  auto p2 = g.add(g.div(g.sub(p1, 2), 2), 1);
+
+  auto t = g.resolve(g.mod(p2, 2));
+
+  // auto t = g.mul(g.mul(p1, 2), 2);
+  // auto t = g.mul(p1, 2);
+  if (t.isSymbolic()) {
+    fmt::println("t = [{}]", t.sym());
+  } else {
+    fmt::println("t = {}", t.constant());
+  }
+  //
+  // fmt::println("p2 = [{}], u3=[{}]", p2.sym(), u3.sym());
 
   g.debugDump();
+}
+
+void model_sandbox() {
+  vkcnn::Model nn;
+
+  auto in = nn.input(3);
+
+  auto alignment = 64;
+  auto in_padded = nn.pad(in,                                        //
+                          0, *(alignment - in.width() % alignment),  //
+                          0, *(alignment - in.height() % alignment), //
+                          vkcnn::PaddingMode::Repeat);
+
+  auto extr = nn.ReLU(nn.Conv3x3(in_padded, 32));
+  auto x_128 = nn.MaxPool(extr, glm::uvec2(2, 2));
+
+  auto x_64 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_128, 48)), glm::uvec2(2, 2));
+  auto x_32 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_64, 64)), glm::uvec2(2, 2));
+  auto x_16 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_32, 80)), glm::uvec2(2, 2));
+  auto x_8 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_16, 112)), glm::uvec2(2, 2));
+  auto x_4 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_8, 112)), glm::uvec2(2, 2));
+
+  auto x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x_4, 2), x_8), 112));
+  x = nn.ReLU(nn.Conv3x3(x, 112));
+  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_16), 80));
+  x = nn.ReLU(nn.Conv3x3(x, 80));
+  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_32), 64));
+  x = nn.ReLU(nn.Conv3x3(x, 64));
+  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_64), 48));
+  x = nn.ReLU(nn.Conv3x3(x, 48));
+  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_128), 16));
+  x = nn.ReLU(nn.Conv3x3(x, 16));
+  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), in_padded),
+                         16 + in_padded.channels()));
+  x = nn.ReLU(nn.Conv3x3(x, 16));
+
+  x = nn.slice(x, 0, *in.width(), 0, *in.height());
+
+  assert(*x.width() == *in.width());
+  assert(*x.height() == *in.height());
+
+  nn.output(x);
 }
 
 int main() {
@@ -674,6 +732,7 @@ int main() {
   // activation_sandbox();
   // upsample_sandbox();
   // pool_sandbox();
-  sym_expr_sandbox();
+  // sym_expr_sandbox();
+  model_sandbox();
   return 0;
 }

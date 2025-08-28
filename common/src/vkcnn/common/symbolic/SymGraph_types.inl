@@ -10,21 +10,10 @@ namespace vkcnn::symbolic::details {
 using symbol = Sym::symbol;
 using value_type = Sym::value_type;
 
-enum class SymbolType {
-  MulSym,
-  CeilDivSym,
-  FloorDivSym,
-  ModSym,
-  MaxSym,
-  MinSym,
-  AlignUpSym,
-};
-
 struct AffineCoef {
   symbol sym;
   value_type factor;
 };
-
 
 struct AffineExpr {
   using SmallVector = containers::small_vector<AffineCoef, 2>;
@@ -79,6 +68,8 @@ enum class ExprType {
   Sub,       // a - b
   Mul,       // a * b
   Add,       // a + b
+  Min,       // min(a,b)
+  Max,       // max(a,b)
   Const,
 };
 
@@ -117,9 +108,10 @@ struct NonAffineExprHash {
     for (const auto &sym : expr.symbols) {
       hash ^=
           bhasher(sym.isConstant()) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-      hash ^= hasher(sym.isConstant() ? static_cast<std::uint64_t>(sym.constant())
-                                      : sym.sym()) +
-              0x9e3779b9 + (hash << 6) + (hash >> 2);
+      hash ^=
+          hasher(sym.isConstant() ? static_cast<std::uint64_t>(sym.constant())
+                                  : sym.sym()) +
+          0x9e3779b9 + (hash << 6) + (hash >> 2);
     }
     hash ^= hasher(static_cast<std::uint64_t>(
                 static_cast<std::underlying_type_t<ExprType>>(expr.expr))) +
@@ -191,6 +183,5 @@ struct ModSolver {
 };
 using ModSolverHandle = std::shared_ptr<ModSolver>;
 using ModSolverCache = std::unordered_map<Sym, ModSolverHandle, SymHash>;
-
 
 } // namespace vkcnn::symbolic::details

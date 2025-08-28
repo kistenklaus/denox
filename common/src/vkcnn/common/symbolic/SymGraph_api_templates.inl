@@ -205,4 +205,43 @@ Sym SymGraph::cpool(E extent, K kernelSize, P padding, S stride, D dilation,
   return add(cdiv(num, denom), 1, dno);
 }
 
+template <typename L, typename R>
+  requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
+          (std::same_as<R, Sym> || std::is_integral_v<R>)
+Sym SymGraph::min(L lhs, R rhs) {
+  Sym a;
+  if constexpr (std::same_as<L, Sym>) {
+    a = resolve(lhs);
+  } else {
+    a = Sym::Const(lhs);
+  }
+  Sym b;
+  if constexpr (std::same_as<R, Sym>) {
+    b = resolve(rhs);
+  } else {
+    b = Sym::Const(rhs);
+  }
+  return var();
+}
+
+template <typename L, typename R>
+  requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
+          (std::same_as<R, Sym> || std::is_integral_v<R>)
+Sym SymGraph::max(L lhs, R rhs) {
+  Sym a;
+  if constexpr (std::same_as<L, Sym>) {
+    a = resolve(lhs);
+  } else {
+    a = Sym::Const(lhs);
+  }
+  Sym b;
+  if constexpr (std::same_as<R, Sym>) {
+    b = resolve(rhs);
+  } else {
+    b = Sym::Const(rhs);
+  }
+  // TODO: Actually do something useful, not complex.
+  return var();
+}
+
 } // namespace vkcnn

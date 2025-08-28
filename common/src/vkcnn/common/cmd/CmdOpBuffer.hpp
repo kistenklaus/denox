@@ -68,7 +68,7 @@ public:
   }
 
 private:
-  struct HashedSpanKey {
+  struct IndexSpan {
     std::uint64_t hash;
     std::uint64_t offset;
     std::uint64_t size;
@@ -88,7 +88,7 @@ private:
   std::uint64_t emplaceSpirvSrc(std::span<const std::uint32_t> spirv) {
     std::uint64_t hash = 0x14079109742;
     hash_span(hash, spirv);
-    auto it = std::ranges::find_if(m_spirvOT, [&](const HashedSpanKey &k) {
+    auto it = std::ranges::find_if(m_spirvOT, [&](const IndexSpan &k) {
       if (k.hash != hash) {
         return false;
       }
@@ -120,7 +120,7 @@ private:
   std::uint64_t emplaceParam(std::span<const std::byte> weights) {
     std::uint64_t hash = 0x14079109742;
     hash_span(hash, weights);
-    auto it = std::ranges::find_if(m_paramOT, [&](const HashedSpanKey &k) {
+    auto it = std::ranges::find_if(m_paramOT, [&](const IndexSpan &k) {
       if (k.hash != hash) {
         return false;
       }
@@ -158,8 +158,8 @@ private:
   container::monotone_buffer m_paramBuf;
 
   // Builder only! (Not part of the serialization)
-  std::vector<HashedSpanKey> m_spirvOT;
-  std::vector<HashedSpanKey> m_paramOT;
+  std::vector<IndexSpan> m_spirvOT;
+  std::vector<IndexSpan> m_paramOT;
 };
 
 } // namespace vkcnn

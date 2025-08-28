@@ -1280,3 +1280,19 @@ TEST(symbolic, unsolvable_mod_after_peel_not_zero) {
     SUCCEED();
   }
 }
+
+TEST(symbolic, unsolvable_pool4_upsample4) {
+  SymGraph g;
+  auto W = g.var();
+
+  auto alignment = 8;
+  auto W_padded = g.add(W, g.sub(alignment, g.mod(W, alignment)));
+  auto p0 = g.pool(W_padded, 2, 0, 2);
+  auto p1 = g.pool(p0, 2, 0, 2);
+  auto p2 = g.pool(p1, 2, 0, 2);
+  auto p3 = g.pool(p2, 2, 0, 2);
+
+  auto u3 = g.mul(p3, 2);
+
+  EXPECT_NE(u3, p2);
+}
