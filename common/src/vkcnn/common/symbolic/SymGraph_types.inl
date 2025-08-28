@@ -1,5 +1,3 @@
-#pragma once
-
 #include "vkcnn/common/containers/small_vector.hpp"
 #include "vkcnn/common/symbolic/Sym.hpp"
 #include <cstdint>
