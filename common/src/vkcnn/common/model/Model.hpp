@@ -35,15 +35,13 @@ struct ComputeGraphControlBlock {
 
   ComputeGraphControlBlock()
       : input(NullNode), output(NullNode), hypergraph(),
-        symGraph(std::make_shared<vkcnn::SymGraph>()),
-        inputExtent(symGraph->var(), symGraph->var()) {}
+        symGraph(std::make_shared<vkcnn::SymGraph>()) {}
 
   vkcnn::hypergraph::NodeId input;
   vkcnn::hypergraph::NodeId output;
   vkcnn::hypergraph::AdjGraph<ComputeTensor, ComputeOp> hypergraph;
 
   std::shared_ptr<vkcnn::SymGraph> symGraph;
-  SymTensorExtent inputExtent;
 };
 
 }; // namespace details
@@ -98,11 +96,27 @@ public:
 
   Tensor input(unsigned int channels,
                std::optional<ActivationLayout> layout = std::nullopt,
-               std::optional<FloatType> type = std::nullopt) {
+               std::optional<FloatType> type = std::nullopt,
+               std::optional<Sym> W = std::nullopt,
+               std::optional<Sym> H = std::nullopt) {
+    Sym w = Sym::Const(0);
+    if (W.has_value()) {
+      w = *W;
+    } else {
+      w = m_controlBlock->symGraph->var();
+    }
+    Sym h = Sym::Const(0);
+    if (H.has_value()) {
+      h = *H;
+    } else {
+      h = m_controlBlock->symGraph->var();
+    }
+
+    SymTensorExtent extent{w, h};
     assert(m_controlBlock->input ==
            details::ComputeGraphControlBlock::NullNode);
-    hypergraph::NodeId id = m_controlBlock->hypergraph.emplaceNode(
-        m_controlBlock->inputExtent, channels, layout, type);
+    hypergraph::NodeId id =
+        m_controlBlock->hypergraph.emplaceNode(extent, channels, layout, type);
     m_controlBlock->input = id;
     return Tensor{id, m_controlBlock};
   }
