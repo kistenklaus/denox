@@ -21,6 +21,7 @@ public:
   }
 
   template <typename S>
+    requires(std::same_as<S, Sym> || std::is_integral_v<S>)
   friend Symbolic operator+(const S &a, const Symbolic &b) {
     return Symbolic(b.m_symGraph, b.m_symGraph->add(a, b.m_self));
   }
@@ -37,6 +38,7 @@ public:
   }
 
   template <typename S>
+    requires(std::same_as<S, Sym> || std::is_integral_v<S>)
   friend Symbolic operator-(const S &a, const Symbolic &b) {
     return Symbolic(b.m_symGraph, b.m_symGraph->sub(a, b.m_self));
   }
@@ -53,6 +55,7 @@ public:
   }
 
   template <typename S>
+    requires(std::same_as<S, Sym> || std::is_integral_v<S>)
   friend Symbolic operator*(const S &a, const Symbolic &b) {
     return Symbolic(b.m_symGraph, b.m_symGraph->mul(a, b.m_self));
   }
@@ -69,6 +72,7 @@ public:
   }
 
   template <typename S>
+    requires(std::same_as<S, Sym> || std::is_integral_v<S>)
   friend Symbolic operator/(const S &a, const Symbolic &b) {
     return Symbolic(b.m_symGraph, b.m_symGraph->div(a, b.m_self));
   }
@@ -85,14 +89,38 @@ public:
   }
 
   template <typename S>
+    requires(std::same_as<S, Sym> || std::is_integral_v<S>)
   friend Symbolic operator%(const S &a, const Symbolic &b) {
     return Symbolic(b.m_symGraph, b.m_symGraph->mod(a, b.m_self));
   }
 
   const Sym &operator*() const { return m_self; }
 
-  operator Sym() const {
-    return m_self;
+  operator Sym() const { return m_self; }
+
+  friend bool operator==(const Symbolic &a, const Symbolic &b) {
+    assert(a.m_symGraph.get() == b.m_symGraph.get());
+    return a.m_symGraph->resolve(a.m_self) == a.m_symGraph->resolve(b.m_self);
+  }
+
+  template <typename S>
+    requires(std::same_as<S, Sym> || std::is_integral_v<S>)
+  friend bool operator==(const S &a, const Symbolic &b) {
+    return b.m_symGraph->resolve(a) == b.m_symGraph->resolve(b.m_self);
+  }
+
+  template <typename S>
+    requires(std::same_as<S, Sym> || std::is_integral_v<S>)
+  friend bool operator==(const Symbolic &a, const Sym &b) {
+    return a.m_symGraph->resolve(a.m_self) == a.m_symGraph->resolve(b);
+  }
+
+  bool isSymbolic() const { return m_symGraph->resolve(m_self).isSymbolic(); }
+
+  bool isConstant() const { return m_symGraph->resolve(m_self).isConstant(); }
+
+  Sym::value_type constant() const {
+    return m_symGraph->resolve(m_self).constant();
   }
 
 private:

@@ -21,13 +21,14 @@ vkcnn_common_src = files(
   'src/vkcnn/common/symbolic/SymGraph_nonaffine.cpp',
   'src/vkcnn/common/symbolic/SymGraph_nonaffine_symbol_cache.cpp',
   'src/vkcnn/common/symbolic/SymGraph_sub_entry.cpp',
+  'src/vkcnn/common/model/Model_import.cpp',
 )
 
 vkcnn_common_inc = include_directories('src')
 
 vkcnn_common_lib = static_library('vkcnn-common',
   vkcnn_common_src,
-  dependencies: [],
+  dependencies: [onnx_proto],
   include_directories: vkcnn_common_inc,
   install: false,
   pic : true

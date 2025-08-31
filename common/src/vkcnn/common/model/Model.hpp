@@ -189,7 +189,6 @@ public:
           "Concat arguments, must provably have the same image extent.");
     }
 
-
     hypergraph::NodeId dstId = m_controlBlock->hypergraph.emplaceNode(
         src0Node.m_extent, src0Node.m_channels + src1Node.m_channels,
         std::nullopt, std::nullopt);
@@ -298,6 +297,8 @@ public:
   //   return hypergraph::ConstGraph<ComputeTensor, ComputeOp>(
   //       m_controlBlock->hypergraph);
   // }
+
+  static Model import(std::string_view path);
 
 private:
   std::shared_ptr<details::ComputeGraphControlBlock> m_controlBlock;

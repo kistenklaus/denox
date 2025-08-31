@@ -11,7 +11,7 @@ project('vkcnn',
 )
 
 
-
+subdir('onnx')
 subdir('common')
 subdir('shaders')
 subdir('gos')
