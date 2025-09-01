@@ -4,7 +4,6 @@
 #include "vkcnn/common/symbolic/Sym.hpp"
 #include "vkcnn/common/symbolic/Symbolic.hpp"
 #include <fmt/format.h>
-#include <limits>
 #include <onnx.pb.h>
 #include <stdexcept>
 
@@ -16,148 +15,89 @@ enum ValueInfoImportContext {
   Hint,
 };
 
-// ==== small IR for parsing ValueInfo shapes ====
-struct RawDim {
-  enum class Kind { Value, Label, Unknown } kind = Kind::Unknown;
-  uint64_t value = 0; // valid when kind==Value
-  std::string label;  // valid when kind==Label
-};
+// Helpers (file-local)
 
-static std::vector<RawDim> parse_raw_dims(const onnx::TensorShapeProto &shp,
-                                          const std::string &name) {
-  const int rank = shp.dim_size();
-  if (rank == 0) {
-    throw std::runtime_error(
-        fmt::format("vkcnn: Tensor \"{}\" must not be scalar (rank=0).", name));
-  }
-  std::vector<RawDim> out;
-  out.reserve(rank);
-  for (int i = 0; i < rank; ++i) {
+static TensorShape
+parse_vi_shape_to_tensor_shape(ImportState &state,
+                               const onnx::TensorShapeProto &shp,
+                               const std::string &tensorName) {
+
+  std::vector<Symbolic> dims;
+  dims.reserve((size_t)shp.dim_size());
+  auto &g = state.symGraph;
+  if (!g)
+    throw std::runtime_error("vkcnn: symGraph is null");
+
+  for (int i = 0; i < shp.dim_size(); ++i) {
     const auto &d = shp.dim(i);
     if (d.has_dim_value()) {
-      int64_t v = d.dim_value();
+      const int64_t v = d.dim_value();
       if (v < 0) {
-        throw std::runtime_error(
-            fmt::format("vkcnn: Tensor \"{}\" has negative dim {}", name, v));
+        throw std::runtime_error(fmt::format(
+            "vkcnn: {} has negative dim at axis {}", tensorName, i));
       }
-      out.push_back(RawDim{RawDim::Kind::Value, static_cast<uint64_t>(v), {}});
+      dims.emplace_back(g, Sym::Const(v));
     } else if (d.has_dim_param()) {
-      out.push_back(RawDim{RawDim::Kind::Label, 0u, d.dim_param()});
+      const std::string &label = d.dim_param();
+      if (label.empty()) {
+        throw std::runtime_error(fmt::format(
+            "vkcnn: {} has empty dim_param at axis {}", tensorName, i));
+      }
+      auto it = state.symbolMap.find(label);
+      Sym s = Sym::Const(0);
+      if (it != state.symbolMap.end()) {
+        s = it->second;
+      } else {
+        // TODO: choose your preferred API to create a fresh symbol for this
+        // label. Common patterns:
+        //   s = state.symGraph->fresh(label);
+        //   s = state.symGraph->new_symbol(label);
+        // For now, we assume a `fresh(label)`-style API:
+        s = state.symGraph->var();
+        state.symbolMap.emplace(label, s);
+      }
+      dims.emplace_back(g, s);
     } else {
-      // truly unknown
-      out.push_back(RawDim{RawDim::Kind::Unknown, 0u, {}});
+      // Completely unknown dim (neither value nor param) — give it a fresh
+      // symbol.
+      const std::string autoLabel = tensorName + "/dim" + std::to_string(i);
+      Sym s = state.symGraph->var();
+      state.symbolMap.emplace(autoLabel, s);
+      dims.emplace_back(g, s);
     }
   }
-  return out;
+
+  return TensorShape{g, std::move(dims)};
 }
 
-struct CHWView {
-  // For CHW (rank=3): N is empty
-  // For NCHW (rank=4): N has a value
-  const RawDim *N = nullptr;
-  const RawDim *C = nullptr;
-  const RawDim *H = nullptr;
-  const RawDim *W = nullptr;
-};
-
-static CHWView chw_view_from_raw_dims(const std::vector<RawDim> &dims,
-                                      const std::string &name, bool is_input) {
-  CHWView v;
-  if (dims.size() == 3) {
-    v.C = &dims[0];
-    v.H = &dims[1];
-    v.W = &dims[2];
-    return v;
-  }
-  if (dims.size() == 4) {
-    v.N = &dims[0];
-    v.C = &dims[1];
-    v.H = &dims[2];
-    v.W = &dims[3];
-    return v;
-  }
-  throw std::runtime_error(fmt::format(
-      "vkcnn: {} tensor (\"{}\") must have rank 3 (CHW) or 4 (NCHW), got {}.",
-      is_input ? "Input" : "Output", name, dims.size()));
-}
-
-static Sym require_sym_with_label(ImportState &st, const std::string &label) {
-  auto it = st.symbolMap.find(label);
-  if (it != st.symbolMap.end())
-    return it->second;
-  Sym s = st.symGraph->var();
-  st.symbolMap.emplace(label, s);
-  return s;
-}
-
-static Dim make_input_dim(ImportState &st, const RawDim &rd) {
-  switch (rd.kind) {
-  case RawDim::Kind::Value:
-    return Dim::Const(rd.value);
-  case RawDim::Kind::Label:
-    return Dim::Symbol(require_sym_with_label(st, rd.label));
-  case RawDim::Kind::Unknown: {
-    Sym s = st.symGraph->var();
-    return Dim::Symbol(s);
-  }
-  }
-  throw std::logic_error("unreachable");
-}
-
-struct DimEval {
-  std::optional<uint64_t> c;
-  std::optional<Sym> s;
-};
-
-static DimEval eval_dim(const Dim &d, SymGraph &g) {
-  if (d.isConst())
-    return {d.value(), std::nullopt};
-  auto r = g.resolve(d.sym());
-  if (r.isConstant())
-    return {r.constant(), std::nullopt};
-  return {std::nullopt, r};
-}
-
-static unsigned get_const_channels(const Dim &cdim, const std::string &name,
-                                   ImportState &st) {
-  DimEval e = eval_dim(cdim, *st.symGraph);
-  if (!e.c)
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Tensor (\"{}\") must have constant channel count.", name));
-  uint64_t c64 = *e.c;
-  if (c64 > std::numeric_limits<unsigned>::max())
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Tensor (\"{}\") channel count too large: {}", name, c64));
-  return static_cast<unsigned>(c64);
-}
-
-static void check_output_axis(const RawDim &rd, const Symbolic &runtime_axis,
-                              ImportState &st, std::string_view what,
-                              const std::string &tensor_name) {
-  if (rd.kind == RawDim::Kind::Unknown)
-    return;
-  if (rd.kind == RawDim::Kind::Value) {
-    if (!runtime_axis.isConstant() ||
-        static_cast<std::uint64_t>(runtime_axis.constant()) != rd.value) {
-      throw std::runtime_error(fmt::format(
-          "vkcnn: Output (\"{}\"): {} mismatch. Expected {}, got {}.",
-          tensor_name, what, rd.value,
-          runtime_axis.isConstant() ? std::to_string(runtime_axis.constant())
-                                    : std::string("<symbolic>")));
-    }
-    return;
-  }
-  const auto it = st.symbolMap.find(rd.label);
-  if (it == st.symbolMap.end())
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Output (\"{}\"): dim label \"{}\" not seen in inputs.",
-        tensor_name, rd.label));
-  const Sym expected = it->second;
-  if (!runtime_axis.isSymbolic() || !(runtime_axis == expected))
+static unsigned get_const_channels_or_throw(const TensorShape &s, size_t axis,
+                                            const char *what) {
+  const auto &d = s[axis];
+  if (!d.isConstant()) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Output (\"{}\"): {} symbolic mismatch (label {}).",
-                    tensor_name, what, rd.label));
+        fmt::format("vkcnn: {} must be a constant (axis {})", what, axis));
+  }
+  const auto v = d.constant();
+  if (v <= 0) {
+    throw std::runtime_error(
+        fmt::format("vkcnn: {} must be positive, got {}", what, v));
+  }
+  return (unsigned)v;
 }
+
+static void maybe_set_device_float_type_from_dtype(DeviceTensor &dev,
+                                                   Dtype onnxElem) {
+  // If you have a helper
+  // dtype_to_float_type(Dtype)->optional<vkcnn::FloatType>, use it here to set
+  // dev.handle().setType(...)
+  if (auto want = dtype_to_float_type(onnxElem)) {
+    // You mentioned handle().type() is optional and there is setType().
+    // If your API needs non-const access:
+    dev.handle().setType(*want);
+  }
+}
+
+// Main function
 
 static void import_value_info(ImportState &state,
                               const onnx::ValueInfoProto &valueInfo,
@@ -200,8 +140,8 @@ static void import_value_info(ImportState &state,
 
   const auto &ttype = tp.tensor_type();
 
-  std::optional<Dtype> dtypeOpt = parse_data_type(ttype.elem_type());
-  if (!dtypeOpt.has_value()) {
+  const auto dtypeOpt = parse_data_type(ttype.elem_type());
+  if (!dtypeOpt) {
     if (context == ValueInfoImportContext::Hint)
       return;
     throw std::runtime_error(
@@ -217,128 +157,171 @@ static void import_value_info(ImportState &state,
         "vkcnn: tensor {} has unknown shape (dynamic rank unsupported)", name));
   }
 
-  const auto raw = parse_raw_dims(ttype.shape(), name);
-  const bool is_input = (context == ValueInfoImportContext::Input);
-  const CHWView view = chw_view_from_raw_dims(raw, name, is_input);
+  // Convert ONNX shape -> TensorShape(Symbolic)
+  TensorShape tshape =
+      parse_vi_shape_to_tensor_shape(state, ttype.shape(), name);
+  const size_t r = tshape.rank();
 
+  // ---------- HINT ----------
   if (context == ValueInfoImportContext::Hint) {
     auto it = state.tensors.map.find(name);
-    if (it != state.tensors.map.end() && it->second.isRuntimeTensor()) {
-      auto want = dtype_to_float_type(dtype);
-      if (want && !it->second.runtime().tensor.type().has_value()) {
-        it->second.runtime().tensor.setType(*want);
-      }
+    if (it == state.tensors.map.end())
+      return; // nothing to refine
+
+    Tensor &t = it->second;
+    if (t.isDevice()) {
+      // Optionally set device float type hint if needed
+      // (Only if you want to honor dtype hints here)
+      // maybe_set_device_float_type_from_dtype(const_cast<DeviceTensor&>(t.device()),
+      // dtype); Shape refinements could go here if you want to cross-check.
+    } else if (t.isHost()) {
+      // Nothing critical for constants; you could cross-check shapes/dtypes if
+      // desired.
     }
     return;
   }
 
+  // ---------- INPUT ----------
   if (context == ValueInfoImportContext::Input) {
-    ShapeVector dims;
-    dims.reserve(raw.size());
-    for (const RawDim &rd : raw)
-      dims.push_back(make_input_dim(state, rd));
-    ShapeTensor tshape = ShapeTensor::Tensor(dims);
+    // vkcnn expects exactly one runtime input and we represent it with
+    // DeviceTensor
+    if (r != 3 && r != 4) {
+      throw std::runtime_error(fmt::format(
+          "vkcnn: Input \"{}\" must be rank 3 (CHW) or 4 (NCHW); got {}", name,
+          r));
+    }
 
-    if (view.N != nullptr) {
-      Dim Ndim = dims[0];
-      DimEval Ne = eval_dim(Ndim, *state.symGraph);
-      if (Ne.c.has_value() && *Ne.c != 1) {
-        throw std::runtime_error(fmt::format(
-            "vkcnn: Input tensor (\"{}\") has fixed batch {} (unsupported).",
-            name, *Ne.c));
+    // NCHW (r==4) or CHW (r==3)
+    size_t axC = (r == 4) ? 1 : 0;
+    size_t axH = (r == 4) ? 2 : 1;
+    size_t axW = (r == 4) ? 3 : 2;
+
+    if (r == 4) {
+      // If N is constant, require 1
+      if (tshape[0].isConstant()) {
+        if (tshape[0].constant() != 1) {
+          throw std::runtime_error(fmt::format(
+              "vkcnn: Input tensor (\"{}\") has fixed batch {} (unsupported).",
+              name, tshape[0].constant()));
+        }
+      } else {
+        // N is symbolic (dim_param or unknown) → force to 1.
+        // Runtime will select 1 anyway and not expose dynamic batch sizes.
+        tshape[0] = Symbolic{state.symGraph, Sym::Const(1)};
       }
     }
 
-    const unsigned C = get_const_channels(
-        dims[view.C ? (raw.size() == 4 ? 1 : 0) : 0], name, state);
+    // Channels must be a known positive constant for the device handle
+    // creation.
+    const unsigned C =
+        get_const_channels_or_throw(tshape, axC, "input channels");
 
-    Dim Hdim = dims[view.H ? (raw.size() == 4 ? 2 : 1) : 1];
-    Dim Wdim = dims[view.W ? (raw.size() == 4 ? 3 : 2) : 2];
+    // Height/Width: pass as Sym (symbolic is fine)
+    Sym Hs = static_cast<Sym>(*tshape[axH]); // Symbolic -> Sym
+    Sym Ws = static_cast<Sym>(*tshape[axW]);
 
-    Sym Hs = Hdim.isConst() ? Sym::Const(Hdim.value())
-                            : state.symGraph->resolve(Hdim.sym());
-    Sym Ws = Wdim.isConst() ? Sym::Const(Wdim.value())
-                            : state.symGraph->resolve(Wdim.sym());
-
+    // Optional float type hint from dtype
     std::optional<vkcnn::FloatType> hint = dtype_to_float_type(dtype);
 
+    // Create runtime handle (vkcnn::Tensor). Keep your existing API:
+    // channels, ??? (group/nullopt), float type hint, width, height
     vkcnn::Tensor rt = state.output.input(C, std::nullopt, hint, Ws, Hs);
-    auto t = Tensor::Runtime(rt, raw.size());
-    state.tensors.map.emplace(name, std::move(t));
+
+    // Store as DeviceTensor
+    DeviceTensor dev(r, std::move(rt));
+    state.tensors.map.emplace(name, Tensor::Device(std::move(dev)));
     return;
   }
 
+  // ---------- OUTPUT ----------
+  // Must exist and be DeviceTensor (no constant outputs).
   auto it = state.tensors.map.find(name);
   if (it == state.tensors.map.end()) {
     throw std::runtime_error(fmt::format(
         "vkcnn: Output \"{}\" was never produced by any node.", name));
   }
-  auto &produced = it->second;
-  if (!produced.isRuntimeTensor()) {
+  const Tensor &produced = it->second;
+  if (!produced.isDevice()) {
     throw std::runtime_error(
         fmt::format("vkcnn: Output (\"{}\") is not a runtime tensor (constant "
                     "outputs unsupported).",
                     name));
   }
 
-  const ShapeTensor &outShape = produced.shape();
-  if (!outShape.isTensor())
-    throw std::runtime_error("vkcnn: Output shape must not be scalar.");
-  const auto &outVec = outShape.dims();
-  if (outVec.size() != 3 && outVec.size() != 4) {
+  DeviceTensor dev = produced.device();
+  const auto prodShape = dev.shape(); // TensorShape
+  const size_t pr = prodShape.rank();
+  if (pr != 3 && pr != 4) {
     throw std::runtime_error(fmt::format(
         "vkcnn: Output tensor (\"{}\") must be rank 3 or 4; got {}.", name,
-        outVec.size()));
+        pr));
   }
 
-  unsigned int rtC = produced.runtime().tensor.channels();
-  Symbolic rtH = produced.runtime().tensor.height();
-  Symbolic rtW = produced.runtime().tensor.width();
-  std::optional<vkcnn::FloatType> rtType = produced.runtime().tensor.type();
+  // Interpret both as (N)CHW
+  const size_t paxC = (pr == 4) ? 1 : 0;
+  const size_t paxH = (pr == 4) ? 2 : 1;
+  const size_t paxW = (pr == 4) ? 3 : 2;
 
-  if (view.C) {
-    if (view.C->kind == RawDim::Kind::Value) {
-      if (rtC != view.C->value) {
+  // Compare provided (tshape) to produced (prodShape) where concrete.
+  // Channels (device channels are constant in your vkcnn::Tensor).
+  {
+    const unsigned rtC = dev.handle().channels();
+    const auto &vd = tshape[paxC];
+    if (vd.isConstant()) {
+      if ((unsigned)vd.constant() != rtC) {
         throw std::runtime_error(fmt::format(
             "vkcnn: Output (\"{}\") channel mismatch. Expected {}, got {}.",
-            name, view.C->value, rtC));
+            name, vd.constant(), rtC));
       }
-    } else if (view.C->kind == RawDim::Kind::Label) {
-      auto itlab = state.symbolMap.find(view.C->label);
-      if (itlab == state.symbolMap.end()) {
-        throw std::runtime_error(fmt::format(
-            "vkcnn: Output (\"{}\") channel label \"{}\" not seen in inputs.",
-            name, view.C->label));
-      }
-      auto re = state.symGraph->resolve(itlab->second);
-      if (!re.isConstant() || re.constant() != rtC) {
+    } else {
+      // labeled/symbolic: if you track labels in symbolMap, you could check
+      // here by resolving and comparing to rtC. Otherwise we accept symbolic
+      // here.
+      auto resolved = vd.resolve();
+      if (resolved.isConstant() && (unsigned)resolved.constant() != rtC) {
         throw std::runtime_error(
-            fmt::format("vkcnn: Output (\"{}\") channel mismatch (label {}).",
-                        name, view.C->label));
+            fmt::format("vkcnn: Output (\"{}\") channel mismatch.", name));
       }
     }
   }
 
-  check_output_axis(*view.H, rtH, state, "height", name);
-  check_output_axis(*view.W, rtW, state, "width", name);
+  // Height/Width check: compare symbolically if possible
+  auto check_axis = [&](size_t axProvided, size_t axProduced, const char *nm) {
+    const auto &want = tshape[axProvided];
+    const auto &got = prodShape[axProduced];
+    if (want.isConstant() && got.isConstant()) {
+      if (want.constant() != got.constant()) {
+        throw std::runtime_error(fmt::format(
+            "vkcnn: Output (\"{}\") {} mismatch. Expected {}, got {}.", name,
+            nm, want.constant(), got.constant()));
+      }
+    } else {
+      // If symbolic, we can compare via == which resolves through the same
+      // graph.
+      if (!(want == got)) {
+        // They may still be compatible but unresolved; be strict for now.
+        throw std::runtime_error(fmt::format(
+            "vkcnn: Output (\"{}\") {} symbolic mismatch.", name, nm));
+      }
+    }
+  };
+  check_axis(paxH, paxH, "height");
+  check_axis(paxW, paxW, "width");
 
-  if (view.N && view.N->kind == RawDim::Kind::Value && view.N->value != 1) {
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Output (\"{}\") specifies batch {}, only 1 is supported.", name,
-        view.N->value));
-  }
-
-  if (rtType.has_value()) {
-    auto want = dtype_to_float_type(dtype);
-    if (want.has_value() && want != rtType) {
+  // DType consistency (optional): if device type already set, compare; else
+  // set.
+  if (auto want = dtype_to_float_type(dtype)) {
+    auto &h = dev.handle();
+    if (h.type().has_value() && h.type().value() != *want) {
       throw std::runtime_error("vkcnn: Output tensor type mismatch.");
     }
-  } else {
-    if (auto want = dtype_to_float_type(dtype)) {
-      produced.runtime().tensor.setType(*want);
+    if (!h.type().has_value()) {
+      h.setType(*want);
     }
   }
-  state.output.output(produced.runtime().tensor);
+
+  // Finalize output into backend (same as before)
+  state.output.output(dev.handle());
 }
 
 } // namespace vkcnn::details

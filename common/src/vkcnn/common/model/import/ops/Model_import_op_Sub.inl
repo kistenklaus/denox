@@ -13,318 +13,357 @@ namespace vkcnn::details {
 static std::vector<Tensor>
 import_op_Sub(ImportState &state, std::span<const std::optional<Tensor>> inputs,
               std::size_t outputCount,
-              const std::unordered_map<std::string, Tensor> &attributes,
-              opset_version /*version*/, const onnx::NodeProto &node) {
+              const std::unordered_map<std::string, Attribute> & /*attributes*/,
+              [[maybe_unused]] opset_version /*version*/,
+              const onnx::NodeProto &node) {
 
-  // --- contract
-  if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value()) {
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Sub requires exactly two inputs. Got {} (node='{}')",
-        inputs.size(), node.op_type()));
-  }
-  if (outputCount != 1) {
-    throw std::runtime_error("vkcnn: Sub must produce exactly one output");
-  }
-  const Tensor &A = *inputs[0];
-  const Tensor &B = *inputs[1];
-
-  // --- early rejects
-  if (A.isRuntimeTensor() || B.isRuntimeTensor()) {
-    throw std::runtime_error("vkcnn: Sub on runtime tensors is not supported");
-  }
-  if (A.isString() || B.isString()) {
-    throw std::runtime_error("vkcnn: Sub on string tensors is not supported");
-  }
-
-  // --- helpers: scalar lifts (from ScalarTensor or RawTensor(0D)) ----------
-  auto scalar_int64_from_scalar =
-      [](const Tensor &t) -> std::optional<int64_t> {
-    if (!t.isScalar())
-      return std::nullopt;
-    const auto &s = t.scalar();
-    switch (s.dtype) {
-    case Dtype::Int64:
-      return s.v.i;
-    case Dtype::Int32:
-    case Dtype::Int16:
-    case Dtype::Int8:
-      return static_cast<int64_t>(s.v.i);
-    case Dtype::Uint64:
-      if (s.v.u > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-        throw std::runtime_error(
-            "vkcnn: Sub uint64 scalar too large for int64");
-      return static_cast<int64_t>(s.v.u);
-    case Dtype::Uint32:
-    case Dtype::Uint16:
-    case Dtype::Uint8:
-      return static_cast<int64_t>(s.v.u);
-    default:
-      return std::nullopt;
-    }
-  };
-  auto scalar_int64_from_raw0 = [](const Tensor &t) -> std::optional<int64_t> {
-    if (!t.isRaw())
-      return std::nullopt;
-    const auto &rt = t.raw();
-    if (!rt.shape.isScalar())
-      return std::nullopt;
-    auto need = [&](size_t n) {
-      if (rt.raw.size() != n)
-        throw std::runtime_error("vkcnn: Sub raw scalar payload size mismatch");
-    };
-    switch (rt.type) {
-    case Dtype::Int64: {
-      need(sizeof(int64_t));
-      int64_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return v;
-    }
-    case Dtype::Int32: {
-      need(sizeof(int32_t));
-      int32_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return (int64_t)v;
-    }
-    case Dtype::Int16: {
-      need(sizeof(int16_t));
-      int16_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return (int64_t)v;
-    }
-    case Dtype::Int8: {
-      need(sizeof(int8_t));
-      int8_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return (int64_t)v;
-    }
-    case Dtype::Uint64: {
-      need(sizeof(uint64_t));
-      uint64_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      if (v > (uint64_t)std::numeric_limits<int64_t>::max())
-        throw std::runtime_error(
-            "vkcnn: Sub raw uint64 scalar too large for int64");
-      return (int64_t)v;
-    }
-    case Dtype::Uint32: {
-      need(sizeof(uint32_t));
-      uint32_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return (int64_t)v;
-    }
-    case Dtype::Uint16: {
-      need(sizeof(uint16_t));
-      uint16_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return (int64_t)v;
-    }
-    case Dtype::Uint8: {
-      need(sizeof(uint8_t));
-      uint8_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return (int64_t)v;
-    }
-    default:
-      return std::nullopt;
-    }
-  };
-  struct FScalar {
-    bool is64;
-    double v;
-  };
-  auto scalar_float_from_scalar =
-      [](const Tensor &t) -> std::optional<FScalar> {
-    if (!t.isScalar())
-      return std::nullopt;
-    const auto &s = t.scalar();
-    if (s.dtype == Dtype::Float64)
-      return FScalar{true, s.v.float64};
-    if (s.dtype == Dtype::Float32)
-      return FScalar{false, (double)s.v.float32};
-    return std::nullopt;
-  };
-  auto scalar_float_from_raw0 = [](const Tensor &t) -> std::optional<FScalar> {
-    if (!t.isRaw())
-      return std::nullopt;
-    const auto &rt = t.raw();
-    if (!rt.shape.isScalar())
-      return std::nullopt;
-    if (rt.type == Dtype::Float64) {
-      if (rt.raw.size() != sizeof(f64))
-        throw std::runtime_error("vkcnn: Sub raw f64 size mismatch");
-      f64 v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return FScalar{true, (double)v};
-    }
-    if (rt.type == Dtype::Float32) {
-      if (rt.raw.size() != sizeof(f32))
-        throw std::runtime_error("vkcnn: Sub raw f32 size mismatch");
-      f32 v;
-      std::memcpy(&v, rt.raw.data(), sizeof v);
-      return FScalar{false, (double)v};
-    }
-    return std::nullopt;
-  };
-  auto as_i64_scalar = [&](const Tensor &t) -> std::optional<int64_t> {
-    if (auto v = scalar_int64_from_scalar(t))
-      return v;
-    if (auto v = scalar_int64_from_raw0(t))
-      return v;
-    return std::nullopt;
-  };
-  auto as_f_scalar = [&](const Tensor &t) -> std::optional<FScalar> {
-    if (auto v = scalar_float_from_scalar(t))
-      return v;
-    if (auto v = scalar_float_from_raw0(t))
-      return v;
-    return std::nullopt;
-  };
-
-  // --- shape math helpers (integers only) ----------------------------------
-  auto sub_dim_dim = [&](const Dim &x, const Dim &y) -> Dim {
-    if (x.isConst() && y.isConst()) {
-      uint64_t a = x.value(), b = y.value();
-      if (a < b)
-        throw std::runtime_error(
-            "vkcnn: Sub would produce negative shape dimension");
-      return Dim::Const(a - b);
-    }
-    // symbolic: build Sym = x - y (both Sym or int64_t) via symGraph
-    auto toSymOrI64 = [&](const Dim &d) -> std::variant<int64_t, Sym> {
-      if (d.isConst()) {
-        uint64_t v = d.value();
-        if (v > (uint64_t)std::numeric_limits<int64_t>::max())
-          throw std::runtime_error(
-              "vkcnn: Dim constant too large for symbolic int64");
-        return (int64_t)v;
-      }
-      return d.sym();
-    };
-    auto X = toSymOrI64(x);
-    auto Y = toSymOrI64(y);
-    Sym res = std::visit(
-        [&](auto &&vx, auto &&vy) -> Sym {
-          return state.symGraph->sub(vx,
-                                     vy); // integer-only symbolic subtraction
-        },
-        X, Y);
-    return Dim::Symbol(std::move(res));
-  };
-  auto sub_dim_i64 = [&](const Dim &x, int64_t y) -> Dim {
-    if (x.isConst()) {
-      uint64_t a = x.value();
-      if (y < 0) {
-        // a - (negative) => a + |y| (safe wrt underflow, might overflow 64-bit
-        // but dims are usually small)
-        uint64_t add = (uint64_t)(-y);
-        uint64_t r = a + add;
-        if (r < a)
-          throw std::runtime_error("vkcnn: Sub overflow in shape math");
-        return Dim::Const(r);
-      } else {
-        if (a < (uint64_t)y)
-          throw std::runtime_error(
-              "vkcnn: Sub would produce negative shape dimension");
-        return Dim::Const(a - (uint64_t)y);
-      }
-    } else {
-      // symbolic minus integer
-      Sym res = state.symGraph->sub(x.sym(), y);
-      return Dim::Symbol(std::move(res));
-    }
-  };
-
-  auto broadcast_vec_vec = [&](const ShapeVector &X,
-                               const ShapeVector &Y) -> ShapeVector {
-    const size_t nx = X.size(), ny = Y.size();
-    if (nx == ny) {
-      ShapeVector out(nx);
-      for (size_t i = 0; i < nx; ++i)
-        out[i] = sub_dim_dim(X[i], Y[i]);
-      return out;
-    } else if (nx == 1 && ny >= 1) {
-      ShapeVector out(ny);
-      for (size_t i = 0; i < ny; ++i)
-        out[i] = sub_dim_dim(X[0], Y[i]);
-      return out;
-    } else if (ny == 1 && nx >= 1) {
-      ShapeVector out(nx);
-      for (size_t i = 0; i < nx; ++i)
-        out[i] = sub_dim_dim(X[i], Y[0]);
-      return out;
-    }
+  // Arity
+  if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
-        "vkcnn: Sub ShapeTensor broadcast failed (lengths incompatible)");
+        fmt::format("vkcnn: Sub \"{}\" expects 2 inputs.", node.name()));
+  if (outputCount != 1)
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Sub \"{}\" must have exactly 1 output.", node.name()));
+
+  const Tensor &aT = *inputs[0];
+  const Tensor &bT = *inputs[1];
+
+  // Runtime tensors not supported here
+  if (aT.isDevice() || bT.isDevice())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Sub \"{}\": runtime tensors not supported.", node.name()));
+
+  const HostTensor &a0 = aT.host();
+  const HostTensor &b0 = bT.host();
+
+  // Must be static for host compute (we rely on constIndexOf)
+  if (!a0.isConstant() || !b0.isConstant())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Sub \"{}\": dynamic host tensors unsupported.", node.name()));
+
+  const Dtype adt = a0.type();
+  const Dtype bdt = b0.type();
+
+  auto is_float = [](Dtype dt) {
+    return dt == Dtype::Float32 || dt == Dtype::Float64;
+  };
+  auto is_signed_int = [](Dtype dt) {
+    switch (dt) {
+    case Dtype::Int8:
+    case Dtype::Int16:
+    case Dtype::Int32:
+    case Dtype::Int64:
+      return true;
+    default:
+      return false;
+    }
+  };
+  auto is_unsigned_int = [](Dtype dt) {
+    switch (dt) {
+    case Dtype::Uint8:
+    case Dtype::Uint16:
+    case Dtype::Uint32:
+    case Dtype::Uint64:
+      return true;
+    default:
+      return false;
+    }
+  };
+  auto is_integer = [&](Dtype dt) {
+    return is_signed_int(dt) || is_unsigned_int(dt);
   };
 
-  // === Case A: Shape ⊗ Shape (integers only)
-  if (A.isShape() && B.isShape()) {
-    const auto &sa = A.shapeTensor();
-    const auto &sb = B.shapeTensor();
-    if (sa.isScalar() || sb.isScalar())
-      throw std::runtime_error("vkcnn: Sub on scalar ShapeTensor is invalid");
-    ShapeVector out = broadcast_vec_vec(sa.dims(), sb.dims()); // or .dims()
-    return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
-  }
+  // Disallow strings/bools outright
+  if (adt == Dtype::String || bdt == Dtype::String || adt == Dtype::Bool ||
+      bdt == Dtype::Bool)
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Sub \"{}\": unsupported dtype (string/bool).", node.name()));
 
-  // Try to lift scalars (int or float) from either side
-  const auto Ai = as_i64_scalar(A);
-  const auto Bi = as_i64_scalar(B);
-  const auto Af = as_f_scalar(A);
-  const auto Bf = as_f_scalar(B);
+  // Make base-contiguous for clean reads
+  HostTensor A = a0.contiguous();
+  HostTensor B = b0.contiguous();
 
-  // === Case B: Shape ⊗ Scalar(int)
-  if (A.isShape() && Bi.has_value()) {
-    const auto &sa = A.shapeTensor();
-    if (sa.isScalar())
-      throw std::runtime_error("vkcnn: Sub on scalar ShapeTensor is invalid");
-    ShapeVector out(sa.dims().size());
-    for (size_t i = 0; i < sa.dims().size(); ++i)
-      out[i] = sub_dim_i64(sa.dims()[i], *Bi);
-    return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
-  }
-  if (Ai.has_value() && B.isShape()) {
-    const auto &sb = B.shapeTensor();
-    if (sb.isScalar())
-      throw std::runtime_error("vkcnn: Sub on scalar ShapeTensor is invalid");
-    ShapeVector out(sb.dims().size());
-    for (size_t i = 0; i < sb.dims().size(); ++i) {
-      // (Ai - dim[i])
-      out[i] = sub_dim_dim(Dim::Const((uint64_t)(*Ai < 0 ? -*Ai : *Ai)),
-                           sb.dims()[i]);
+  // Broadcast shape & build broadcast views
+  TensorShape outShape = TensorShape::broadcast(A.shape(), B.shape());
+  const auto outDims = outShape.toU64();
+  const size_t outRank = outDims.size();
+
+  auto make_axes = [&](size_t rIn) {
+    std::vector<int64_t> m(rIn);
+    const int64_t shift = static_cast<int64_t>(outRank - rIn);
+    for (size_t i = 0; i < rIn; ++i)
+      m[i] = shift + static_cast<int64_t>(i);
+    return m;
+  };
+  const auto axesA = make_axes(A.rank());
+  const auto axesB = make_axes(B.rank());
+  TensorViewDesc viewA =
+      A.view().broadcastInDim(A.shape().dims(), outShape.dims(), axesA);
+  TensorViewDesc viewB =
+      B.view().broadcastInDim(B.shape().dims(), outShape.dims(), axesB);
+  if (!viewA.isConstant() || !viewB.isConstant())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Sub \"{}\": non-constant broadcast view.", node.name()));
+
+  // N-D index iteration
+  std::vector<std::uint64_t> idx(outRank, 0);
+  auto inc = [&]() -> bool {
+    if (idx.empty())
+      return false;
+    size_t ax = outRank;
+    while (ax > 0) {
+      --ax;
+      if (++idx[ax] < outDims[ax])
+        return true;
+      idx[ax] = 0;
     }
-    return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
+    return false;
+  };
+
+  // Load helpers
+  auto load_int64 = [&](const HostTensor &H, const TensorViewDesc &V,
+                        const std::vector<std::uint64_t> &I) -> int64_t {
+    const std::size_t k = V.constIndexOf({I.data(), I.size()});
+    switch (H.type()) {
+    case Dtype::Int8:
+      return static_cast<int64_t>(
+          static_cast<const int8_t *>(H.storage()->data())[k]);
+    case Dtype::Int16:
+      return static_cast<int64_t>(
+          static_cast<const int16_t *>(H.storage()->data())[k]);
+    case Dtype::Int32:
+      return static_cast<int64_t>(
+          static_cast<const int32_t *>(H.storage()->data())[k]);
+    case Dtype::Int64:
+      return static_cast<int64_t>(
+          static_cast<const int64_t *>(H.storage()->data())[k]);
+    case Dtype::Uint8:
+      return static_cast<int64_t>(
+          static_cast<const uint8_t *>(H.storage()->data())[k]);
+    case Dtype::Uint16:
+      return static_cast<int64_t>(
+          static_cast<const uint16_t *>(H.storage()->data())[k]);
+    case Dtype::Uint32:
+      return static_cast<int64_t>(
+          static_cast<const uint32_t *>(H.storage()->data())[k]);
+    case Dtype::Uint64:
+      return static_cast<int64_t>(
+          static_cast<const uint64_t *>(H.storage()->data())[k]);
+    default:
+      throw std::logic_error("load_int64: non-integer dtype");
+    }
+  };
+  auto load_uint64 = [&](const HostTensor &H, const TensorViewDesc &V,
+                         const std::vector<std::uint64_t> &I) -> uint64_t {
+    const std::size_t k = V.constIndexOf({I.data(), I.size()});
+    switch (H.type()) {
+    case Dtype::Int8:
+      return static_cast<uint64_t>(
+          static_cast<const int8_t *>(H.storage()->data())[k]);
+    case Dtype::Int16:
+      return static_cast<uint64_t>(
+          static_cast<const int16_t *>(H.storage()->data())[k]);
+    case Dtype::Int32:
+      return static_cast<uint64_t>(
+          static_cast<const int32_t *>(H.storage()->data())[k]);
+    case Dtype::Int64:
+      return static_cast<uint64_t>(
+          static_cast<const int64_t *>(H.storage()->data())[k]);
+    case Dtype::Uint8:
+      return static_cast<uint64_t>(
+          static_cast<const uint8_t *>(H.storage()->data())[k]);
+    case Dtype::Uint16:
+      return static_cast<uint64_t>(
+          static_cast<const uint16_t *>(H.storage()->data())[k]);
+    case Dtype::Uint32:
+      return static_cast<uint64_t>(
+          static_cast<const uint32_t *>(H.storage()->data())[k]);
+    case Dtype::Uint64:
+      return static_cast<uint64_t>(
+          static_cast<const uint64_t *>(H.storage()->data())[k]);
+    default:
+      throw std::logic_error("load_uint64: non-integer dtype");
+    }
+  };
+  auto load_double = [&](const HostTensor &H, const TensorViewDesc &V,
+                         const std::vector<std::uint64_t> &I) -> double {
+    const std::size_t k = V.constIndexOf({I.data(), I.size()});
+    switch (H.type()) {
+    case Dtype::Float32:
+      return static_cast<const float *>(H.storage()->data())[k];
+    case Dtype::Float64:
+      return static_cast<const double *>(H.storage()->data())[k];
+    case Dtype::Int8:
+      return static_cast<const int8_t *>(H.storage()->data())[k];
+    case Dtype::Int16:
+      return static_cast<const int16_t *>(H.storage()->data())[k];
+    case Dtype::Int32:
+      return static_cast<const int32_t *>(H.storage()->data())[k];
+    case Dtype::Int64:
+      return static_cast<const int64_t *>(H.storage()->data())[k];
+    case Dtype::Uint8:
+      return static_cast<const uint8_t *>(H.storage()->data())[k];
+    case Dtype::Uint16:
+      return static_cast<const uint16_t *>(H.storage()->data())[k];
+    case Dtype::Uint32:
+      return static_cast<const uint32_t *>(H.storage()->data())[k];
+    case Dtype::Uint64:
+      return static_cast<const uint64_t *>(H.storage()->data())[k];
+    default:
+      throw std::logic_error("load_double: unsupported dtype");
+    }
+  };
+
+  // -------- Symbolic path (only with integers) --------
+  if (adt == Dtype::Sym || bdt == Dtype::Sym) {
+    if (is_float(adt) || is_float(bdt))
+      throw std::runtime_error(
+          fmt::format("vkcnn: Sub \"{}\": symbolic with floats not supported.",
+                      node.name()));
+
+    auto load_sym = [&](const HostTensor &H, const TensorViewDesc &V,
+                        const std::vector<std::uint64_t> &I) -> Sym {
+      const std::size_t k = V.constIndexOf({I.data(), I.size()});
+      switch (H.type()) {
+      case Dtype::Sym:
+        return static_cast<const Sym *>(H.storage()->data())[k];
+      case Dtype::Int8:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const int8_t *>(H.storage()->data())[k]));
+      case Dtype::Int16:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const int16_t *>(H.storage()->data())[k]));
+      case Dtype::Int32:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const int32_t *>(H.storage()->data())[k]));
+      case Dtype::Int64:
+        return Sym::Const(static_cast<const int64_t *>(H.storage()->data())[k]);
+      case Dtype::Uint8:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint8_t *>(H.storage()->data())[k]));
+      case Dtype::Uint16:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint16_t *>(H.storage()->data())[k]));
+      case Dtype::Uint32:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint32_t *>(H.storage()->data())[k]));
+      case Dtype::Uint64:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint64_t *>(H.storage()->data())[k]));
+      default:
+        throw std::logic_error("load_sym: invalid dtype");
+      }
+    };
+
+    std::size_t outCount = 1;
+    for (auto d : outDims)
+      outCount *= (size_t)d;
+    void *rawOut = std::malloc(outCount * sizeof(Sym));
+    if (!rawOut)
+      throw std::bad_alloc();
+    Sym *po = static_cast<Sym *>(rawOut);
+
+    while (true) {
+      const Sym xs = load_sym(A, viewA, idx);
+      const Sym ys = load_sym(B, viewB, idx);
+      // Prefer a direct sub if available; else xs + (-ys)
+      Sym r = state.symGraph->sub(xs, ys); // assumes SymGraph::sub exists
+      *po++ = r;
+      if (!inc())
+        break;
+    }
+
+    auto outStore =
+        std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
+            Dtype::Sym, rawOut, outCount * sizeof(Sym)));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
 
-  // === Case C: scalar ⊗ scalar
-  // If any side is float -> float math; else integer math.
-  if ((Af.has_value() || Bf.has_value()) ||
-      (Ai.has_value() && Bi.has_value())) {
-    if (Af.has_value() || Bf.has_value()) {
-      // float path (promote int to float if mixed)
-      double av = Af ? Af->v : (Ai ? (double)*Ai : 0.0);
-      double bv = Bf ? Bf->v : (Bi ? (double)*Bi : 0.0);
-      bool out64 = (Af && Af->is64) || (Bf && Bf->is64);
-      if (out64)
-        return {Tensor::Scalar((f64)(av - bv))};
-      else
-        return {Tensor::Scalar((f32)(av - bv))};
+  // -------- Float path (any float present → float; ints are promoted) --------
+  if (is_float(adt) || is_float(bdt)) {
+    const Dtype rdt = (adt == Dtype::Float64 || bdt == Dtype::Float64)
+                          ? Dtype::Float64
+                          : Dtype::Float32;
+    const size_t elem = dtype_size(rdt);
+    std::size_t outCount = 1;
+    for (auto d : outDims)
+      outCount *= (size_t)d;
+    void *rawOut = std::malloc(outCount * elem);
+    if (!rawOut)
+      throw std::bad_alloc();
+
+    if (rdt == Dtype::Float64) {
+      double *po = static_cast<double *>(rawOut);
+      while (true) {
+        const double x = load_double(A, viewA, idx);
+        const double y = load_double(B, viewB, idx);
+        *po++ = (x - y);
+        if (!inc())
+          break;
+      }
     } else {
-      // integer path
-      return {Tensor::Scalar((int64_t)(*Ai - *Bi))};
+      float *po = static_cast<float *>(rawOut);
+      while (true) {
+        const double x = load_double(A, viewA, idx);
+        const double y = load_double(B, viewB, idx);
+        *po++ = static_cast<float>(x - y);
+        if (!inc())
+          break;
+      }
     }
+
+    auto outStore = std::make_shared<HostTensorStorage>(
+        HostTensorStorage::TakeOwnership(rdt, rawOut, outCount * elem));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
 
-  // === Case D: RawTensor (0D) ⊗ anything not lifted above -> unsupported for
-  // now (Non-0D RawTensors not implemented; add if you want full
-  // constant-folding.)
+  // -------- Integer path (mixed widths/signedness allowed) --------
+  if (!(is_integer(adt) && is_integer(bdt)))
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Sub \"{}\": unsupported dtype combination.", node.name()));
 
-  if (A.isUnknown() || B.isUnknown()) {
-    throw std::runtime_error("vkcnn: Sub on unknown input kind");
+  const bool anySigned = is_signed_int(adt) || is_signed_int(bdt);
+  std::size_t outCount = 1;
+  for (auto d : outDims)
+    outCount *= (size_t)d;
+
+  if (anySigned) {
+    void *rawOut = std::malloc(outCount * sizeof(int64_t));
+    if (!rawOut)
+      throw std::bad_alloc();
+    auto *po = static_cast<int64_t *>(rawOut);
+
+    while (true) {
+      const int64_t x = load_int64(A, viewA, idx);
+      const int64_t y = load_int64(B, viewB, idx);
+      *po++ = (x - y); // overflow/underflow ignored per your policy
+      if (!inc())
+        break;
+    }
+
+    auto outStore =
+        std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
+            Dtype::Int64, rawOut, outCount * sizeof(int64_t)));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
+  } else {
+    void *rawOut = std::malloc(outCount * sizeof(uint64_t));
+    if (!rawOut)
+      throw std::bad_alloc();
+    auto *po = static_cast<uint64_t *>(rawOut);
+
+    while (true) {
+      const uint64_t x = load_uint64(A, viewA, idx);
+      const uint64_t y = load_uint64(B, viewB, idx);
+      *po++ = (x - y); // wrap-around is fine per your policy
+      if (!inc())
+        break;
+    }
+
+    auto outStore =
+        std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
+            Dtype::Uint64, rawOut, outCount * sizeof(uint64_t)));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
-  throw std::runtime_error(
-      fmt::format("vkcnn: Sub not supported for given input kinds (node='{}')",
-                  node.name()));
 }
 
 } // namespace vkcnn::details

@@ -14,7 +14,7 @@ static std::vector<Tensor> import_op_Gelu(
     [[maybe_unused]] ImportState &state,
     [[maybe_unused]] std::span<const std::optional<Tensor>> inputs,
     [[maybe_unused]] std::size_t outputCount,
-    [[maybe_unused]] const std::unordered_map<std::string, Tensor> &attributes,
+    [[maybe_unused]] const std::unordered_map<std::string, Attribute> &attributes,
     [[maybe_unused]] opset_version version, const onnx::NodeProto &node) {
   throw std::runtime_error(fmt::format(
       "vkcnn: operation Gelu is not supported (node = \"{}\")", node.name()));

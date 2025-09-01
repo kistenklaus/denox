@@ -49,8 +49,9 @@ struct Sym {
   static Sym Const(value_type v) { return Sym{v}; }
   static Sym Symbol(symbol sym) { return Sym{sym}; }
 
-private:
   Sym() : m_isConstant(true), m_constant(0) {}
+
+private:
   explicit Sym(value_type v) : m_isConstant(true), m_constant(v) {}
   explicit Sym(symbol sym) : m_isConstant(false), m_sym(sym) {}
 

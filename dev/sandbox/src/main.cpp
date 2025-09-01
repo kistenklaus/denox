@@ -693,7 +693,7 @@ void model_sandbox() {
   auto in_padded = nn.pad(in,                                        //
                           0, *(alignment - in.width() % alignment),  //
                           0, *(alignment - in.height() % alignment), //
-                          vkcnn::PaddingMode::Repeat);
+                          vkcnn::PaddingMode::Edge);
 
   auto extr = nn.ReLU(nn.Conv3x3(in_padded, 32));
   auto x_128 = nn.MaxPool(extr, glm::uvec2(2, 2));

@@ -115,12 +115,23 @@ public:
     return a.m_symGraph->resolve(a.m_self) == a.m_symGraph->resolve(b);
   }
 
+  Sym resolve() const{
+    return m_symGraph->resolve(m_self);
+  }
+
   bool isSymbolic() const { return m_symGraph->resolve(m_self).isSymbolic(); }
 
   bool isConstant() const { return m_symGraph->resolve(m_self).isConstant(); }
 
   Sym::value_type constant() const {
     return m_symGraph->resolve(m_self).constant();
+  }
+
+  const std::shared_ptr<SymGraph>& graph() const {
+    return m_symGraph;
+  }
+
+  Symbolic() : m_symGraph(nullptr), m_self(Sym::Const(0)){
   }
 
 private:

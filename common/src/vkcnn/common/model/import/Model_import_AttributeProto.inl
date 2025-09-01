@@ -215,105 +215,115 @@ infer_attribute_type_loose(const onnx::AttributeProto &a,
   return ret; // may still be UNDEFINED → caller makes a None tensor.
 }
 
-static std::pair<std::string, Tensor>
-parse_attribute(const ImportState &state, const onnx::AttributeProto &attrib,
+static std::pair<std::string, Attribute>
+parse_attribute(const ImportState &state, const onnx::AttributeProto &a,
                 std::string_view nodeName) {
-  const std::string &name = attrib.name();
+  const std::string name =
+      a.name().empty() ? std::string("<unnamed>") : a.name();
 
-  if (!attrib.ref_attr_name().empty()) {
-    throw std::runtime_error(
-        fmt::format("vkcnn: Node {} attribute {} is invalid. vkcnn does not "
-                    "support reference attributes. Normally found with "
-                    "functions definitions, which are not supported.",
-                    nodeName, name));
-    ;
+  if (!a.ref_attr_name().empty()) {
+    throw std::runtime_error(fmt::format(
+        "vkcnn: node \"{}\" attribute \"{}\": ref_attr_name is unsupported",
+        nodeName, name));
   }
-  auto type = infer_attribute_type_loose(attrib, nodeName);
 
-  switch (type) {
-  case onnx::AttributeProto_AttributeType_UNDEFINED:
-    // NOTE: Does not have to be a scalar, just a placeholder here.
-    return std::make_pair(attrib.name(), Tensor::Unknown());
-  case onnx::AttributeProto_AttributeType_FLOAT:
-    return std::make_pair(attrib.name(), Tensor::Scalar(attrib.f()));
-  case onnx::AttributeProto_AttributeType_INT:
-    return std::make_pair(attrib.name(), Tensor::Scalar(attrib.i()));
-  case onnx::AttributeProto_AttributeType_STRING:
-    return std::make_pair(attrib.name(), Tensor::String(attrib.s()));
-  case onnx::AttributeProto_AttributeType_TENSOR:
-    return std::make_pair(attrib.name(), parse_tensor(state, attrib.t()));
-  case onnx::AttributeProto_AttributeType_GRAPH:
-    throw std::runtime_error(
-        fmt::format("vkcnn: Node {} attribute {} invalid. Subgraph attributes "
-                    "are not supported.",
-                    nodeName, name));
-  case onnx::AttributeProto_AttributeType_SPARSE_TENSOR:
-    throw std::runtime_error(
-        fmt::format("vkcnn: Node {} attribute {} invalid. Sparse tensor "
-                    "attributes are not supported.",
-                    nodeName, name));
-  case onnx::AttributeProto_AttributeType_TYPE_PROTO:
-    throw std::runtime_error(
-        fmt::format("vkcnn: Node {} attribute {} invalid. Type prototype "
-                    "attributes are not supported.",
-                    nodeName, name));
-  case onnx::AttributeProto_AttributeType_FLOATS: {
-    std::vector<Tensor> floats;
-    floats.reserve(attrib.floats_size());
-    for (const auto &f : attrib.floats()) {
-      floats.push_back(Tensor::Scalar(f));
-    }
-    return std::make_pair(attrib.name(), Tensor::List(std::move(floats)));
-  }
-  case onnx::AttributeProto_AttributeType_INTS: {
-    std::vector<Tensor> ints;
-    ints.reserve(attrib.ints_size());
-    for (const auto &i : attrib.ints()) {
-      ints.push_back(Tensor::Scalar(i));
-    }
-    return std::make_pair(attrib.name(), Tensor::List(std::move(ints)));
-  }
-  case onnx::AttributeProto_AttributeType_STRINGS: {
-    std::vector<Tensor> strings;
-    strings.reserve(attrib.strings_size());
-    for (const auto &str : attrib.strings()) {
-      strings.push_back(Tensor::String(str));
-    }
-    return std::make_pair(attrib.name(), Tensor::List(std::move(strings)));
-  }
-  case onnx::AttributeProto_AttributeType_TENSORS: {
-    std::vector<Tensor> tensors;
-    tensors.reserve(attrib.tensors_size());
-    for (const auto &tensor : attrib.tensors()) {
-      tensors.push_back(parse_tensor(state, tensor));
-    }
-    return std::make_pair(attrib.name(), Tensor::List(std::move(tensors)));
-  }
-  case onnx::AttributeProto_AttributeType_GRAPHS:
+  using AT = onnx::AttributeProto_AttributeType;
+  const AT at = infer_attribute_type_loose(a, nodeName);
+
+  switch (at) {
+  case AT::AttributeProto_AttributeType_UNDEFINED:
+    // Ambiguous (e.g., scalar default 0 or empty list w/o explicit type).
+    // Safer to fail loudly than guess.
     throw std::runtime_error(fmt::format(
-        "vkcnn: Node {} attribute {} invalid. List of subgraph attributes "
-        "are not supported.",
+        "vkcnn: node \"{}\" attribute \"{}\": unable to infer attribute type "
+        "(ambiguous/absent payload). Exporter should set explicit type.",
         nodeName, name));
-  case onnx::AttributeProto_AttributeType_SPARSE_TENSORS:
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Node {} attribute {} invalid. List of sparse tensor "
-        "attributes are not supported.",
-        nodeName, name));
-  case onnx::AttributeProto_AttributeType_TYPE_PROTOS:
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Node {} attribute {} invalid. List of type prototype "
-        "attributes are not supported.",
-        nodeName, name));
-  case onnx::
-      AttributeProto_AttributeType_AttributeProto_AttributeType_INT_MIN_SENTINEL_DO_NOT_USE_:
-    throw std::runtime_error(
-        fmt::format("vkcnn: Node {} attribute {} invalid", nodeName, name));
-  case onnx::
-      AttributeProto_AttributeType_AttributeProto_AttributeType_INT_MAX_SENTINEL_DO_NOT_USE_:
-    throw std::runtime_error(
-        fmt::format("vkcnn: Node {} attribute {} invalid", nodeName, name));
+
+  case AT::AttributeProto_AttributeType_FLOAT:
+    return {a.name(), Attribute::Float(a.f())};
+
+  case AT::AttributeProto_AttributeType_INT:
+    return {a.name(), Attribute::Int(static_cast<std::int64_t>(a.i()))};
+
+  case AT::AttributeProto_AttributeType_STRING:
+    return {a.name(), Attribute::String(a.s())};
+
+  case AT::AttributeProto_AttributeType_TENSOR: {
+    // ONNX attribute tensors are compile-time constants → HostTensor
+    HostTensor ht = parse_tensor(state, a.t());
+    return {a.name(), Attribute::Tensor(std::move(ht))};
   }
-  throw std::logic_error("unreachable");
+
+  case AT::AttributeProto_AttributeType_GRAPH:
+    throw std::runtime_error(fmt::format(
+        "vkcnn: node \"{}\" attribute \"{}\": GRAPH attributes unsupported",
+        nodeName, name));
+
+  case AT::AttributeProto_AttributeType_SPARSE_TENSOR:
+    throw std::runtime_error(fmt::format(
+        "vkcnn: node \"{}\" attribute \"{}\": SPARSE_TENSOR unsupported",
+        nodeName, name));
+
+  case AT::AttributeProto_AttributeType_TYPE_PROTO:
+    throw std::runtime_error(fmt::format(
+        "vkcnn: node \"{}\" attribute \"{}\": TYPE_PROTO unsupported", nodeName,
+        name));
+
+  case AT::AttributeProto_AttributeType_FLOATS: {
+    std::vector<float> v;
+    v.reserve(a.floats_size());
+    for (float f : a.floats())
+      v.push_back(f);
+    return {a.name(), Attribute::Floats(std::move(v))};
+  }
+
+  case AT::AttributeProto_AttributeType_INTS: {
+    std::vector<std::int64_t> v;
+    v.reserve(a.ints_size());
+    for (auto vi : a.ints())
+      v.push_back(static_cast<std::int64_t>(vi));
+    return {a.name(), Attribute::Ints(std::move(v))};
+  }
+
+  case AT::AttributeProto_AttributeType_STRINGS: {
+    std::vector<std::string> v;
+    v.reserve(a.strings_size());
+    for (const auto &s : a.strings())
+      v.emplace_back(s);
+    return {a.name(), Attribute::Strings(std::move(v))};
+  }
+
+  case AT::AttributeProto_AttributeType_TENSORS: {
+    std::vector<HostTensor> v;
+    v.reserve(a.tensors_size());
+    for (const auto &tp : a.tensors()) {
+      v.emplace_back(parse_tensor(state, tp));
+    }
+    return {a.name(), Attribute::Tensors(std::move(v))};
+  }
+
+  case AT::AttributeProto_AttributeType_GRAPHS:
+    throw std::runtime_error(
+        fmt::format("vkcnn: node \"{}\" attribute \"{}\": GRAPHS unsupported",
+                    nodeName, name));
+
+  case AT::AttributeProto_AttributeType_SPARSE_TENSORS:
+    throw std::runtime_error(fmt::format(
+        "vkcnn: node \"{}\" attribute \"{}\": SPARSE_TENSORS unsupported",
+        nodeName, name));
+
+  case AT::AttributeProto_AttributeType_TYPE_PROTOS:
+    throw std::runtime_error(fmt::format(
+        "vkcnn: node \"{}\" attribute \"{}\": TYPE_PROTOS unsupported",
+        nodeName, name));
+
+  default:
+    break;
+  }
+
+  throw std::runtime_error(fmt::format(
+      "vkcnn: node \"{}\" attribute \"{}\": unsupported/unknown attribute type",
+      nodeName, name));
 }
 
 } // namespace vkcnn::details

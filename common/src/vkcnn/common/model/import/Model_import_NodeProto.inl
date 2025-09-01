@@ -208,7 +208,7 @@ namespace vkcnn::details {
 static std::vector<Tensor>
 import_node_op(ImportState &state, const onnx::NodeProto &node,
                std::span<const std::optional<Tensor>> inputs,
-               const std::unordered_map<std::string, Tensor> &attributes) {
+               const std::unordered_map<std::string, Attribute> &attributes) {
   std::string dom = node.domain();
   // NOTE: Should always exists, otherwise we would have fucked up parsing the
   // top-level opsets.
@@ -814,14 +814,14 @@ import_node_op(ImportState &state, const onnx::NodeProto &node,
 
 static void import_node(ImportState &state, const onnx::NodeProto &node) {
 
-  std::unordered_map<std::string, Tensor> attributes;
+  std::unordered_map<std::string, Attribute> attributes;
   attributes.reserve(node.attribute_size());
 
   for (const auto &attrib : node.attribute()) {
     const auto [name, tensor] = parse_attribute(state, attrib, node.name());
     if (attributes.contains(name)) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Node {} has duplicate argument {}", node.name(), name));
+          "vkcnn: Node {} has duplicate attribute {}", node.name(), name));
     }
     attributes.emplace(name, tensor);
   }
@@ -855,11 +855,6 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
     if (outputName == "") {
       // Optional output, ignore not used anywhere in the graph.
       continue;
-    }
-    if (outputs[i].isUnknown()) {
-      throw std::runtime_error(
-          fmt::format("vkcnn: Node {} produces unknown output {}.", node.name(),
-                      outputName));
     }
     if (state.tensors.map.contains(outputName)) {
       throw std::runtime_error(

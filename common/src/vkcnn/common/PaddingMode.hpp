@@ -4,7 +4,7 @@ namespace vkcnn {
 
 enum class PaddingMode {
   Zero,
-  Repeat,
+  Edge,
 };
 
 }

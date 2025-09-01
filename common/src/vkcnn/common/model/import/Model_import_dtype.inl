@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vkcnn/common/symbolic/Sym.hpp"
 #include "vkcnn/common/tensor/FloatType.hpp"
 #include <onnx.pb.h>
 
@@ -22,6 +23,7 @@ enum class Dtype {
   Float16,
   String,
   Bool,
+  Sym,
   // everything else is not supported (currently)
 };
 
@@ -136,11 +138,10 @@ static std::size_t dtype_size(Dtype dtype) {
     return 8;
   case Dtype::Undefined:
     throw std::logic_error("Trying to call dtype_size with Dtype::Undefined");
-    break;
   case Dtype::String:
     throw std::logic_error("Trying to call dtype_size with Dtype::String");
-    break;
-    break;
+  case Dtype::Sym:
+    return sizeof(Sym);
   }
   throw std::runtime_error("Unexpected dtype");
 }
@@ -175,6 +176,8 @@ static std::string dtype_to_string(Dtype dtype) {
     return "string";
   case Dtype::Bool:
     return "bool";
+  case Dtype::Sym:
+    return "symbolic";
     break;
   }
   throw std::logic_error("Unexpected dtype");

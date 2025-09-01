@@ -11,413 +11,255 @@
 namespace vkcnn::details {
 
 static std::vector<Tensor> import_op_Gather(
-    [[maybe_unused]] ImportState &state,
-    std::span<const std::optional<Tensor>> inputs, std::size_t outputCount,
-    const std::unordered_map<std::string, Tensor> &attributes,
-    [[maybe_unused]] opset_version /*version*/, const onnx::NodeProto &node) {
+    ImportState &state, std::span<const std::optional<Tensor>> inputs,
+    std::size_t outputCount,
+    const std::unordered_map<std::string, Attribute> &attributes,
+    [[maybe_unused]] opset_version version, const onnx::NodeProto &node) {
 
-  // --- Contract checks
-  if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value()) {
+  // Arity
+  if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Gather requires exactly two inputs (data, "
-                    "indices). Got {} (node='{}')",
-                    inputs.size(), node.op_type()));
-  }
-  if (outputCount != 1) {
-    throw std::runtime_error("vkcnn: Gather must produce exactly one output");
+        fmt::format("vkcnn: Gather \"{}\" expects 2 inputs.", node.name()));
+  if (outputCount != 1)
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Gather \"{}\" must have exactly 1 output.", node.name()));
+
+  // Host-only
+  const Tensor &dataT = *inputs[0];
+  const Tensor &indicesT = *inputs[1];
+  if (dataT.isDevice() || indicesT.isDevice())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Gather \"{}\": runtime tensors not supported.", node.name()));
+  const HostTensor &data = dataT.host();
+  const HostTensor &indices = indicesT.host();
+
+  // axis
+  std::int64_t axis = 0;
+  if (auto it = attributes.find("axis"); it != attributes.end()) {
+    if (!it->second.isInt())
+      throw std::runtime_error(fmt::format(
+          "vkcnn: Gather \"{}\": attribute 'axis' must be int.", node.name()));
+    axis = it->second.i();
   }
 
-  const Tensor &data = *inputs[0];
-  const Tensor &indices = *inputs[1];
-
-  // --- Reject runtime tensors anywhere
-  if (data.isRuntimeTensor()) {
+  // Must be static (host op)
+  if (!data.isConstant() || !indices.isConstant())
     throw std::runtime_error(
-        "vkcnn: Gather on runtime tensors is not supported");
-  }
-  if (indices.isRuntimeTensor()) {
+        fmt::format("vkcnn: Gather \"{}\": dynamic host tensors unsupported.",
+                    node.name()));
+  // We’ll use constIndexOf → require constant view too.
+  if (!data.view().isConstant())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Gather \"{}\": non-constant view unsupported.", node.name()));
+
+  // Normalize axis
+  const auto dRank = static_cast<std::int64_t>(data.rank());
+  if (dRank <= 0)
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Gather \"{}\": data rank must be >=1.", node.name()));
+  if (axis < 0)
+    axis += dRank;
+  if (axis < 0 || axis >= dRank)
     throw std::runtime_error(
-        "vkcnn: Gather with runtime indices is not supported");
+        fmt::format("vkcnn: Gather \"{}\": axis {} out of range for rank {}.",
+                    node.name(), axis, dRank));
+
+  // Indices dtype
+  if (indices.type() != Dtype::Int64)
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Gather \"{}\": indices must be INT64.", node.name()));
+
+  // Make indices contiguous for easy reading
+  HostTensor idxC = indices.contiguous();
+  const auto idxDimsU64 = idxC.shape().toU64();
+  const size_t idxRank = idxDimsU64.size();
+
+  // Fast path: scalar index → select
+  if (idxRank == 0) {
+    const auto sv = idxC.storage()->i64();
+    const std::int64_t v = sv.empty() ? 0 : sv[0];
+
+    const auto dataDims = data.shape().toU64();
+    const auto ax = static_cast<size_t>(axis);
+    if (v < 0 || static_cast<std::uint64_t>(v) >= dataDims[ax])
+      throw std::runtime_error(fmt::format(
+          "vkcnn: Gather \"{}\": index {} out of bounds for axis {}.",
+          node.name(), v, axis));
+
+    HostTensor out = data.select(ax, static_cast<std::uint64_t>(v));
+    return {Tensor::Host(std::move(out))};
   }
 
-  // --- Parse axis (default 0). Your policy: present-but-Unknown => 0.
-  auto get_axis = [&]() -> int64_t {
-    auto it = attributes.find("axis");
-    if (it == attributes.end())
+  // Fast path: 1-D arange → narrow
+  if (idxRank == 1) {
+    const auto sv = idxC.storage()->i64();
+    const size_t L = sv.size();
+    if (L == 0) {
+      HostTensor out = data.narrow(static_cast<size_t>(axis), 0, 0);
+      return {Tensor::Host(std::move(out))};
+    }
+    const std::int64_t start = sv[0];
+    bool is_arange = (start >= 0);
+    for (size_t i = 1; is_arange && i < L; ++i) {
+      if (sv[i] != start + static_cast<std::int64_t>(i))
+        is_arange = false;
+      if (sv[i] < 0)
+        is_arange = false;
+    }
+    if (is_arange) {
+      const auto dataDims = data.shape().toU64();
+      const auto ax = static_cast<size_t>(axis);
+      const auto axSize = dataDims[ax];
+      const std::uint64_t ustart = static_cast<std::uint64_t>(start);
+      if (ustart > axSize || (L > 0 && ustart + (L - 1) >= axSize))
+        throw std::runtime_error(fmt::format(
+            "vkcnn: Gather \"{}\": range [{}, {}] out of bounds on axis {}.",
+            node.name(), start, start + static_cast<std::int64_t>(L - 1),
+            axis));
+
+      HostTensor out = data.narrow(ax, ustart, L);
+      return {Tensor::Host(std::move(out))};
+    }
+  }
+
+  // General path: materialize
+  const auto dataDims = data.shape().toU64();
+  const auto idxDims = idxDimsU64;
+
+  // Output shape = replace data[axis] with indices.shape
+  std::vector<Symbolic> outSyms;
+  outSyms.reserve(dataDims.size() - 1 + idxDims.size());
+  {
+    const auto g = data.shape().graph();
+    for (size_t i = 0; i < static_cast<size_t>(axis); ++i)
+      outSyms.emplace_back(g,
+                           Sym::Const(static_cast<std::int64_t>(dataDims[i])));
+    for (auto d : idxDims)
+      outSyms.emplace_back(g, Sym::Const(static_cast<std::int64_t>(d)));
+    for (size_t i = static_cast<size_t>(axis) + 1; i < dataDims.size(); ++i)
+      outSyms.emplace_back(g,
+                           Sym::Const(static_cast<std::int64_t>(dataDims[i])));
+  }
+  TensorShape outShape{data.shape().graph(), std::move(outSyms)};
+  const auto outDims = outShape.toU64();
+
+  const Dtype dt = data.type();
+  const size_t elem = data.elemSize();
+
+  std::size_t outCount = 1;
+  for (auto d : outDims)
+    outCount *= static_cast<std::size_t>(d);
+
+  // Allocate destination
+  std::shared_ptr<HostTensorStorage> dstStore;
+  if (dt == Dtype::String) {
+    auto table = static_cast<char **>(std::malloc(outCount * sizeof(char *)));
+    if (!table)
+      throw std::bad_alloc();
+    dstStore =
+        std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
+            Dtype::String, table, outCount * sizeof(char *)));
+  } else {
+    void *raw = std::malloc(outCount * elem);
+    if (!raw)
+      throw std::bad_alloc();
+    dstStore = std::make_shared<HostTensorStorage>(
+        HostTensorStorage::TakeOwnership(dt, raw, outCount * elem));
+  }
+
+  // Prepare iteration
+  const size_t dRankZ = dataDims.size();
+  const size_t iRankZ = idxDims.size();
+  const size_t oRankZ = outDims.size();
+
+  const auto &view = data.view(); // constant by check above
+  const auto *srcBase = static_cast<const std::byte *>(data.storage()->data());
+  const auto *idxBase = idxC.storage()->i64().data();
+
+  std::vector<std::uint64_t> oIdx(oRankZ, 0);
+  std::vector<std::uint64_t> dIdx(dRankZ, 0);
+  std::vector<std::uint64_t> iIdx(iRankZ, 0);
+
+  auto inc = [](std::vector<std::uint64_t> &idx,
+                std::span<const std::uint64_t> dims) -> bool {
+    if (idx.empty())
+      return false;
+    size_t ax = idx.size();
+    while (ax > 0) {
+      --ax;
+      if (++idx[ax] < dims[ax])
+        return true;
+      idx[ax] = 0;
+    }
+    return false;
+  };
+
+  auto idxLinear = [&](std::span<const std::uint64_t> dims) -> std::size_t {
+    if (iRankZ == 0)
       return 0;
-    const Tensor &a = it->second;
-    if (a.isUnknown())
-      return 0;
-    if (!a.isScalar())
-      throw std::runtime_error(
-          "vkcnn: Gather attribute 'axis' must be an integer scalar");
-    const auto &s = a.scalar();
-    if (s.dtype != Dtype::Int64 && s.dtype != Dtype::Int32 &&
-        s.dtype != Dtype::Int16)
-      throw std::runtime_error(
-          "vkcnn: Gather attribute 'axis' must be an integer");
-    return s.v.i;
-  };
-  int64_t axis = get_axis();
-
-  // --- Helpers -------------------------------------------------------------
-
-  // Read indices as a flat vector<int64_t> and remember their shape (for
-  // RawTensor path).
-  struct IndicesInfo {
-    bool is_scalar = false;      // true if scalar index
-    ShapeTensor shape;           // shape of indices tensor (scalar => Scalar())
-    std::vector<int64_t> values; // flattened values
-  };
-
-  auto parse_indices_any = [&](const Tensor &t,
-                               bool allow_multi_rank) -> IndicesInfo {
-    // Scalar ints
-    if (t.isScalar()) {
-      const auto &s = t.scalar();
-      if (s.dtype != Dtype::Int64 && s.dtype != Dtype::Int32 &&
-          s.dtype != Dtype::Int16)
-        throw std::runtime_error(
-            "vkcnn: Gather indices scalar must be integer");
-      return IndicesInfo{true, ShapeTensor::Scalar(),
-                         std::vector<int64_t>{static_cast<int64_t>(s.v.i)}};
+    std::size_t lin = 0, stride = 1;
+    for (size_t k = 0; k < iRankZ; ++k) {
+      size_t ax = iRankZ - 1 - k;
+      lin += static_cast<std::size_t>(iIdx[ax] * stride);
+      stride *= static_cast<std::size_t>(dims[ax]);
     }
-    // List of integer scalars -> 1-D vector
-    if (t.isList()) {
-      const auto &lst = t.list().tensors;
-      IndicesInfo out;
-      out.is_scalar = false;
-      out.values.reserve(lst.size());
-      for (const Tensor &e : lst) {
-        if (!e.isScalar())
-          throw std::runtime_error(
-              "vkcnn: Gather indices list elements must be integer scalars");
-        const auto &s = e.scalar();
-        if (s.dtype != Dtype::Int64 && s.dtype != Dtype::Int32 &&
-            s.dtype != Dtype::Int16)
-          throw std::runtime_error(
-              "vkcnn: Gather indices list elements must be integer");
-        out.values.push_back(static_cast<int64_t>(s.v.i));
-      }
-      out.shape = ShapeTensor::Vec(out.values.size()); // 1-D [n]
-      return out;
-    }
-    // Constant tensor of ints
-    if (t.isRaw()) {
-      const auto &rt = t.raw();
-      // dtype check (support int64/int32/int16)
-      if (!(rt.type == Dtype::Int64 || rt.type == Dtype::Int32 ||
-            rt.type == Dtype::Int16)) {
-        throw std::runtime_error(
-            "vkcnn: Gather indices tensor must be int64/int32/int16");
-      }
-      // Compute element count from shape
-      size_t count = 1;
-      if (rt.shape.isTensor()) {
-        for (const Dim &d : rt.shape.dims()) {
-          if (!d.isConst())
-            throw std::runtime_error(
-                "vkcnn: Gather indices shape must be static");
-          count *= static_cast<size_t>(d.value());
-        }
-      } else {
-        // scalar
-        count = 1;
-      }
-      // Read raw -> values
-      size_t elem_bytes =
-          (rt.type == Dtype::Int64) ? 8 : (rt.type == Dtype::Int32 ? 4 : 2);
-      if (rt.raw.size() != count * elem_bytes)
-        throw std::runtime_error(
-            "vkcnn: Gather indices raw payload size mismatch");
-      IndicesInfo out;
-      out.values.resize(count);
-      if (rt.type == Dtype::Int64) {
-        const int64_t *p = reinterpret_cast<const int64_t *>(rt.raw.data());
-        for (size_t i = 0; i < count; ++i)
-          out.values[i] = p[i];
-      } else if (rt.type == Dtype::Int32) {
-        const int32_t *p = reinterpret_cast<const int32_t *>(rt.raw.data());
-        for (size_t i = 0; i < count; ++i)
-          out.values[i] = static_cast<int64_t>(p[i]);
-      } else { // Int16
-        const int16_t *p = reinterpret_cast<const int16_t *>(rt.raw.data());
-        for (size_t i = 0; i < count; ++i)
-          out.values[i] = static_cast<int64_t>(p[i]);
-      }
-      out.is_scalar = (rt.shape.isScalar());
-      out.shape = rt.shape.isScalar()
-                      ? ShapeTensor::Scalar()
-                      : ShapeTensor::Tensor(rt.shape.dims()); // preserve rank
-      if (!allow_multi_rank && out.shape.isTensor() &&
-          out.shape.dims().size() > 1) {
-        throw std::runtime_error(
-            "vkcnn: Gather indices must be scalar or 1-D for this input kind");
-      }
-      return out;
-    }
-
-    throw std::runtime_error("vkcnn: Gather indices must be integer scalars, "
-                             "integer lists, or constant integer tensors");
+    return lin;
   };
 
-  auto normalize_axis = [](int64_t ax, int64_t rank) -> int64_t {
-    if (rank < 0)
-      throw std::logic_error("vkcnn: internal error rank<0");
-    if (ax < 0)
-      ax += rank;
-    if (ax < 0 || ax >= rank)
-      throw std::runtime_error("vkcnn: Gather 'axis' out of range");
-    return ax;
-  };
+  std::byte *dstBytes = (dt == Dtype::String)
+                            ? nullptr
+                            : static_cast<std::byte *>(dstStore->data());
+  char **dstStrs =
+      (dt == Dtype::String) ? static_cast<char **>(dstStore->data()) : nullptr;
+  std::size_t outWritten = 0;
 
-  auto normalize_idx = [](int64_t idx, int64_t dim) -> int64_t {
-    if (idx < 0)
-      idx += dim;
-    if (idx < 0 || idx >= dim)
-      throw std::runtime_error("vkcnn: Gather index out of bounds");
-    return idx;
-  };
+  while (true) {
+    // oIdx → (iIdx, dIdx)
+    size_t od = 0;
+    for (size_t i = 0; i < static_cast<size_t>(axis); ++i, ++od)
+      dIdx[i] = oIdx[od];
 
-  // ===================== CASE A: ShapeTensor ===============================
-  if (data.isShape()) {
-    const ShapeTensor &sv = data.shapeTensor();
-    // ShapeTensor in your IR is always 1-D vector of Dims (for "shape values").
-    // Axis must be 0 for a 1-D vector.
-    int64_t rank = 1;
-    int64_t ax = normalize_axis(axis, rank);
-    (void)ax; // ax==0 guaranteed
+    for (size_t i = 0; i < iRankZ; ++i, ++od)
+      iIdx[i] = oIdx[od];
 
-    // Indices: for ShapeTensor we only support scalar or 1-D (so we can return
-    // another ShapeTensor)
-    IndicesInfo idx = parse_indices_any(indices, /*allow_multi_rank=*/false);
+    std::int64_t selectVal =
+        (iRankZ == 0) ? idxBase[0] : idxBase[idxLinear(idxDims)];
+    const auto ax = static_cast<size_t>(axis);
+    if (selectVal < 0 || static_cast<std::uint64_t>(selectVal) >= dataDims[ax])
+      throw std::runtime_error(fmt::format(
+          "vkcnn: Gather \"{}\": index {} out of bounds on axis {}.",
+          node.name(), selectVal, axis));
+    dIdx[ax] = static_cast<std::uint64_t>(selectVal);
 
-    const auto &in =
-        sv.isScalar()
-            ? ShapeVector{}
-            // theoretically empty; but Gather on scalar is invalid anyway
-            : sv.dims();
+    for (size_t i = ax + 1; i < dRankZ; ++i, ++od)
+      dIdx[i] = oIdx[od];
 
-    if (sv.isScalar()) {
-      throw std::runtime_error(
-          "vkcnn: Gather on a scalar ShapeTensor is invalid");
-    }
+    // Source element index (in elements), then copy
+    const std::size_t srcElem = view.constIndexOf(
+        std::span<const std::uint64_t>(dIdx.data(), dIdx.size()));
 
-    if (idx.is_scalar) {
-      int64_t n = static_cast<int64_t>(in.size());
-      int64_t ii = normalize_idx(idx.values[0], n);
-      // NOTE: ONNX would return a scalar int64 here.
-      // Your ShapeTensor cannot carry a single Dim in Scalar() form,
-      // so we return a 1-D shape-vector of length 1 to preserve the Dim.
-      ShapeVector out(1);
-      out[0] = in[static_cast<size_t>(ii)];
-      return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
+    if (dt == Dtype::String) {
+      const char *srcp =
+          reinterpret_cast<char *const *>(data.storage()->data())[srcElem];
+      const std::size_t len = std::strlen(srcp);
+      char *copy = static_cast<char *>(std::malloc(len + 1));
+      if (!copy)
+        throw std::bad_alloc();
+      std::memcpy(copy, srcp, len + 1);
+      dstStrs[outWritten++] = copy;
     } else {
-      // 1-D indices -> 1-D shape-vector of selected dims
-      if (!idx.shape.isTensor())
-        throw std::logic_error("vkcnn: indices parsing bug (expected 1-D)");
-      ShapeVector out;
-      out.reserve(idx.values.size());
-      int64_t n = static_cast<int64_t>(in.size());
-      for (int64_t v : idx.values) {
-        int64_t ii = normalize_idx(v, n);
-        out.push_back(in[static_cast<size_t>(ii)]);
-      }
-      return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
+      const std::size_t srcByte = srcElem * elem;
+      std::memcpy(dstBytes, srcBase + srcByte, elem);
+      dstBytes += elem;
+      ++outWritten;
     }
+
+    if (!inc(oIdx, outDims))
+      break;
   }
 
-  // ===================== CASE B: ListTensor (sequence) =====================
-  if (data.isList()) {
-    // Sequence is conceptually 1-D; only axis==0 makes sense here.
-    int64_t ax = normalize_axis(axis, /*rank=*/1);
-    (void)ax; // must be 0
-
-    const auto &in = data.list().tensors;
-    IndicesInfo idx = parse_indices_any(indices, /*allow_multi_rank=*/false);
-
-    if (idx.is_scalar) {
-      int64_t n = static_cast<int64_t>(in.size());
-      int64_t ii = normalize_idx(idx.values[0], n);
-      // Return the selected element directly (sequence -> element)
-      return {in[static_cast<size_t>(ii)]};
-    } else {
-      // 1-D indices -> subsequence
-      if (!idx.shape.isTensor())
-        throw std::logic_error("vkcnn: indices parsing bug (expected 1-D)");
-      std::vector<Tensor> out;
-      out.reserve(idx.values.size());
-      int64_t n = static_cast<int64_t>(in.size());
-      for (int64_t v : idx.values) {
-        int64_t ii = normalize_idx(v, n);
-        out.push_back(in[static_cast<size_t>(ii)]);
-      }
-      return {Tensor::List(std::move(out))};
-    }
-  }
-
-  // ===================== CASE C: RawTensor (constant tensor) ===============
-  if (data.isRaw()) {
-    const auto &rt = data.raw();
-
-    // Strings in RawTensor are not byte-addressable in a standard way here.
-    if (rt.type == Dtype::String) {
-      throw std::runtime_error(
-          "vkcnn: Gather on RawTensor<string> not supported");
-    }
-
-    // Compute rank and sizes (must be static)
-    std::vector<int64_t> sizes;
-    int64_t rank;
-    if (rt.shape.isScalar()) {
-      rank = 0;
-    } else {
-      rank = static_cast<int64_t>(rt.shape.dims().size());
-      sizes.reserve(static_cast<size_t>(rank));
-      for (const Dim &d : rt.shape.dims()) {
-        if (!d.isConst())
-          throw std::runtime_error(
-              "vkcnn: Gather on RawTensor requires static shape");
-        sizes.push_back(static_cast<int64_t>(d.value()));
-      }
-    }
-    if (rank == 0) {
-      throw std::runtime_error("vkcnn: Gather on scalar tensor is invalid");
-    }
-
-    int64_t ax = normalize_axis(axis, rank);
-
-    // Parse indices (allow full-rank for true tensor gather)
-    IndicesInfo idx = parse_indices_any(indices, /*allow_multi_rank=*/true);
-
-    // Compute elem size (bytes)
-    auto dtype_size = [](Dtype t) -> size_t {
-      switch (t) {
-      case Dtype::Int8:
-      case Dtype::Uint8:
-        return 1;
-      case Dtype::Int16:
-      case Dtype::Uint16:
-      case Dtype::Float16:
-        return 2;
-      case Dtype::Int32:
-      case Dtype::Uint32:
-      case Dtype::Float32:
-        return 4;
-      case Dtype::Int64:
-      case Dtype::Uint64:
-      case Dtype::Float64:
-        return 8;
-      default:
-        return 0;
-      }
-    };
-    size_t esize = dtype_size(rt.type);
-    if (esize == 0)
-      throw std::runtime_error(
-          "vkcnn: Gather on RawTensor: unsupported dtype for raw gather");
-
-    // Precompute products
-    auto prod = [](const std::vector<int64_t> &v, size_t a,
-                   size_t b) -> int64_t {
-      int64_t p = 1;
-      for (size_t i = a; i < b; ++i)
-        p *= v[i];
-      return p;
-    };
-
-    const int64_t inner_block_elems =
-        (ax + 1 <= rank) ? prod(sizes, static_cast<size_t>(ax + 1),
-                                static_cast<size_t>(rank))
-                         : 1;
-    const int64_t middle = sizes[static_cast<size_t>(ax)];
-    const int64_t outer_block =
-        (ax > 0) ? prod(sizes, 0, static_cast<size_t>(ax)) : 1;
-
-    // Normalize & validate indices against 'middle'
-    std::vector<int64_t> idx_vals = idx.values;
-    for (auto &v : idx_vals)
-      v = normalize_idx(v, middle);
-
-    // Output shape: S[:ax] + K + S[ax+1:]
-    ShapeVector out_shape_vec;
-    // prefix
-    for (int64_t i = 0; i < ax; ++i)
-      out_shape_vec.push_back(
-          Dim::Const(static_cast<uint64_t>(sizes[static_cast<size_t>(i)])));
-    // K
-    if (!idx.is_scalar) {
-      if (idx.shape.isScalar()) {
-        // logically scalar -> nothing; but we only expect scalar/nd here
-      } else {
-        for (const Dim &kd : idx.shape.dims())
-          out_shape_vec.push_back(kd); // all K dims are constants here
-      }
-    }
-    // suffix
-    for (int64_t i = ax + 1; i < rank; ++i)
-      out_shape_vec.push_back(
-          Dim::Const(static_cast<uint64_t>(sizes[static_cast<size_t>(i)])));
-
-    // Compute element counts
-    int64_t out_elems_per_outer =
-        (idx.is_scalar ? 1 : static_cast<int64_t>(idx_vals.size())) *
-        inner_block_elems;
-    int64_t out_outer = outer_block;
-    size_t out_total_elems =
-        static_cast<size_t>(out_elems_per_outer * out_outer);
-
-    // Reserve output raw buffer
-    RawTensor out;
-    out.type = rt.type;
-    out.shape = out_shape_vec.empty()
-                    ? ShapeTensor::Scalar()
-                    : ShapeTensor::Tensor(std::move(out_shape_vec));
-    out.raw.resize(static_cast<size_t>(out_total_elems) * esize);
-
-    const uint8_t *src = reinterpret_cast<const uint8_t *>(rt.raw.data());
-    uint8_t *dst = reinterpret_cast<uint8_t *>(out.raw.data());
-
-    const size_t copy_bytes = static_cast<size_t>(inner_block_elems) * esize;
-    const size_t stride_bytes =
-        static_cast<size_t>(middle) *
-        copy_bytes; // step between successive indices for same outer
-
-    // Copy: for each outer-block, gather selected slices along ax
-    size_t dst_off = 0;
-    for (int64_t ob = 0; ob < outer_block; ++ob) {
-      const size_t base = static_cast<size_t>(ob) * stride_bytes;
-      if (idx.is_scalar) {
-        const size_t src_off =
-            base + static_cast<size_t>(idx_vals[0]) * copy_bytes;
-        std::memcpy(dst + dst_off, src + src_off, copy_bytes);
-        dst_off += copy_bytes;
-      } else {
-        for (int64_t v : idx_vals) {
-          const size_t src_off = base + static_cast<size_t>(v) * copy_bytes;
-          std::memcpy(dst + dst_off, src + src_off, copy_bytes);
-          dst_off += copy_bytes;
-        }
-      }
-    }
-
-    return {Tensor::Raw(std::move(out))};
-  }
-
-  // ===================== CASE D: Scalar / String ===========================
-  if (data.isScalar() || data.isString()) {
-    // Scalar/string has rank 0 -> Gather is invalid for any axis.
-    throw std::runtime_error("vkcnn: Gather on scalar/string input is invalid");
-  }
-
-  if (data.isUnknown()) {
-    throw std::runtime_error("vkcnn: Gather on unknown input kind");
-  }
-
-  // Fallback (shouldn't get here)
-  throw std::runtime_error(
-      fmt::format("vkcnn: operation Gather is not supported for this input "
-                  "kind (node='{}')",
-                  node.name()));
+  HostTensor outHT(outShape, std::move(dstStore));
+  return {Tensor::Host(std::move(outHT))};
 }
+
 } // namespace vkcnn::details

@@ -2,9 +2,7 @@
 
 #include "vkcnn/common/model/import/Model_import_state.inl"
 #include "vkcnn/common/model/import/Model_import_tensors.inl"
-#include <algorithm>
 #include <fmt/format.h>
-#include <google/protobuf/any.h>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -12,124 +10,88 @@
 
 namespace vkcnn::details {
 
-static std::vector<Tensor> import_op_Shape(
-    [[maybe_unused]] ImportState &state,
-    [[maybe_unused]] std::span<const std::optional<Tensor>> inputs,
-    [[maybe_unused]] std::size_t outputCount,
-    [[maybe_unused]] const std::unordered_map<std::string, Tensor> &attributes,
-    [[maybe_unused]] opset_version version,
-    [[maybe_unused]] const onnx::NodeProto &node) {
+static std::vector<Tensor>
+import_op_Shape(ImportState &state,
+                std::span<const std::optional<Tensor>> inputs,
+                std::size_t outputCount,
+                const std::unordered_map<std::string, Attribute> &attributes,
+                opset_version version, const onnx::NodeProto &node) {
 
-  if (inputs.size() != 1) {
-    throw std::runtime_error(
-        fmt::format("vkcnn: Operation Shape requires exactly one input. Got {}",
-                    inputs.size()));
-  }
-  if (!inputs.front().has_value()) {
-    throw std::runtime_error(
-        "vkcnn: Operation Shape has input, but the input was not provided");
-  }
-  const auto &input = *inputs.front();
+  if (outputCount != 1)
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Shape expects exactly 1 output (node = \"{}\")", node.name()));
+  if (inputs.size() != 1 || !inputs[0].has_value())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Shape expects 1 input (node = \"{}\")", node.name()));
 
-  if (input.isScalar() || input.isString()) {
-    return {Tensor::Shape(ShapeTensor::Tensor({}))};
-  }
-  if (input.isUnknown()) {
-    throw std::runtime_error(
-        "vkcnn: Failed to infer input type of operation Shape");
-  }
-  if (input.isList()) {
-    throw std::runtime_error(
-        "vkcnn: Invalid type of input for operation Shape");
-  }
-  assert(input.isRaw() || input.isRuntimeTensor() || input.isShape());
+  const Tensor &in = *inputs[0];
+  const TensorShape inShape = in.shape();
+  const std::size_t r = inShape.rank();
 
-  ShapeTensor shape = input.shape();
-  if (shape.isScalar()) {
-    return {Tensor::Shape(ShapeTensor::Tensor({}))};
-  }
-
-  unsigned int rank = shape.rank();
-
+  // Optional start/end (use Python-like semantics)
   std::int64_t start = 0;
-  std::int64_t end = rank;
+  std::int64_t end = static_cast<std::int64_t>(r);
 
-  if (version < 15) {
-    if (attributes.contains("start")) {
-      auto startAttrib = attributes.at("start");
-      if (startAttrib.isUnknown()) {
-        start = 0;
-      } else {
-        if (!startAttrib.isScalar()) {
-          throw std::runtime_error(
-              "vkcnn: Operation Shape attribute \"start\" is not a integer.");
-        }
-        const auto &scalarAttrib = startAttrib.scalar();
-        if (scalarAttrib.dtype != Dtype::Int64 &&
-            scalarAttrib.dtype != Dtype::Int16 &&
-            scalarAttrib.dtype != Dtype::Int32) {
-          throw std::runtime_error(
-              "vkcnn: Operation Shape attribute \"start\" is not a integer.");
-        }
-        start = scalarAttrib.v.i;
-      }
+  auto itS = attributes.find("start");
+  if (itS != attributes.end()) {
+    if (!itS->second.isInt())
+      throw std::runtime_error(fmt::format(
+          "vkcnn: Shape: 'start' must be INT (node = \"{}\")", node.name()));
+    start = itS->second.i();
+  }
+  auto itE = attributes.find("end");
+  if (itE != attributes.end()) {
+    if (!itE->second.isInt())
+      throw std::runtime_error(fmt::format(
+          "vkcnn: Shape: 'end' must be INT (node = \"{}\")", node.name()));
+    end = itE->second.i();
+  }
+
+  auto norm = [&](std::int64_t v) -> std::int64_t {
+    if (v < 0)
+      v += static_cast<std::int64_t>(r);
+    if (v < 0)
+      v = 0;
+    if (v > static_cast<std::int64_t>(r))
+      v = static_cast<std::int64_t>(r);
+    return v;
+  };
+  const std::int64_t s = norm(start);
+  const std::int64_t e = norm(end);
+  const std::size_t outLen = (e > s) ? static_cast<std::size_t>(e - s) : 0;
+
+  // Output shape is 1-D [outLen]
+  std::vector<std::uint64_t> outDim = {outLen};
+  TensorShape outShape(state.symGraph, std::span<const std::uint64_t>(outDim));
+
+  std::shared_ptr<HostTensorStorage> store;
+
+  if (inShape.isConstant()) {
+    // Return INT64 (standard ONNX)
+    std::vector<std::int64_t> vals;
+    vals.reserve(outLen);
+    for (std::size_t i = 0; i < outLen; ++i) {
+      const auto &d = inShape[static_cast<std::size_t>(s) + i];
+      // by isConstant(), all dims are constant
+      vals.push_back(static_cast<std::int64_t>(d.constant()));
     }
-    if (attributes.contains("end")) {
-      auto endAttrib = attributes.at("end");
-      if (endAttrib.isUnknown()) {
-        end = 0;
-      } else {
-        if (!endAttrib.isScalar()) {
-          throw std::runtime_error(
-              "vkcnn: Operation Shape attribute \"end\" is not a integer.");
-        }
-        const auto &scalarAttrib = endAttrib.scalar();
-        if (scalarAttrib.dtype != Dtype::Int64 &&
-            scalarAttrib.dtype != Dtype::Int16 &&
-            scalarAttrib.dtype != Dtype::Int32) {
-          throw std::runtime_error(
-              "vkcnn: Operation Shape attribute \"end\" is not a integer.");
-        }
-        end = scalarAttrib.v.i;
-      }
-    }
+    store = std::make_shared<HostTensorStorage>(
+        HostTensorStorage::Int64(std::span<const std::int64_t>(vals)));
   } else {
-    if (attributes.contains("start")) {
-      throw std::runtime_error(
-          fmt::format("vkcnn: Operation Shape (version: {}) does not support "
-                      "attribute \"start\"",
-                      version));
+    // Return SYM
+    std::vector<Sym> syms;
+    syms.reserve(outLen);
+    for (std::size_t i = 0; i < outLen; ++i) {
+      const auto &d = inShape[static_cast<std::size_t>(s) + i];
+      syms.push_back(
+          static_cast<Sym>(*d)); // Symbolic -> Sym (const or symbolic)
     }
-    if (attributes.contains("end")) {
-      throw std::runtime_error(
-          fmt::format("vkcnn: Operation Shape (version: {}) does not support "
-                      "attribute \"end\"",
-                      version));
-    }
-  }
-  // NOTE: Rank is always known at compiletime, we do not support unknown
-  // shapes.
-  if (start < 0) {
-    start = rank + start;
-  }
-  if (end < 0) {
-    end = rank + end;
+    store = std::make_shared<HostTensorStorage>(
+        HostTensorStorage::Sym(std::span<const Sym>(syms)));
   }
 
-  end = std::clamp<std::int64_t>(end, 0, rank);
-  start = std::clamp<std::int64_t>(start, 0, rank);
-  if (end == start) {
-    return {Tensor::Shape(ShapeTensor::Tensor({}))};
-  }
-  if (start == 0 && end == rank) {
-    return {Tensor::Shape(shape)};
-  }
-  ShapeVector slice(end - start);
-  for (std::int64_t i = start, j = 0; i < end; ++i, ++j) {
-    slice[j] = shape.dims()[i];
-  }
-
-  return {Tensor::Shape(ShapeTensor::Tensor(std::move(slice)))};
+  HostTensor ht(outShape, std::move(store));
+  return {Tensor::Host(std::move(ht))};
 }
 
 } // namespace vkcnn::details

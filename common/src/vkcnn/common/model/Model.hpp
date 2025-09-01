@@ -80,6 +80,10 @@ public:
                     m_controlBlock->hypergraph.get(m_nodeId).m_extent.height);
   }
 
+  std::uint64_t id() const {
+    return static_cast<std::uint64_t>(m_nodeId);
+  }
+
 private:
   Tensor(hypergraph::NodeId id,
          std::shared_ptr<details::ComputeGraphControlBlock> controlBlock)

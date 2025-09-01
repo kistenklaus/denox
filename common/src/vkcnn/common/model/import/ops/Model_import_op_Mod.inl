@@ -2,7 +2,6 @@
 
 #include "vkcnn/common/model/import/Model_import_state.inl"
 #include "vkcnn/common/model/import/Model_import_tensors.inl"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <optional>
 #include <span>
@@ -14,303 +13,376 @@ namespace vkcnn::details {
 static std::vector<Tensor>
 import_op_Mod(ImportState &state, std::span<const std::optional<Tensor>> inputs,
               std::size_t outputCount,
-              const std::unordered_map<std::string, Tensor> &attributes,
-              opset_version /*version*/, const onnx::NodeProto &node) {
+              const std::unordered_map<std::string, Attribute> &attributes,
+              [[maybe_unused]] opset_version version,
+              const onnx::NodeProto &node) {
 
-  // --- contract
-  if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value()) {
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Mod requires exactly two inputs. Got {} (node='{}')",
-        inputs.size(), node.op_type()));
-  }
-  if (outputCount != 1) {
-    throw std::runtime_error("vkcnn: Mod must produce exactly one output");
-  }
-  const Tensor &A = *inputs[0];
-  const Tensor &B = *inputs[1];
-
-  // --- reject unsupported kinds early
-  auto is_float_scalar = [](const Tensor &t) -> bool {
-    if (!t.isScalar())
-      return false;
-    const auto &s = t.scalar();
-    return s.dtype == Dtype::Float16 || s.dtype == Dtype::Float32 ||
-           s.dtype == Dtype::Float64;
-  };
-  auto is_raw_float_scalar = [](const Tensor &t) -> bool {
-    if (!t.isRaw())
-      return false;
-    const auto &rt = t.raw();
-    if (!rt.shape.isScalar())
-      return false;
-    return rt.type == Dtype::Float16 || rt.type == Dtype::Float32 ||
-           rt.type == Dtype::Float64;
-  };
-  auto is_raw_string_scalar = [](const Tensor &t) -> bool {
-    if (!t.isRaw())
-      return false;
-    const auto &rt = t.raw();
-    return rt.shape.isScalar() && rt.type == Dtype::String;
-  };
-
-  if (A.isRuntimeTensor() || B.isRuntimeTensor()) {
-    throw std::runtime_error("vkcnn: Mod on runtime tensors is not supported");
-  }
-  if (A.isString() || B.isString() || is_raw_string_scalar(A) ||
-      is_raw_string_scalar(B)) {
-    throw std::runtime_error("vkcnn: Mod on string tensors is not supported");
-  }
-  if (is_float_scalar(A) || is_float_scalar(B) || is_raw_float_scalar(A) ||
-      is_raw_float_scalar(B)) {
-    throw std::runtime_error("vkcnn: Mod for floating types is not supported");
-  }
-
-  // --- fmod attribute handling (reject if truthy)
-  if (auto it = attributes.find("fmod"); it != attributes.end()) {
-    const Tensor &fm = it->second;
-    bool truthy = false;
-    if (fm.isScalar()) {
-      const auto &s = fm.scalar();
-      if (s.dtype == Dtype::Int64 || s.dtype == Dtype::Int32 ||
-          s.dtype == Dtype::Int16 || s.dtype == Dtype::Uint64 ||
-          s.dtype == Dtype::Uint32 || s.dtype == Dtype::Uint16 ||
-          s.dtype == Dtype::Uint8) {
-        truthy = (s.v.u != 0) || (s.v.i != 0);
-      }
-    } else if (!fm.isUnknown()) {
-      throw std::runtime_error("vkcnn: Mod attribute 'fmod' must be a scalar");
-    }
-    if (truthy) {
-      throw std::runtime_error("vkcnn: Mod with attribute 'fmod'=1 (floating "
-                               "remainder) is not supported");
-    }
-  }
-
-  // --- helpers
-  auto scalar_to_i64 = [](const Tensor &t) -> std::optional<int64_t> {
-    if (!t.isScalar())
-      return std::nullopt;
-    const auto &s = t.scalar();
-    switch (s.dtype) {
-    case Dtype::Int64:
-      return s.v.i;
-    case Dtype::Int32:
-    case Dtype::Int16:
-    case Dtype::Int8:
-      return static_cast<int64_t>(s.v.i);
-    case Dtype::Uint64:
-      if (s.v.u > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-        throw std::runtime_error(
-            "vkcnn: Mod scalar uint64 too large to fit int64");
-      return static_cast<int64_t>(s.v.u);
-    case Dtype::Uint32:
-    case Dtype::Uint16:
-    case Dtype::Uint8:
-      return static_cast<int64_t>(s.v.u);
-    default:
-      return std::nullopt;
-    }
-  };
-
-  auto raw_scalar_to_i64 = [](const Tensor &t) -> std::optional<int64_t> {
-    if (!t.isRaw())
-      return std::nullopt;
-    const auto &rt = t.raw();
-    if (!rt.shape.isScalar())
-      return std::nullopt;
-    auto need = [&](size_t n) {
-      if (rt.raw.size() != n)
-        throw std::runtime_error("vkcnn: Mod raw scalar payload size mismatch");
-    };
-    switch (rt.type) {
-    case Dtype::Int64: {
-      need(sizeof(int64_t));
-      int64_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      return v;
-    }
-    case Dtype::Int32: {
-      need(sizeof(int32_t));
-      int32_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      return static_cast<int64_t>(v);
-    }
-    case Dtype::Int16: {
-      need(sizeof(int16_t));
-      int16_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      return static_cast<int64_t>(v);
-    }
-    case Dtype::Int8: {
-      need(sizeof(int8_t));
-      int8_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      return static_cast<int64_t>(v);
-    }
-    case Dtype::Uint64: {
-      need(sizeof(uint64_t));
-      uint64_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      if (v > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-        throw std::runtime_error(
-            "vkcnn: Mod raw uint64 scalar too large to fit int64");
-      return static_cast<int64_t>(v);
-    }
-    case Dtype::Uint32: {
-      need(sizeof(uint32_t));
-      uint32_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      return static_cast<int64_t>(v);
-    }
-    case Dtype::Uint16: {
-      need(sizeof(uint16_t));
-      uint16_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      return static_cast<int64_t>(v);
-    }
-    case Dtype::Uint8: {
-      need(sizeof(uint8_t));
-      uint8_t v;
-      std::memcpy(&v, rt.raw.data(), sizeof(v));
-      return static_cast<int64_t>(v);
-    }
-    default:
-      return std::nullopt; // not an integer scalar
-    }
-  };
-
-  auto as_i64_scalar = [&](const Tensor &t) -> std::optional<int64_t> {
-    if (auto v = scalar_to_i64(t))
-      return v;
-    if (auto v = raw_scalar_to_i64(t))
-      return v;
-    return std::nullopt;
-  };
-
-  auto mod_dim_dim = [&](const Dim &x, const Dim &y) -> Dim {
-    if (y.isConst() && y.value() == 0ull) {
-      throw std::runtime_error("vkcnn: Mod by zero");
-    }
-    if (x.isConst() && y.isConst()) {
-      uint64_t a = x.value();
-      uint64_t b = y.value();
-      return Dim::Const(a % b);
-    }
-    auto toSymOrI64 = [&](const Dim &d) -> std::variant<int64_t, Sym> {
-      if (d.isConst()) {
-        uint64_t v = d.value();
-        if (v > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-          throw std::runtime_error(
-              "vkcnn: Dim constant too large for symbolic int64");
-        return static_cast<int64_t>(v);
-      }
-      return d.sym();
-    };
-    auto X = toSymOrI64(x);
-    auto Y = toSymOrI64(y);
-    Sym res = std::visit(
-        [&](auto &&vx, auto &&vy) -> Sym {
-          return state.symGraph->mod(vx, vy);
-        },
-        X, Y);
-    return Dim::Symbol(std::move(res));
-  };
-
-  auto mod_dim_i64 = [&](const Dim &x, int64_t y) -> Dim {
-    if (y == 0)
-      throw std::runtime_error("vkcnn: Mod by zero");
-    if (x.isConst()) {
-      uint64_t a = x.value();
-      uint64_t b = static_cast<uint64_t>(y < 0 ? -y : y);
-      if (b == 0ull)
-        throw std::runtime_error("vkcnn: Mod by zero");
-      return Dim::Const(a % b);
-    }
-    Sym res = state.symGraph->mod(x.sym(), y);
-    return Dim::Symbol(std::move(res));
-  };
-
-  auto i64_mod_i64 = [&](int64_t a, int64_t b) -> int64_t {
-    if (b == 0)
-      throw std::runtime_error("vkcnn: Mod by zero");
-    return a % b; // integer remainder (fmod=0)
-  };
-
-  auto broadcast_vec_vec = [&](const ShapeVector &X,
-                               const ShapeVector &Y) -> ShapeVector {
-    const size_t nx = X.size(), ny = Y.size();
-    if (nx == ny) {
-      ShapeVector out(nx);
-      for (size_t i = 0; i < nx; ++i)
-        out[i] = mod_dim_dim(X[i], Y[i]);
-      return out;
-    } else if (nx == 1 && ny >= 1) {
-      ShapeVector out(ny);
-      for (size_t i = 0; i < ny; ++i)
-        out[i] = mod_dim_dim(X[0], Y[i]);
-      return out;
-    } else if (ny == 1 && nx >= 1) {
-      ShapeVector out(nx);
-      for (size_t i = 0; i < nx; ++i)
-        out[i] = mod_dim_dim(X[i], Y[0]);
-      return out;
-    }
+  if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
-        "vkcnn: Mod ShapeTensor broadcast failed (lengths incompatible)");
+        fmt::format("vkcnn: Mod \"{}\" expects 2 inputs.", node.name()));
+  if (outputCount != 1)
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Mod \"{}\" must have exactly 1 output.", node.name()));
+
+  const Tensor &aT = *inputs[0];
+  const Tensor &bT = *inputs[1];
+
+  if (aT.isDevice() || bT.isDevice())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Mod \"{}\": runtime tensors not supported.", node.name()));
+
+  const HostTensor &a0 = aT.host();
+  const HostTensor &b0 = bT.host();
+
+  const Dtype adt = a0.type();
+  const Dtype bdt = b0.type();
+
+  auto kindOf = [](Dtype dt) {
+    switch (dt) {
+    case Dtype::Float32:
+    case Dtype::Float64:
+      return 0; // float
+    case Dtype::Int8:
+    case Dtype::Int16:
+    case Dtype::Int32:
+    case Dtype::Int64:
+      return 1; // signed
+    case Dtype::Uint8:
+    case Dtype::Uint16:
+    case Dtype::Uint32:
+    case Dtype::Uint64:
+      return 2; // unsigned
+    case Dtype::Sym:
+      return 3; // symbolic
+    default:
+      return -1; // unsupported here
+    }
   };
 
-  // === CASE 1: Shape ⊗ Shape
-  if (A.isShape() && B.isShape()) {
-    const auto &sa = A.shapeTensor();
-    const auto &sb = B.shapeTensor();
-    if (sa.isScalar() || sb.isScalar())
-      throw std::runtime_error("vkcnn: Mod on scalar ShapeTensor is invalid");
-    ShapeVector out = broadcast_vec_vec(sa.dims(), sb.dims());
-    return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
-  }
+  const int ka = kindOf(adt);
+  const int kb = kindOf(bdt);
+  if (ka < 0 || kb < 0)
+    throw std::runtime_error(
+        fmt::format("vkcnn: Mod \"{}\": unsupported dtype.", node.name()));
 
-  // Try to lift scalars from either ScalarTensor or RawTensor(0D)
-  const auto A_i64 = as_i64_scalar(A);
-  const auto B_i64 = as_i64_scalar(B);
+  // Make base-contiguous
+  HostTensor A = a0.contiguous();
+  HostTensor B = b0.contiguous();
 
-  // === CASE 2: Shape ⊗ Scalar
-  if (A.isShape() && B_i64.has_value()) {
-    const auto &sa = A.shapeTensor();
-    if (sa.isScalar())
-      throw std::runtime_error("vkcnn: Mod on scalar ShapeTensor is invalid");
-    const int64_t rhs = *B_i64;
-    ShapeVector out(sa.dims().size());
-    for (size_t i = 0; i < sa.dims().size(); ++i)
-      out[i] = mod_dim_i64(sa.dims()[i], rhs);
-    return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
-  }
-  if (A_i64.has_value() && B.isShape()) {
-    const auto &sb = B.shapeTensor();
-    if (sb.isScalar())
-      throw std::runtime_error("vkcnn: Mod on scalar ShapeTensor is invalid");
-    const int64_t lhs = *A_i64;
-    ShapeVector out(sb.dims().size());
-    for (size_t i = 0; i < sb.dims().size(); ++i) {
-      out[i] =
-          mod_dim_dim(Dim::Const(static_cast<uint64_t>(lhs < 0 ? -lhs : lhs)),
-                      sb.dims()[i]);
+  // Broadcast
+  TensorShape outShape = TensorShape::broadcast(A.shape(), B.shape());
+  const auto outDims = outShape.toU64();
+  const size_t outRank = outDims.size();
+
+  auto make_axes = [&](size_t rIn) {
+    std::vector<int64_t> m(rIn);
+    const int64_t shift = static_cast<int64_t>(outRank - rIn);
+    for (size_t i = 0; i < rIn; ++i)
+      m[i] = shift + static_cast<int64_t>(i);
+    return m;
+  };
+  const auto axesA = make_axes(A.rank());
+  const auto axesB = make_axes(B.rank());
+  TensorViewDesc viewA =
+      A.view().broadcastInDim(A.shape().dims(), outShape.dims(), axesA);
+  TensorViewDesc viewB =
+      B.view().broadcastInDim(B.shape().dims(), outShape.dims(), axesB);
+  if (!viewA.isConstant() || !viewB.isConstant())
+    throw std::runtime_error(fmt::format(
+        "vkcnn: Mod \"{}\": non-constant broadcast view.", node.name()));
+
+  // Iteration
+  std::vector<std::uint64_t> idx(outRank, 0);
+  auto inc = [&]() -> bool {
+    if (idx.empty())
+      return false;
+    size_t ax = outRank;
+    while (ax > 0) {
+      --ax;
+      if (++idx[ax] < outDims[ax])
+        return true;
+      idx[ax] = 0;
     }
-    return {Tensor::Shape(ShapeTensor::Tensor(std::move(out)))};
+    return false;
+  };
+
+  const void *baseA = A.storage()->data();
+  const void *baseB = B.storage()->data();
+
+  auto get_fmod_flag = [&]() -> bool {
+    auto it = attributes.find("fmod");
+    if (it == attributes.end())
+      return true; // default fmod=1 for floats
+    if (!it->second.isInt())
+      throw std::runtime_error(fmt::format(
+          "vkcnn: Mod \"{}\": attribute 'fmod' must be int.", node.name()));
+    return (it->second.i() != 0);
+  };
+
+  // Helpers to fetch as promoted types
+  auto load_int64 = [&](const HostTensor &H, const TensorViewDesc &V,
+                        const std::vector<std::uint64_t> &I) -> int64_t {
+    const std::size_t k = V.constIndexOf({I.data(), I.size()});
+    switch (H.type()) {
+    case Dtype::Int8:
+      return static_cast<int64_t>(
+          static_cast<const int8_t *>(H.storage()->data())[k]);
+    case Dtype::Int16:
+      return static_cast<int64_t>(
+          static_cast<const int16_t *>(H.storage()->data())[k]);
+    case Dtype::Int32:
+      return static_cast<int64_t>(
+          static_cast<const int32_t *>(H.storage()->data())[k]);
+    case Dtype::Int64:
+      return static_cast<int64_t>(
+          static_cast<const int64_t *>(H.storage()->data())[k]);
+    case Dtype::Uint8:
+      return static_cast<int64_t>(
+          static_cast<const uint8_t *>(H.storage()->data())[k]);
+    case Dtype::Uint16:
+      return static_cast<int64_t>(
+          static_cast<const uint16_t *>(H.storage()->data())[k]);
+    case Dtype::Uint32:
+      return static_cast<int64_t>(
+          static_cast<const uint32_t *>(H.storage()->data())[k]);
+    case Dtype::Uint64:
+      return static_cast<int64_t>(
+          static_cast<const uint64_t *>(H.storage()->data())[k]);
+    default:
+      throw std::logic_error("load_int64: non-integer dtype");
+    }
+  };
+  auto load_uint64 = [&](const HostTensor &H, const TensorViewDesc &V,
+                         const std::vector<std::uint64_t> &I) -> uint64_t {
+    const std::size_t k = V.constIndexOf({I.data(), I.size()});
+    switch (H.type()) {
+    case Dtype::Int8:
+      return static_cast<uint64_t>(
+          static_cast<const int8_t *>(H.storage()->data())[k]);
+    case Dtype::Int16:
+      return static_cast<uint64_t>(
+          static_cast<const int16_t *>(H.storage()->data())[k]);
+    case Dtype::Int32:
+      return static_cast<uint64_t>(
+          static_cast<const int32_t *>(H.storage()->data())[k]);
+    case Dtype::Int64:
+      return static_cast<uint64_t>(
+          static_cast<const int64_t *>(H.storage()->data())[k]);
+    case Dtype::Uint8:
+      return static_cast<uint64_t>(
+          static_cast<const uint8_t *>(H.storage()->data())[k]);
+    case Dtype::Uint16:
+      return static_cast<uint64_t>(
+          static_cast<const uint16_t *>(H.storage()->data())[k]);
+    case Dtype::Uint32:
+      return static_cast<uint64_t>(
+          static_cast<const uint32_t *>(H.storage()->data())[k]);
+    case Dtype::Uint64:
+      return static_cast<uint64_t>(
+          static_cast<const uint64_t *>(H.storage()->data())[k]);
+    default:
+      throw std::logic_error("load_uint64: non-integer dtype");
+    }
+  };
+  auto load_double = [&](const HostTensor &H, const TensorViewDesc &V,
+                         const std::vector<std::uint64_t> &I) -> double {
+    const std::size_t k = V.constIndexOf({I.data(), I.size()});
+    switch (H.type()) {
+    case Dtype::Float32:
+      return static_cast<const float *>(H.storage()->data())[k];
+    case Dtype::Float64:
+      return static_cast<const double *>(H.storage()->data())[k];
+    default:
+      throw std::logic_error("load_double: non-float dtype");
+    }
+  };
+
+  // ---------------- FLOATS ----------------
+  if ((ka == 0) && (kb == 0)) {
+    if (!get_fmod_flag())
+      throw std::runtime_error(
+          fmt::format("vkcnn: Mod \"{}\": only fmod is supported for floats.",
+                      node.name()));
+
+    // Promote to float64 for compute; choose result dtype = max(adt, bdt)
+    const Dtype rdt = (adt == Dtype::Float64 || bdt == Dtype::Float64)
+                          ? Dtype::Float64
+                          : Dtype::Float32;
+    const size_t elem = dtype_size(rdt);
+    std::size_t outCount = 1;
+    for (auto d : outDims)
+      outCount *= (size_t)d;
+    void *rawOut = std::malloc(outCount * elem);
+    if (!rawOut)
+      throw std::bad_alloc();
+
+    if (rdt == Dtype::Float64) {
+      double *po = static_cast<double *>(rawOut);
+      while (true) {
+        const double x = load_double(A, viewA, idx);
+        const double y = load_double(B, viewB, idx);
+        if (y == 0.0)
+          throw std::runtime_error(fmt::format(
+              "vkcnn: Mod \"{}\": division by zero (float).", node.name()));
+        *po++ = std::fmod(x, y);
+        if (!inc())
+          break;
+      }
+    } else {
+      float *po = static_cast<float *>(rawOut);
+      while (true) {
+        const double x = load_double(A, viewA, idx);
+        const double y = load_double(B, viewB, idx);
+        if (y == 0.0)
+          throw std::runtime_error(fmt::format(
+              "vkcnn: Mod \"{}\": division by zero (float).", node.name()));
+        *po++ = static_cast<float>(std::fmod(x, y));
+        if (!inc())
+          break;
+      }
+    }
+
+    auto outStore = std::make_shared<HostTensorStorage>(
+        HostTensorStorage::TakeOwnership(rdt, rawOut, outCount * elem));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
 
-  // === CASE 3: scalar ⊗ scalar (from ScalarTensor or RawTensor(0D))
-  if (A_i64.has_value() && B_i64.has_value()) {
-    return {Tensor::Scalar(i64_mod_i64(*A_i64, *B_i64))};
+  // ---------------- SYMBOLIC ----------------
+  if (ka == 3 || kb == 3) {
+    // Only support Sym with (Sym or Integer). No floats with Sym.
+    if ((ka == 0) || (kb == 0))
+      throw std::runtime_error(
+          fmt::format("vkcnn: Mod \"{}\": symbolic with floats not supported.",
+                      node.name()));
+    auto *g = state.symGraph.get();
+    if (!g)
+      throw std::runtime_error("vkcnn: Mod: symGraph is null.");
+
+    std::size_t outCount = 1;
+    for (auto d : outDims)
+      outCount *= (size_t)d;
+    void *rawOut = std::malloc(outCount * sizeof(Sym));
+    if (!rawOut)
+      throw std::bad_alloc();
+    Sym *po = static_cast<Sym *>(rawOut);
+
+    auto load_sym = [&](const HostTensor &H, const TensorViewDesc &V,
+                        const std::vector<std::uint64_t> &I) -> Sym {
+      const std::size_t k = V.constIndexOf({I.data(), I.size()});
+      switch (H.type()) {
+      case Dtype::Sym:
+        return static_cast<const Sym *>(H.storage()->data())[k];
+      case Dtype::Int8:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const int8_t *>(H.storage()->data())[k]));
+      case Dtype::Int16:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const int16_t *>(H.storage()->data())[k]));
+      case Dtype::Int32:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const int32_t *>(H.storage()->data())[k]));
+      case Dtype::Int64:
+        return Sym::Const(static_cast<const int64_t *>(H.storage()->data())[k]);
+      case Dtype::Uint8:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint8_t *>(H.storage()->data())[k]));
+      case Dtype::Uint16:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint16_t *>(H.storage()->data())[k]));
+      case Dtype::Uint32:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint32_t *>(H.storage()->data())[k]));
+      case Dtype::Uint64:
+        return Sym::Const(static_cast<int64_t>(
+            static_cast<const uint64_t *>(H.storage()->data())[k]));
+      default:
+        throw std::logic_error("load_sym: invalid dtype");
+      }
+    };
+
+    while (true) {
+      const Sym xs = load_sym(A, viewA, idx);
+      const Sym ys = load_sym(B, viewB, idx);
+
+      if (ys.isConstant() && ys.constant() == 0)
+        throw std::runtime_error(fmt::format(
+            "vkcnn: Mod \"{}\": division by zero (sym).", node.name()));
+
+      // If exactly one side is constant and negative → throw (your rule).
+      const bool xC = xs.isConstant();
+      const bool yC = ys.isConstant();
+      if (xC != yC) {
+        const auto neg = (xC ? xs.constant() : ys.constant()) < 0;
+        if (neg) {
+          throw std::runtime_error(fmt::format(
+              "vkcnn: Mod \"{}\": negative constant with symbolic counterpart "
+              "is not supported.",
+              node.name()));
+        }
+      }
+
+      *po++ = state.symGraph->mod(xs, ys);
+      if (!inc())
+        break;
+    }
+
+    auto outStore =
+        std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
+            Dtype::Sym, rawOut, outCount * sizeof(Sym)));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
 
-  // (Optional) Non-scalar RawTensor support could go here later.
+  // ---------------- INTEGERS (mixed widths/signedness allowed)
+  // ---------------- Promote: if any signed → work in int64_t; else work in
+  // uint64_t.
+  const bool anySigned = (ka == 1) || (kb == 1);
+  std::size_t outCount = 1;
+  for (auto d : outDims)
+    outCount *= (size_t)d;
 
-  if (A.isUnknown() || B.isUnknown()) {
-    throw std::runtime_error("vkcnn: Mod on unknown input kind");
+  if (anySigned) {
+    void *rawOut = std::malloc(outCount * sizeof(int64_t));
+    if (!rawOut)
+      throw std::bad_alloc();
+    auto *po = static_cast<int64_t *>(rawOut);
+
+    while (true) {
+      const int64_t x = load_int64(A, viewA, idx);
+      const int64_t y = load_int64(B, viewB, idx);
+      if (y == 0)
+        throw std::runtime_error(fmt::format(
+            "vkcnn: Mod \"{}\": division by zero (int).", node.name()));
+      *po++ = (x % y);
+      if (!inc())
+        break;
+    }
+
+    auto outStore =
+        std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
+            Dtype::Int64, rawOut, outCount * sizeof(int64_t)));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
+  } else {
+    void *rawOut = std::malloc(outCount * sizeof(uint64_t));
+    if (!rawOut)
+      throw std::bad_alloc();
+    auto *po = static_cast<uint64_t *>(rawOut);
+
+    while (true) {
+      const uint64_t x = load_uint64(A, viewA, idx);
+      const uint64_t y = load_uint64(B, viewB, idx);
+      if (y == 0)
+        throw std::runtime_error(fmt::format(
+            "vkcnn: Mod \"{}\": division by zero (int).", node.name()));
+      *po++ = (x % y);
+      if (!inc())
+        break;
+    }
+
+    auto outStore =
+        std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
+            Dtype::Uint64, rawOut, outCount * sizeof(uint64_t)));
+    return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
-  throw std::runtime_error(
-      fmt::format("vkcnn: Mod not supported for given input kinds (node='{}')",
-                  node.name()));
 }
 
 } // namespace vkcnn::details
