@@ -284,7 +284,7 @@ static void import_value_info(ImportState &state,
   const ShapeTensor &outShape = produced.shape();
   if (!outShape.isTensor())
     throw std::runtime_error("vkcnn: Output shape must not be scalar.");
-  const auto &outVec = outShape.vec();
+  const auto &outVec = outShape.dims();
   if (outVec.size() != 3 && outVec.size() != 4) {
     throw std::runtime_error(fmt::format(
         "vkcnn: Output tensor (\"{}\") must be rank 3 or 4; got {}.", name,

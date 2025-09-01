@@ -54,6 +54,7 @@ public:
   static ShapeTensor Vec(std::size_t s) {
     return ShapeTensor(Rep{ShapeVector{Dim::Const(s)}});
   }
+
   static ShapeTensor Tensor(ShapeVector s) {
     return ShapeTensor(Rep{std::move(s)});
   }
@@ -65,7 +66,7 @@ public:
     return std::holds_alternative<vkcnn::details::ShapeVector>(m_rep);
   }
 
-  const vkcnn::details::ShapeVector &vec() const {
+  const vkcnn::details::ShapeVector &dims() const {
     if (!isTensor())
       throw std::logic_error("TensorShape: not static");
     return std::get<vkcnn::details::ShapeVector>(m_rep);
@@ -76,9 +77,20 @@ public:
       return ShapeTensor::Scalar();
     } else {
       assert(isTensor());
-      return ShapeTensor::Vec(vec().size());
+      return ShapeTensor::Vec(dims().size());
     }
   }
+
+  unsigned int rank() const {
+    if (isScalar()) {
+      return 0;
+    } else {
+      assert(isTensor());
+      return dims().size();
+    }
+  }
+
+  ShapeTensor() : m_rep() {}
 
 private:
   explicit ShapeTensor(Rep r) : m_rep(std::move(r)) {}
@@ -96,7 +108,7 @@ struct RawTensor {
 struct StringTensor {
   std::string str;
 
-  ShapeTensor shape() const { return ShapeTensor::Vec(str.size()); }
+  ShapeTensor shape() const { return ShapeTensor::Scalar(); }
 };
 
 class Tensor;
@@ -220,7 +232,7 @@ public:
     case StorageKind::Unknown:
       throw std::logic_error("Accessing shape of unknown tensor");
     case StorageKind::Raw:
-      return constant().shape;
+      return raw().shape;
     case StorageKind::String:
       return string().shape();
     case StorageKind::Runtime:
@@ -255,7 +267,7 @@ public:
     throw std::logic_error("unreachable");
   }
   bool isRuntimeTensor() const { return kind() == StorageKind::Runtime; }
-  bool isConstant() const { return kind() == StorageKind::Raw; }
+  bool isRaw() const { return kind() == StorageKind::Raw; }
   bool isString() const { return kind() == StorageKind::String; }
   bool isShape() const { return kind() == StorageKind::Shape; }
   bool isList() const { return kind() == StorageKind::List; }
@@ -263,8 +275,8 @@ public:
   bool isUnknown() const { return kind() == StorageKind::Unknown; }
 
   // getters (throw on wrong kind)
-  const RawTensor &constant() const {
-    if (!isConstant())
+  const RawTensor &raw() const {
+    if (!isRaw())
       throw std::logic_error("Tensor: not a constant tensor");
     return std::get<RawTensor>(*m_store);
   }

@@ -295,19 +295,24 @@ static Tensor parse_tensor(const ImportState &state,
         tensor.name()));
   }
 
-  ShapeVector dims;
-  dims.reserve(static_cast<size_t>(tensor.dims_size()));
-  for (int d = 0; d < tensor.dims_size(); ++d) {
-    const int64_t v = tensor.dims(d);
-    if (v < 0) {
-      throw std::runtime_error(fmt::format(
-          "vkcnn: initializer has negative dim for tensor \"{}\"", name));
+  std::optional<ShapeTensor> shape;
+  if (tensor.dims_size() != 0) {
+    ShapeVector dims;
+    dims.reserve(static_cast<size_t>(tensor.dims_size()));
+    for (int d = 0; d < tensor.dims_size(); ++d) {
+      const int64_t v = tensor.dims(d);
+      if (v < 0) {
+        throw std::runtime_error(fmt::format(
+            "vkcnn: initializer has negative dim for tensor \"{}\"", name));
+      }
+      dims.push_back(Dim::Const(static_cast<uint64_t>(v)));
     }
-    dims.push_back(Dim::Const(static_cast<uint64_t>(v)));
+    shape = ShapeTensor::Tensor(std::move(dims));
+  } else {
+    shape = ShapeTensor::Scalar();
   }
-  ShapeTensor shape = ShapeTensor::Tensor(std::move(dims));
   auto [dtype, raw] = get_tensor_data(state, tensor);
-  RawTensor rawTensor{shape, dtype, std::move(raw)};
+  RawTensor rawTensor{*shape, dtype, std::move(raw)};
   auto ctensor = Tensor::Raw(std::move(rawTensor));
   return ctensor;
 }

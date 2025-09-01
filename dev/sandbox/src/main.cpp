@@ -726,6 +726,10 @@ void model_sandbox() {
   nn.output(x);
 }
 
+void model_import_sandbox() {
+  vkcnn::Model::import("./tiny.onnx");
+}
+
 int main() {
   // conv_sandbox();
   // copy_transform_sandbox();
@@ -733,6 +737,7 @@ int main() {
   // upsample_sandbox();
   // pool_sandbox();
   // sym_expr_sandbox();
-  model_sandbox();
+  // model_sandbox();
+  model_import_sandbox();
   return 0;
 }

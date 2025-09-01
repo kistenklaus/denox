@@ -20,6 +20,8 @@ enum class Dtype {
   Float64,
   Float32,
   Float16,
+  String,
+  Bool,
   // everything else is not supported (currently)
 };
 
@@ -49,10 +51,11 @@ static std::optional<Dtype> parse_data_type(std::int32_t dataType) {
     return Dtype::Uint32;
   case onnx::TensorProto_DataType_UINT64:
     return Dtype::Uint64;
-
-  case onnx::TensorProto_DataType_BFLOAT16:
-  case onnx::TensorProto_DataType_BOOL:
   case onnx::TensorProto_DataType_STRING:
+    return Dtype::String;
+  case onnx::TensorProto_DataType_BOOL:
+    return Dtype::Bool;
+  case onnx::TensorProto_DataType_BFLOAT16:
   case onnx::TensorProto_DataType_COMPLEX64:
   case onnx::TensorProto_DataType_COMPLEX128:
   case onnx::TensorProto_DataType_FLOAT8E4M3FN:
@@ -117,6 +120,7 @@ static std::size_t dtype_size(Dtype dtype) {
   switch (dtype) {
   case Dtype::Int8:
   case Dtype::Uint8:
+  case Dtype::Bool:
     return 1;
   case Dtype::Int16:
   case Dtype::Uint16:
@@ -132,6 +136,10 @@ static std::size_t dtype_size(Dtype dtype) {
     return 8;
   case Dtype::Undefined:
     throw std::logic_error("Trying to call dtype_size with Dtype::Undefined");
+    break;
+  case Dtype::String:
+    throw std::logic_error("Trying to call dtype_size with Dtype::String");
+    break;
     break;
   }
   throw std::runtime_error("Unexpected dtype");
@@ -163,6 +171,11 @@ static std::string dtype_to_string(Dtype dtype) {
     return "float32";
   case Dtype::Float16:
     return "float16";
+  case Dtype::String:
+    return "string";
+  case Dtype::Bool:
+    return "bool";
+    break;
   }
   throw std::logic_error("Unexpected dtype");
 }

@@ -103,7 +103,7 @@ static void import_model(ImportState &state, const onnx::ModelProto &model) {
   for (const auto &kv : state.opset_versions.map) {
     const std::string &dom = kv.first;
     const opset_version ver = kv.second;
-    if (dom != "ai.onnx") {
+    if (dom != "ai.onnx" && dom != "") {
       throw std::runtime_error("vkcnn: unsupported operator set domain \"" +
                                dom + "\" (version " + std::to_string(ver) +
                                ")");
