@@ -14,7 +14,7 @@ static std::vector<Tensor> import_op_MaxPool(
     ImportState &state, std::span<const std::optional<Tensor>> inputs,
     std::size_t outputCount,
     const std::unordered_map<std::string, Attribute> &attributes,
-    [[maybe_unused]] opset_version /*version*/, const onnx::NodeProto &node) {
+    [[maybe_unused]] opset_version version, const onnx::NodeProto &node) {
 
   // Arity / outputs: we only support the value output (no indices).
   if (inputs.size() != 1 || !inputs[0].has_value())

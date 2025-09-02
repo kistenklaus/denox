@@ -3,7 +3,9 @@
 namespace vkcnn {
 
 enum class ActivationFunction {
-  ReLU
+  ReLU,
+  LeakyReLU,
+  SiLU,
 };
 
 }

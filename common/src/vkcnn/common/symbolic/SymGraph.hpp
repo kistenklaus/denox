@@ -6,6 +6,7 @@
 #include <concepts>
 #include <fmt/base.h>
 #include <fmt/format.h>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -133,6 +134,17 @@ public:
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
   Sym max(L lhs, R rhs);
+
+  Sym abs(Sym sym) {
+    throw std::runtime_error("SymGraph::abs is not implemented");
+  }
+
+  Sym neg(Sym sym) {
+    throw std::runtime_error(
+        "SymGraph::neg is not implemented. Requires "
+        "testing that negative values are acceptable within the graph!");
+    return sub(0, sym);
+  }
 
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;

@@ -4,6 +4,7 @@ namespace vkcnn {
 
 enum class PoolFunction {
   Max,
+  Avg,
 };
 
 }

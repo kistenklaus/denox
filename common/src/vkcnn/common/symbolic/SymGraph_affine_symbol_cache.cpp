@@ -1,5 +1,3 @@
-#pragma once
-
 #include "./SymGraph.hpp"
 #include <utility>
 
@@ -20,7 +18,6 @@ SymGraph::symbol SymGraph::create_variable(ExprType type) {
   m_affineCache.insert(std::make_pair(m_expressions[s].affine, s));
   return s;
 }
-
 
 Sym SymGraph::require_affine_sym(ExprType type, Sym lhs, Sym rhs,
                                  const AffineExpr &affine, bool dno) {
@@ -50,8 +47,8 @@ Sym SymGraph::require_const_sym(value_type constant, bool dno) {
                             Sym::Const(0), affine, dno);
 }
 
-
-std::optional<SymGraph::symbol> SymGraph::find_sym_of_affine(const AffineExpr &expr) {
+std::optional<SymGraph::symbol>
+SymGraph::find_sym_of_affine(const AffineExpr &expr) {
   auto it = m_affineCache.find(expr);
   if (it == m_affineCache.end()) {
     return std::nullopt;

@@ -409,6 +409,13 @@ public:
     return activation(src, ActivationFunction::ReLU);
   }
 
+  Tensor LeakyReLU(const Tensor &src, float alpha = 0.01) {
+    if (std::abs(alpha - 0.01) > 1e-8) {
+      throw std::runtime_error("Model::LeakyReLU not really implemented, only works with alpha=0.01.");
+    }
+    return activation(src, ActivationFunction::LeakyReLU);
+  }
+
   Tensor MaxPool(const Tensor &src, glm::uvec2 kernelSize,
                  std::optional<glm::uvec2> padding = std::nullopt,
                  std::optional<glm::uvec2> stride = std::nullopt,

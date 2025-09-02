@@ -14,7 +14,7 @@ static std::vector<Tensor> import_op_Relu(
     ImportState &state, std::span<const std::optional<Tensor>> inputs,
     std::size_t outputCount,
     const std::unordered_map<std::string, Attribute> &attributes,
-    [[maybe_unused]] opset_version /*version*/, const onnx::NodeProto &node) {
+    [[maybe_unused]] opset_version version, const onnx::NodeProto &node) {
 
   // Arity
   if (inputs.size() != 1 || !inputs[0].has_value()) {
@@ -42,7 +42,6 @@ static std::vector<Tensor> import_op_Relu(
   const DeviceTensor &inDev = inT.device();
   const std::size_t r = inDev.rank();
 
-  // Delegate to backend activation
   vkcnn::Tensor outHandle =
       state.output.activation(inDev.handle(), ActivationFunction::ReLU);
 
