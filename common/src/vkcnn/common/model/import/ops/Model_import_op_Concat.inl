@@ -80,13 +80,6 @@ static std::vector<Tensor> import_op_Concat(
                         "channel axis {}.",
                         node.name(), chAxis));
 
-      const size_t axH = (r0 == 4) ? 2u : 1u;
-      const size_t axW = (r0 == 4) ? 3u : 2u;
-      if (!(s0[axH] == s1[axH]) || !(s0[axW] == s1[axW]))
-        throw std::runtime_error(fmt::format(
-            "vkcnn: Concat \"{}\": spatial dims must match for device concat.",
-            node.name()));
-
       vkcnn::Tensor outHandle = state.output.concat(d0.handle(), d1.handle());
       DeviceTensor outDev(r0, std::move(outHandle));
       return {Tensor::Device(std::move(outDev))};

@@ -4,6 +4,8 @@
 #include "vkcnn/common/PaddingMode.hpp"
 #include "vkcnn/common/PoolFunction.hpp"
 #include "vkcnn/common/symbolic/Sym.hpp"
+#include "vkcnn/common/tensor/BiasHostTensor.hpp"
+#include "vkcnn/common/tensor/FilterHostTensor.hpp"
 #include "vkcnn/common/tensor/FloatType.hpp"
 #include <cassert>
 #include <glm/vec2.hpp>
@@ -17,9 +19,8 @@ class Model;
 
 struct ComputeOpConv {
   struct Storage {
-    glm::uvec2 kernelSize;
-    unsigned int K;
-    bool bias;
+    FilterHostTensor W;
+    std::optional<BiasHostTensor> B;
     glm::uvec2 padding;
     glm::uvec2 stride;
 
@@ -31,10 +32,10 @@ struct ComputeOpConv {
   const Storage *operator->() const { return m_store.get(); }
   Storage *operator->() { return m_store.get(); }
 
-  ComputeOpConv(glm::uvec2 kernelSize, unsigned int K, bool bias,
+  ComputeOpConv(FilterHostTensor W, std::optional<BiasHostTensor> B,
                 glm::uvec2 padding, glm::uvec2 stride,
                 std::optional<FloatType> atype)
-      : m_store(std::make_shared<Storage>(kernelSize, K, bias, padding, stride,
+      : m_store(std::make_shared<Storage>(std::move(W), std::move(B), padding, stride,
                                           atype)) {}
 
 private:

@@ -677,45 +677,46 @@ void model_sandbox() {
 
   auto in = nn.input(3);
 
-  auto alignment = 64;
-  auto in_padded = nn.pad(in,                                        //
-                          0, *(alignment - in.width() % alignment),  //
-                          0, *(alignment - in.height() % alignment), //
-                          vkcnn::PaddingMode::Edge);
+  // auto alignment = 64;
+  // auto in_padded = nn.pad(in,                                        //
+  //                         0, *(alignment - in.width() % alignment),  //
+  //                         0, *(alignment - in.height() % alignment), //
+  //                         vkcnn::PaddingMode::Edge);
+  //
+  // auto extr = nn.ReLU(nn.Conv3x3(in_padded, 32));
+  // auto x_128 = nn.MaxPool(extr, glm::uvec2(2, 2));
+  //
+  // auto x_64 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_128, 48)), glm::uvec2(2, 2));
+  // auto x_32 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_64, 64)), glm::uvec2(2, 2));
+  // auto x_16 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_32, 80)), glm::uvec2(2, 2));
+  // auto x_8 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_16, 112)), glm::uvec2(2, 2));
+  // auto x_4 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_8, 112)), glm::uvec2(2, 2));
+  //
+  // auto x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x_4, 2), x_8),
+  // 112)); x = nn.ReLU(nn.Conv3x3(x, 112)); x =
+  // nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_16), 80)); x =
+  // nn.ReLU(nn.Conv3x3(x, 80)); x =
+  // nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_32), 64)); x =
+  // nn.ReLU(nn.Conv3x3(x, 64)); x =
+  // nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_64), 48)); x =
+  // nn.ReLU(nn.Conv3x3(x, 48)); x =
+  // nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_128), 16)); x =
+  // nn.ReLU(nn.Conv3x3(x, 16)); x =
+  // nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), in_padded),
+  //                        16 + in_padded.channels()));
+  // x = nn.ReLU(nn.Conv3x3(x, 16));
+  //
+  // x = nn.slice(x, 0, *in.width(), 0, *in.height());
+  //
+  // assert(*x.width() == *in.width());
+  // assert(*x.height() == *in.height());
 
-  auto extr = nn.ReLU(nn.Conv3x3(in_padded, 32));
-  auto x_128 = nn.MaxPool(extr, glm::uvec2(2, 2));
-
-  auto x_64 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_128, 48)), glm::uvec2(2, 2));
-  auto x_32 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_64, 64)), glm::uvec2(2, 2));
-  auto x_16 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_32, 80)), glm::uvec2(2, 2));
-  auto x_8 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_16, 112)), glm::uvec2(2, 2));
-  auto x_4 = nn.MaxPool(nn.ReLU(nn.Conv3x3(x_8, 112)), glm::uvec2(2, 2));
-
-  auto x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x_4, 2), x_8), 112));
-  x = nn.ReLU(nn.Conv3x3(x, 112));
-  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_16), 80));
-  x = nn.ReLU(nn.Conv3x3(x, 80));
-  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_32), 64));
-  x = nn.ReLU(nn.Conv3x3(x, 64));
-  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_64), 48));
-  x = nn.ReLU(nn.Conv3x3(x, 48));
-  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), x_128), 16));
-  x = nn.ReLU(nn.Conv3x3(x, 16));
-  x = nn.ReLU(nn.Conv3x3(nn.concat(nn.NearestUpsample(x, 2), in_padded),
-                         16 + in_padded.channels()));
-  x = nn.ReLU(nn.Conv3x3(x, 16));
-
-  x = nn.slice(x, 0, *in.width(), 0, *in.height());
-
-  assert(*x.width() == *in.width());
-  assert(*x.height() == *in.height());
-
-  nn.output(x);
+  // nn.output(x);
 }
 
 void model_import_sandbox() {
-  vkcnn::Model::import("./tiny.onnx");
+  vkcnn::Model::import("./net.onnx");
+  fmt::println("FUCK YES");
 }
 
 int main() {

@@ -141,6 +141,21 @@ public:
         });
   }
 
+  template <typename Alloc = std::allocator<std::byte>>
+    requires(!std::same_as<Alloc, std::span<std::byte>>)
+  explicit BiasHostTensor(BiasHostTensorConstView view, const Alloc &alloc = {})
+      : m_desc(view.desc()) {
+    using allocator_traits = std::allocator_traits<Alloc>;
+    Alloc allocator = alloc;
+    std::size_t n = m_desc.byteSize();
+    std::byte *ptr = allocator_traits::allocate(allocator, n);
+    std::memcpy(ptr, view.data(), n);
+    m_storage = std::unique_ptr<std::byte[], std::function<void(std::byte *)>>(
+        ptr, [allocator, n](std::byte *p) mutable {
+          allocator_traits::deallocate(allocator, p, n);
+        });
+  }
+
   const std::byte *data() const { return m_storage.get(); }
   std::byte *data() { return m_storage.get(); }
 

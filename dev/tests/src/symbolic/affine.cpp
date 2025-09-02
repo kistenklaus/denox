@@ -70,9 +70,9 @@ TEST(symbolic, affine_div_neutral) {
 TEST(symbolic, do_not_optimize) {
   vkcnn::SymGraph graph;
   auto A = graph.var();
-  auto x0 = graph.add(A, 10);
-  auto x1 = graph.add(A, 2);
-  auto x2 = graph.sub(x0, x1);
+  auto x0 = graph.add(A, 10, true);
+  auto x1 = graph.add(A, 2, true);
+  auto x2 = graph.sub(x0, x1, true);
   EXPECT_TRUE(x2.isSymbolic());
 }
 

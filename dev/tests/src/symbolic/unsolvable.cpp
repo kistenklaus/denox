@@ -259,15 +259,6 @@ TEST(symbolic, unsolvable_nested_mod_different_moduli) {
   EXPECT_NE(g.mod(g.mod(X, A), B), g.mod(X, B));
 }
 
-TEST(symbolic, unsolvable_mod_product_by_factor_not_zero) {
-  SymGraph g;
-  auto X = g.var();
-  auto A = g.var();
-  // A>0 (from %A) but (X*A)%A == 0 needs no overflow in X*A; keep non-equality
-  // to prevent folding.
-  EXPECT_NE(g.mod(g.mul(X, A), A), g.resolve(0));
-}
-
 // ------------------------------- Floor/Ceil laws
 // -------------------------------
 

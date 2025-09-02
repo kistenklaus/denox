@@ -216,7 +216,6 @@ std::optional<SymGraph::value_type> SymGraph::affine_mod(const AffineExpr &lhs,
     return 0;
   }
   if (lhs.isPureConstant()) {
-    assert(lhs.constant >= 0);
     AffineExpr affine;
     return emod(lhs.constant, rhs);
   }

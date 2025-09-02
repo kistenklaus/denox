@@ -116,6 +116,7 @@ static void import_model(ImportState &state, const onnx::ModelProto &model) {
 } // namespace details
 
 Model Model::import(std::string_view path_str) {
+  try {
   details::ImportState state;
 
   const std::string path(path_str);
@@ -124,14 +125,17 @@ Model Model::import(std::string_view path_str) {
 
   std::ifstream ifs(path, std::ios::binary);
   if (!ifs)
-    throw std::runtime_error("vkcnn: cannot open ONNX file: " + path);
+    throw std::runtime_error("Cannot open ONNX file: " + path);
   ::onnx::ModelProto onnx;
   if (!onnx.ParseFromIstream(&ifs)) {
-    throw std::runtime_error("vkcnn: Failed to parse ONNX protobuf");
+    throw std::runtime_error("Failed to parse ONNX protobuf");
   }
 
   import_model(state, onnx);
   return state.output;
+  } catch (const std::runtime_error& e) {
+    throw std::runtime_error(fmt::format("vkcnn: Failed to import ONNX model: {}\n\n{}\n", path_str, e.what()));
+  }
 }
 
 } // namespace vkcnn

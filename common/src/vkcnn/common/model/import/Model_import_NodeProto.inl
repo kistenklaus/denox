@@ -150,6 +150,7 @@
 #include "vkcnn/common/model/import/ops/Model_import_op_RegexFullMatch.inl"
 #include "vkcnn/common/model/import/ops/Model_import_op_Relu.inl"
 #include "vkcnn/common/model/import/ops/Model_import_op_Reshape.inl"
+#include "vkcnn/common/model/import/ops/Model_import_op_Resize.inl"
 #include "vkcnn/common/model/import/ops/Model_import_op_ReverseSequence.inl"
 #include "vkcnn/common/model/import/ops/Model_import_op_RoiAlign.inl"
 #include "vkcnn/common/model/import/ops/Model_import_op_RotaryEmbeeding.inl"
@@ -648,6 +649,9 @@ import_node_op(ImportState &state, const onnx::NodeProto &node,
   } else if (op == "ReverseSequence") {
     return import_op_ReverseSequence(state, inputs, outputCount, attributes,
                                      opversion, node);
+  } else if (op == "Resize") {
+    return import_op_Resize(state, inputs, outputCount, attributes, opversion,
+                            node);
   } else if (op == "RoiAlign") {
     return import_op_RoiAlign(state, inputs, outputCount, attributes, opversion,
                               node);
@@ -827,12 +831,12 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
     }
     attributes.emplace(name, tensor);
   }
-  fmt::println("\n\nNODE: {}", node.name());
+  // fmt::println("\n\nNODE: {}", node.name());
   std::vector<std::optional<Tensor>> inputs;
   inputs.reserve(node.input_size());
   for (const auto &in : node.input()) {
     if (in == "") {
-      fmt::println("INPUT: NULL");
+      // fmt::println("INPUT: NULL");
       // optional input
       inputs.push_back(std::nullopt);
       continue;
@@ -842,8 +846,8 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
       throw std::runtime_error(fmt::format(
           "vkcnn: input {} of node {} is undefined.", in, node.name()));
     }
-    fmt::println("INPUT: {}", in);
-    print_tensor(it->second);
+    // fmt::println("INPUT: {}", in);
+    // print_tensor(it->second);
     inputs.push_back(it->second);
   }
   // NOTE: Import op would actually contain the switch over the op type and
@@ -860,7 +864,7 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
     const std::string &outputName = node.output(i);
     if (outputName == "") {
       // Optional output, ignore not used anywhere in the graph.
-      fmt::println("OUTPUT: NULL");
+      // fmt::println("OUTPUT: NULL");
       continue;
     }
 
@@ -870,12 +874,10 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
                       "Naming collision.",
                       node.name(), outputName));
     }
-    fmt::println("OUTPUT:");
-    print_tensor(outputs[i]);
+    // fmt::println("OUTPUT:");
+    // print_tensor(outputs[i]);
     state.tensors.map.emplace(outputName, outputs[i]);
   }
-
-  state.symGraph->debugDump();
 }
 
 } // namespace vkcnn::details

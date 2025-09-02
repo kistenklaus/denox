@@ -1519,7 +1519,6 @@ static void print_tensor(const Tensor &tensor) {
           fmt::println("[{}] : {}", i, store->sym()[i].constant());
         }
       }
-      // shape.graph()->debugDump();
       break;
     }
     }

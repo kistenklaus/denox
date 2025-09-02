@@ -18,51 +18,6 @@ import_op_Pad(ImportState &state, std::span<const std::optional<Tensor>> inputs,
               const std::unordered_map<std::string, Attribute> &attributes,
               [[maybe_unused]] opset_version version,
               const onnx::NodeProto &node) {
-
-  // debug path:
-  {
-    std::size_t rank = inputs[0]->rank();
-    fmt::println("input-rank: {}", rank);
-
-    fmt::println("Pads:");
-
-    fmt::println("Shape:");
-    auto dims = inputs[1]->host().shape().dims();
-    for (std::size_t s = 0; s < dims.size(); ++s) {
-      if (dims[s].isSymbolic()) {
-        fmt::println("[{}]: Sym", s);
-      } else {
-        fmt::println("[{}]: {}", s, dims[s].constant());
-      }
-    }
-
-    fmt::println("Strides:");
-    auto stride = inputs[1]->host().view().strides();
-    for (std::size_t s = 0; s < stride.size(); ++s) {
-      if (stride[s].isSymbolic()) {
-        fmt::println("[{}]: Sym", s);
-      } else {
-        fmt::println("[{}]: {}", s, stride[s].constant());
-      }
-    }
-    auto of = inputs[1]->host().view().offset();
-    if (of.isSymbolic()) {
-      fmt::println("offset = Sym");
-    } else {
-      fmt::println("offset = {}", of.constant());
-    }
-      
-    fmt::println("Storage:");
-    auto pads = inputs[1]->host().storage()->sym();
-    for (std::size_t i = 0; i < pads.size(); ++i) {
-      if (pads[i].isSymbolic()) {
-        fmt::println("[{}]: Sym", i);
-      } else {
-        fmt::println("[{}]: {}", i, pads[i].constant());
-      }
-    }
-  }
-
   // ---- arity ----
   if (inputs.size() < 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
