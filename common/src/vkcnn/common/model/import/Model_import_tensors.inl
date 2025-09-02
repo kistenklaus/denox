@@ -4,6 +4,7 @@
 #include "vkcnn/common/model/import/Model_import_dtype.inl"
 #include <cstdlib>
 #include <cstring>
+#include <fmt/base.h>
 #include <stdexcept>
 #include <variant>
 namespace vkcnn::details {
@@ -914,10 +915,13 @@ public:
   }
 
   HostTensor select(size_t axis, uint64_t index) const {
-    // shape: drop axis; view: offset += stride[axis] * index
-    auto v = m_view.slice(axis,
-                          Symbolic{m_shape.graph(), Sym::Const((int64_t)index)},
-                          Symbolic{m_shape.graph(), Sym::Const(1)});
+    auto g = m_shape.graph();
+    // move the offset to the selected slice
+    auto v =
+        m_view.slice(axis, Symbolic{g, Sym::Const(static_cast<int64_t>(index))},
+                     Symbolic{g, Sym::Const(1)});
+    // reduce rank in both shape and view
+    v = v.squeeze(axis);
     auto s = m_shape.squeeze(axis);
     return withView(std::move(s), std::move(v));
   }
@@ -1386,5 +1390,140 @@ private:
   }
   Rep m_rep;
 };
+
+static void print_tensor(const Tensor &tensor) {
+  if (tensor.isDevice()) {
+    fmt::println("=====DeviceTensor======");
+    auto device = tensor.device();
+    auto shape = device.shape();
+    fmt::print("Shape: {{");
+    for (std::size_t i = 0; i < shape.dims().size(); ++i) {
+      if (i != 0) {
+        fmt::print(", ");
+      }
+      if (shape.dims()[i].isSymbolic()) {
+        fmt::print("[{}]", shape.dims()[i].resolve().sym());
+      } else {
+        fmt::print("{}", shape.dims()[i].constant());
+      }
+    }
+    fmt::println("}}");
+  } else {
+    fmt::println("=======HostTensor======");
+    auto host = tensor.host();
+    auto shape = host.shape();
+    fmt::print("Shape: {{");
+    for (std::size_t i = 0; i < shape.dims().size(); ++i) {
+      if (i != 0) {
+        fmt::print(", ");
+      }
+      if (shape.dims()[i].isSymbolic()) {
+        fmt::print("[{}]", shape.dims()[i].resolve().sym());
+      } else {
+        fmt::print("{}", shape.dims()[i].constant());
+      }
+    }
+    fmt::println("}}");
+
+    auto view = host.view();
+    fmt::print("Strides: {{");
+    for (std::size_t i = 0; i < view.strides().size(); ++i) {
+      if (i != 0) {
+        fmt::print(", ");
+      }
+      if (view.strides()[i].isSymbolic()) {
+        fmt::print("[{}]", view.strides()[i].resolve().sym());
+      } else {
+        fmt::print("{}", view.strides()[i].constant());
+      }
+    }
+    fmt::println("}}");
+    fmt::print("Offset = ");
+    if (view.offset().isSymbolic()) {
+      fmt::println("[{}]", view.offset().resolve().sym());
+    } else {
+      fmt::println("{}", view.offset().constant());
+    }
+    fmt::println("Dtype: {}", dtype_to_string(host.type()));
+    auto store = host.storage();
+    switch (host.type()) {
+    case Dtype::Undefined:
+    case Dtype::Int8: {
+      for (std::size_t i = 0; i < store->i8().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->i8()[i]);
+      }
+      break;
+    }
+    case Dtype::Int16: {
+      for (std::size_t i = 0; i < store->i16().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->i16()[i]);
+      }
+      break;
+    }
+    case Dtype::Int32: {
+      for (std::size_t i = 0; i < store->i32().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->i32()[i]);
+      }
+      break;
+    }
+    case Dtype::Int64: {
+      for (std::size_t i = 0; i < store->i64().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->i64()[i]);
+      }
+      break;
+    }
+    case Dtype::Uint8: {
+      for (std::size_t i = 0; i < store->u8().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->u8()[i]);
+      }
+      break;
+    }
+    case Dtype::Uint16: {
+      for (std::size_t i = 0; i < store->u16().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->u16()[i]);
+      }
+      break;
+    }
+    case Dtype::Uint32: {
+      for (std::size_t i = 0; i < store->u32().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->u32()[i]);
+      }
+      break;
+    }
+    case Dtype::Uint64: {
+      for (std::size_t i = 0; i < store->u64().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->u64()[i]);
+      }
+      break;
+    }
+    case Dtype::Float64: {
+      for (std::size_t i = 0; i < store->f64().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->f64()[i]);
+      }
+      break;
+    }
+    case Dtype::Float32: {
+      for (std::size_t i = 0; i < store->f32().size(); ++i) {
+        fmt::println("[{}] : {}", i, store->f32()[i]);
+      }
+      break;
+    }
+    case Dtype::Float16:
+    case Dtype::String:
+    case Dtype::Bool:
+    case Dtype::Sym: {
+      for (std::size_t i = 0; i < store->sym().size(); ++i) {
+        if (store->sym()[i].isSymbolic()) {
+          fmt::println("[{}] : [{}]", i, store->sym()[i].sym());
+        } else {
+          fmt::println("[{}] : {}", i, store->sym()[i].constant());
+        }
+      }
+      // shape.graph()->debugDump();
+      break;
+    }
+    }
+  }
+}
 
 } // namespace vkcnn::details

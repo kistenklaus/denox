@@ -42,6 +42,7 @@ struct Sym {
     } else if (rhs.isConstant()) {
       return false;
     } else {
+      assert(lhs.isSymbolic() && rhs.isSymbolic());
       return lhs.sym() == rhs.sym();
     }
   }

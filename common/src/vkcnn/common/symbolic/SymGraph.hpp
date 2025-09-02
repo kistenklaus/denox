@@ -38,72 +38,72 @@ public:
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym add(L lhs, R rhs, bool dno = false);
+  Sym add(L lhs, R rhs, bool dno = true);
 
   template <typename X, typename Y, typename Z>
     requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
             (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
             (std::same_as<Z, Sym> || std::is_integral_v<Z>)
-  Sym add(X x, Y y, Z z, bool dno = false);
+  Sym add(X x, Y y, Z z, bool dno = true);
 
   template <typename X, typename Y, typename Z, typename W>
     requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
             (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
             (std::same_as<Z, Sym> || std::is_integral_v<Z>) &&
             (std::same_as<W, Sym> || std::is_integral_v<W>)
-  Sym add(X x, Y y, Z z, W w, bool dno = false);
+  Sym add(X x, Y y, Z z, W w, bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym sub(L lhs, R rhs, bool dno = false);
+  Sym sub(L lhs, R rhs, bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym mul(L lhs, R rhs, bool dno = false);
+  Sym mul(L lhs, R rhs, bool dno = true);
 
   template <typename X, typename Y, typename Z>
     requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
             (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
             (std::same_as<Z, Sym> || std::is_integral_v<Z>)
-  Sym mul(X x, Y y, Z z, bool dno = false);
+  Sym mul(X x, Y y, Z z, bool dno = true);
 
   template <typename X, typename Y, typename Z, typename W>
     requires(std::same_as<X, Sym> || std::is_integral_v<X>) &&
             (std::same_as<Y, Sym> || std::is_integral_v<Y>) &&
             (std::same_as<Z, Sym> || std::is_integral_v<Z>) &&
             (std::same_as<W, Sym> || std::is_integral_v<W>)
-  Sym mul(X x, Y y, Z z, W w, bool dno = false);
+  Sym mul(X x, Y y, Z z, W w, bool dno = true);
 
   template <typename L>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>)
-  Sym pow(L lhs, value_type rhs, bool dno = false);
+  Sym pow(L lhs, value_type rhs, bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym div(L lhs, R rhs, bool dno = false);
+  Sym div(L lhs, R rhs, bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym cdiv(L lhs, R rhs, bool dno = false);
+  Sym cdiv(L lhs, R rhs, bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym mod(L lhs, R rhs, bool dno = false);
+  Sym mod(L lhs, R rhs, bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym alignUp(L sym, R alignment, bool dno = false);
+  Sym alignUp(L sym, R alignment, bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym alignDown(L sym, R alignment, bool dno = false);
+  Sym alignDown(L sym, R alignment, bool dno = true);
 
   template <typename E, typename K, typename P, typename S,
             typename D = value_type>
@@ -113,7 +113,7 @@ public:
             (std::same_as<S, Sym> || std::is_integral_v<S>) &&
             (std::same_as<D, Sym> || std::is_integral_v<D>)
   Sym pool(E extent, K kernelSize, P padding, S stride,
-           D dilation = value_type(1), bool dno = false);
+           D dilation = value_type(1), bool dno = true);
 
   template <typename E, typename K, typename P, typename S, typename D>
     requires(std::same_as<E, Sym> || std::is_integral_v<E>) &&
@@ -122,7 +122,7 @@ public:
             (std::same_as<S, Sym> || std::is_integral_v<S>) &&
             (std::same_as<D, Sym> || std::is_integral_v<D>)
   Sym cpool(E extent, K kernelSize, P padding, S stride, D dilation = 1,
-            bool dno = false);
+            bool dno = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&

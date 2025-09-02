@@ -1,3 +1,4 @@
+#include "ATen/core/interned_strings.h"
 #include "vkcnn/common/symbolic/SymGraph.hpp"
 #include <gtest/gtest.h>
 
@@ -1295,4 +1296,17 @@ TEST(symbolic, unsolvable_pool4_upsample4) {
   auto u3 = g.mul(p3, 2);
 
   EXPECT_NE(u3, p2);
+}
+
+TEST(symbolic, unsolvable_mod_sub_mod) {
+  SymGraph g;
+  auto W = g.var();
+
+  Sym lhs = g.mod(g.sub(16, g.mod(W, 16)), 16);
+  Sym rhs = g.mod(W, 16);
+
+  ASSERT_TRUE(lhs.isSymbolic());
+  ASSERT_TRUE(rhs.isSymbolic());
+  //
+  EXPECT_NE(lhs, rhs);
 }

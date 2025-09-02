@@ -107,7 +107,7 @@ std::optional<Sym> SymGraph::try_construct_affine_sym(const AffineExpr &expr,
     }
   }
   if (s.rhs.isSymbolic()) {
-    const auto &next = m_expressions[s.lhs.sym()];
+    const auto &next = m_expressions[s.rhs.sym()];
     if (next.expr != ExprType::Identity && next.expr != ExprType::NonAffine) {
       std::optional<Sym> rhsAttempt =
           try_construct_affine_sym(expr, s.rhs.sym(), depth - 1, dno);

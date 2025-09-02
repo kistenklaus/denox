@@ -662,24 +662,12 @@ void sym_expr_sandbox() {
   vkcnn::SymGraph g;
   auto W = g.var();
 
-  auto alignment = 8;
-  auto W_padded = g.add(W, g.sub(alignment, g.mod(W, alignment)));
+  vkcnn::Sym lhs = g.mod(g.sub(16, g.mod(W, 16)), 16);
+  vkcnn::Sym rhs = g.mod(W, 16);
 
-  auto p0 = g.add(g.div(g.sub(W_padded, 2), 2), 1);
-  auto p1 = g.add(g.div(g.sub(p0, 2), 2), 1);
-  auto p2 = g.add(g.div(g.sub(p1, 2), 2), 1);
-
-  auto t = g.resolve(g.mod(p2, 2));
-
-  // auto t = g.mul(g.mul(p1, 2), 2);
-  // auto t = g.mul(p1, 2);
-  if (t.isSymbolic()) {
-    fmt::println("t = [{}]", t.sym());
-  } else {
-    fmt::println("t = {}", t.constant());
-  }
-  //
-  // fmt::println("p2 = [{}], u3=[{}]", p2.sym(), u3.sym());
+  // TODO here is definitels something wrong here.
+  fmt::println("lhs = {}", lhs.sym());
+  fmt::println("rhs = {}", rhs.sym());
 
   g.debugDump();
 }

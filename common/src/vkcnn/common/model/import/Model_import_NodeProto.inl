@@ -2,7 +2,9 @@
 
 #include "vkcnn/common/model/import/Model_import_AttributeProto.inl"
 #include "vkcnn/common/model/import/Model_import_state.inl"
+#include "vkcnn/common/model/import/Model_import_tensors.inl"
 #include "vkcnn/common/model/import/ops/Model_import_op_Abs.inl"
+#include <fmt/base.h>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -825,10 +827,12 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
     }
     attributes.emplace(name, tensor);
   }
+  fmt::println("\n\nNODE: {}", node.name());
   std::vector<std::optional<Tensor>> inputs;
   inputs.reserve(node.input_size());
   for (const auto &in : node.input()) {
     if (in == "") {
+      fmt::println("INPUT: NULL");
       // optional input
       inputs.push_back(std::nullopt);
       continue;
@@ -838,6 +842,8 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
       throw std::runtime_error(fmt::format(
           "vkcnn: input {} of node {} is undefined.", in, node.name()));
     }
+    fmt::println("INPUT: {}", in);
+    print_tensor(it->second);
     inputs.push_back(it->second);
   }
   // NOTE: Import op would actually contain the switch over the op type and
@@ -854,16 +860,22 @@ static void import_node(ImportState &state, const onnx::NodeProto &node) {
     const std::string &outputName = node.output(i);
     if (outputName == "") {
       // Optional output, ignore not used anywhere in the graph.
+      fmt::println("OUTPUT: NULL");
       continue;
     }
+
     if (state.tensors.map.contains(outputName)) {
       throw std::runtime_error(
           fmt::format("vkcnn: Node {} produces already existing value ({}). "
                       "Naming collision.",
                       node.name(), outputName));
     }
+    fmt::println("OUTPUT:");
+    print_tensor(outputs[i]);
     state.tensors.map.emplace(outputName, outputs[i]);
   }
+
+  state.symGraph->debugDump();
 }
 
 } // namespace vkcnn::details
