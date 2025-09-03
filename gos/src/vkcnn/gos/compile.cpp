@@ -4,7 +4,7 @@ namespace vkcnn {
 
 CompiledModel compile(const Model &model) {
 
-  hypergraph::ConstGraph<ComputeTensor, ComputeOp> graph = model.freeze();
+  // hypergraph::ConstGraph<ComputeTensor, ComputeOp> graph = model.
   CmdOpBuffer cmd;
 
 

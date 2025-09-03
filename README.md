@@ -227,4 +227,54 @@ perform stride arithmetics on shapes with symbolics, when importing onnx models,
 so with the current design we are touching a bit of self inflicted UB here, whoops =^).
 
 ###### Milestone 3: 🚧
-Graph optimization.
+Building a Supergraph:<br>
+<br>
+At this point this is just a design idea. So as a input to this stage, we get a 
+computation graph, in form a Model. Here nodes represent activation tensors and edges 
+represent operations. More specifically this graph is a hypergraph because we have operations 
+like concat, which take multiple inputs (i.e. edges with multiple source nodes).
+<br> 
+The current idea, is to build a supergraph, which is again a computational hypergraph, which 
+represents all possible way to compute the output. 
+Edges in this graph map directly to compute shaders. 
+When we build the supergraph, we directly encode optimizations like 
+layout convertions, fusion and implicit concat operations.
+For example a graph: <br>
+```
+A -Conv-> B -ReLU-> C 
+```
+Might be transformed into a supergraph, where the tensor B can have any layout, 
+and where we include fusion edges for compute shaders which implement a Conv+Relu.
+So something like this (here as a adjacency list):<br>
+```
+A -----DirectConv---> B 
+A ------FTTConv-----> B 
+A ---WinogradConv---> B 
+B -Activation(ReLU)-> C 
+A -----DirectConv---> C (inlined ReLU) 
+A ------FTTConv-----> C (inlined ReLU) 
+A ---WinogradConv---> C (inlined ReLU) 
+```
+In this example we ommit the layouts, so in the actual supergraph we would see node B,
+duplicated as B_HWC, B_CHW, B_CHWC8.
+This ofcause now means that the amount edges and nodes of the supergraph is significantly higher than the 
+original computational graph. Scaling here is not on our side, but in practise i expect this 
+new supergraph to not grow above a million edges, and modern computers are fast, and we do not have to perform 
+any of this during runtime, so it's probably fine if it takes a couple of seconds to build this graph.
+<br>
+The hole idea behind building a supergraph is that we can now determine a "shortest-path" (i.e. AND-OR problem so it's actually a "shortest-subgraph"),
+if we can define a heuristic which gives all edges a weight. If we assume that the herustic is correct, than 
+this brute force approach will always result in the selection of the fastest possible schedule that we can 
+execute. Another big architectural advantage of this approach that if we design this correctly 
+it will be incredibly easy to integrate new compute shaders. We will just have to write a new compute shader 
+at define a ruleset for when it is applicable, something like look at the prefix of operations in DFS order and 
+if the last two operations performed on a tensor, where Conv and ReLU, apply this shader. This approach would be 
+fully generic so if we find a define a shader which can implement NearestUpsampling,Concat,Conv,Relu, within a 
+single dispatch and has better performance than executing those operations in series than we will 
+we will be able to select this shader. 
+
+
+
+
+
+

@@ -30,8 +30,31 @@ public:
   using value_type = symbolic::details::value_type;
 
   SymGraph() = default;
-  SymGraph(const SymGraph &) = delete;
-  SymGraph &operator=(const SymGraph &) = delete;
+
+  SymGraph(const SymGraph &o)
+      : m_expressions(o.m_expressions), m_affineCache(o.m_affineCache),
+        m_nonAffineCache(o.m_nonAffineCache), m_modSolverCache() {
+    for (const auto &[key, value] : o.m_modSolverCache) {
+      m_modSolverCache.insert(std::make_pair(
+          key, std::make_shared<symbolic::details::ModSolver>(*value)));
+    }
+  }
+
+  SymGraph &operator=(const SymGraph &o) {
+    if (this == &o) {
+      return *this;
+    }
+    m_expressions = o.m_expressions;
+    m_affineCache = o.m_affineCache;
+    m_nonAffineCache = o.m_nonAffineCache;
+    m_modSolverCache =
+        std::unordered_map<Sym, ModSolverHandle, symbolic::details::SymHash>();
+    for (const auto& [key,value] : o.m_modSolverCache) {
+      m_modSolverCache.insert(std::make_pair(key,
+            std::make_shared<symbolic::details::ModSolver>(*value)));
+    }
+    return *this;
+  }
 
 public:
   Sym var();

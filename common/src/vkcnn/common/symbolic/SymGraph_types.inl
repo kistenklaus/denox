@@ -145,7 +145,23 @@ struct NonAffineExprComp {
 
 struct NonAffineExprCache {
 
-  NonAffineExprCache(const NonAffineExprCache &) = delete;
+  NonAffineExprCache(const NonAffineExprCache &o)
+      : expressions(o.expressions), cache(0, NonAffineExprHash(&expressions),
+                                          NonAffineExprComp(&expressions)) {}
+
+  NonAffineExprCache &operator=(const NonAffineExprCache &o) {
+    if (this == &o) {
+      return *this;
+    }
+    expressions = o.expressions;
+    cache = std::unordered_map<NonAffineExprKey, symbol, NonAffineExprHash,
+                               NonAffineExprComp>(
+        0, NonAffineExprHash(&expressions), NonAffineExprComp(&expressions));
+    for (const auto &k : o.cache) {
+      cache.insert(k);
+    }
+    return *this;
+  }
 
   NonAffineExprCache()
       : expressions(), cache(0, NonAffineExprHash(&expressions),

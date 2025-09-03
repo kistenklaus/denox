@@ -104,7 +104,7 @@ public:
                std::optional<ActivationLayout> layout = std::nullopt,
                std::optional<FloatType> type = std::nullopt,
                std::optional<Sym> W = std::nullopt,
-               std::optional<Sym> H = std::nullopt) {
+               std::optional<Sym> H = std::nullopt) const {
     Sym w = Sym::Const(0);
     if (W.has_value()) {
       w = *W;
@@ -131,7 +131,7 @@ public:
                 std::optional<vkcnn::BiasHostTensorConstView> B,
                 AutoPadMode autoPad, glm::uvec2 stride,
                 std::optional<glm::uvec2> padding, glm::uvec2 dilation,
-                std::optional<FloatType> atype = std::nullopt) {
+                std::optional<FloatType> atype = std::nullopt) const {
     // We still don’t support dilation ≠ 1 in the backend
     if (dilation != glm::uvec2(1, 1)) {
       throw std::runtime_error(
@@ -225,7 +225,7 @@ public:
   Tensor conv2d(const Tensor &src, vkcnn::FilterHostTensorConstView W,
                 std::optional<vkcnn::BiasHostTensorConstView> B,
                 glm::uvec2 stride, glm::uvec2 padding, glm::uvec2 dilation,
-                std::optional<FloatType> atype = std::nullopt) {
+                std::optional<FloatType> atype = std::nullopt) const {
     if (dilation != glm::uvec2(1, 1)) {
       throw std::runtime_error(
           "vkcnn: Does currently not support dilation != (1,1)");
@@ -253,7 +253,7 @@ public:
     return Tensor{dstId, m_controlBlock};
   }
 
-  Tensor activation(const Tensor &src, ActivationFunction func) {
+  Tensor activation(const Tensor &src, ActivationFunction func) const {
     hypergraph::NodeId srcId = src.m_nodeId;
     const auto &srcNode = m_controlBlock->hypergraph.get(srcId);
 
@@ -266,7 +266,7 @@ public:
   }
 
   Tensor upsample(const Tensor &src, unsigned int scalingFactor,
-                  FilterMode mode) {
+                  FilterMode mode) const {
     hypergraph::NodeId srcId = src.m_nodeId;
     const auto &srcNode = m_controlBlock->hypergraph.get(srcId);
 
@@ -283,7 +283,7 @@ public:
   }
 
   Tensor pool(const Tensor &src, glm::uvec2 kernelSize, glm::uvec2 padding,
-              glm::uvec2 stride, glm::uvec2 dilation, PoolFunction poolFunc) {
+              glm::uvec2 stride, glm::uvec2 dilation, PoolFunction poolFunc) const {
     if (dilation != glm::uvec2(1, 1)) {
       throw std::runtime_error(
           "vkcnn: Model::pool, does not support dilation != (1,1).");
@@ -306,7 +306,7 @@ public:
     return Tensor{dstId, m_controlBlock};
   }
 
-  Tensor concat(const Tensor &src0, const Tensor &src1) {
+  Tensor concat(const Tensor &src0, const Tensor &src1) const {
     hypergraph::NodeId src0Id = src0.m_nodeId;
     auto src0Node = m_controlBlock->hypergraph.get(src0Id);
 
@@ -339,7 +339,7 @@ public:
             (std::same_as<T, Sym> || std::is_integral_v<T>) &&
             (std::same_as<B, Sym> || std::is_integral_v<B>)
   Tensor pad(const Tensor &src0, L left, R right, T top, B bottom,
-             PaddingMode mode) {
+             PaddingMode mode) const {
 
     auto srcId = src0.m_nodeId;
     auto srcNode = m_controlBlock->hypergraph.get(srcId);
@@ -370,7 +370,7 @@ public:
             (std::same_as<R, Sym> || std::is_integral_v<R>) &&
             (std::same_as<T, Sym> || std::is_integral_v<T>) &&
             (std::same_as<B, Sym> || std::is_integral_v<B>)
-  Tensor slice(const Tensor &src0, L left, R right, T top, B bottom) {
+  Tensor slice(const Tensor &src0, L left, R right, T top, B bottom) const {
 
     auto srcId = src0.m_nodeId;
     auto srcNode = m_controlBlock->hypergraph.get(srcId);
@@ -391,25 +391,25 @@ public:
     return Tensor{dstId, m_controlBlock};
   }
 
-  void output(const Tensor &src) {
+  void output(const Tensor &src) const {
     assert(m_controlBlock->output ==
            details::ComputeGraphControlBlock::NullNode);
     m_controlBlock->output = src.m_nodeId;
   }
 
-  void setLayout(const Tensor &tensor, std::optional<ActivationLayout> layout) {
+  void setLayout(const Tensor &tensor, std::optional<ActivationLayout> layout) const {
     m_controlBlock->hypergraph.get(tensor.m_nodeId).m_layout = layout;
   }
 
-  void setType(const Tensor &tensor, std::optional<FloatType> type) {
+  void setType(const Tensor &tensor, std::optional<FloatType> type) const {
     m_controlBlock->hypergraph.get(tensor.m_nodeId).m_type = type;
   }
 
-  Tensor ReLU(const Tensor &src) {
+  Tensor ReLU(const Tensor &src) const {
     return activation(src, ActivationFunction::ReLU);
   }
 
-  Tensor LeakyReLU(const Tensor &src, float alpha = 0.01) {
+  Tensor LeakyReLU(const Tensor &src, float alpha = 0.01) const {
     if (std::abs(alpha - 0.01) > 1e-8) {
       throw std::runtime_error("Model::LeakyReLU not really implemented, only works with alpha=0.01.");
     }
@@ -419,21 +419,25 @@ public:
   Tensor MaxPool(const Tensor &src, glm::uvec2 kernelSize,
                  std::optional<glm::uvec2> padding = std::nullopt,
                  std::optional<glm::uvec2> stride = std::nullopt,
-                 std::optional<glm::uvec2> dilation = std::nullopt) {
+                 std::optional<glm::uvec2> dilation = std::nullopt) const {
     glm::uvec2 p = padding.value_or(glm::uvec2(0, 0));
     glm::uvec2 s = stride.value_or(kernelSize);
     glm::uvec2 d = dilation.value_or(glm::uvec2(1, 1));
     return pool(src, kernelSize, p, s, d, PoolFunction::Max);
   }
 
-  Tensor NearestUpsample(const Tensor &src, unsigned int scalingFactor) {
+  Tensor NearestUpsample(const Tensor &src, unsigned int scalingFactor) const {
     return upsample(src, scalingFactor, FilterMode::Nearest);
   }
 
-  // hypergraph::ConstGraph<ComputeTensor, ComputeOp> freeze() const {
-  //   return hypergraph::ConstGraph<ComputeTensor, ComputeOp>(
-  //       m_controlBlock->hypergraph);
-  // }
+
+  const vkcnn::hypergraph::AdjGraph<ComputeTensor, ComputeOp>& graph() const {
+    return m_controlBlock->hypergraph;
+  }
+
+  vkcnn::SymGraph symGraph() {
+    return *m_controlBlock->symGraph;
+  }
 
   static Model import(std::string_view path);
 
