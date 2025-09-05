@@ -27,10 +27,10 @@ imgui.ini
 *.csv
 *.pdf
 *.sh
+**.data
 
 dump
 
 preprocessed.comp
 
-onnx_example.py
 *.onnx

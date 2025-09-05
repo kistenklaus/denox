@@ -22,6 +22,9 @@ vkcnn_common_src = files(
   'src/vkcnn/common/symbolic/SymGraph_nonaffine_symbol_cache.cpp',
   'src/vkcnn/common/symbolic/SymGraph_sub_entry.cpp',
   'src/vkcnn/common/model/Model_import.cpp',
+  'src/vkcnn/common/compiler/compile.cpp',
+  'src/vkcnn/common/compiler/specialize_tensors.cpp',
+  'src/vkcnn/common/compiler/debug.cpp',
 )
 
 vkcnn_common_inc = include_directories('src')

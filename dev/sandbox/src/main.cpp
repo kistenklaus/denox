@@ -7,6 +7,7 @@
 #include "vkcnn/common/ActivationFunction.hpp"
 #include "vkcnn/common/FilterMode.hpp"
 #include "vkcnn/common/PoolFunction.hpp"
+#include "vkcnn/common/compiler/compile.hpp"
 #include "vkcnn/common/model/Model.hpp"
 #include "vkcnn/common/ops/OpActivation.hpp"
 #include "vkcnn/common/ops/OpCopy.hpp"
@@ -715,8 +716,8 @@ void model_sandbox() {
 }
 
 void model_import_sandbox() {
-  vkcnn::Model::import("./net.onnx");
-  fmt::println("FUCK YES");
+  auto model = vkcnn::Model::import("./net.onnx");
+  vkcnn::compile(model);
 }
 
 int main() {

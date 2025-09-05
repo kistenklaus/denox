@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vkcnn/common/hypergraph/ConstGraph.hpp"
 #include "vkcnn/common/model/ComputeOp.hpp"
 #include <span>
 #include <vector>
@@ -10,11 +11,9 @@ class ShaderOp {
   unsigned int opEnd;
 };
 
-class IShaderTemplate {
+class IShader {
   public:
-    ~IShaderTemplate() = default;
-
-    virtual std::vector<ShaderOp> capabilities(std::span<const ComputeOp*> ops) = 0;
+    ~IShader() = default;
 
   private:
 };

@@ -1,12 +1,13 @@
 #pragma once
-#include "vkcnn/common/ActivationFunction.hpp"
-#include "vkcnn/common/FilterMode.hpp"
 #include "vkcnn/common/PaddingMode.hpp"
-#include "vkcnn/common/PoolFunction.hpp"
+#include "vkcnn/common/model/ops/ComputeOpActivation.hpp"
+#include "vkcnn/common/model/ops/ComputeOpConcat.hpp"
+#include "vkcnn/common/model/ops/ComputeOpConv.hpp"
+#include "vkcnn/common/model/ops/ComputeOpPad.hpp"
+#include "vkcnn/common/model/ops/ComputeOpPool.hpp"
+#include "vkcnn/common/model/ops/ComputeOpSlice.hpp"
+#include "vkcnn/common/model/ops/ComputeOpUpsample.hpp"
 #include "vkcnn/common/symbolic/Sym.hpp"
-#include "vkcnn/common/tensor/BiasHostTensor.hpp"
-#include "vkcnn/common/tensor/FilterHostTensor.hpp"
-#include "vkcnn/common/tensor/FloatType.hpp"
 #include <cassert>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -14,102 +15,6 @@
 #include <utility>
 
 namespace vkcnn {
-
-class Model;
-
-struct ComputeOpConv {
-  struct Storage {
-    FilterHostTensor W;
-    std::optional<BiasHostTensor> B;
-    glm::uvec2 padding;
-    glm::uvec2 stride;
-
-    std::optional<FloatType> atype;
-  };
-
-  const Storage &operator*() const { return *m_store; }
-  Storage &operator*() { return *m_store; }
-  const Storage *operator->() const { return m_store.get(); }
-  Storage *operator->() { return m_store.get(); }
-
-  ComputeOpConv(FilterHostTensor W, std::optional<BiasHostTensor> B,
-                glm::uvec2 padding, glm::uvec2 stride,
-                std::optional<FloatType> atype)
-      : m_store(std::make_shared<Storage>(std::move(W), std::move(B), padding, stride,
-                                          atype)) {}
-
-private:
-  std::shared_ptr<Storage> m_store;
-};
-
-struct ComputeOpActivation {
-  ActivationFunction func;
-};
-
-struct ComputeOpUpsample {
-  unsigned int scalingFactor;
-  FilterMode mode;
-};
-
-struct ComputeOpPool {
-  struct Storage {
-    glm::uvec2 kernelSize;
-    glm::uvec2 padding;
-    glm::uvec2 stride;
-    PoolFunction func;
-  };
-
-  const Storage &operator*() const { return *m_store; }
-  Storage &operator*() { return *m_store; }
-  const Storage *operator->() const { return m_store.get(); }
-  Storage *operator->() { return m_store.get(); }
-
-  ComputeOpPool(glm::uvec2 kernelSize, glm::uvec2 padding, glm::uvec2 stride,
-                PoolFunction func)
-      : m_store(std::make_shared<Storage>(kernelSize, padding, stride, func)) {}
-
-private:
-  std::shared_ptr<Storage> m_store;
-};
-
-struct ComputeOpConcat {};
-
-struct ComputeOpPad {
-  struct Storage {
-    Sym left;
-    Sym right;
-    Sym top;
-    Sym bottom;
-    PaddingMode mode;
-  };
-
-  const Storage &operator*() const { return *m_store; }
-  Storage &operator*() { return *m_store; }
-  const Storage *operator->() const { return m_store.get(); }
-  Storage *operator->() { return m_store.get(); }
-
-  ComputeOpPad(Sym left, Sym right, Sym top, Sym bottom, PaddingMode mode)
-      : m_store(std::make_shared<Storage>(left, right, top, bottom, mode)) {}
-  std::shared_ptr<Storage> m_store;
-};
-
-struct ComputeOpSlice {
-  struct Storage {
-    Sym left;
-    Sym right;
-    Sym top;
-    Sym bottom;
-  };
-
-  const Storage &operator*() const { return *m_store; }
-  Storage &operator*() { return *m_store; }
-  const Storage *operator->() const { return m_store.get(); }
-  Storage *operator->() { return m_store.get(); }
-
-  ComputeOpSlice(Sym left, Sym right, Sym top, Sym bottom)
-      : m_store(std::make_shared<Storage>(left, right, top, bottom)) {}
-  std::shared_ptr<Storage> m_store;
-};
 
 enum class ComputeOpTag {
   None,
@@ -121,6 +26,8 @@ enum class ComputeOpTag {
   Pad,
   Slice,
 };
+
+class Model;
 
 class ComputeOp {
 public:
@@ -319,7 +226,7 @@ private:
     Uni(ComputeOpPad pad) : pad(std::move(pad)) {}
     Uni(ComputeOpSlice slice) : slice(std::move(slice)) {}
 
-    Uni() {}
+    Uni() : m_raw(0){}
 
     ~Uni() {}
   };

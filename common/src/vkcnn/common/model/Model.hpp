@@ -283,7 +283,8 @@ public:
   }
 
   Tensor pool(const Tensor &src, glm::uvec2 kernelSize, glm::uvec2 padding,
-              glm::uvec2 stride, glm::uvec2 dilation, PoolFunction poolFunc) const {
+              glm::uvec2 stride, glm::uvec2 dilation,
+              PoolFunction poolFunc) const {
     if (dilation != glm::uvec2(1, 1)) {
       throw std::runtime_error(
           "vkcnn: Model::pool, does not support dilation != (1,1).");
@@ -397,7 +398,8 @@ public:
     m_controlBlock->output = src.m_nodeId;
   }
 
-  void setLayout(const Tensor &tensor, std::optional<ActivationLayout> layout) const {
+  void setLayout(const Tensor &tensor,
+                 std::optional<ActivationLayout> layout) const {
     m_controlBlock->hypergraph.get(tensor.m_nodeId).m_layout = layout;
   }
 
@@ -411,7 +413,8 @@ public:
 
   Tensor LeakyReLU(const Tensor &src, float alpha = 0.01) const {
     if (std::abs(alpha - 0.01) > 1e-8) {
-      throw std::runtime_error("Model::LeakyReLU not really implemented, only works with alpha=0.01.");
+      throw std::runtime_error("Model::LeakyReLU not really implemented, only "
+                               "works with alpha=0.01.");
     }
     return activation(src, ActivationFunction::LeakyReLU);
   }
@@ -430,14 +433,11 @@ public:
     return upsample(src, scalingFactor, FilterMode::Nearest);
   }
 
-
-  const vkcnn::hypergraph::AdjGraph<ComputeTensor, ComputeOp>& graph() const {
+  const vkcnn::hypergraph::AdjGraph<ComputeTensor, ComputeOp> &graph() const {
     return m_controlBlock->hypergraph;
   }
 
-  vkcnn::SymGraph symGraph() {
-    return *m_controlBlock->symGraph;
-  }
+  vkcnn::SymGraph symGraph() { return *m_controlBlock->symGraph; }
 
   static Model import(std::string_view path);
 
