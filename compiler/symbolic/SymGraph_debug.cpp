@@ -1,4 +1,8 @@
+#include "diag/unreachable.hpp"
 #include "symbolic/SymGraph.hpp"
+#include <fmt/base.h>
+#include <fmt/format.h>
+#include <stdexcept>
 
 namespace denox::compiler {
 
@@ -157,4 +161,67 @@ void SymGraph::debugDump() const {
   }
 }
 
-} // namespace vkcnn
+memory::string SymGraph::to_string(Sym sym) const {
+  if (sym.isConstant()) {
+    return fmt::format("{}", sym.constant());
+  }
+  const auto &expr = m_expressions[sym.sym()];
+  if (expr.affine.isPureConstant()) {
+    return fmt::format("{}", expr.affine.constant);
+  }
+  switch (expr.expr) {
+  case symbolic::details::ExprType::Identity:
+    return fmt::format("[{}]", sym.sym());
+  case symbolic::details::ExprType::NonAffine: {
+    const auto &nonaffine = m_nonAffineCache.expressions[expr.lhs.sym()];
+    switch (nonaffine.expr) {
+    case symbolic::details::ExprType::Div:
+      return fmt::format("({} / {})", to_string(nonaffine.symbols[0]),
+                         to_string(nonaffine.symbols[1]));
+    case symbolic::details::ExprType::Mod:
+      return fmt::format("({} % {})", to_string(nonaffine.symbols[0]),
+                         to_string(nonaffine.symbols[1]));
+    case symbolic::details::ExprType::Mul: {
+      memory::string str = "(";
+      for (std::size_t i = 0; i < nonaffine.symbols.size(); ++i) {
+        if (i != 0) {
+          str.append(" * ");
+        }
+        str.append(fmt::format("{}", to_string(nonaffine.symbols[i])));
+      }
+      str.append(")");
+      return str;
+    }
+    case symbolic::details::ExprType::Identity:
+    case symbolic::details::ExprType::NonAffine:
+    case symbolic::details::ExprType::Sub:
+    case symbolic::details::ExprType::Add:
+    case symbolic::details::ExprType::Min:
+    case symbolic::details::ExprType::Max:
+    case symbolic::details::ExprType::Const:
+      denox::compiler::diag::unreachable();
+    }
+
+    return fmt::format("[NonAffine]");
+  }
+  case symbolic::details::ExprType::Div:
+    return fmt::format("({} / {})", to_string(expr.lhs), to_string(expr.rhs));
+  case symbolic::details::ExprType::Mod:
+    return fmt::format("({} % {})", to_string(expr.lhs), to_string(expr.rhs));
+  case symbolic::details::ExprType::Sub:
+    return fmt::format("({} - {})", to_string(expr.lhs), to_string(expr.rhs));
+  case symbolic::details::ExprType::Mul:
+    return fmt::format("({} * {})", to_string(expr.lhs), to_string(expr.rhs));
+  case symbolic::details::ExprType::Add:
+    return fmt::format("({} + {})", to_string(expr.lhs), to_string(expr.rhs));
+  case symbolic::details::ExprType::Min:
+    return fmt::format("min({}, {})", to_string(expr.lhs), to_string(expr.rhs));
+  case symbolic::details::ExprType::Max:
+    return fmt::format("max({}, {})", to_string(expr.lhs), to_string(expr.rhs));
+  case symbolic::details::ExprType::Const:
+    return fmt::format("{}", expr.lhs.constant());
+  }
+  denox::compiler::diag::unreachable();
+}
+
+} // namespace denox::compiler

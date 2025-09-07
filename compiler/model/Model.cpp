@@ -1,11 +1,16 @@
 #include "./Model.hpp"
+#include "diag/unreachable.hpp"
+#include "model/ModelControlBlock.hpp"
+#include <fmt/base.h>
+#include <fmt/format.h>
+#include <stdexcept>
 
 namespace denox::compiler {
 
 Tensor Model::input(unsigned int channels,
                     memory::optional<memory::ActivationLayout> layout,
-                    memory::optional<memory::Dtype> type, memory::optional<Sym> W,
-                    memory::optional<Sym> H) {
+                    memory::optional<memory::Dtype> type,
+                    memory::optional<Sym> W, memory::optional<Sym> H) {
   Sym w = Sym::Const(0);
   if (W.has_value()) {
     w = *W;
@@ -257,6 +262,190 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
 void Model::output(const Tensor &src) const {
   assert(m_controlBlock->output == details::model::ModelControlBlock::NullNode);
   m_controlBlock->output = src.m_nodeId;
+}
+
+Tensor Model::getInput() const {
+  assert(m_controlBlock->input != details::model::ModelControlBlock::NullNode);
+  return Tensor{m_controlBlock->input, m_controlBlock.get()};
+}
+
+Tensor Model::getOutput() const {
+  assert(m_controlBlock->output != details::model::ModelControlBlock::NullNode);
+  return Tensor{m_controlBlock->output, m_controlBlock.get()};
+}
+
+memory::string Model::to_string() const {
+  memory::string str;
+  if (m_controlBlock->meta.domain.has_value()) {
+    str.append(fmt::format("- Domain: {}\n", *m_controlBlock->meta.domain));
+  }
+  if (m_controlBlock->meta.producerName.has_value() &&
+      m_controlBlock->meta.producerVersion) {
+    str.append(fmt::format("- Producer: {}@{}\n",
+                           *m_controlBlock->meta.producerName,
+                           *m_controlBlock->meta.producerVersion));
+  }
+  if (m_controlBlock->meta.modelVersion.has_value() &&
+      m_controlBlock->meta.modelVersion) {
+    str.append(
+        fmt::format("- Version: {}\n", *m_controlBlock->meta.modelVersion));
+  }
+  auto input = getInput();
+  str.append(fmt::format("- Input: (TensorID: {})\n    C: {}\n",
+                         static_cast<std::uint64_t>(input.m_nodeId),
+                         input.channels()));
+  if (input.height().isSymbolic()) {
+    str.append(fmt::format("    W: [{}] <- SymInt\n", (*input.width()).sym()));
+  } else {
+    str.append(fmt::format("    W: {}\n", (*input.width()).sym()));
+  }
+  if (input.height().isSymbolic()) {
+    str.append(fmt::format("    H: [{}] <- SymInt\n", (*input.height()).sym()));
+  } else {
+    str.append(fmt::format("    H: {}\n", (*input.height()).sym()));
+  }
+
+  auto output = getOutput();
+  str.append(fmt::format("- Output: (TensorID: {})\n    C: {}\n",
+                         static_cast<std::uint64_t>(output.m_nodeId),
+                         output.channels()));
+  if (input.height().isSymbolic()) {
+    str.append(fmt::format("    W: [{}] <- SymInt\n", (*output.width()).sym()));
+  } else {
+    str.append(fmt::format("    W: {}\n", (*output.width()).sym()));
+  }
+  if (output.height().isSymbolic()) {
+    str.append(
+        fmt::format("    H: [{}] <- SymInt\n", (*output.height()).sym()));
+  } else {
+    str.append(fmt::format("    H: {}\n", (*output.height()).sym()));
+  }
+
+  str.append("- Layers:\n");
+  for (const auto &edge : m_controlBlock->hypergraph.edges()) {
+    const denox::compiler::ComputeOp &op =
+        m_controlBlock->hypergraph.get(edge.id());
+
+    auto srcs = edge.edge().src();
+    std::string in;
+    if (srcs.size() > 1) {
+      in.append("(");
+    }
+    for (std::size_t s = 0; s < srcs.size(); ++s) {
+      if (s != 0) {
+        in.append(", ");
+      }
+      in.append(fmt::format("{}", static_cast<std::uint64_t>(srcs[s])));
+    }
+    if (srcs.size() > 1) {
+      in.append(")");
+    }
+
+    std::string out =
+        fmt::format("{}", static_cast<std::uint64_t>(edge.edge().dst()));
+
+    std::string inout = fmt::format("{} -> {}", in, out);
+
+    switch (op.tag()) {
+    case ComputeOpTag::None:
+      denox::compiler::diag::unreachable();
+    case ComputeOpTag::Conv: {
+      str.append(fmt::format("    Conv: {}\n", inout));
+      const auto conv = op.conv();
+      str.append(fmt::format("      - kernelSize: {}x{}\n", conv->W->shape().s,
+                             conv->W->shape().r));
+      str.append(fmt::format("      - stride:     ({},{})\n", conv->stride.x,
+                             conv->stride.y));
+      str.append(fmt::format("      - padding:    ({},{})\n", conv->padding.x,
+                             conv->padding.y));
+      str.append(fmt::format("      - bias:       {}\n", conv->B != nullptr));
+      if (conv->atype.has_value()) {
+        str.append(
+            fmt::format("      - dtype:       {}\n", conv->atype->to_string()));
+      }
+      break;
+    }
+    case ComputeOpTag::Activation: {
+      const auto acti = op.activation();
+      switch (acti.func) {
+      case ActivationFunction::ReLU:
+        str.append(fmt::format("    ReLU: {}\n", inout));
+        break;
+      case ActivationFunction::LeakyReLU:
+        str.append(fmt::format("    LeakyReLU: {}\n", inout));
+        break;
+      case ActivationFunction::SiLU:
+        str.append(fmt::format("    SiLU: {}\n", inout));
+        break;
+      }
+      break;
+    }
+    case ComputeOpTag::Upsample: {
+      const auto upsample = op.upsample();
+      str.append(fmt::format("    Upsample: {}\n", inout));
+      switch (upsample.mode) {
+      case FilterMode::Nearest:
+        str.append("      - mode: Nearest\n");
+        break;
+      }
+      str.append(
+          fmt::format("      - scaling-factor: {}\n", upsample.scalingFactor));
+      break;
+    }
+    case ComputeOpTag::Pool: {
+      const auto &pool = op.pool();
+      str.append(fmt::format("    Pool: {}\n", inout));
+      str.append(fmt::format("      - kernelSize: {}x{}\n", pool->kernelSize.x,
+                             pool->kernelSize.y));
+      str.append(fmt::format("      - stride:     ({},{})\n", pool->stride.x,
+                             pool->stride.y));
+      str.append(fmt::format("      - padding:    ({},{})\n", pool->padding.x,
+                             pool->padding.y));
+      switch (pool->func) {
+      case PoolFunction::Max:
+        str.append("      - mode:       MaxPool\n");
+        break;
+      case PoolFunction::Avg:
+        str.append("      - mode:       AveragePool\n");
+        break;
+      }
+      break;
+    }
+    case ComputeOpTag::Concat: {
+      str.append(fmt::format("    Concat: {}\n", inout));
+      break;
+    }
+    case ComputeOpTag::Pad: {
+      const auto &pad = op.pad();
+      str.append(fmt::format("    Pad: {}\n", inout));
+      str.append(fmt::format("      - left:       {}\n",
+                             m_controlBlock->symGraph.to_string(pad->left)));
+      str.append(fmt::format("      - right:      {}\n",
+                             m_controlBlock->symGraph.to_string(pad->right)));
+      str.append(fmt::format("      - top:        {}\n",
+                             m_controlBlock->symGraph.to_string(pad->top)));
+      str.append(fmt::format("      - bottom:     {}\n",
+                             m_controlBlock->symGraph.to_string(pad->bottom)));
+      break;
+    }
+    case ComputeOpTag::Slice: {
+      const auto &slice = op.slice();
+      str.append(fmt::format("    Slice: {}\n", inout));
+      str.append(fmt::format("      - left:       {}\n",
+                             m_controlBlock->symGraph.to_string(slice->left)));
+      str.append(fmt::format("      - right:      {}\n",
+                             m_controlBlock->symGraph.to_string(slice->right)));
+      str.append(fmt::format("      - top:        {}\n",
+                             m_controlBlock->symGraph.to_string(slice->top)));
+      str.append(
+          fmt::format("      - bottom:     {}\n",
+                      m_controlBlock->symGraph.to_string(slice->bottom)));
+      break;
+    }
+    }
+  }
+
+  return str;
 }
 
 } // namespace denox::compiler

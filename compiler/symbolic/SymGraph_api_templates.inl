@@ -244,4 +244,4 @@ Sym SymGraph::max(L lhs, R rhs) {
   return var();
 }
 
-} // namespace vkcnn
+} // namespace denox::compiler

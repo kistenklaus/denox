@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/container/string.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -50,6 +51,17 @@ public:
 
   friend bool operator!=(const Dtype &lhs, const Dtype &rhs) {
     return lhs.m_type != rhs.m_type;
+  }
+
+  memory::string to_string() const {
+    switch (m_type.kind()) {
+    case DtypeKind::F16:
+      return "float16";
+    case DtypeKind::F32:
+      return "float32";
+    case DtypeKind::F64:
+      return "float64";
+    }
   }
 
   DtypeKind kind() const { return m_type.kind(); }

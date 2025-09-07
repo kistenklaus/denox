@@ -29,7 +29,8 @@ public:
       : m_controlBlock(std::make_unique<details::model::ModelControlBlock>(
             *o.m_controlBlock)) {}
 
-  Tensor input(unsigned int channels,
+  Tensor
+  input(unsigned int channels,
         memory::optional<memory::ActivationLayout> layout = memory::nullopt,
         memory::optional<memory::Dtype> type = memory::nullopt,
         memory::optional<Sym> W = memory::nullopt,
@@ -65,6 +66,11 @@ public:
   }
 
   const SymGraph &symGraph() { return m_controlBlock->symGraph; }
+
+  Tensor getInput() const;
+  Tensor getOutput() const;
+
+  memory::string to_string() const;
 
 private:
   std::unique_ptr<details::model::ModelControlBlock> m_controlBlock;

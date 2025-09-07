@@ -13,6 +13,9 @@ include(cmake/onnx_proto.cmake)
 include(cmake/googletest.cmake)
 
 add_library(denox_compiler 
+
+  compiler/diag/logging.cpp
+
   compiler/memory/dtype/dtype_reference.cpp
   compiler/memory/dtype/f16.cpp
 
@@ -100,6 +103,10 @@ add_library(denox_compiler
 
 add_library(denox::compiler ALIAS denox_compiler)
 add_library(denox::denox ALIAS denox_compiler)
+
+target_compile_definitions(denox_compiler 
+  PRIVATE 
+    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 
 target_include_directories(denox_compiler
   PUBLIC

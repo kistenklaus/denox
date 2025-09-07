@@ -2,6 +2,7 @@
 
 #include "symbolic/Sym.hpp"
 #include <cassert>
+#include "memory/container/string.hpp"
 #include <concepts>
 #include <fmt/base.h>
 #include <fmt/format.h>
@@ -174,6 +175,7 @@ public:
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;
   void debugDump() const;
+  memory::string to_string(Sym sym) const;
 
 private:
   // Affine symbol cache.

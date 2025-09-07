@@ -4,6 +4,7 @@
 #include "memory/hypergraph/NodeId.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
+#include "model/ModelMeta.hpp"
 #include "symbolic/SymGraph.hpp"
 
 namespace denox::compiler::details::model {
@@ -16,6 +17,7 @@ struct ModelControlBlock {
   memory::NodeId input;
   memory::NodeId output;
   memory::AdjGraph<ComputeTensor, ComputeOp> hypergraph;
+  ModelMeta meta;
 
   SymGraph symGraph;
 };
