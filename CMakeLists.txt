@@ -10,6 +10,7 @@ include(cmake/options.cmake)
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/onnx_proto.cmake)
+include(cmake/googletest.cmake)
 
 add_library(denox_compiler 
   compiler/memory/dtype/dtype_reference.cpp
@@ -121,7 +122,6 @@ denox_enable_strict_warnings(denox_compiler)
 target_compile_features(denox_compiler PUBLIC cxx_std_20)
 
 
-
 add_executable(denox
   cli/main.cpp
 )
@@ -131,9 +131,26 @@ target_link_libraries(denox
       denox::compiler
 )
 
+# ================= Testing ======================
+add_executable(denox_test EXCLUDE_FROM_ALL
+  test/main.cpp
+  test/compiler/symbolic/affine.cpp
+  test/compiler/symbolic/common.cpp
+  test/compiler/symbolic/modsolve.cpp
+  test/compiler/symbolic/nonaffine.cpp
+  test/compiler/symbolic/unsolvable.cpp
+)
 
+target_link_libraries(denox_test
+  PRIVATE
+    denox::compiler
+    GTest::gtest
+)
 
-
+target_include_directories(denox_test
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/compiler
+)
 
 
 # ========== PACKAGE-CONFIG-STUFF =============
