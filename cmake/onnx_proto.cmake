@@ -32,6 +32,7 @@ add_library(denox_onnx_proto STATIC
   ${DENOX_ONNX_SRCS}
   ${DENOX_ONNX_HDRS}
 )
+
 set_target_properties(denox_onnx_proto PROPERTIES
   EXCLUDE_FROM_ALL TRUE            # won't build unless linked or requested
   FOLDER "generated/onnx"          # IDE grouping (optional)
