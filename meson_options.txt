@@ -1,1 +1,0 @@
-option('dev', type: 'boolean', value: false, description: 'Enable development stuff like tests, benchmarks and surveys')

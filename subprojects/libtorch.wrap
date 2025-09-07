@@ -1,8 +1,0 @@
-[wrap-file]
-source_url = https://download.pytorch.org/libtorch/cu128/libtorch-cxx11-abi-shared-with-deps-2.7.1%2Bcu128.zip
-source_filename = libtorch-cxx11-abi-shared-with-deps-2.7.1+cpu.zip
-source_hash = ae513b437ae99150744ef1d06b02a4ecbbb9275c9ffe540c88909623e3293041
-patch_directory = libtorch
-
-[provide]
-dependency_names = libtorch

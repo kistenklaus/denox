@@ -32,5 +32,7 @@ imgui.ini
 dump
 
 preprocessed.comp
+cmake-build-debug
+cmake-build-release
 
 *.onnx

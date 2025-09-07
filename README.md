@@ -214,9 +214,9 @@ It is also the main driver behind what allows us to define a canonical represent
 where we can now split any affine expression of the numerator into components which are exactly divisible 
 and a part which is not exactly divisible. This allows us to show identities like: <br>
 - (BX + R) div B == X + R div B
-- ((X - 2) / 2 + 1) * 2 == (X / 2) * 2 == X
+- ((X - 2) / 2 + 1) * 2 == (X / 2) * 2 == X (assuming X mod 2 == 0)
 
-The last equality is crucial for proving that max pooling and a following upsampling step, do not change the spatial extent.<br>
+The is crucial for proving that max pooling and a following upsampling step, do not change the spatial extent.<br>
 
 **Abusing UB:** Now if this was a right dicision iam not sure, but as stated at the very start we assume all intermediate values to be positive or zero,
 explicit what this means is that we define under / overflow as UB. We also trivially define a division by zero as UB. 
