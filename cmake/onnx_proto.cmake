@@ -6,7 +6,7 @@ find_package(Protobuf REQUIRED)  # protoc + protobuf::libprotobuf
 
 # ---- Config ----
 # Root where your .proto(s) live
-set(DENOX_ONNX_PROTO_ROOT "${PROJECT_SOURCE_DIR}/third_party" CACHE PATH "Root dir for ONNX protos")
+set(DENOX_ONNX_PROTO_ROOT "${PROJECT_SOURCE_DIR}/third_party/onnx" CACHE PATH "Root dir for ONNX protos")
 
 # List of proto files. Default assumes a single file at third_party/onnx.proto.
 # If you vendor the canonical pair, switch to the two lines below and ensure the subdirs exist.
