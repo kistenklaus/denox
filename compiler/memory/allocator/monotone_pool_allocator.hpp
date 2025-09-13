@@ -12,19 +12,18 @@ template <std::size_t BlockSize, std::size_t BlockAlign,
           typename GrowthFactor = std::ratio<2, 1>>
 class monotonic_pool_allocator {
 public:
+  static_assert(GrowthFactor::num >= GrowthFactor::den);
   using Self =
       monotonic_pool_allocator<BlockSize, BlockAlign, Allocator, GrowthFactor>;
   using upstream = Allocator;
   static constexpr std::size_t block_size = std::max(BlockSize, BlockAlign);
   static constexpr std::size_t block_align = BlockAlign;
 
-  explicit monotonic_pool_allocator(std::size_t capacity,
+  explicit monotonic_pool_allocator(std::size_t capacity = 0,
                                     const upstream &upstream = {})
-      : m_upstream(upstream), m_freelist(nullptr) {
-    if (capacity == 0) {
-      m_buffer = nullptr;
-    } else {
-      allocBlock(capacity);
+      : m_upstream(upstream), m_buffer(nullptr), m_freelist(nullptr) {
+    if (capacity != 0) {
+      allocBlock(capacity + 1);
     }
   }
 
@@ -75,11 +74,10 @@ private:
   };
 
   void release() {
-    assert(m_freelist == nullptr);
     Node *block = m_buffer;
     while (block != nullptr) {
       Node *nextBlock = block->block.next;
-      m_upstream.deallocate(block, block->block.blockSize, alignof(Node));
+      m_upstream.deallocate(block, block->block.blockSize * sizeof(Node), alignof(Node));
       block = nextBlock;
     }
     m_buffer = nullptr;
@@ -110,17 +108,17 @@ private:
     allocBlock(nextBlockSize);
   }
 
-  void allocBlock(std::size_t capacity) {
-    Node *block = static_cast<Node*>(m_upstream.allocate(capacity * sizeof(Node), alignof(Node)));
+  void allocBlock(std::size_t blockSize) {
+    Node *block = static_cast<Node*>(m_upstream.allocate(blockSize * sizeof(Node), alignof(Node)));
     Node *header = block;
     Node *const begin = header + 1;
-    Node *const end = header + capacity;
+    Node *const end = header + blockSize;
     for (Node *current = begin; current < end - 1; ++current) {
       current->free.next = current + 1;
     }
     (end - 1)->free.next = m_freelist;
     m_freelist = begin;
-    block->block.blockSize = capacity;
+    block->block.blockSize = blockSize;
     block->block.next = m_buffer;
     m_buffer = block;
   }

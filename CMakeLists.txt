@@ -143,6 +143,7 @@ target_link_libraries(denox
 # ================= Testing ======================
 add_executable(denox_test EXCLUDE_FROM_ALL
   test/main.cpp
+  test/compiler/memory/monotone_pool_allocator.cpp
   test/compiler/symbolic/affine.cpp
   test/compiler/symbolic/common.cpp
   test/compiler/symbolic/modsolve.cpp
