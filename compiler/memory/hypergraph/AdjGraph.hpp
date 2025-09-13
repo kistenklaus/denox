@@ -288,8 +288,8 @@ public:
     if (it == m_nodes.end()) {
       return {const_node_iterator{}, const_node_iterator{}};
     }
-    std::size_t idx = std::distance(m_nodes.begin(), it);
-    const_node_iterator begin{m_nodes.data() + idx, idx, m_nodes.size()};
+    std::ptrdiff_t idx = std::distance(m_nodes.begin(), it);
+    const_node_iterator begin{m_nodes.data() + idx, static_cast<std::size_t>(idx), m_nodes.size()};
     return {begin, const_node_iterator{m_nodes.data() + m_nodes.size(),
                                        m_nodes.size(), m_nodes.size()}};
   }
@@ -301,8 +301,8 @@ public:
     if (it == m_edges.end()) {
       return {const_edge_iterator{}, const_edge_iterator{}};
     }
-    std::size_t idx = std::distance(m_edges.begin(), it);
-    const_edge_iterator begin{m_edges.data() + idx, idx, m_edges.size()};
+    std::ptrdiff_t idx = std::distance(m_edges.begin(), it);
+    const_edge_iterator begin{m_edges.data() + idx, static_cast<std::size_t>(idx), m_edges.size()};
     return {begin, const_edge_iterator{m_edges.data() + m_edges.size(),
                                        m_edges.size(), m_edges.size()}};
   }

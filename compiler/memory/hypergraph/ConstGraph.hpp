@@ -37,7 +37,7 @@ public:
 
     // Pass 0: Compact IDs and build remapping tables.
     std::size_t maxNodeId{0};
-    for (const typename AdjGraph<V, E>::const_node_iterator::Node &n :
+    for (typename AdjGraph<V, E>::const_node_iterator::Node n :
          graph.nodes()) {
       maxNodeId = std::max(static_cast<std::size_t>(n.id()), maxNodeId);
     }
@@ -71,7 +71,7 @@ public:
     for (const auto &e : graph.edges()) {
       std::size_t ne = edgeRemap[e.id()];
       auto srcs = e.edge().src();
-      srclen[ne] = srcs.size();
+      srclen[ne] = static_cast<unsigned int>(srcs.size());
       std::size_t dv = nodeRemap[e.edge().dst()];
       ++indeg[dv];
 

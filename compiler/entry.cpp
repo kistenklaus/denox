@@ -1,7 +1,11 @@
+#include "memory/hypergraph/LinkedGraph.hpp"
 #include "entry.hpp"
+#include "compiler/fuse/fusion.hpp"
 #include "diag/logging.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/onnx.hpp"
+#include "memory/hypergraph/ConstGraph.hpp"
+#include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
 #include <fmt/base.h>
 #include <spdlog/spdlog.h>
@@ -34,6 +38,17 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   Model model = frontend(raw, options);
   DENOX_DEBUG("Successfully imported Model:");
   DENOX_DEBUG_RAW(model.to_string());
+
+
+  auto tensor = model.graph().get(memory::NodeId(0));
+  auto op = model.graph().get(memory::EdgeId(0));
+  memory::LinkedGraph<ComputeTensor, ComputeOp> graph;
+  // TODO: Fix and test monotonic_pool_allocator.
+  // auto A = graph.createNode(tensor);
+  // auto B = graph.createNode(tensor);
+
+  // memory::ConstGraph<ComputeTensor, ComputeOp> graph =
+  //     fusion_pass(memory::ConstGraph<ComputeTensor, ComputeOp>{model.graph()});
 
   // 2. Preoptimizer pass: Trivial optimizations like Conv -> Conv, or Slice ->
   // Slice. Just some basic fusion not done by the exporters.

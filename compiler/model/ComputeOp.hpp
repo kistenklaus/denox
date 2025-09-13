@@ -73,6 +73,38 @@ public:
       break;
     }
   }
+  ComputeOp &operator=(const ComputeOp &o) {
+    if (this == &o) {
+      return *this;
+    }
+    m_tag = o.m_tag;
+    switch (m_tag) {
+    case ComputeOpTag::Conv:
+      m_uni.conv = o.m_uni.conv;
+      break;
+    case ComputeOpTag::Activation:
+      m_uni.activation = o.m_uni.activation;
+      break;
+    case ComputeOpTag::Upsample:
+      m_uni.upsample = o.m_uni.upsample;
+      break;
+    case ComputeOpTag::Pool:
+      m_uni.pool = o.m_uni.pool;
+      break;
+    case ComputeOpTag::Concat:
+      m_uni.concat = o.m_uni.concat;
+      break;
+    case ComputeOpTag::Pad:
+      m_uni.pad = o.m_uni.pad;
+      break;
+    case ComputeOpTag::Slice:
+      m_uni.slice = o.m_uni.slice;
+      break;
+    case ComputeOpTag::None:
+      break;
+    }
+    return *this;
+  }
 
   ComputeOp(ComputeOp &&o) : m_tag(o.m_tag) {
     switch (o.m_tag) {
@@ -102,35 +134,41 @@ public:
       break;
     }
   }
-
-  ~ComputeOp() {
+  ComputeOp &operator=(ComputeOp &&o) {
+    if (this == &o) {
+      return *this;
+    }
+    release();
+    m_tag = o.m_tag;
     switch (m_tag) {
     case ComputeOpTag::Conv:
-      // TODO remove with explicit destructor calls. (only since c++17)
-      std::destroy_at(&m_uni.concat);
+      m_uni.conv = std::move(o.m_uni.conv);
       break;
     case ComputeOpTag::Activation:
-      std::destroy_at(&m_uni.activation);
+      m_uni.activation = std::move(o.m_uni.activation);
       break;
     case ComputeOpTag::Upsample:
-      std::destroy_at(&m_uni.upsample);
+      m_uni.upsample = std::move(o.m_uni.upsample);
       break;
     case ComputeOpTag::Pool:
-      std::destroy_at(&m_uni.pool);
+      m_uni.pool = std::move(o.m_uni.pool);
       break;
     case ComputeOpTag::Concat:
-      std::destroy_at(&m_uni.concat);
+      m_uni.concat = std::move(o.m_uni.concat);
       break;
     case ComputeOpTag::Pad:
-      std::destroy_at(&m_uni.pad);
+      m_uni.pad = std::move(o.m_uni.pad);
       break;
     case ComputeOpTag::Slice:
-      std::destroy_at(&m_uni.slice);
+      m_uni.slice = std::move(o.m_uni.slice);
       break;
     case ComputeOpTag::None:
       break;
     }
+    return *this;
   }
+
+  ~ComputeOp() { release(); }
 
   ComputeOpTag tag() const { return m_tag; }
 
@@ -202,6 +240,36 @@ public:
   }
 
 private:
+  void release() {
+    switch (m_tag) {
+    case ComputeOpTag::Conv:
+      // TODO remove with explicit destructor calls. (only since c++17)
+      std::destroy_at(&m_uni.concat);
+      break;
+    case ComputeOpTag::Activation:
+      std::destroy_at(&m_uni.activation);
+      break;
+    case ComputeOpTag::Upsample:
+      std::destroy_at(&m_uni.upsample);
+      break;
+    case ComputeOpTag::Pool:
+      std::destroy_at(&m_uni.pool);
+      break;
+    case ComputeOpTag::Concat:
+      std::destroy_at(&m_uni.concat);
+      break;
+    case ComputeOpTag::Pad:
+      std::destroy_at(&m_uni.pad);
+      break;
+    case ComputeOpTag::Slice:
+      std::destroy_at(&m_uni.slice);
+      break;
+    case ComputeOpTag::None:
+      break;
+    }
+    m_tag = ComputeOpTag::None;
+  }
+
   friend Model;
   union Uni {
     char m_raw = 0;

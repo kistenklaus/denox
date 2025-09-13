@@ -1,5 +1,6 @@
 #pragma once
 
+#include "diag/unreachable.hpp"
 #include "memory/container/string.hpp"
 #include <array>
 #include <cstddef>
@@ -62,6 +63,7 @@ public:
     case DtypeKind::F64:
       return "float64";
     }
+    denox::compiler::diag::unreachable();
   }
 
   DtypeKind kind() const { return m_type.kind(); }

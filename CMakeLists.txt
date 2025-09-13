@@ -14,6 +14,8 @@ include(cmake/googletest.cmake)
 
 add_library(denox_compiler 
 
+  compiler/compiler/fuse/fusion.cpp
+
   compiler/diag/logging.cpp
 
   compiler/memory/dtype/dtype_reference.cpp
