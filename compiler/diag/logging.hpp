@@ -1,5 +1,7 @@
 #pragma once
 
+#include <spdlog/spdlog.h>
+
 namespace denox::compiler::diag {
 
 enum LogLevel {

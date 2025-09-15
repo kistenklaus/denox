@@ -10,6 +10,8 @@ public:
   static constexpr std::uint64_t NullId{
       std::numeric_limits<std::uint64_t>::max()};
 
+
+  explicit constexpr NodeId() : m_id(NullId) {}
   explicit constexpr NodeId(std::uint64_t id) : m_id(id) {}
 
   constexpr operator std::uint64_t() const { return m_id; }

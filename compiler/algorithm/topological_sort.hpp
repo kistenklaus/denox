@@ -11,7 +11,7 @@
 namespace denox::algorithm {
 
 template <typename V, typename E>
-std::vector<memory::NodeId>
+memory::vector<memory::NodeId>
 topologicalSort(const memory::ConstGraph<V, E> &hypergraph) {
   using EdgeId = memory::EdgeId;
   using NodeId = memory::NodeId;

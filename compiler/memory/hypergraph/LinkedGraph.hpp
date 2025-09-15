@@ -4,7 +4,13 @@
 #include "memory/allocator/allocator_reference.hpp"
 #include "memory/allocator/mallocator.hpp"
 #include "memory/allocator/monotone_pool_allocator.hpp"
+#include "memory/container/hashmap.hpp"
+#include "memory/container/index_pool.hpp"
+#include "memory/container/optional.hpp"
 #include "memory/container/span.hpp"
+#include "memory/container/vector.hpp"
+#include "memory/hypergraph/AdjGraph.hpp"
+#include "memory/hypergraph/NodeId.hpp"
 #include "memory/hypergraph/NullWeight.hpp"
 #include <algorithm>
 #include <cassert>
@@ -13,6 +19,7 @@
 #include <memory>
 #include <spdlog/pattern_formatter-inl.h>
 #include <type_traits>
+#include <utility>
 
 namespace denox::memory {
 
@@ -54,21 +61,21 @@ private:
 
   struct ControlBlock {
     static_assert(sizeof(OutgoingNodeList) == sizeof(EdgeList));
-    static constexpr std::size_t CommonBlockSize = algorithm::lcm(
+    static constexpr std::size_t CommonBlockSize = 16 * algorithm::lcm(
         sizeof(EdgeList), algorithm::lcm(sizeof(Node), sizeof(Edge)));
 
-    static constexpr std::size_t MaxBlockSize = 1 << 14;
+    static constexpr std::size_t MaxBlockSize = 1 << 12;
     static constexpr std::size_t EffectiveBlockSize =
         std::min(CommonBlockSize,
-                 std::max(std::max(sizeof(Node),
+                 16 * std::max(std::max(sizeof(Node),
                                    std::max(sizeof(Edge), sizeof(EdgeList))),
                           MaxBlockSize));
 
     static constexpr std::size_t CommonAlign =
         std::max(alignof(EdgeList), std::max(alignof(Node), alignof(Edge)));
 
-    using BlockAlloc =
-        monotonic_pool_allocator<EffectiveBlockSize, CommonAlign, Allocator>;
+    using BlockAlloc = Allocator;
+        // monotonic_pool_allocator<EffectiveBlockSize, CommonAlign, Allocator>;
     BlockAlloc blockPool;
 
     static constexpr std::size_t LinkedPoolBlockCapacity =
@@ -89,23 +96,27 @@ private:
                              allocator_ref<BlockAlloc>, std::ratio<1, 1>>
         edgePool;
 
-    ControlBlock(const Allocator& upstream = {})
-        : blockPool(0, upstream),
+    index_pool<std::uint64_t, Node *> nodes;
+
+    ControlBlock(const Allocator &upstream = {})
+        : blockPool(upstream),
           linkedPool(LinkedPoolBlockCapacity, allocator_ref(&blockPool)),
           nodePool(NodePoolBlockCapacity, allocator_ref(&blockPool)),
-          edgePool(EdgePoolBlockCapacity, allocator_ref(&blockPool)) {
-      constexpr auto x = sizeof(EdgeList);
+          edgePool(EdgePoolBlockCapacity, allocator_ref(&blockPool)), nodes() {}
+
+    std::pair<Node *, NodeId> allocNode() {
+      auto ptr =
+          static_cast<Node *>(nodePool.allocate(sizeof(Node), alignof(Node)));
+      std::uint64_t id = nodes.insert(ptr);
+      return std::make_pair(ptr, NodeId(id));
     }
 
-    Node *allocNode() {
-      return static_cast<Node *>(
-          nodePool.allocate(sizeof(Node), alignof(Node)));
-    }
     void destroyNode(Node *nodeBlock) noexcept {
       assert(nodeBlock != nullptr);
       assert(nodeBlock->m_external_count == 0);
       assert(nodeBlock->m_live_parent_count == 0);
       assert(nodeBlock->m_incoming == nullptr);
+      nodes.erase(static_cast<std::uint64_t>(nodeBlock->m_id));
       if constexpr (!std::is_trivially_destructible_v<Node>) {
         nodeBlock->~Node();
       }
@@ -310,7 +321,10 @@ public:
       return OutgoingList(NodeHandle(*this));
     }
 
+    [[nodiscard]] NodeId id() const noexcept { return m_id; }
+
   private:
+    NodeId m_id;
     ref_count m_external_count;
     ref_count m_live_parent_count;
     V m_payload;
@@ -319,8 +333,8 @@ public:
     EdgeList *m_incoming; // storage.
 
     template <typename... Args>
-    Node(ControlBlock *controlBlock, Args &&...args) noexcept
-        : m_external_count(1), m_live_parent_count(0),
+    Node(NodeId id, ControlBlock *controlBlock, Args &&...args) noexcept
+        : m_id(id), m_external_count(1), m_live_parent_count(0),
           m_payload(std::forward<Args>(args)...), m_controlBlock(controlBlock),
           m_outgoing(nullptr), m_incoming(nullptr) {}
 
@@ -982,6 +996,16 @@ public:
       }
     }
 
+    friend bool operator==(const NodeHandle &lhs, const NodeHandle &rhs) {
+      return lhs.m_controlBlock == rhs.m_controlBlock;
+    }
+
+    friend bool operator!=(const NodeHandle &lhs, const NodeHandle &rhs) {
+      return lhs.m_controlBlock != rhs.m_controlBlock;
+    }
+
+    NodeHandle() : m_controlBlock(nullptr) {}
+
   private:
     explicit NodeHandle(Node *cb) noexcept : m_controlBlock(cb) {}
     Node *m_controlBlock;
@@ -1038,13 +1062,56 @@ public:
   template <typename... Args>
     requires std::constructible_from<V, Args...>
   NodeHandle createNode(Args &&...args) noexcept {
-    Node *nodeBlock = m_controlBlock->allocNode();
-    new (nodeBlock) Node(m_controlBlock.get(), std::forward<Args>(args)...);
-    return NodeHandle{nodeBlock};
+    const auto [nodeptr, id] = m_controlBlock->allocNode();
+    new (nodeptr) Node(id, m_controlBlock.get(), std::forward<Args>(args)...);
+    return NodeHandle{nodeptr};
   }
 
-  LinkedGraph(const Allocator& alloc = {})
+  /// If the NodeId does no longer exist this will throw!
+  [[nodiscard]] NodeHandle get(NodeId node) const noexcept {
+    Node *ptr = m_controlBlock->nodes[static_cast<std::uint64_t>(node)];
+    return NodeHandle(*ptr);
+  }
+
+  /// Returns a upper limit for the current amount of nodes,
+  /// the exact amount is not stored!
+  [[nodiscard]] std::size_t upperNodeCount() const noexcept {
+    return m_controlBlock->nodes.maxKey();
+  }
+
+  LinkedGraph(const Allocator &alloc = {})
       : m_controlBlock(std::make_unique<ControlBlock>(alloc)) {}
+
+  static std::pair<memory::vector<NodeHandle>, LinkedGraph>
+  from(const memory::AdjGraph<V, E> &adj, const Allocator &alloc = {}) {
+
+    memory::LinkedGraph<V, E> out(alloc);
+    std::uint64_t maxNodeId = 0;
+    for (const auto &node : adj.nodes()) {
+      maxNodeId = std::max(static_cast<std::uint64_t>(node.id()), maxNodeId);
+    }
+
+    memory::vector<NodeHandle> nodes(maxNodeId + 1);
+    for (const auto &node : adj.nodes()) {
+      NodeHandle handle = out.createNode(node.node());
+      nodes[node.id()] = std::move(handle);
+    }
+
+    for (const auto &edgeInfo : adj.edges()) {
+      auto edge = edgeInfo.edge();
+      NodeHandle dst = nodes[static_cast<std::uint64_t>(edge.dst())];
+      IncomingList incoming = dst->incoming();
+
+      memory::vector<const NodeHandle *> srcs(edge.src().size());
+      for (std::size_t i = 0; i < srcs.size(); ++i) {
+        srcs[i] = &(nodes[edge.src()[i]]);
+      }
+
+      incoming.insert_after_with_dynamic_srcs(incoming.begin(), srcs,
+                                              edge.weight(), edge.payload());
+    }
+    return std::make_pair(std::move(nodes), std::move(out));
+  }
 
 private:
   std::unique_ptr<ControlBlock> m_controlBlock;

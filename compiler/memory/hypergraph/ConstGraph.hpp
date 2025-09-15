@@ -1,11 +1,14 @@
 #pragma once
 
+#include "memory/container/hashmap.hpp"
 #include "memory/container/span.hpp"
+#include "memory/container/vector.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/EdgeId.hpp"
+#include "memory/hypergraph/LinkedGraph.hpp"
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/hypergraph/NullWeight.hpp"
-#include "memory/container/vector.hpp"
+#include <utility>
 
 namespace denox::memory {
 
@@ -25,6 +28,8 @@ public:
     NodeId dst;
   };
 
+
+
   explicit ConstGraph(const AdjGraph<V, E, W> &graph) {
 
     std::size_t nodeCount = graph.nodeCount();
@@ -37,8 +42,7 @@ public:
 
     // Pass 0: Compact IDs and build remapping tables.
     std::size_t maxNodeId{0};
-    for (typename AdjGraph<V, E>::const_node_iterator::Node n :
-         graph.nodes()) {
+    for (typename AdjGraph<V, E>::const_node_iterator::Node n : graph.nodes()) {
       maxNodeId = std::max(static_cast<std::size_t>(n.id()), maxNodeId);
     }
     std::size_t maxEdgeId{0};
@@ -136,13 +140,16 @@ public:
   }
 
   denox::memory::span<const EdgeId> outgoing(NodeId node) const {
-    return denox::memory::span{m_edgeIds.begin() + static_cast<std::ptrdiff_t>(m_nodes[node].outgoingBegin),
-                     m_edgeIds.begin() + static_cast<std::ptrdiff_t>(m_nodes[node].outgoingEnd)};
+    return denox::memory::span{
+        m_edgeIds.begin() +
+            static_cast<std::ptrdiff_t>(m_nodes[node].outgoingBegin),
+        m_edgeIds.begin() +
+            static_cast<std::ptrdiff_t>(m_nodes[node].outgoingEnd)};
   }
 
   denox::memory::span<const EdgeId> incoming(NodeId node) const {
     return denox::memory::span{m_edgeIds.begin() + m_nodes[node].incomingBegin,
-                     m_edgeIds.begin() + m_nodes[node].incomingEnd};
+                               m_edgeIds.begin() + m_nodes[node].incomingEnd};
   }
 
   const V &get(NodeId node) const { return m_nodeData[node]; }
@@ -151,7 +158,7 @@ public:
 
   denox::memory::span<const NodeId> src(EdgeId edge) const {
     return denox::memory::span{m_nodeIds.begin() + m_edges[edge].srcBegin,
-                     m_nodeIds.begin() + m_edges[edge].srcEnd};
+                               m_nodeIds.begin() + m_edges[edge].srcEnd};
   }
 
   NodeId dst(EdgeId edge) const { return m_edges[edge].dst; }

@@ -430,10 +430,13 @@ TEST(memory_linked_graph, ProbeEdge_RValueInsertErase_NoCopies) {
   denox::testing::LeakSentinel guard{es};
 
   // Insert A->B with a temporary Probe payload
-  B->incoming().insert(
-      A,
-      denox::testing::Probe<int>(es, std::in_place, 7)
-  );
+  {
+    auto incoming = B->incoming();
+    incoming.insert(
+        A,
+        denox::testing::Probe(es, std::in_place, 7)
+    );
+  }
 
   // One move-construct into the edge, no copies/assigns yet, not destroyed yet
   EXPECT_EQ(es.move_ctor, 1u);

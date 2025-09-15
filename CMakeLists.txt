@@ -14,7 +14,10 @@ include(cmake/googletest.cmake)
 
 add_library(denox_compiler 
 
-  compiler/compiler/fuse/fusion.cpp
+  compiler/compiler/cano/cano.cpp
+  compiler/compiler/freeze.cpp
+  compiler/compiler/spec.cpp
+  compiler/compiler/dce.cpp
 
   compiler/diag/logging.cpp
 
