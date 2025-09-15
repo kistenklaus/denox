@@ -1,5 +1,8 @@
 #include "entry.hpp"
-#include "compiler/fuse/fusion.hpp"
+#include "compiler/cano/cano.hpp"
+#include "compiler/dce.hpp"
+#include "compiler/freeze.hpp"
+#include "compiler/spec.hpp"
 #include "diag/logging.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/onnx.hpp"
@@ -7,7 +10,7 @@
 #include "memory/hypergraph/LinkedGraph.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
-#include <fmt/base.h>
+#include <google/protobuf/port.h>
 #include <spdlog/spdlog.h>
 
 namespace denox::compiler {
@@ -37,25 +40,43 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   // 1. Import model
   Model model = frontend(raw, options);
   DENOX_DEBUG("Successfully imported Model:");
-  DENOX_DEBUG_RAW(model.to_string());
+  DENOX_TRACE_RAW(model.to_string());
 
-  // auto tensor = model.graph().get(memory::NodeId(0));
-  // auto op = model.graph().get(memory::EdgeId(0));
+  // 1. Canoncalize:
+  // Stuff that the pytorch exporter doesn't do by default like
+  // fusion of slice -> slice, or fusing operations like
+  // batch norm into convolutions and so on.
+  // Basically just bringing the ir into a canonical form.
+  LinkedModel emodel = compiler::canonicalize(model);
 
-  // memory::ConstGraph<ComputeTensor, ComputeOp> graph =
-  //     fusion_pass(memory::ConstGraph<ComputeTensor,
-  //     ComputeOp>{model.graph()});
+  // 2. Specialize:
+  // Resolve dtypes and layouts, by possibly
+  // duplicating intermediate tensors
+  // (e.g. one for allowed each layout)
+  compiler::specialize(emodel);
 
-  // 2. Preoptimizer pass: Trivial optimizations like Conv -> Conv, or Slice ->
-  // Slice. Just some basic fusion not done by the exporters.
+  // 3. Dead Code Elimination.
+  // Remove all intermediate tensors and edges, if
+  // they do not contribute to the output.
+  // This should generally be an empty set, but it's good
+  // to check.
+  AdjModel amodel = compiler::dce(emodel);
 
-  // 3. Specialize graph: Specialize types and Layouts, possibly by duplicating.
+  // 4. Freeze:
+  // From this point we switch to a datastructure more suited
+  // for graph traversal.
+  ConstModel cmodel = compiler::freeze(amodel);
 
-  // 4. Build supergraph, based on available shaders.
+  // 5. Implementation:
+  // Build supergraph!
 
-  // 5. Generate shader source.
+  // 6. Schedule
+  // Find shortest path through the supergraph, and
+  // generate shader sources for all shaders along the path.
 
-  // 6. Build DNX.
+  // 7. Memory-Planning:
+
+  // 8. Serialize:
+  // Write schedule and memory plan into a DNX buffer.
 }
-
 } // namespace denox::compiler

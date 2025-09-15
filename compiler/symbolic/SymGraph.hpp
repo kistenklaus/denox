@@ -1,10 +1,9 @@
 #pragma once
 
+#include "memory/container/string.hpp"
 #include "symbolic/Sym.hpp"
 #include <cassert>
-#include "memory/container/string.hpp"
 #include <concepts>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <optional>
 #include <span>
@@ -184,12 +183,14 @@ private:
   auto require_affine_sym(ExprType type, Sym lhs, Sym rhs,
                           const AffineExpr &affine, bool dno) -> Sym;
   auto require_const_sym(value_type constant, bool dno) -> Sym;
-  auto find_sym_of_affine(const AffineExpr &expr) -> denox::memory::optional<symbol>;
+  auto find_sym_of_affine(const AffineExpr &expr)
+      -> denox::memory::optional<symbol>;
   auto try_construct_affine_sym(const AffineExpr &expr, symbol hint,
                                 std::size_t depth, bool dno)
       -> denox::memory::optional<Sym>;
   auto construct_affine_sym(AffineExpr expr, bool dno,
-                            denox::memory::optional<symbol> hint = std::nullopt) -> Sym;
+                            denox::memory::optional<symbol> hint = std::nullopt)
+      -> Sym;
 
   // Expression handlers.
   Sym add_xx(Sym lhs, Sym rhs, bool dno = true);
@@ -283,7 +284,8 @@ private:
                     Sym rhs) -> ModExpr;
   auto modsolve_mul(const ModSolverHandle &solver, value_type m, Sym lhs,
                     Sym rhs) -> denox::memory::optional<ModExpr>;
-  auto modsolve_div(value_type m, Sym lhs, Sym rhs) -> denox::memory::optional<ModExpr>;
+  auto modsolve_div(value_type m, Sym lhs, Sym rhs)
+      -> denox::memory::optional<ModExpr>;
   auto modsolve_mod(const ModSolverHandle &solver, value_type m, Sym lhs,
                     Sym rhs) -> denox::memory::optional<ModExpr>;
 

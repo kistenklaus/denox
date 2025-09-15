@@ -6,10 +6,9 @@
 #include "io/fs/Path.hpp"
 #include "memory/container/span.hpp"
 #include "memory/container/vector.hpp"
-#include <absl/strings/str_format.h>
 #include <cassert>
 #include <cstring>
-#include <fmt/base.h>
+#include <exception>
 #include <fmt/format.h>
 #include <stdexcept>
 
@@ -97,7 +96,7 @@ static compiler::DeviceInfo infer_device_info(const CompileOptions &options) {
 
 static compiler::Features infer_features(const compiler::DeviceInfo &deviceInfo,
                                          const Features &features) {
-  bool fusion;
+  bool fusion{};
   switch (features.fusion) {
   case Require:
   case Enable:
@@ -106,9 +105,11 @@ static compiler::Features infer_features(const compiler::DeviceInfo &deviceInfo,
   case Disable:
     fusion = false;
     break;
+  default:
+    compiler::diag::unreachable();
   }
 
-  bool memory_concat;
+  bool memory_concat{};
   switch (features.memory_concat) {
   case Require:
   case Enable:
@@ -117,9 +118,11 @@ static compiler::Features infer_features(const compiler::DeviceInfo &deviceInfo,
   case Disable:
     memory_concat = false;
     break;
+  default:
+    compiler::diag::unreachable();
   }
 
-  bool coopmat;
+  bool coopmat{};
   switch (features.coopmat) {
   case Require:
     if (deviceInfo.coopmatTypes.empty()) {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(denox VERSION 0.1.0 LANGUAGES CXX)
+project(denox VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS true)
 
@@ -11,10 +11,15 @@ include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/onnx_proto.cmake)
 include(cmake/googletest.cmake)
+include(cmake/generator.cmake)
 
 add_library(denox_compiler 
 
-  compiler/compiler/fuse/fusion.cpp
+  compiler/compiler/cano/cano.cpp
+  compiler/compiler/cano/passes/trivial_slice_fusion.cpp
+  compiler/compiler/freeze.cpp
+  compiler/compiler/spec.cpp
+  compiler/compiler/dce.cpp
 
   compiler/diag/logging.cpp
 
@@ -103,8 +108,11 @@ add_library(denox_compiler
   compiler/entry.cpp
 )
 
+
+target_compile_features(denox_compiler PUBLIC cxx_std_20)
 add_library(denox::compiler ALIAS denox_compiler)
 add_library(denox::denox ALIAS denox_compiler)
+
 
 target_compile_definitions(denox_compiler 
   PRIVATE 
@@ -119,30 +127,37 @@ target_include_directories(denox_compiler
 )
 
 target_link_libraries(denox_compiler
-  PRIVATE 
+  PUBLIC 
     fmt::fmt
     spdlog::spdlog_header_only
     denox::onnx_proto
+    lewissbaker_generator
 )
 
 denox_enable_strict_warnings(denox_compiler)
 
-# NOTE: At some point we plan to downgrade this requirement
 target_compile_features(denox_compiler PUBLIC cxx_std_20)
+set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
+set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
 
 
 add_executable(denox
   cli/main.cpp
 )
+denox_enable_strict_warnings(denox)
+
+set_target_properties(denox PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_link_libraries(denox 
-    PRIVATE 
+    PUBLIC 
       denox::compiler
 )
 
 # ================= Testing ======================
 add_executable(denox_test EXCLUDE_FROM_ALL
   test/main.cpp
+  test/compiler/algorithm/match_first.cpp
+  test/compiler/algorithm/match_all.cpp
   test/compiler/memory/monotone_pool_allocator.cpp
   test/compiler/memory/linked_graph.cpp
   test/compiler/symbolic/affine.cpp
@@ -152,10 +167,12 @@ add_executable(denox_test EXCLUDE_FROM_ALL
   test/compiler/symbolic/unsolvable.cpp
 )
 
+
 target_link_libraries(denox_test
-  PRIVATE
+  PUBLIC
     denox::compiler
     GTest::gtest
+    lewissbaker_generator
 )
 
 target_include_directories(denox_test
@@ -163,6 +180,11 @@ target_include_directories(denox_test
     ${CMAKE_CURRENT_SOURCE_DIR}/compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/test
 )
+
+gtest_discover_tests(denox_test
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+  
 
 
 # ========== PACKAGE-CONFIG-STUFF =============

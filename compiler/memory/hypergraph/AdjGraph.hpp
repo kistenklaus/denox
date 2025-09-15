@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/allocator/mallocator.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/container/span.hpp"
 #include "memory/container/vector.hpp"
@@ -78,11 +79,12 @@ public:
     }
   }
 
-  EdgeId addEdge(denox::memory::span<const NodeId> src, NodeId dst, E edge,
+  EdgeId addEdge(memory::span<const NodeId> src, NodeId dst, E edge,
                  W weight = {}) noexcept {
     if (m_edgeFreelist.empty()) {
       EdgeId id{m_edges.size()};
-      m_edges.emplace_back(src, dst, edge, weight);
+      m_edges.emplace_back();
+      m_edges.back().emplace(src, dst, edge, weight);
       return id;
     } else {
       EdgeId id{m_edgeFreelist.back()};
@@ -289,7 +291,8 @@ public:
       return {const_node_iterator{}, const_node_iterator{}};
     }
     std::ptrdiff_t idx = std::distance(m_nodes.begin(), it);
-    const_node_iterator begin{m_nodes.data() + idx, static_cast<std::size_t>(idx), m_nodes.size()};
+    const_node_iterator begin{m_nodes.data() + idx,
+                              static_cast<std::size_t>(idx), m_nodes.size()};
     return {begin, const_node_iterator{m_nodes.data() + m_nodes.size(),
                                        m_nodes.size(), m_nodes.size()}};
   }
@@ -302,10 +305,12 @@ public:
       return {const_edge_iterator{}, const_edge_iterator{}};
     }
     std::ptrdiff_t idx = std::distance(m_edges.begin(), it);
-    const_edge_iterator begin{m_edges.data() + idx, static_cast<std::size_t>(idx), m_edges.size()};
+    const_edge_iterator begin{m_edges.data() + idx,
+                              static_cast<std::size_t>(idx), m_edges.size()};
     return {begin, const_edge_iterator{m_edges.data() + m_edges.size(),
                                        m_edges.size(), m_edges.size()}};
   }
+
 
 private:
   denox::memory::vector<denox::memory::optional<V>> m_nodes;

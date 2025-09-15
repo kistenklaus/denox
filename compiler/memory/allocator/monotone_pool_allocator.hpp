@@ -119,6 +119,7 @@ private:
   }
 
   void allocBlock(std::size_t blockSize) {
+    assert(blockSize != 0);
     Node *block = static_cast<Node *>(
         m_upstream.allocate(blockSize * sizeof(Node), alignof(Node)));
     Node *header = block;

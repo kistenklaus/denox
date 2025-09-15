@@ -1,5 +1,4 @@
 #include "denox/compiler.hpp"
-#include <fmt/base.h>
 #include <vector>
 
 int main() {

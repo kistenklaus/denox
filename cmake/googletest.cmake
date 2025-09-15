@@ -1,4 +1,7 @@
 include(FetchContent)
+include(GoogleTest)
+enable_testing()
+
 FetchContent_Declare(
   googletest
   EXCLUDE_FROM_ALL

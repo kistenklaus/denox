@@ -1,8 +1,7 @@
 #include "memory/allocator/monotone_pool_allocator.hpp"
 #include "ProfileAllocator.hpp"
-#include "symbolic/SymGraph.hpp"
 #include <algorithm>
-#include <fmt/base.h>
+#include <fmt/format.h>
 #include <gtest/gtest.h>
 #include <random>
 

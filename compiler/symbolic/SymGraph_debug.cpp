@@ -1,6 +1,5 @@
 #include "diag/unreachable.hpp"
 #include "symbolic/SymGraph.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 

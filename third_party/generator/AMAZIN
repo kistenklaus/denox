@@ -1,0 +1,6 @@
+Thanks to Lewis Baker, for creating this amazing datatype!
+
+Original implementation at:
+https://github.com/lewissbaker/generator
+
+Also included in C++23, but sadly not implemented by all compilers yet.

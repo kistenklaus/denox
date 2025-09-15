@@ -65,10 +65,8 @@ class Net(nn.Module):
         return x
 
 
-
-
 torch.onnx.export(
-        Net(), 
+        Net().eval(), 
         (torch.randn(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
         "net.onnx",
         dynamo=True,
@@ -78,7 +76,4 @@ torch.onnx.export(
         output_names=["output"],
         dynamic_shapes={"I": {2 : torch.export.Dim.DYNAMIC, 3 : torch.export.Dim.DYNAMIC}},
         report=False,
-        )
-
-
-
+)

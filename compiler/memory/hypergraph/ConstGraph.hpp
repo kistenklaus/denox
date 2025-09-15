@@ -1,11 +1,16 @@
 #pragma once
 
+#include "memory/container/dynamic_bitset.hpp"
+#include "memory/container/hashmap.hpp"
+#include "memory/container/small_vector.hpp"
 #include "memory/container/span.hpp"
+#include "memory/container/vector.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/EdgeId.hpp"
+#include "memory/hypergraph/LinkedGraph.hpp"
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/hypergraph/NullWeight.hpp"
-#include "memory/container/vector.hpp"
+#include <tuple>
 
 namespace denox::memory {
 
@@ -25,6 +30,68 @@ public:
     NodeId dst;
   };
 
+  // NOTE: Constructs a ConstGraph, from a
+  // LinkedGraph input and output node.
+  // A node X, in only included in the ConstGraph, iff. all of the following:
+  // - There exists a path from input to X.
+  // - There exists a path from X to output.
+  // A edge is only included iff. there exists
+  // a path from input to output which includes the edge.
+  //
+  // Returns the NodeId of the input and output,
+  // within the constructured ConstGraph.
+  //
+  template <typename Allocator = mallocator>
+  static std::tuple<memory::vector<NodeId>, ConstGraph>
+  from(const LinkedGraph<V, E, W, Allocator>::NodeHandle &input,
+       const LinkedGraph<V, E, W, Allocator>::NodeHandle &output) {
+    using LinkedGraph = LinkedGraph<V, E, W, Allocator>;
+    using AdjGraph = AdjGraph<V, E, W>;
+    AdjGraph adj;
+    using NodeHandle = LinkedGraph::NodeHandle;
+
+    std::size_t upperNodeCount = input.upperNodeCount();
+    assert(output.upperNodeCount() == upperNodeCount);
+
+    memory::dynamic_bitset visited(upperNodeCount);
+    memory::vector<NodeHandle> stack;
+    stack.reserve(upperNodeCount);
+
+    memory::vector<memory::NodeId> adjNodes(upperNodeCount);
+    adjNodes[output->id()] = adj.addNode(output->value());
+
+    stack.push_back(output);
+
+    while (!stack.empty()) {
+      NodeHandle node = stack.back();
+      stack.pop_back();
+      memory::NodeId id = node->id();
+      if (visited[id]) {
+        continue;
+      }
+      visited[id] = true;
+
+      for (const auto &edge : node->incoming()) {
+        memory::small_vector<memory::NodeId, 2> srcs;
+        for (auto &src : edge.srcs()) {
+          if (visited[src.id()]) {
+            memory::NodeId adjSrc = adjNodes[src.id()];
+            srcs.push_back(adjSrc);
+          } else {
+            memory::NodeId adjSrc = adj.addNode(src.value());
+            adjNodes[src.id()] = adjSrc;
+            srcs.push_back(adjSrc);
+            stack.push_back(NodeHandle(src));
+          }
+        }
+        adj.addEdge(std::span<const memory::NodeId>(srcs.begin(), srcs.end()),
+                    adjNodes[id], edge.value(), memory::NullWeight{});
+      }
+    }
+    ConstGraph<V, E, W> graph{adj};
+    return std::make_tuple(adjNodes, std::move(adj));
+  }
+
   explicit ConstGraph(const AdjGraph<V, E, W> &graph) {
 
     std::size_t nodeCount = graph.nodeCount();
@@ -37,8 +104,7 @@ public:
 
     // Pass 0: Compact IDs and build remapping tables.
     std::size_t maxNodeId{0};
-    for (typename AdjGraph<V, E>::const_node_iterator::Node n :
-         graph.nodes()) {
+    for (typename AdjGraph<V, E>::const_node_iterator::Node n : graph.nodes()) {
       maxNodeId = std::max(static_cast<std::size_t>(n.id()), maxNodeId);
     }
     std::size_t maxEdgeId{0};
@@ -136,13 +202,16 @@ public:
   }
 
   denox::memory::span<const EdgeId> outgoing(NodeId node) const {
-    return denox::memory::span{m_edgeIds.begin() + static_cast<std::ptrdiff_t>(m_nodes[node].outgoingBegin),
-                     m_edgeIds.begin() + static_cast<std::ptrdiff_t>(m_nodes[node].outgoingEnd)};
+    return denox::memory::span{
+        m_edgeIds.begin() +
+            static_cast<std::ptrdiff_t>(m_nodes[node].outgoingBegin),
+        m_edgeIds.begin() +
+            static_cast<std::ptrdiff_t>(m_nodes[node].outgoingEnd)};
   }
 
   denox::memory::span<const EdgeId> incoming(NodeId node) const {
     return denox::memory::span{m_edgeIds.begin() + m_nodes[node].incomingBegin,
-                     m_edgeIds.begin() + m_nodes[node].incomingEnd};
+                               m_edgeIds.begin() + m_nodes[node].incomingEnd};
   }
 
   const V &get(NodeId node) const { return m_nodeData[node]; }
@@ -151,7 +220,7 @@ public:
 
   denox::memory::span<const NodeId> src(EdgeId edge) const {
     return denox::memory::span{m_nodeIds.begin() + m_edges[edge].srcBegin,
-                     m_nodeIds.begin() + m_edges[edge].srcEnd};
+                               m_nodeIds.begin() + m_edges[edge].srcEnd};
   }
 
   NodeId dst(EdgeId edge) const { return m_edges[edge].dst; }

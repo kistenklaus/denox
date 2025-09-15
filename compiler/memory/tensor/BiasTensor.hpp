@@ -7,7 +7,7 @@
 #include <cassert>
 #include <concepts>
 #include <cstring>
-#include <fmt/base.h>
+#include <fmt/format.h>
 #include <functional>
 #include <memory>
 

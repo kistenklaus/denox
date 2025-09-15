@@ -1,7 +1,6 @@
 #include "./Model.hpp"
 #include "diag/unreachable.hpp"
 #include "model/ModelControlBlock.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 
