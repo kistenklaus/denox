@@ -24,9 +24,10 @@ TEST(memory_allocator, alloc_dealloc_single) {
     std::uint64_t x[10];
   };
   {
+    // NOTE: ChunkSize 2 => capacity = 1.
     memory::monotonic_pool_allocator<sizeof(Big), alignof(Big),
                                      denox::testing::ProfileAllocator>
-        pool{1, profile};
+        pool{2, profile};
     for (std::size_t i = 0; i < 10000; ++i) {
       void *ptr = pool.allocate(sizeof(Big), alignof(Big));
       EXPECT_TRUE(ptr != nullptr);
@@ -52,7 +53,7 @@ TEST(memory_allocator, alloc_dealloc_permutation) {
     memory::monotonic_pool_allocator<sizeof(Big), alignof(Big),
                                      denox::testing::ProfileAllocator,
                                      std::ratio<1, 1>>
-        pool{PEAK / 2, profile};
+        pool{PEAK / 2 + 1, profile};
 
     std::random_device rng;
     std::mt19937 prng(rng());

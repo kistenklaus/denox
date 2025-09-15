@@ -1,7 +1,6 @@
 #pragma once
 
 #include "memory/allocator/mallocator.hpp"
-#include "memory/container/vector.hpp"
 #include <cassert>
 #include <cstddef>
 #include <fmt/format.h>
@@ -23,7 +22,7 @@ private:
     std::size_t m_peakAllocationCount = 0;
     std::size_t m_allocatedBytes = 0;
     std::size_t m_peakAllocatedBytes = 0;
-    [[no_unique_address]] memory::Mallocator m_upstream;
+    [[no_unique_address]] memory::mallocator m_upstream;
   };
 
 public:

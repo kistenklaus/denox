@@ -39,30 +39,8 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   DENOX_DEBUG("Successfully imported Model:");
   DENOX_DEBUG_RAW(model.to_string());
 
-  auto tensor = model.graph().get(memory::NodeId(0));
-  auto op = model.graph().get(memory::EdgeId(0));
-  memory::LinkedGraph<ComputeTensor, ComputeOp> graph;
-  auto A = graph.createNode(tensor);
-  auto B = graph.createNode(tensor);
-  A.outgoing().insert(B, op);
-
-  auto outgoing = A.outgoing();
-  auto it = outgoing.begin();
-  while (it != outgoing.end()) {
-    const auto &edge = (*it);
-    // TODO: Edge getters.
-    // TODO: EdgePtr same
-    // NOTE: Maybe refactor to actually expose EdgeInfo
-    // then reference and pointer would be trivial and we could
-    // actually satisfy the ranges bidirectional iterator requirements.
-    if (true) {
-      it = outgoing.erase(it);
-      // outgoing.insert_after(it, const Node &dst, Args &&args...)
-
-    } else {
-      ++it;
-    }
-  }
+  // auto tensor = model.graph().get(memory::NodeId(0));
+  // auto op = model.graph().get(memory::EdgeId(0));
 
   // memory::ConstGraph<ComputeTensor, ComputeOp> graph =
   //     fusion_pass(memory::ConstGraph<ComputeTensor,

@@ -4,7 +4,7 @@
 #include <cstddef>
 namespace denox::memory {
 
-class Mallocator {
+class mallocator {
 public:
   static constexpr bool is_always_equals = true;
 

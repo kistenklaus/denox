@@ -136,8 +136,8 @@ public:
   }
 
   denox::memory::span<const EdgeId> outgoing(NodeId node) const {
-    return denox::memory::span{m_edgeIds.begin() + m_nodes[node].outgoingBegin,
-                     m_edgeIds.begin() + m_nodes[node].outgoingEnd};
+    return denox::memory::span{m_edgeIds.begin() + static_cast<std::ptrdiff_t>(m_nodes[node].outgoingBegin),
+                     m_edgeIds.begin() + static_cast<std::ptrdiff_t>(m_nodes[node].outgoingEnd)};
   }
 
   denox::memory::span<const EdgeId> incoming(NodeId node) const {

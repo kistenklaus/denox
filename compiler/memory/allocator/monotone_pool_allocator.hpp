@@ -8,7 +8,7 @@
 namespace denox::memory {
 
 template <std::size_t BlockSize, std::size_t BlockAlign,
-          typename Allocator = Mallocator,
+          typename Allocator = mallocator,
           typename GrowthFactor = std::ratio<2, 1>>
 class monotonic_pool_allocator {
 public:
@@ -19,11 +19,11 @@ public:
   static constexpr std::size_t block_size = std::max(BlockSize, BlockAlign);
   static constexpr std::size_t block_align = BlockAlign;
 
-  explicit monotonic_pool_allocator(std::size_t capacity = 0,
+  explicit monotonic_pool_allocator(std::size_t chunkSize = 0,
                                     const upstream &upstream = {})
       : m_upstream(upstream), m_buffer(nullptr), m_freelist(nullptr) {
-    if (capacity != 0) {
-      allocBlock(capacity + 1);
+    if (chunkSize != 0) {
+      allocBlock(chunkSize);
     }
   }
 
@@ -49,7 +49,8 @@ public:
 
   ~monotonic_pool_allocator() { release(); }
 
-  void *allocate(std::size_t size, std::size_t align) {
+  void *allocate([[maybe_unused]] std::size_t size,
+                 [[maybe_unused]] std::size_t align) {
     assert(size != 0);
     assert(size <= block_size);
     assert((BlockAlign % align) == 0);
@@ -57,6 +58,14 @@ public:
       grow();
     }
     return popFreelist();
+  }
+
+  void deallocate(void *ptr, [[maybe_unused]] std::size_t size,
+                  [[maybe_unused]] std::size_t align) {
+    assert(size != 0);
+    assert(size <= block_size);
+    assert((BlockAlign % align) == 0);
+    deallocate(ptr);
   }
 
   void deallocate(void *ptr) { pushFreelist(ptr); }
@@ -77,7 +86,8 @@ private:
     Node *block = m_buffer;
     while (block != nullptr) {
       Node *nextBlock = block->block.next;
-      m_upstream.deallocate(block, block->block.blockSize * sizeof(Node), alignof(Node));
+      m_upstream.deallocate(block, block->block.blockSize * sizeof(Node),
+                            alignof(Node));
       block = nextBlock;
     }
     m_buffer = nullptr;
@@ -109,7 +119,8 @@ private:
   }
 
   void allocBlock(std::size_t blockSize) {
-    Node *block = static_cast<Node*>(m_upstream.allocate(blockSize * sizeof(Node), alignof(Node)));
+    Node *block = static_cast<Node *>(
+        m_upstream.allocate(blockSize * sizeof(Node), alignof(Node)));
     Node *header = block;
     Node *const begin = header + 1;
     Node *const end = header + blockSize;

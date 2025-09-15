@@ -144,6 +144,7 @@ target_link_libraries(denox
 add_executable(denox_test EXCLUDE_FROM_ALL
   test/main.cpp
   test/compiler/memory/monotone_pool_allocator.cpp
+  test/compiler/memory/linked_graph.cpp
   test/compiler/symbolic/affine.cpp
   test/compiler/symbolic/common.cpp
   test/compiler/symbolic/modsolve.cpp
@@ -160,6 +161,7 @@ target_link_libraries(denox_test
 target_include_directories(denox_test
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/compiler
+    ${CMAKE_CURRENT_SOURCE_DIR}/test
 )
 
 
