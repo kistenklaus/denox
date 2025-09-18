@@ -79,11 +79,12 @@ public:
     }
   }
 
-  EdgeId addEdge(denox::memory::span<const NodeId> src, NodeId dst, E edge,
+  EdgeId addEdge(memory::span<const NodeId> src, NodeId dst, E edge,
                  W weight = {}) noexcept {
     if (m_edgeFreelist.empty()) {
       EdgeId id{m_edges.size()};
-      m_edges.emplace_back(src, dst, edge, weight);
+      m_edges.emplace_back();
+      m_edges.back().emplace(src, dst, edge, weight);
       return id;
     } else {
       EdgeId id{m_edgeFreelist.back()};
