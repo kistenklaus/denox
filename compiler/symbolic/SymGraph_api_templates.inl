@@ -208,7 +208,7 @@ Sym SymGraph::cpool(E extent, K kernelSize, P padding, S stride, D dilation,
 template <typename L, typename R>
   requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
           (std::same_as<R, Sym> || std::is_integral_v<R>)
-Sym SymGraph::min(L lhs, R rhs) {
+Sym SymGraph::min(L lhs, R rhs, bool dno) {
   Sym a;
   if constexpr (std::same_as<L, Sym>) {
     a = resolve(lhs);
@@ -221,13 +221,13 @@ Sym SymGraph::min(L lhs, R rhs) {
   } else {
     b = Sym::Const(rhs);
   }
-  return var();
+  return min_xx(a, b, dno);
 }
 
 template <typename L, typename R>
   requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
           (std::same_as<R, Sym> || std::is_integral_v<R>)
-Sym SymGraph::max(L lhs, R rhs) {
+Sym SymGraph::max(L lhs, R rhs, bool dno) {
   Sym a;
   if constexpr (std::same_as<L, Sym>) {
     a = resolve(lhs);
@@ -240,8 +240,7 @@ Sym SymGraph::max(L lhs, R rhs) {
   } else {
     b = Sym::Const(rhs);
   }
-  // TODO: Actually do something useful, not complex.
-  return var();
+  return max_xx(a, b, dno);
 }
 
 } // namespace denox::compiler

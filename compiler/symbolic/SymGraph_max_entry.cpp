@@ -9,6 +9,7 @@ Sym SymGraph::max_xx(Sym lhs, Sym rhs, bool dno) {
   if (lhs == rhs) {
     return lhs;
   }
+
   NonAffineExpr nonaffine;
   nonaffine.expr = ExprType::Max;
   nonaffine.symbols = {lhs, rhs};

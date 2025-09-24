@@ -153,22 +153,22 @@ public:
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym min(L lhs, R rhs);
+  Sym min(L lhs, R rhs, bool dno = false);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym max(L lhs, R rhs);
+  Sym max(L lhs, R rhs, bool dno = false);
 
   Sym abs([[maybe_unused]] Sym sym) {
     throw std::runtime_error("SymGraph::abs is not implemented");
   }
 
-  Sym neg(Sym sym) {
+  Sym neg(Sym sym, bool dno = false) {
     throw std::runtime_error(
         "SymGraph::neg is not implemented. Requires "
         "testing that negative values are acceptable within the graph!");
-    return sub(0, sym);
+    return sub(0, sym, dno);
   }
 
   Sym resolve(value_type v) const;
