@@ -1,5 +1,7 @@
 #include "compiler/cano/cano.hpp"
-#include "compiler/cano/passes/passes.hpp"
+#include "algorithm/pattern_matching/match.hpp"
+#include "compiler/cano/rules/IFusionRule.hpp"
+#include "compiler/cano/rules/SliceSlice.hpp"
 #include "compiler/ir/LinkedModel.hpp"
 #include "diag/logging.hpp"
 #include "memory/hypergraph/LinkedGraph.hpp"
@@ -27,12 +29,25 @@ LinkedModel canonicalize(const Model &model) {
     throw std::runtime_error("Failed to canonicalize.");
   }
 
+
+
+  cano::SliceSlice sliceSliceRule;
+
+  cano::IFusionRule *rules[] = {
+      &sliceSliceRule,
+  };
+
+  for (const auto &rule : rules) {
+    const auto &pattern = rule->pattern();
+    for (const auto &match : algorithm::match_all(pattern, input)) {
+      rule->apply(match);
+    }
+  }
   LinkedModel m{
       .graph = std::move(graph),
       .input = std::move(input),
       .output = std::move(output),
   };
-  cano::trivial_slice_fusion(m);
 
   return m;
 }

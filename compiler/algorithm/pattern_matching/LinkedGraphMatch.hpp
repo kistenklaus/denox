@@ -28,7 +28,7 @@ struct EdgeMatchControl {
   LinkedGraph::EdgeIt iterator() const { return m_iterator; }
   NodeHandle sourceNode() const { return m_node; }
 
-  LinkedGraph::EdgeIt nextIterator() const { 
+  LinkedGraph::EdgeIt nextIterator() const {
     if (m_dirty) {
       return m_next;
     } else {
@@ -67,7 +67,6 @@ struct EdgeMatch {
   LinkedGraph::EdgeIt outgoingIterator() const {
     assert(m_cb != nullptr);
     return m_cb->iterator();
- 
   }
   LinkedGraph::EdgeIt nextOutgoingIterator() const {
     assert(m_cb != nullptr);
@@ -82,6 +81,8 @@ struct EdgeMatch {
   const LinkedGraph::Edge *ptr() const {
     return m_cb != nullptr ? m_cb->iterator().operator->() : nullptr;
   }
+
+  const E &value() const { return ptr()->value(); }
 
 private:
   CB *m_cb;
@@ -111,8 +112,7 @@ public:
     m_nodeMatches[pattern->getId()] = node;
   }
 
-  void registerMatch(const EdgePatternHandle<V, E, W> &pattern,
-                     EMatch match) {
+  void registerMatch(const EdgePatternHandle<V, E, W> &pattern, EMatch match) {
     assert(pattern->getId() < m_edgeMatches.size());
     m_edgeMatches[pattern->getId()] = match;
   }

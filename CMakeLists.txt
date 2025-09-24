@@ -16,7 +16,6 @@ include(cmake/generator.cmake)
 add_library(denox_compiler 
 
   compiler/compiler/cano/cano.cpp
-  compiler/compiler/cano/passes/trivial_slice_fusion.cpp
   compiler/compiler/freeze.cpp
   compiler/compiler/spec.cpp
   compiler/compiler/dce.cpp
