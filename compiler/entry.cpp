@@ -39,7 +39,6 @@ static Model frontend(memory::span<const std::byte> raw,
 void entry(memory::span<const std::byte> raw, const Options &options) {
   // 1. Import model
   Model model = frontend(raw, options);
-  fmt::println("model tensor count: {}", model.graph().nodeCount());
   // 1. Canoncalize:
   // Stuff that the pytorch exporter doesn't do by default like
   // fusion of slice -> slice, or fusing operations like
@@ -47,32 +46,23 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   // Basically just bringing the ir into a canonical form.
   LinkedModel emodel = compiler::canonicalize(model);
 
-  fmt::println(
-      "tensor count after cano: {}",
-      algorithm::count_children<ComputeTensor, ComputeOp>(emodel.input));
-
   // 2. Specialize:
   // Resolve dtypes and layouts, by possibly
   // duplicating intermediate tensors
   // (e.g. one for allowed each layout)
   compiler::specialize(emodel, memory::ActivationLayout::supported());
 
-  fmt::println(
-      "tensor count after spec: {}",
-      algorithm::count_children<ComputeTensor, ComputeOp>(emodel.input));
-
   // 3. Dead Code Elimination.
   // Remove all intermediate tensors and edges, if
   // they do not contribute to the output.
   // This should generally be an empty set, but it's good
   // to check.
-  // AdjModel amodel = compiler::dce(emodel);
+  AdjModel amodel = compiler::dce(emodel);
 
   // 4. Freeze:
   // From this point we switch to a datastructure more suited
   // for graph traversal.
-  // ConstModel cmodel = compiler::freeze(amodel);
-  // fmt::println("cmodel tensor count: {}", cmodel.graph.nodeCount());
+  ConstModel cmodel = compiler::freeze(amodel);
 
   // 5. Implementation:
   // Build supergraph!
