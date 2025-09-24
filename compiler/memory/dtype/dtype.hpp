@@ -34,7 +34,7 @@ private:
   DtypeKind m_kind;
 };
 
-}; // namespace details::dtype
+} // namespace details::dtype
 
 class Dtype {
 public:

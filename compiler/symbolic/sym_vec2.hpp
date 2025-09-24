@@ -1,6 +1,6 @@
 #pragma once
 
-#include "symbolic/sym.hpp"
+#include "symbolic/ssym.hpp"
 namespace denox::compiler {
 
 struct sym_vec2 {

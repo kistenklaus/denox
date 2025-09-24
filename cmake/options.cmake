@@ -21,8 +21,8 @@ function(denox_enable_strict_warnings tgt)
       -Wconversion -Wsign-conversion
       -Wold-style-cast -Woverloaded-virtual
       -Wnon-virtual-dtor
-      -Wcast-qual -Wcast-align=strict
-      -Wformat=2 -Wnull-dereference -Wdouble-promotion
+      -Wcast-qual -Wcast-align
+      -Wformat=2 -Wno-null-dereference -Wdouble-promotion
       -Wimplicit-fallthrough -Wmissing-field-initializers
       -Wswitch-enum -Wundef
       -Wrange-loop-construct -Wextra-semi -Wnewline-eof
@@ -35,7 +35,7 @@ function(denox_enable_strict_warnings tgt)
       -Wold-style-cast -Woverloaded-virtual
       -Wnon-virtual-dtor
       -Wcast-qual -Wcast-align=strict
-      -Wformat=2 -Wnull-dereference -Wdouble-promotion
+      -Wformat=2 -Wno-null-dereference -Wdouble-promotion
       -Wimplicit-fallthrough -Wmissing-field-initializers
       -Wswitch-enum -Wundef
       -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast

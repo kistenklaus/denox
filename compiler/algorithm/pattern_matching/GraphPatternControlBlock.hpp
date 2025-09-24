@@ -17,8 +17,8 @@ struct GraphPatternControlBlock {
   denox::algorithm::NodePatternHandle<V, E, W> matchNode() {
     std::size_t id = nextNodePatternId++;
 
-    denox::algorithm::NodePatternHandle nodePattern =
-        std::make_shared<denox::algorithm::NodePattern<V,E,W>>(this, id);
+    denox::algorithm::NodePatternHandle<V, E, W> nodePattern =
+        std::make_shared<denox::algorithm::NodePattern<V, E, W>>(this, id);
     nodes.push_back(nodePattern);
     return nodePattern;
   }

@@ -166,6 +166,7 @@ public:
       } while (!m_current.m_node->has_value());
       return *this;
     }
+
     const_node_iterator operator++(int) {
       const_node_iterator tmp = *this;
       ++(*this);
@@ -175,11 +176,11 @@ public:
     friend bool operator==(const const_node_iterator &a,
                            const const_node_iterator &b) {
       return a.m_current.m_id == b.m_current.m_id;
-    };
+    }
     friend bool operator!=(const const_node_iterator &a,
                            const const_node_iterator &b) {
       return a.m_current.m_id != b.m_current.m_id;
-    };
+    }
 
   private:
     Node m_current;
@@ -272,11 +273,11 @@ public:
     friend bool operator==(const const_edge_iterator &a,
                            const const_edge_iterator &b) {
       return a.m_current.m_id == b.m_current.m_id;
-    };
+    }
     friend bool operator!=(const const_edge_iterator &a,
                            const const_edge_iterator &b) {
       return a.m_current.m_id != b.m_current.m_id;
-    };
+    }
 
   private:
     EdgeInfo m_current;

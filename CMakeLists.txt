@@ -21,8 +21,6 @@ add_library(denox_compiler
   compiler/compiler/spec.cpp
   compiler/compiler/dce.cpp
 
-  compiler/diag/logging.cpp
-
   compiler/memory/dtype/dtype_reference.cpp
   compiler/memory/dtype/f16.cpp
 
@@ -116,7 +114,14 @@ add_library(denox::denox ALIAS denox_compiler)
 
 target_compile_definitions(denox_compiler 
   PRIVATE 
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
+    SPDLOG_NO_ATOMIC_LEVELS
+    SPDLOG_DISABLE_DEFAULT_LOGGER
+  )
+
+target_compile_features(denox_compiler PUBLIC cxx_std_20)
+set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
+set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
 
 target_include_directories(denox_compiler
   PUBLIC
@@ -136,9 +141,6 @@ target_link_libraries(denox_compiler
 
 denox_enable_strict_warnings(denox_compiler)
 
-target_compile_features(denox_compiler PUBLIC cxx_std_20)
-set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
-set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
 
 
 add_executable(denox
@@ -166,6 +168,8 @@ add_executable(denox_test EXCLUDE_FROM_ALL
   test/compiler/symbolic/nonaffine.cpp
   test/compiler/symbolic/unsolvable.cpp
 )
+
+denox_enable_strict_warnings(denox_test)
 
 
 target_link_libraries(denox_test

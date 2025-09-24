@@ -418,7 +418,9 @@ TEST(symbolic, modsolve_evenizer_general_k_equal_modulus) {
   auto E = g.var();
   std::size_t k = 12;
   // (E + (k - (E % k))) % k == 0
-  auto expr = g.mod(g.add(E, g.sub((int)k, g.mod(E, (int)k))), (int)k);
+  auto expr =
+      g.mod(g.add(E, g.sub(static_cast<int>(k), g.mod(E, static_cast<int>(k)))),
+            static_cast<int>(k));
   auto r = g.resolve(expr);
   ASSERT_FALSE(r.isSymbolic());
   EXPECT_EQ(0, r.constant());
@@ -432,7 +434,7 @@ TEST(symbolic, modsolve_evenizer_outer_divides_inner) {
   std::size_t k = 12, m = 4; // m | k
   // Since k ≡ 0 (mod m), we still get 0:
   // (E + (k - (E % k))) % m == 0
-  auto expr = g.mod(g.add(E, g.sub((int)k, g.mod(E, (int)k))), (int)m);
+  auto expr = g.mod(g.add(E, g.sub(static_cast<int>(k), g.mod(E, static_cast<int>(k)))), static_cast<int>(m));
   auto r = g.resolve(expr);
   ASSERT_FALSE(r.isSymbolic());
   EXPECT_EQ(0, r.constant());

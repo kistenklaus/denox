@@ -56,7 +56,8 @@ public:
 private:
   BiasLayoutKind m_tag;
 };
-}; // namespace details::memory::tensors
+
+} // namespace details::memory::tensors
 
 class BiasLayout {
 public:

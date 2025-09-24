@@ -25,7 +25,7 @@ TEST(algorithm_match_first, singular_node_match) {
 TEST(algorithm_match_first, singular_neg_node_match) {
 
   AdjGraph<int, int> adj;
-  NodeId A = adj.addNode(1);
+  [[maybe_unused]] NodeId A = adj.addNode(1);
   ConstGraph<int, int> graph{adj};
 
   GraphPattern<int, int> pattern;
@@ -59,7 +59,7 @@ TEST(algorithm_match_first, singular_neg_edge_match) {
   AdjGraph<int, int> adj;
   NodeId A = adj.addNode(1);
   NodeId B = adj.addNode(2);
-  auto AB = adj.addEdge(A, B, 42);
+  [[maybe_unused]] auto AB = adj.addEdge(A, B, 42);
 
   ConstGraph<int, int> graph{adj};
 
@@ -143,7 +143,7 @@ TEST(algorithm_match_first, singular_rank_match_1) {
   NodeId B = adj.addNode(2);
   NodeId C = adj.addNode(3);
   auto AB = adj.addEdge(A, B, 42);
-  auto ABC = adj.addEdge(A, B, C, 42);
+  [[maybe_unused]] auto ABC = adj.addEdge(A, B, C, 42);
 
   ConstGraph<int, int> graph{adj};
 
@@ -162,7 +162,7 @@ TEST(algorithm_match_first, singular_rank_match_2) {
   NodeId A = adj.addNode(1);
   NodeId B = adj.addNode(2);
   NodeId C = adj.addNode(3);
-  auto AB = adj.addEdge(A, B, 42);
+  [[maybe_unused]] auto AB = adj.addEdge(A, B, 42);
   auto ABC = adj.addEdge(A, B, C, 42);
 
   ConstGraph<int, int> graph{adj};
@@ -181,8 +181,8 @@ TEST(algorithm_match_first, singular_neg_rank_match) {
   AdjGraph<int, int> adj;
   NodeId A = adj.addNode(1);
   NodeId B = adj.addNode(2);
-  NodeId C = adj.addNode(3);
-  auto AB = adj.addEdge(A, B, 42);
+  [[maybe_unused]] NodeId C = adj.addNode(3);
+  [[maybe_unused]] auto AB = adj.addEdge(A, B, 42);
 
   ConstGraph<int, int> graph{adj};
 
@@ -198,7 +198,7 @@ TEST(algorithm_match_first, match_node_with_single_outgoing_edge) {
   AdjGraph<int, int> adj;
   NodeId A = adj.addNode(1);
   NodeId B = adj.addNode(2);
-  auto AB = adj.addEdge(A, B, 12);
+  [[maybe_unused]] auto AB = adj.addEdge(A, B, 12);
   ConstGraph<int, int> graph{adj};
 
   GraphPattern<int, int> pattern;
@@ -217,7 +217,7 @@ TEST(algorithm_match_first, match_edge_with_dst) {
   AdjGraph<int, int> adj;
   NodeId A = adj.addNode(1);
   NodeId B = adj.addNode(2);
-  auto AB = adj.addEdge(A, B, 12);
+  [[maybe_unused]] auto AB = adj.addEdge(A, B, 12);
   ConstGraph<int, int> graph{adj};
 
   GraphPattern<int, int> pattern;
@@ -269,8 +269,8 @@ TEST(algorithm_match_first, dont_match_linear_path) {
   NodeId B = adj.addNode(2);
   NodeId C = adj.addNode(3);
   NodeId D = adj.addNode(4);
-  auto AB = adj.addEdge(A, B, 42);
-  auto BC = adj.addEdge(B, C, 42);
+  [[maybe_unused]] auto AB = adj.addEdge(A, B, 42);
+  [[maybe_unused]] auto BC = adj.addEdge(B, C, 42);
   adj.addEdge(B, D, 42);
   ConstGraph<int, int> graph{adj};
 

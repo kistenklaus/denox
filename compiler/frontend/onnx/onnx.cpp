@@ -92,18 +92,18 @@ compiler::Model read(memory::span<const std::byte> raw, io::Path onnx_dir) {
         std::make_unique<denox::compiler::details::model::ModelControlBlock>();
     controlBlock->meta.domain = onnx.domain().empty()
                                     ? memory::nullopt
-                                    : memory::optional(onnx.domain());
+                                    : memory::optional<memory::string>(onnx.domain());
     controlBlock->meta.producerName =
         onnx.producer_name().empty() ? memory::nullopt
-                                     : memory::optional(onnx.producer_name());
+                                     : memory::optional<memory::string>(onnx.producer_name());
     controlBlock->meta.producerVersion =
         onnx.producer_version().empty()
             ? memory::nullopt
-            : memory::optional(onnx.producer_version());
+            : memory::optional<memory::string>(onnx.producer_version());
     controlBlock->meta.modelVersion =
         onnx.model_version() == 0
             ? memory::nullopt
-            : memory::optional(fmt::format("{}", onnx.model_version()));
+            : memory::optional<memory::string>(fmt::format("{}", onnx.model_version()));
 
     details::ImportState state{.externalDir = onnx_dir,
                                .symGraph = &controlBlock->symGraph,

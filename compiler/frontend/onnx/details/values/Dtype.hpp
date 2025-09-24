@@ -52,7 +52,7 @@ struct Dtype {
 private:
   DtypeKind m_kind;
 };
-}; // namespace dtype::details
+} // namespace dtype::details
 
 class Dtype {
 public:

@@ -149,7 +149,7 @@ class __manual_lifetime {
 
     template <typename... _Args>
     _T& construct(_Args&&... __args) noexcept(std::is_nothrow_constructible_v<_T, _Args...>) {
-        return *::new (static_cast<void*>(std::addressof(__value_))) _T((_Args&&)__args...);
+        return *::new (static_cast<void*>(std::addressof(__value_))) _T(std::forward<_Args>(__args)...);
     }
 
     void destruct() noexcept(std::is_nothrow_destructible_v<_T>) {
@@ -229,7 +229,7 @@ struct elements_of {
     {}
 
     constexpr elements_of(_Rng&& __rng, _Allocator&& __alloc) noexcept
-    : __range((_Rng&&)__rng), __alloc((_Allocator&&)__alloc) {}
+    : __range(std::forward<_Rng>(__rng)), __alloc(std::forward<_Allocator>(__alloc)) {}
 
     constexpr elements_of(elements_of&&) noexcept = default;
 
@@ -401,7 +401,7 @@ struct __generator_promise_base
 
     std::suspend_always yield_value(_Ref&& __x)
             noexcept(std::is_nothrow_move_constructible_v<_Ref>) {
-        __root_->__value_.construct((_Ref&&)__x);
+        __root_->__value_.construct(std::forward<_Ref>(__x));
         return {};
     }
 
@@ -411,7 +411,7 @@ struct __generator_promise_base
         std::is_convertible_v<_T, _Ref>
     std::suspend_always yield_value(_T&& __x)
             noexcept(std::is_nothrow_constructible_v<_Ref, _T>) {
-        __root_->__value_.construct((_T&&)__x);
+        __root_->__value_.construct(std::forward<_T>(__x));
         return {};
     }
 
@@ -422,7 +422,7 @@ struct __generator_promise_base
         __yield_sequence_awaiter(_Gen&& __g) noexcept
             // Taking ownership of the generator ensures frame are destroyed
             // in the reverse order of their execution.
-            : __gen_((_Gen&&)__g) {
+            : __gen_(std::forward<_Gen>(__g)) {
         }
 
         bool await_ready() noexcept {
@@ -468,7 +468,7 @@ struct __generator_promise_base
     template <std::ranges::range _Rng, typename _Allocator>
     __yield_sequence_awaiter<generator<_Ref, std::remove_cvref_t<_Ref>, _Allocator>>
     yield_value(std::ranges::elements_of<_Rng, _Allocator> && __x) {
-        return [](allocator_arg_t, _Allocator alloc, auto && __rng) -> generator<_Ref, std::remove_cvref_t<_Ref>, _Allocator> {
+        return [](allocator_arg_t, [[maybe_unused]] _Allocator alloc, auto && __rng) -> generator<_Ref, std::remove_cvref_t<_Ref>, _Allocator> {
             for(auto && e: __rng)
                 co_yield static_cast<decltype(e)>(e);
         }(std::allocator_arg, __x.get_allocator(), std::forward<_Rng>(__x.get()));

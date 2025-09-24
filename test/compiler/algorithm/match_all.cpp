@@ -14,7 +14,7 @@ TEST(algorithm_match_all, singular_node_match) {
 
   AdjGraph<int, int> adj;
   NodeId A = adj.addNode(1);
-  NodeId B = adj.addNode(2);
+  [[maybe_unused]] NodeId B = adj.addNode(2);
   NodeId C = adj.addNode(1);
   ConstGraph<int, int> graph{adj};
 
@@ -167,7 +167,7 @@ TEST(algorithm_match_all, two_required_outgoing_but_only_one_edge_available) {
   AdjGraph<int, int> adj;
   NodeId A = adj.addNode(1);
   NodeId B = adj.addNode(2);
-  EdgeId AB = adj.addEdge(A, B, 1);
+  [[maybe_unused]] EdgeId AB = adj.addEdge(A, B, 1);
   ConstGraph<int, int> graph{adj};
 
   GraphPattern<int, int> pattern;
@@ -196,9 +196,9 @@ TEST(algorithm_match_all, three_required_outgoing_edges_permutations) {
   NodeId B = adj.addNode(2);
   NodeId C = adj.addNode(3);
   NodeId D = adj.addNode(4);
-  EdgeId AB = adj.addEdge(A, B, 1);
-  EdgeId AC = adj.addEdge(A, C, 1);
-  EdgeId AD = adj.addEdge(A, D, 1);
+  [[maybe_unused]] EdgeId AB = adj.addEdge(A, B, 1);
+  [[maybe_unused]] EdgeId AC = adj.addEdge(A, C, 1);
+  [[maybe_unused]] EdgeId AD = adj.addEdge(A, D, 1);
   ConstGraph<int, int> graph{adj};
 
   GraphPattern<int, int> pattern;
@@ -260,9 +260,9 @@ TEST(algorithm_match_all, two_required_outgoing_permutations_nPk_3P2) {
   NodeId B = adj.addNode(2);
   NodeId C = adj.addNode(3);
   NodeId D = adj.addNode(4);
-  EdgeId AB = adj.addEdge(A, B, 1);
-  EdgeId AC = adj.addEdge(A, C, 1);
-  EdgeId AD = adj.addEdge(A, D, 1);
+  [[maybe_unused]] EdgeId AB = adj.addEdge(A, B, 1);
+  [[maybe_unused]] EdgeId AC = adj.addEdge(A, C, 1);
+  [[maybe_unused]] EdgeId AD = adj.addEdge(A, D, 1);
 
   ConstGraph<int, int> graph{adj};
 
@@ -362,11 +362,6 @@ TEST(algorithm_match_all, nested_two_step_paths_from_root_node) {
 
   ASSERT_EQ(matches.size(), 3u);
 
-  auto hasABD = std::any_of(matches.begin(), matches.end(), [&](const auto &m) {
-    return m[m_X] == A &&
-           ((m[e1] == AB && (m[e2] == BD || m[e2] == BE) && m[m_Y] == B) ||
-            (m[e1] == AC && m[e2] == CF && m[m_Y] == C));
-  });
   // more explicit checks:
   bool abd = false, abe = false, acf = false;
   for (const auto &m : matches) {
@@ -428,10 +423,10 @@ TEST(algorithm_match_all, three_required_outgoing_more_than_enough_edges) {
   NodeId C = adj.addNode(3);
   NodeId D = adj.addNode(4);
   NodeId E = adj.addNode(5);
-  EdgeId AB = adj.addEdge(A, B, 1);
-  EdgeId AC = adj.addEdge(A, C, 1);
-  EdgeId AD = adj.addEdge(A, D, 1);
-  EdgeId AE = adj.addEdge(A, E, 1);
+  [[maybe_unused]] EdgeId AB = adj.addEdge(A, B, 1);
+  [[maybe_unused]] EdgeId AC = adj.addEdge(A, C, 1);
+  [[maybe_unused]] EdgeId AD = adj.addEdge(A, D, 1);
+  [[maybe_unused]] EdgeId AE = adj.addEdge(A, E, 1);
 
   ConstGraph<int, int> graph{adj};
 
@@ -1147,7 +1142,6 @@ TEST(algorithm_match_all_linked_graph,
   // For validation: ensure no later match uses the erased parent edge
   const LG::Edge *erased_parent_edge = nullptr;
   bool reused_erased_parent = false;
-  bool saw_other_branch = false;
 
   for (const auto &m : match_all(pattern, A)) {
     ++count;
@@ -1517,11 +1511,9 @@ TEST(algorithm_match_all_linked_graph,
   };
 
   // Iterate until no changes from either pattern.
-  std::size_t total_changes = 0;
   while (true) {
     std::size_t c1 = compress_pass(p1, e1v1, Z1, 1);
     std::size_t c2 = compress_pass(p2, e1v2, Z2, 2);
-    total_changes += (c1 + c2);
     if (c1 == 0 && c2 == 0)
       break;
   }

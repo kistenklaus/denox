@@ -6,7 +6,7 @@
 
 namespace onnx {
 class TensorShapeProto;
-};
+}
 
 namespace denox::onnx::details {
 

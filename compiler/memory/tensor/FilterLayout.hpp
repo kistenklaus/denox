@@ -118,7 +118,7 @@ private:
   FilterLayoutKind m_tag;
 };
 
-}; // namespace details::memory::tensors
+} // namespace details::memory::tensors
 
 class FilterLayout {
 public:

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cassert>
+#include <concepts>
 #include <cstdint>
+#include <type_traits>
 namespace denox::compiler {
 
 class SymGraph;
@@ -47,7 +49,11 @@ struct Sym {
     }
   }
 
-  static Sym Const(value_type v) { return Sym{v}; }
+  template <typename I>
+    requires std::convertible_to<I, value_type>
+  static Sym Const(I v) {
+    return Sym{static_cast<value_type>(v)};
+  }
   static Sym Symbol(symbol sym) { return Sym{sym}; }
 
   Sym() : m_isConstant(true), m_constant(0) {}
@@ -63,4 +69,4 @@ private:
   };
 };
 
-} // namespace vkcnn
+} // namespace denox::compiler

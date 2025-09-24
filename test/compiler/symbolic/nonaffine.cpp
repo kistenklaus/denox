@@ -804,7 +804,6 @@ TEST(symbolic, nonaffine_mod_constant_gcd_collapse) {
   auto X = g.var();
   auto lhs = g.mod(g.mod(X, 12), 8);
   auto rhs = g.mod(X, 4);
-  auto L = g.resolve(lhs), R = g.resolve(rhs);
   // They should both reduce to "X % 4" non-affine OR be syntactically equal;
   // Compare NF forms for robustness:
   EXPECT_EQ(NF(g, lhs), NF(g, rhs));

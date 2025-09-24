@@ -1,4 +1,5 @@
 #include "memory/hypergraph/LinkedGraph.hpp"
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <vector>
 
@@ -30,7 +31,7 @@ TEST(memory_linked_graph, InsertViaIncoming_SingleEdge) {
 
   // Add A -> B with payload 7 through B's incoming list.
   auto inB = B->incoming();
-  auto it = inB.insert(A, 7);
+  inB.insert(A, 7);
 
   EXPECT_EQ(B->incoming().size(), 1u);
   EXPECT_EQ(A->outgoing().size(), 1u);
@@ -58,7 +59,7 @@ TEST(memory_linked_graph, InsertViaOutgoing_SingleEdge) {
 
   // Add A -> B with payload 42 through A's outgoing list.
   auto outA = A->outgoing();
-  auto it = outA.insert(B, 42);
+  outA.insert(B, 42);
 
   EXPECT_EQ(A->outgoing().size(), 1u);
   EXPECT_EQ(B->incoming().size(), 1u);
@@ -327,14 +328,14 @@ TEST(memory_linked_graph, LargeLinearChain_InsertAndSelectiveErase) {
   for (int i = 0; i < N; ++i) nodes.push_back(g.createNode(i));
 
   // Build chain i -> i+1 with payload i
-  for (int i = 0; i < N - 1; ++i) {
-    nodes[i]->outgoing().insert(nodes[i+1], i);
+  for (std::size_t i = 0; i < N - 1; ++i) {
+    nodes[i]->outgoing().insert(nodes[i+1], static_cast<int>(i));
   }
 
   // Basic counts
   EXPECT_EQ(nodes.front()->outgoing().size(), 1u);
   EXPECT_EQ(nodes.back()->incoming().size(), 1u);
-  for (int i = 1; i < N - 1; ++i) {
+  for (std::size_t i = 1; i < N - 1; ++i) {
     EXPECT_EQ(nodes[i]->incoming().size(), 1u);
     EXPECT_EQ(nodes[i]->outgoing().size(), 1u);
   }
@@ -342,7 +343,7 @@ TEST(memory_linked_graph, LargeLinearChain_InsertAndSelectiveErase) {
   // Erase every edge with even payload from its source’s outgoing list.
   for (int i = 0; i < N - 1; ++i) {
     if ((i % 2) == 0) {
-      auto out = nodes[i]->outgoing();
+      auto out = nodes[static_cast<std::size_t>(i)]->outgoing();
       for (auto it = out.begin(); it != out.end(); ) {
         if (it->value() == i) {
           it = out.erase(it);
@@ -356,7 +357,7 @@ TEST(memory_linked_graph, LargeLinearChain_InsertAndSelectiveErase) {
 
   // Check remaining outgoing payloads from all nodes are odd i.
   std::vector<int> remaining;
-  for (int i = 0; i < N - 1; ++i) {
+  for (std::size_t i = 0; i < N - 1; ++i) {
     for (auto it = nodes[i]->outgoing().begin(); it != nodes[i]->outgoing().end(); ++it)
       remaining.push_back(it->value());
   }
@@ -870,17 +871,17 @@ TEST(memory_linked_graph, ProfileAllocator_ParallelEdges_Stress_AllFreedOnDestru
     for (int i = 0; i < N; ++i) nodes.push_back(g.createNode(i));
 
     // Create lots of edges (including parallel edges) to ensure pools grab slabs
-    for (int i = 0; i+1 < N; ++i) {
-      nodes[i]->outgoing().insert(nodes[i+1], i);
-      nodes[i]->outgoing().insert(nodes[i+1], i + 1000); // parallel edge
+    for (std::size_t i = 0; i+1 < N; ++i) {
+      nodes[i]->outgoing().insert(nodes[i+1], static_cast<int>(i));
+      nodes[i]->outgoing().insert(nodes[i+1], static_cast<int>(i) + 1000); // parallel edge
       if (i+2 < N) {
         // sprinkle a few “skip” edges
-        nodes[i]->outgoing().insert(nodes[i+2], i + 2000);
+        nodes[i]->outgoing().insert(nodes[i+2], static_cast<int>(i) + 2000);
       }
     }
 
     // Drop many handles to allow partial cascades during scope (optional)
-    for (int i = 1; i+1 < N; ++i) nodes[i].release();
+    for (std::size_t i = 1; i+1 < N; ++i) nodes[i].release();
   }
   EXPECT_EQ(pa.allocationCount(), 0u);
   EXPECT_EQ(pa.allocatedBytes(), 0u);

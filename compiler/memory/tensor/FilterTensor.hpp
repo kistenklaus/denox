@@ -31,9 +31,9 @@ public:
   std::byte *data() { return m_buffer; }
 
   std::span<const std::byte> span() const {
-    return std::span{m_buffer, m_desc.byteSize()};
+    return std::span<const std::byte>{m_buffer, m_desc.byteSize()};
   }
-  std::span<std::byte> span() { return std::span{m_buffer, m_desc.byteSize()}; }
+  std::span<std::byte> span() { return std::span<std::byte>{m_buffer, m_desc.byteSize()}; }
 
   const FilterDescriptor &desc() const { return m_desc; }
   const FilterShape &shape() const { return m_desc.shape; }
@@ -93,7 +93,7 @@ public:
   const std::byte *data() const { return m_buffer; }
 
   std::span<const std::byte> span() const {
-    return std::span{m_buffer, m_desc.byteSize()};
+    return std::span<const std::byte>{m_buffer, m_desc.byteSize()};
   }
 
   const FilterDescriptor &desc() const { return m_desc; }
@@ -208,10 +208,10 @@ public:
   std::byte *data() { return m_storage.get(); }
 
   std::span<const std::byte> span() const {
-    return std::span{m_storage.get(), m_desc.byteSize()};
+    return std::span<const std::byte>{m_storage.get(), m_desc.byteSize()};
   }
   std::span<std::byte> span() {
-    return std::span{m_storage.get(), m_desc.byteSize()};
+    return std::span<std::byte>{m_storage.get(), m_desc.byteSize()};
   }
 
   const FilterDescriptor &desc() const { return m_desc; }

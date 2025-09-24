@@ -277,7 +277,7 @@ memory::generator<LinkedGraphMatch<V, E, W, Allocator>> mutable_match_all(
   }
 }
 
-}; // namespace pattern_matching::details
+} // namespace pattern_matching::details
 
 template <typename V, typename E, typename W>
 memory::generator<ConstGraphMatch<V, E, W>>

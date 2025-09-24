@@ -29,10 +29,10 @@ public:
   std::byte *data() { return m_buffer; }
 
   denox::memory::span<const std::byte> span() const {
-    return denox::memory::span{m_buffer, m_desc.byteSize()};
+    return denox::memory::span<const std::byte>{m_buffer, m_desc.byteSize()};
   }
   denox::memory::span<std::byte> span() {
-    return denox::memory::span{m_buffer, m_desc.byteSize()};
+    return denox::memory::span<std::byte>{m_buffer, m_desc.byteSize()};
   }
 
   const BiasDescriptor &desc() const { return m_desc; }
@@ -83,7 +83,7 @@ public:
 
   const std::byte *data() const { return m_buffer; }
   denox::memory::span<const std::byte> span() const {
-    return denox::memory::span{m_buffer, m_desc.byteSize()};
+    return denox::memory::span<const std::byte>{m_buffer, m_desc.byteSize()};
   }
 
   const BiasDescriptor &desc() const { return m_desc; }
@@ -166,11 +166,11 @@ public:
   std::byte *data() { return m_storage.get(); }
 
   denox::memory::span<const std::byte> span() const {
-    return denox::memory::span{m_storage.get(), m_desc.byteSize()};
+    return denox::memory::span<const std::byte>{m_storage.get(), m_desc.byteSize()};
   }
 
   denox::memory::span<std::byte> span() {
-    return denox::memory::span{m_storage.get(), m_desc.byteSize()};
+    return denox::memory::span<std::byte>{m_storage.get(), m_desc.byteSize()};
   }
 
   const BiasDescriptor &desc() const { return m_desc; }

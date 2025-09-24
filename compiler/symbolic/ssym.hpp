@@ -6,12 +6,16 @@
 namespace denox::compiler {
 
 struct sym {
+private:
+  static constexpr Sym::symbol mask63 =
+      (Sym::symbol{1} << 63) - 1; // 0x7FFF...FFFF
 public:
-  sym(Sym sym)
-      : m_isConstant(sym.isConstant()),
-        m_value(m_isConstant ? static_cast<Sym::symbol>(sym.constant())
-                             : sym.sym()) {
-    assert(!sym.isConstant() || (sym.constant() >= 0));
+  sym(Sym s)
+      : m_isConstant(s.isConstant()),
+        m_value((m_isConstant ? static_cast<Sym::symbol>(s.constant())
+                              : s.sym()) &
+                mask63) {
+    assert(!s.isConstant() || s.constant() >= 0);
   }
 
   bool isConstant() const { return m_isConstant; }

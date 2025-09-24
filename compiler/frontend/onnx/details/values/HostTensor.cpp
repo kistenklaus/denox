@@ -403,7 +403,7 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
     }
     const std::size_t toRead = (length == 0) ? (fileSize - offset) : length;
     memory::vector<std::byte> raw(toRead);
-    f.read_exact(memory::span{raw.data(), toRead});
+    f.read_exact(memory::span<std::byte>{raw.data(), toRead});
     outSize = toRead;
     return raw;
   };

@@ -35,7 +35,7 @@ public:
     return handle;
   }
 
-  void matchRank(std::size_t rank) { m_rank = rank; }
+  void matchRank(rank_t rank) { m_rank = rank; }
 
   bool operator()(const memory::ConstGraph<V, E, W> &graph,
                   memory::EdgeId eid) const {

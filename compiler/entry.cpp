@@ -11,7 +11,6 @@
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
 #include <google/protobuf/port.h>
-#include <spdlog/spdlog.h>
 
 namespace denox::compiler {
 
@@ -34,8 +33,6 @@ static Model frontend(memory::span<const std::byte> raw,
 }
 
 void entry(memory::span<const std::byte> raw, const Options &options) {
-  compiler::diag::initLogger();
-
   DENOX_DEBUG("Run frontend");
   // 1. Import model
   Model model = frontend(raw, options);

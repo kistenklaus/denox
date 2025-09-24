@@ -14,7 +14,7 @@
 #include <cassert>
 #include <concepts>
 #include <iterator>
-#include <spdlog/pattern_formatter-inl.h>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -810,54 +810,76 @@ public:
       assert(dstNode->m_controlBlock == cb);
       assert(!srcs.empty());
 
+      // Allocate edge payload block first.
       Edge *edgeInfo = cb->allocEdgeInfo();
 
+      // Build the edge's srcs chain and link each src's outgoing entry.
       OutgoingNodeList *srcsList = nullptr;
       for (int s = static_cast<int>(srcs.size()) - 1; s >= 0; --s) {
+        const NodeHandle *ptr = srcs[static_cast<std::size_t>(s)];
         assert(ptr && ptr->m_controlBlock &&
                ptr->m_controlBlock->m_controlBlock == cb);
-        assert(ptr->m_controlBlock != dstNode);
-        const NodeHandle &src = *srcs[static_cast<std::size_t>(s)];
+        Node *srcNode = ptr->m_controlBlock;
+        assert(srcNode != dstNode);
+
+        // Create and splice an outgoing entry into the source's outgoing list.
         EdgeList *outgoingEntry = cb->allocEdgeList();
         new (outgoingEntry) EdgeList(nullptr, nullptr, edgeInfo);
-        auto &srcNode = src.m_controlBlock;
-        assert(srcNode->m_controlBlock == cb);
+
         if (srcNode->m_outgoing == nullptr) {
           outgoingEntry->prev = outgoingEntry;
           outgoingEntry->next = outgoingEntry;
           srcNode->m_outgoing = outgoingEntry;
         } else {
-          outgoingEntry->next = srcNode->m_outgoing->next;
-          outgoingEntry->prev = srcNode->m_outgoing;
-          srcNode->m_outgoing->next->prev = outgoingEntry;
-          srcNode->m_outgoing->next = outgoingEntry;
+          // Insert after tail (at head position) to mirror OutgoingList policy.
+          EdgeList *tail = srcNode->m_outgoing->prev;
+          outgoingEntry->next = tail->next; // head
+          outgoingEntry->prev = tail;
+          tail->next->prev = outgoingEntry;
+          tail->next = outgoingEntry;
         }
+
+        // Chain this source into the edge's src list (front-insert to preserve
+        // order).
         OutgoingNodeList *srcsEntry = cb->allocOutgoingNodeList();
         new (srcsEntry) OutgoingNodeList(srcsList, outgoingEntry, srcNode);
         srcsList = srcsEntry;
       }
 
+      // Create the incoming entry and splice into dst's incoming list.
       EdgeList *incomingEntry = cb->allocEdgeList();
       new (incomingEntry) EdgeList(nullptr, nullptr, edgeInfo);
+
       if (dstNode->m_incoming == nullptr) {
-        assert(pos == end()); // must be empty!
-        incomingEntry->next = incomingEntry;
+        // Empty list: pos must be end(); establish a singleton circular list.
+        assert(pos == end());
         incomingEntry->prev = incomingEntry;
+        incomingEntry->next = incomingEntry;
         dstNode->m_incoming = incomingEntry;
-        // NOTE: ++pos, now points to incomingEntry!,
-        // recovers m_curr == nullptr, by reloading the head!
       } else {
-        assert(pos.m_curr != nullptr);
-        incomingEntry->next = pos.m_curr->next;
-        incomingEntry->prev = pos.m_curr;
-        pos.m_curr->next->prev = incomingEntry;
-        pos.m_curr->next = incomingEntry;
+        if (pos.m_curr == nullptr) {
+          // Append after tail when pos == end()
+          EdgeList *tail = dstNode->m_incoming->prev;
+          incomingEntry->next = tail->next; // head
+          incomingEntry->prev = tail;
+          tail->next->prev = incomingEntry;
+          tail->next = incomingEntry;
+        } else {
+          // Insert after the given position
+          incomingEntry->next = pos.m_curr->next;
+          incomingEntry->prev = pos.m_curr;
+          pos.m_curr->next->prev = incomingEntry;
+          pos.m_curr->next = incomingEntry;
+        }
       }
 
+      // Finalize edge payload and bookkeeping.
       new (edgeInfo) Edge(srcsList, incomingEntry, dstNode, std::move(weight),
                           std::forward<Args>(args)...);
       dstNode->m_live_parent_count += 1;
-      return ++pos;
+
+      // Return iterator pointing to the newly inserted entry.
+      return EdgeIt(&m_node.m_controlBlock->m_incoming, incomingEntry);
     }
 
     template <typename... Args>
@@ -866,7 +888,7 @@ public:
     EdgeIt insert_after(EdgeIt pos, const NodeHandle &src,
                         Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
-      return insert_after_with_dynamic_srcs(pos, memory::span{&ptr, 1}, W{},
+      return insert_after_with_dynamic_srcs(pos, memory::span<const NodeHandle*>{&ptr, 1}, W{},
                                             std::forward<Args>(args)...);
     }
     template <typename... Args>
@@ -875,7 +897,7 @@ public:
     EdgeIt insert_after(EdgeIt pos, const NodeHandle &src, const W &weight,
                         Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
-      return insert_after_with_dynamic_srcs(pos, memory::span{&ptr, 1}, weight,
+      return insert_after_with_dynamic_srcs(pos, memory::span<const NodeHandle*>{&ptr, 1}, weight,
                                             std::forward<Args>(args)...);
     }
 
@@ -923,7 +945,7 @@ public:
                std::constructible_from<E, Args...>
     EdgeIt insert(const NodeHandle &src, Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
-      return insert_after_with_dynamic_srcs(begin(), memory::span{&ptr, 1}, W{},
+      return insert_after_with_dynamic_srcs(begin(), memory::span<const NodeHandle*>{&ptr, 1}, W{},
                                             std::forward<Args>(args)...);
     }
     template <typename... Args>
@@ -933,7 +955,7 @@ public:
                   Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
       return insert_after_with_dynamic_srcs(
-          begin(), memory::span{&ptr, 1}, weight, std::forward<Args>(args)...);
+          begin(), memory::span<const NodeHandle*>{&ptr, 1}, weight, std::forward<Args>(args)...);
     }
 
     [[nodiscard]] EdgeIt begin() noexcept {
