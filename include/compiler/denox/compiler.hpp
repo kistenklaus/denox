@@ -55,12 +55,21 @@ struct Heuristic {
   // TODO later (but a discriminated type union or something like it.)
 };
 
+enum StorageLayoutFlags : std::uint64_t {
+  STORAGE_SSBO_BIT = 1 << 0,
+  LAYOUT_HWC = 1 << 1,
+  STORAGE_LAYOUT_SSBO_HWC = STORAGE_SSBO_BIT | LAYOUT_HWC
+};
+
 struct CompileOptions {
   unsigned int version = 0; // <- 0 no specific version.
   SrcType srcType = SrcType::Auto;
   DeviceInfo *deviceInfo = nullptr;
   Features features;
   Heuristic heuristic = {};
+  StorageLayoutFlags inputStorageLayout = STORAGE_LAYOUT_SSBO_HWC;
+  StorageLayoutFlags outputStorageLayout = STORAGE_LAYOUT_SSBO_HWC;
+
   const char *cwd = nullptr;
 };
 

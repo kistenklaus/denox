@@ -29,8 +29,6 @@ LinkedModel canonicalize(const Model &model) {
     throw std::runtime_error("Failed to canonicalize.");
   }
 
-
-
   cano::SliceSlice sliceSliceRule;
 
   cano::IFusionRule *rules[] = {

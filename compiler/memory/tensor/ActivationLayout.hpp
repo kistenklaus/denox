@@ -1,6 +1,7 @@
 #pragma once
 
 #include "diag/unreachable.hpp"
+#include "memory/container/span.hpp"
 #include "memory/tensor/ActivationShape.hpp"
 #include <cassert>
 #include <cstddef>
@@ -116,8 +117,13 @@ public:
 
   ActivationLayoutKind kind() const { return m_layout.kind(); }
 
+  static memory::span<const ActivationLayout> supported() {
+    static constexpr ActivationLayout layouts[] = {HWC, CHW, CHWC8};
+    return layouts;
+  }
+
 private:
   details::memory::tensors::ActivationLayout m_layout;
 };
 
-} // namespace denox::compiler
+} // namespace denox::memory

@@ -65,7 +65,7 @@ public:
     return m_controlBlock->hypergraph;
   }
 
-  const SymGraph &symGraph() { return m_controlBlock->symGraph; }
+  const SymGraph &symGraph() const { return m_controlBlock->symGraph; }
 
   Tensor getInput() const;
   Tensor getOutput() const;

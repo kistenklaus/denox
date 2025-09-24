@@ -4,6 +4,7 @@
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/dtype/dtype.hpp"
+#include "memory/tensor/ActivationLayout.hpp"
 namespace denox::compiler {
 
 enum class SrcType {
@@ -30,11 +31,14 @@ struct Features {
   bool coopmat;
 };
 
+
 struct Options {
   unsigned int version;
   SrcType srcType;
   DeviceInfo deviceInfo;
   Features features;
+  memory::ActivationLayout inputLayout;
+  memory::ActivationLayout outputLayout;
   io::Path cwd;
   memory::optional<io::Path> srcPath;
 };

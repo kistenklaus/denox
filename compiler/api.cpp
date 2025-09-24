@@ -6,13 +6,21 @@
 #include "io/fs/Path.hpp"
 #include "memory/container/span.hpp"
 #include "memory/container/vector.hpp"
+#include "memory/tensor/ActivationLayout.hpp"
 #include <cassert>
 #include <cstring>
-#include <exception>
 #include <fmt/format.h>
 #include <stdexcept>
 
 namespace denox {
+
+static memory::ActivationLayout infer_layout(StorageLayoutFlags storageLayout) {
+  if (storageLayout & LAYOUT_HWC) {
+    return memory::ActivationLayout::HWC;
+  } else {
+    compiler::diag::unreachable();
+  }
+}
 
 static unsigned infer_version(const CompileOptions &options) {
   if (options.version == 0) {
@@ -164,13 +172,27 @@ void compile(const char *cpath, const CompileOptions &options) {
         fmt::format("source-file: {} does not exist.", path.str()));
   }
 
-  compiler::Options opt;
-  opt.version = infer_version(options);
-  opt.srcType = infer_srctype(path, options);
-  opt.deviceInfo = infer_device_info(options);
-  opt.features = infer_features(opt.deviceInfo, options.features);
-  opt.cwd = infer_cwd(options);
-  opt.srcPath = path;
+  auto version = infer_version(options);
+  auto srcType = infer_srctype(path, options);
+  auto deviceInfo = infer_device_info(options);
+  auto features = infer_features(deviceInfo, options.features);
+  auto cwd = infer_cwd(options);
+  auto srcPath = path;
+  memory::ActivationLayout inputLayout =
+      infer_layout(options.inputStorageLayout);
+  memory::ActivationLayout outputLayout =
+      infer_layout(options.outputStorageLayout);
+
+  compiler::Options opt{
+      .version = std::move(version),
+      .srcType = std::move(srcType),
+      .deviceInfo = std::move(deviceInfo),
+      .features = std::move(features),
+      .inputLayout = std::move(inputLayout),
+      .outputLayout = std::move(outputLayout),
+      .cwd = std::move(cwd),
+      .srcPath = std::move(srcPath),
+  };
 
   auto file = io::File::open(path, io::File::OpenMode::Read);
   memory::vector<std::byte> buf{file.size()};
@@ -180,13 +202,28 @@ void compile(const char *cpath, const CompileOptions &options) {
 }
 
 void compile(void *data, std::size_t n, const CompileOptions &options) {
-  compiler::Options opt;
-  opt.version = infer_version(options);
-  opt.srcType = infer_srctype(std::nullopt, options);
-  opt.deviceInfo = infer_device_info(options);
-  opt.features = infer_features(opt.deviceInfo, options.features);
-  opt.cwd = infer_cwd(options);
-  opt.srcPath = std::nullopt;
+  auto version = infer_version(options);
+  auto srcType = infer_srctype(std::nullopt, options);
+  auto deviceInfo = infer_device_info(options);
+  auto features = infer_features(deviceInfo, options.features);
+  auto cwd = infer_cwd(options);
+  std::optional<io::Path> srcPath = std::nullopt;
+  memory::ActivationLayout inputLayout =
+      infer_layout(options.inputStorageLayout);
+  memory::ActivationLayout outputLayout =
+      infer_layout(options.outputStorageLayout);
+
+  compiler::Options opt{
+
+      .version = std::move(version),
+      .srcType = std::move(srcType),
+      .deviceInfo = std::move(deviceInfo),
+      .features = std::move(features),
+      .inputLayout = std::move(inputLayout),
+      .outputLayout = std::move(outputLayout),
+      .cwd = std::move(cwd),
+      .srcPath = std::move(srcPath),
+  };
 
   compiler::entry(
       memory::span<const std::byte>{static_cast<const std::byte *>(data), n},

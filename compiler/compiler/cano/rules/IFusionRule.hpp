@@ -10,7 +10,8 @@ class IFusionRule {
 public:
   virtual ~IFusionRule() = default;
 
-  virtual const algorithm::GraphPattern<ComputeTensor, ComputeOp>& pattern() = 0;
+  virtual const algorithm::GraphPattern<ComputeTensor, ComputeOp> &
+  pattern() = 0;
 
   virtual void
   apply(const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp> &match) = 0;

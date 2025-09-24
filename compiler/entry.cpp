@@ -1,4 +1,5 @@
 #include "entry.hpp"
+#include "algorithm/count_children.hpp"
 #include "compiler/cano/cano.hpp"
 #include "compiler/dce.hpp"
 #include "compiler/freeze.hpp"
@@ -8,8 +9,10 @@
 #include "frontend/onnx/onnx.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "memory/hypergraph/LinkedGraph.hpp"
+#include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
+#include <fmt/base.h>
 #include <google/protobuf/port.h>
 
 namespace denox::compiler {
@@ -18,27 +21,25 @@ static Model frontend(memory::span<const std::byte> raw,
                       const Options &options) {
   switch (options.srcType) {
   case SrcType::Onnx: {
-    DENOX_INFO("Importing ONNX model");
     io::Path onnx_dir;
     if (options.srcPath.has_value()) {
       onnx_dir = options.srcPath->absolute().parent();
     } else {
       onnx_dir = options.cwd;
     }
-    DENOX_DEBUG("External data directory: \"{}\"", onnx_dir.str());
-    return denox::onnx::read(raw, onnx_dir);
+    auto model = denox::onnx::read(raw, onnx_dir);
+    model.getInput().setLayout(options.inputLayout);
+    model.getOutput().setLayout(options.outputLayout);
+    return model;
   }
   }
   denox::compiler::diag::unreachable();
 }
 
 void entry(memory::span<const std::byte> raw, const Options &options) {
-  DENOX_DEBUG("Run frontend");
   // 1. Import model
   Model model = frontend(raw, options);
-  DENOX_DEBUG("Successfully imported Model:");
-  DENOX_TRACE_RAW(model.to_string());
-
+  fmt::println("model tensor count: {}", model.graph().nodeCount());
   // 1. Canoncalize:
   // Stuff that the pytorch exporter doesn't do by default like
   // fusion of slice -> slice, or fusing operations like
@@ -46,23 +47,32 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   // Basically just bringing the ir into a canonical form.
   LinkedModel emodel = compiler::canonicalize(model);
 
+  fmt::println(
+      "tensor count after cano: {}",
+      algorithm::count_children<ComputeTensor, ComputeOp>(emodel.input));
+
   // 2. Specialize:
   // Resolve dtypes and layouts, by possibly
   // duplicating intermediate tensors
   // (e.g. one for allowed each layout)
-  compiler::specialize(emodel);
+  compiler::specialize(emodel, memory::ActivationLayout::supported());
+
+  fmt::println(
+      "tensor count after spec: {}",
+      algorithm::count_children<ComputeTensor, ComputeOp>(emodel.input));
 
   // 3. Dead Code Elimination.
   // Remove all intermediate tensors and edges, if
   // they do not contribute to the output.
   // This should generally be an empty set, but it's good
   // to check.
-  AdjModel amodel = compiler::dce(emodel);
+  // AdjModel amodel = compiler::dce(emodel);
 
   // 4. Freeze:
   // From this point we switch to a datastructure more suited
   // for graph traversal.
-  ConstModel cmodel = compiler::freeze(amodel);
+  // ConstModel cmodel = compiler::freeze(amodel);
+  // fmt::println("cmodel tensor count: {}", cmodel.graph.nodeCount());
 
   // 5. Implementation:
   // Build supergraph!
