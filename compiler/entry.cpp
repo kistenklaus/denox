@@ -35,6 +35,7 @@ static Model frontend(memory::span<const std::byte> raw,
 void entry(memory::span<const std::byte> raw, const Options &options) {
   // 1. Import model
   Model model = frontend(raw, options);
+  SymGraph symGraph = model.symGraph();
   // 1. Canoncalize:
   // Stuff that the pytorch exporter doesn't do by default like
   // fusion of slice -> slice, or fusing operations like
@@ -60,7 +61,7 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   // for graph traversal.
   ConstModel cmodel = compiler::freeze(amodel);
 
-  compiler::implement(cmodel);
+  compiler::implement(cmodel, symGraph);
 
   // 5. Implementation:
   // Build supergraph!

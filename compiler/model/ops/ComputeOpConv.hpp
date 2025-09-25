@@ -13,7 +13,7 @@ namespace denox::compiler {
 struct ComputeOpConv {
   struct Storage {
     memory::shared_ptr<memory::FilterTensor> W;
-    memory::shared_ptr<memory::BiasTensor> B;
+    memory::shared_ptr<memory::BiasTensor> B; // <- may be nullptr
     memory::uvec2 padding;
     memory::uvec2 stride;
 

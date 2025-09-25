@@ -1,7 +1,10 @@
 #pragma once
 
+#include "algorithm/pattern_matching/EdgePattern.fwd.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "memory/container/vector.hpp"
 #include "memory/dtype/dtype.hpp"
+#include "memory/hypergraph/ConstGraph.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "shaders/IShader.hpp"
 namespace denox::compiler::shaders {
@@ -9,6 +12,9 @@ namespace denox::compiler::shaders {
 class DirectConvShader : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+
+  static constexpr unsigned int CONV_PATTERN = 0;
+  static constexpr unsigned int CONV_RELU_PATTERN = 1;
 
 public:
   DirectConvShader() {
@@ -25,8 +31,8 @@ public:
     };
 
     {
-      Pattern any_any_f16;
-      auto in = any_any_f16.matchNode();
+      Pattern conv_pattern;
+      auto in = conv_pattern.matchNode();
       auto op = in->matchOutgoing();
       op->matchRank(1);
       op->matchValue(
@@ -36,12 +42,13 @@ public:
       in->matchValue(tensorSupported);
       out->matchValue(tensorSupported);
 
-      m_capabilities.patterns.emplace_back(std::move(any_any_f16),
+      m_convPattern.emplace_back(std::move(op));
+      m_capabilities.patterns.emplace_back(std::move(conv_pattern),
                                            std::move(in), std::move(out));
     }
     { // possibly more patterns.
-      Pattern pattern1;
-      auto in = pattern1.matchNode();
+      Pattern conv_relu_pattern;
+      auto in = conv_relu_pattern.matchNode();
       auto conv = in->matchOutgoing();
       auto inter = conv->matchDst();
       auto relu = inter->matchOutgoing();
@@ -58,13 +65,31 @@ public:
       in->matchValue(tensorSupported);
       out->matchValue(tensorSupported);
 
-      m_capabilities.patterns.emplace_back(std::move(pattern1), std::move(in),
-                                           std::move(out));
+      m_convPattern.emplace_back(std::move(conv));
+      m_capabilities.patterns.emplace_back(std::move(conv_relu_pattern),
+                                           std::move(in), std::move(out));
     }
   }
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
+  }
+
+  std::size_t
+  parameterMemorySize(const memory::ConstGraph<ComputeTensor, ComputeOp> &graph,
+                      unsigned int pattern,
+                      const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp>
+                          &match) const final override {
+    const auto &convPattern = m_convPattern[pattern];
+    memory::EdgeId convId = match[convPattern];
+    const ComputeOp &op = graph.get(convId);
+    assert(op.tag() == ComputeOpTag::Conv);
+    const auto &conv = op.conv();
+    std::size_t elemCount = conv->W->shape().elemCount();
+    if (conv->B != nullptr) {
+      elemCount += conv->B->shape();
+    }
+    return elemCount * memory::Dtype::F16.size();
   }
 
   void implement([[maybe_unused]] unsigned int pattern,
@@ -73,6 +98,8 @@ public:
 
 private:
   ShaderCapabilities m_capabilities;
+  memory::vector<algorithm::EdgePatternHandle<ComputeTensor, ComputeOp>>
+      m_convPattern;
 };
 
 } // namespace denox::compiler::shaders

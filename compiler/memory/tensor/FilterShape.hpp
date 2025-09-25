@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 namespace denox::memory {
 
 struct FilterShape {
@@ -14,6 +15,11 @@ struct FilterShape {
   friend bool operator!=(const FilterShape &lhs, const FilterShape &rhs) {
     return !(lhs == rhs);
   }
+
+  std::size_t elemCount() const {
+    return static_cast<std::size_t>(s) * static_cast<std::size_t>(r) *
+           static_cast<std::size_t>(c) * static_cast<std::size_t>(k);
+  }
 };
 
-} // namespace denox::compiler
+} // namespace denox::memory

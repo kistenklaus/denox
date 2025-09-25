@@ -1,5 +1,9 @@
 #include "compiler/impl.hpp"
 #include "algorithm/pattern_matching/match.hpp"
+#include "algorithm/shortest_dag_hyperpath.hpp"
+#include "diag/logging.hpp"
+#include "heuristic/IHeuristic.hpp"
+#include "heuristic/MemoryHeuristic.hpp"
 #include "memory/container/dynamic_bitset.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "shaders/IShader.hpp"
@@ -9,6 +13,7 @@
 #include "shaders/pool/BasicPoolShader.hpp"
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
+#include <exception>
 
 namespace denox::compiler {
 
@@ -18,15 +23,7 @@ struct ComputeOpImpl {
   algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> match;
 };
 
-static float heuristic([[maybe_unused]] std::span<const ComputeTensor *> in,
-                       [[maybe_unused]] const ComputeTensor &out,
-                       [[maybe_unused]] unsigned int pattern,
-                       [[maybe_unused]] unsigned int shader) {
-  // Big TODO!!
-  return 1.0f;
-}
-
-void implement(const ConstModel &model) {
+void implement(const ConstModel &model, const SymGraph &symGraph) {
   const auto &opGraph = model.graph;
   using SuperGraph = memory::AdjGraph<ComputeTensor, ComputeOpImpl, float>;
   SuperGraph supergraph{};
@@ -42,7 +39,7 @@ void implement(const ConstModel &model) {
   shaders::MemorySliceShader memorySlice;
   shaders::CopyTransformShader copyTransform;
 
-  IShader *shaders[]{
+  const IShader *shaders[]{
       &directConv,    //
       &basicPool,     //
       &basicUpsample, //
@@ -50,6 +47,10 @@ void implement(const ConstModel &model) {
       &memorySlice,   //
       &copyTransform,
   };
+
+  MemoryHeuristic memoryHeuristic{shaders, &opGraph, symGraph, model.input};
+
+  IHeuristic *heuristic = &memoryHeuristic;
 
   std::size_t nodeCount = opGraph.nodeCount();
 
@@ -84,8 +85,9 @@ void implement(const ConstModel &model) {
         }
         edgeExits[edgeId] = true;
 
-        const float w =
-            heuristic(ins, opGraph.get(out), p, static_cast<unsigned int>(s));
+        const float w = heuristic->eval(ins, opGraph.get(out), p, m,
+                                        static_cast<unsigned int>(s));
+
         supergraph.addEdge(inputs, out,
                            ComputeOpImpl{
                                .shader = shader,
@@ -96,7 +98,23 @@ void implement(const ConstModel &model) {
       }
     }
   }
+
+  memory::ConstGraph<ComputeTensor, ComputeOpImpl, float> constSupergraph{
+      supergraph};
+
+  memory::span<const memory::NodeId> starts{&model.input, 1};
+  memory::span<const memory::NodeId> ends{&model.output, 1};
+  auto hyperpath =
+      algorithm::shortest_dag_hyperpath<ComputeTensor, ComputeOpImpl, float>(
+          constSupergraph, starts, ends);
+  if (!hyperpath.has_value()) {
+    DENOX_ERROR("Failed to implement model.");
+    std::terminate(); // <- TODO proper error handling please
+  } else {
+  }
+
   fmt::println("supergraph edges : {}", supergraph.edgeCount());
+  fmt::println("implementation size : {}", hyperpath->size());
 }
 
 } // namespace denox::compiler

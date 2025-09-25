@@ -24,6 +24,8 @@ public:
   memory::optional<memory::ActivationLayout> layout() const { return m_layout; }
   memory::optional<memory::Dtype> type() const { return m_type; }
 
+  sym_vec2 extent() const { return m_extent; }
+
   void setType(memory::Dtype dtype) { m_type = dtype; }
   void setLayout(memory::ActivationLayout layout) { m_layout = layout; }
 

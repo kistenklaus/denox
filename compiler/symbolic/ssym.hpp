@@ -22,7 +22,7 @@ public:
 
   bool isSymbolic() const { return !m_isConstant; }
 
-  Sym symbol() const { return Sym::Symbol(m_value); }
+  Sym::symbol symbol() const { return m_value; }
 
   Sym::value_type constant() const {
     return static_cast<Sym::value_type>(m_value);

@@ -161,6 +161,7 @@ add_executable(denox_test EXCLUDE_FROM_ALL
   test/main.cpp
   test/compiler/algorithm/match_first.cpp
   test/compiler/algorithm/match_all.cpp
+  test/compiler/algorithm/shortest_dag_hyperpath.cpp
   test/compiler/memory/monotone_pool_allocator.cpp
   test/compiler/memory/linked_graph.cpp
   test/compiler/symbolic/affine.cpp
