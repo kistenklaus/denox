@@ -1,15 +1,16 @@
 #pragma once
 
+#include "compiler/ir/SpecModel.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "model/ComputeOp.hpp"
-#include "model/ComputeTensor.hpp"
+
 namespace denox::compiler {
 
-struct ConstModel {
-  using Graph = memory::ConstGraph<ComputeTensor, ComputeOp>;
+struct OpModel {
+  using Graph = memory::ConstGraph<TensorInstance, ComputeOp>;
   Graph graph;
   memory::NodeId input;
   memory::NodeId output;
 };
 
-}
+} // namespace denox::compiler

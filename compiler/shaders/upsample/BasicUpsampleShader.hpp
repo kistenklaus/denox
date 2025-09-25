@@ -7,7 +7,7 @@ namespace denox::compiler::shaders {
 
 class BasicUpsampleShader : public IShader {
 public:
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   BasicUpsampleShader() {
     {
@@ -16,19 +16,19 @@ public:
       auto upsample = in->matchOutgoing();
       auto out = upsample->matchDst();
 
-      in->matchValue([](const ComputeTensor &tensor) {
-        if (tensor.type() != memory::Dtype::F16) {
+      in->matchValue([](const TensorInstance &tensor) {
+        if (tensor.type != memory::Dtype::F16) {
           return false;
         }
-        return tensor.layout() == memory::ActivationLayout::HWC ||
-               tensor.layout() == memory::ActivationLayout::HWC8;
+        return tensor.layout == memory::ActivationLayout::HWC ||
+               tensor.layout == memory::ActivationLayout::HWC8;
       });
-      out->matchValue([](const ComputeTensor &tensor) {
-        if (tensor.type() != memory::Dtype::F16) {
+      out->matchValue([](const TensorInstance &tensor) {
+        if (tensor.type != memory::Dtype::F16) {
           return false;
         }
-        return tensor.layout() == memory::ActivationLayout::HWC ||
-               tensor.layout() == memory::ActivationLayout::HWC8;
+        return tensor.layout == memory::ActivationLayout::HWC ||
+               tensor.layout == memory::ActivationLayout::HWC8;
       });
 
       upsample->matchRank(1);
@@ -51,17 +51,17 @@ public:
       auto upsample = in->matchOutgoing();
       auto out = upsample->matchDst();
 
-      in->matchValue([](const ComputeTensor &tensor) {
-        if (tensor.type() != memory::Dtype::F16) {
+      in->matchValue([](const TensorInstance &tensor) {
+        if (tensor.type != memory::Dtype::F16) {
           return false;
         }
-        return tensor.layout() == memory::ActivationLayout::CHWC8;
+        return tensor.layout == memory::ActivationLayout::CHWC8;
       });
-      out->matchValue([](const ComputeTensor &tensor) {
-        if (tensor.type() != memory::Dtype::F16) {
+      out->matchValue([](const TensorInstance &tensor) {
+        if (tensor.type != memory::Dtype::F16) {
           return false;
         }
-        return tensor.layout() == memory::ActivationLayout::CHWC8;
+        return tensor.layout == memory::ActivationLayout::CHWC8;
       });
 
       upsample->matchRank(1);
@@ -86,13 +86,12 @@ public:
 
   // TODO Figure out the return from here, maybe directly somethig like a
   // dispatch with a compiled SPIR-V or something like this.
-  void implement([[maybe_unused]] unsigned int pattern,
-                 [[maybe_unused]] const algorithm::ConstGraphMatch<
-                     ComputeTensor, ComputeOp> &match) const final override {}
+  void implement(
+      [[maybe_unused]] unsigned int pattern,
+      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+          &match) const final override {}
 
-  memory::string name() const final override {
-    return "basic-upsample";
-  }
+  memory::string name() const final override { return "basic-upsample"; }
 
 private:
   ShaderCapabilities m_capabilities;

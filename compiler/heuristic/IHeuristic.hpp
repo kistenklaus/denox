@@ -12,9 +12,9 @@ public:
   virtual ~IHeuristic() = default;
 
   virtual float
-  eval(std::span<const ComputeTensor *> in, const ComputeTensor &out,
+  eval(std::span<const TensorInstance *> in, const TensorInstance &out,
             unsigned int pattern,
-            const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> &match,
+            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             const IShader* shader) const = 0;
 };
 

@@ -6,7 +6,7 @@ namespace denox::compiler::shaders {
 
 class CopyTransformShader : public IShader {
 public:
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   CopyTransformShader() {
     {
@@ -17,9 +17,9 @@ public:
       auto in1 = concat->matchSrc(1);
       auto out = concat->matchDst();
 
-      const auto hwcLayout = [](const ComputeTensor &tensor) {
-        return tensor.layout() == memory::ActivationLayout::HWC ||
-               tensor.layout() == memory::ActivationLayout::HWC8;
+      const auto hwcLayout = [](const TensorInstance &tensor) {
+        return tensor.layout == memory::ActivationLayout::HWC ||
+               tensor.layout == memory::ActivationLayout::HWC8;
       };
       in0->matchValue(hwcLayout);
       in1->matchValue(hwcLayout);
@@ -38,8 +38,8 @@ public:
       auto in1 = concat->matchSrc(1);
       auto out = concat->matchDst();
 
-      const auto chwc8Layout = [](const ComputeTensor &tensor) {
-        return tensor.layout() == memory::ActivationLayout::CHWC8;
+      const auto chwc8Layout = [](const TensorInstance &tensor) {
+        return tensor.layout == memory::ActivationLayout::CHWC8;
       };
       in0->matchValue(chwc8Layout);
       in1->matchValue(chwc8Layout);
@@ -57,13 +57,12 @@ public:
 
   // TODO Figure out the return from here, maybe directly somethig like a
   // dispatch with a compiled SPIR-V or something like this.
-  void implement([[maybe_unused]] unsigned int pattern,
-                 [[maybe_unused]] const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp>
-                     &match) const final override {}
+  void implement(
+      [[maybe_unused]] unsigned int pattern,
+      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+          &match) const final override {}
 
-  memory::string name() const final override {
-    return "copy-transform";
-  }
+  memory::string name() const final override { return "copy-transform"; }
 
 private:
   ShaderCapabilities m_capabilities;

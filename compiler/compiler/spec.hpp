@@ -1,9 +1,11 @@
 #pragma once
 
-#include "compiler/ir/LinkedModel.hpp"
+#include "compiler/ir/CanoModel.hpp"
+#include "compiler/ir/SpecModel.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 namespace denox::compiler {
 
-void specialize(LinkedModel &model, memory::span<const memory::ActivationLayout> layouts);
+SpecModel specialize(CanoModel &model,
+                     memory::span<const memory::ActivationLayout> layouts);
 
 }

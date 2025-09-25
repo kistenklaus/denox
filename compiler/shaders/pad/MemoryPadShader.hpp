@@ -6,7 +6,7 @@ namespace denox::compiler::shaders {
 
 class MemoryPadShader : public IShader {
 public:
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   MemoryPadShader() {
     {
@@ -31,7 +31,7 @@ public:
   // dispatch with a compiled SPIR-V or something like this.
   void implement([[maybe_unused]] unsigned int pattern,
                  [[maybe_unused]] const algorithm::ConstGraphMatch<
-                     ComputeTensor, ComputeOp> &match) const final override {}
+                     TensorInstance, ComputeOp> &match) const final override {}
 
   memory::string name() const final override {
     return "memory-pad";

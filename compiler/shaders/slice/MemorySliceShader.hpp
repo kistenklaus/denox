@@ -6,7 +6,7 @@ namespace denox::compiler::shaders {
 
 class MemorySliceShader : public IShader {
 public:
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   MemorySliceShader() {
     {
@@ -28,13 +28,12 @@ public:
 
   // TODO Figure out the return from here, maybe directly somethig like a
   // dispatch with a compiled SPIR-V or something like this.
-  void implement([[maybe_unused]] unsigned int pattern,
-                 [[maybe_unused]] const algorithm::ConstGraphMatch<
-                     ComputeTensor, ComputeOp> &match) const final override {}
+  void implement(
+      [[maybe_unused]] unsigned int pattern,
+      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+          &match) const final override {}
 
-  memory::string name() const final override {
-    return "memory-slice";
-  }
+  memory::string name() const final override { return "memory-slice"; }
 
 private:
   ShaderCapabilities m_capabilities;

@@ -2,6 +2,7 @@
 
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "compiler/ir/SpecModel.hpp"
 #include "memory/container/string.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "model/ComputeOp.hpp"
@@ -10,7 +11,7 @@
 namespace denox::compiler {
 
 struct ShaderOp {
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
   Pattern pattern;
   memory::small_vector<Pattern::NP, 1> inputs;
   Pattern::NP output;
@@ -35,11 +36,11 @@ public:
 
   virtual const ShaderCapabilities &capabilities() const = 0;
 
-  virtual std::size_t
-  parameterMemorySize([[maybe_unused]] const memory::ConstGraph<ComputeTensor, ComputeOp> &graph,
-                      [[maybe_unused]] unsigned int pattern,
-                      [[maybe_unused]] const algorithm::ConstGraphMatch<
-                          ComputeTensor, ComputeOp> &match) const {
+  virtual std::size_t parameterMemorySize(
+      [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
+      [[maybe_unused]] unsigned int pattern,
+      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+          &match) const {
     return 0;
   }
 
@@ -47,7 +48,7 @@ public:
   // dispatch with a compiled SPIR-V or something like this.
   virtual void
   implement(unsigned int pattern,
-            const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> &match)
+            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match)
       const = 0;
 
   virtual memory::string name() const = 0;

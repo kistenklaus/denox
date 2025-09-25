@@ -267,6 +267,10 @@ public:
         return size;
       }
 
+      [[nodiscard]] bool empty() const noexcept { return begin() == end(); }
+
+      [[nodiscard]] Node &front() const { return *begin(); }
+
     private:
       SrcList(const Edge *edge) : m_edge(edge) {}
       const Edge *m_edge;
@@ -888,8 +892,9 @@ public:
     EdgeIt insert_after(EdgeIt pos, const NodeHandle &src,
                         Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
-      return insert_after_with_dynamic_srcs(pos, memory::span<const NodeHandle*>{&ptr, 1}, W{},
-                                            std::forward<Args>(args)...);
+      return insert_after_with_dynamic_srcs(
+          pos, memory::span<const NodeHandle *>{&ptr, 1}, W{},
+          std::forward<Args>(args)...);
     }
     template <typename... Args>
       requires(!std::same_as<W, NullWeight> &&
@@ -897,8 +902,9 @@ public:
     EdgeIt insert_after(EdgeIt pos, const NodeHandle &src, const W &weight,
                         Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
-      return insert_after_with_dynamic_srcs(pos, memory::span<const NodeHandle*>{&ptr, 1}, weight,
-                                            std::forward<Args>(args)...);
+      return insert_after_with_dynamic_srcs(
+          pos, memory::span<const NodeHandle *>{&ptr, 1}, weight,
+          std::forward<Args>(args)...);
     }
 
     template <typename... Args>
@@ -945,8 +951,9 @@ public:
                std::constructible_from<E, Args...>
     EdgeIt insert(const NodeHandle &src, Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
-      return insert_after_with_dynamic_srcs(begin(), memory::span<const NodeHandle*>{&ptr, 1}, W{},
-                                            std::forward<Args>(args)...);
+      return insert_after_with_dynamic_srcs(
+          begin(), memory::span<const NodeHandle *>{&ptr, 1}, W{},
+          std::forward<Args>(args)...);
     }
     template <typename... Args>
       requires(!std::same_as<W, NullWeight> &&
@@ -955,7 +962,8 @@ public:
                   Args &&...args) noexcept {
       const NodeHandle *ptr = &src;
       return insert_after_with_dynamic_srcs(
-          begin(), memory::span<const NodeHandle*>{&ptr, 1}, weight, std::forward<Args>(args)...);
+          begin(), memory::span<const NodeHandle *>{&ptr, 1}, weight,
+          std::forward<Args>(args)...);
     }
 
     [[nodiscard]] EdgeIt begin() noexcept {

@@ -2,14 +2,14 @@
 #include "algorithm/pattern_matching/match.hpp"
 #include "compiler/cano/rules/IFusionRule.hpp"
 #include "compiler/cano/rules/SliceSlice.hpp"
-#include "compiler/ir/LinkedModel.hpp"
+#include "compiler/ir/CanoModel.hpp"
 #include "diag/logging.hpp"
 #include "memory/hypergraph/LinkedGraph.hpp"
 #include <stdexcept>
 
 namespace denox::compiler {
 
-LinkedModel canonicalize(const Model &model) {
+CanoModel canonicalize(const Model &model) {
   // 1. Build LinkedGraph
   using LinkedGraph = memory::LinkedGraph<ComputeTensor, ComputeOp>;
   auto [mapping, graph] = LinkedGraph::from(model.graph());
@@ -41,7 +41,7 @@ LinkedModel canonicalize(const Model &model) {
       rule->apply(match);
     }
   }
-  LinkedModel m{
+  CanoModel m{
       .graph = std::move(graph),
       .input = std::move(input),
       .output = std::move(output),

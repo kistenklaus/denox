@@ -11,9 +11,9 @@
 
 namespace denox::compiler {
 
-AdjModel dce(const LinkedModel &model) {
-  memory::AdjGraph<ComputeTensor, ComputeOp> adj;
-  using LinkedGraph = LinkedModel::Graph;
+OpModel dce(const SpecModel &model) {
+  memory::AdjGraph<TensorInstance, ComputeOp> adj;
+  using LinkedGraph = SpecModel::Graph;
   using NodeHandle = LinkedGraph::NodeHandle;
 
   memory::dynamic_bitset visited(model.graph.upperNodeCount());
@@ -54,9 +54,11 @@ AdjModel dce(const LinkedModel &model) {
     }
   }
 
-  return AdjModel{
-      .graph = std::move(adj),
-      .input = adjNodes[model.input->id()],
+  memory::ConstGraph<TensorInstance, ComputeOp> opGraph{adj};
+
+  return OpModel{
+    .graph = std::move(opGraph),
+    .input = adjNodes[model.input->id()],
       .output = adjNodes[model.output->id()],
   };
 }

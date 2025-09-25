@@ -16,18 +16,19 @@
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
 #include <exception>
+#include <fmt/base.h>
 
 namespace denox::compiler {
 
 struct ComputeOpImpl {
   const IShader *shader;
   unsigned int pattern;
-  algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> match;
+  algorithm::ConstGraphMatch<TensorInstance, ComputeOp> match;
 };
 
-using SuperGraph = memory::AdjGraph<ComputeTensor, ComputeOpImpl, float>;
+using SuperGraph = memory::AdjGraph<TensorInstance, ComputeOpImpl, float>;
 
-void implement(const ConstModel &model, const SymGraph &symGraph) {
+void implement(const OpModel &model, const SymGraph &symGraph) {
   const auto &opGraph = model.graph;
   SuperGraph supergraph{};
 
@@ -71,7 +72,7 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
       for (const auto &m :
            algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
         memory::small_vector<memory::NodeId, 2> inputs;
-        memory::small_vector<const ComputeTensor *, 2> ins;
+        memory::small_vector<const TensorInstance *, 2> ins;
         for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
           memory::NodeId in = m[caps.patterns[p].inputs[i]];
 
@@ -105,13 +106,13 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
   }
   fmt::println("supergraph edges : {}", supergraph.edgeCount());
 
-  memory::ConstGraph<ComputeTensor, ComputeOpImpl, float> constSupergraph{
+  memory::ConstGraph<TensorInstance, ComputeOpImpl, float> constSupergraph{
       supergraph};
 
   memory::span<const memory::NodeId> starts{&model.input, 1};
   memory::span<const memory::NodeId> ends{&model.output, 1};
   auto hyperpath =
-      algorithm::shortest_dag_hyperpath<ComputeTensor, ComputeOpImpl, float>(
+      algorithm::shortest_dag_hyperpath<TensorInstance, ComputeOpImpl, float>(
           constSupergraph, starts, ends);
   if (!hyperpath.has_value()) {
     DENOX_ERROR("Failed to implement model.");
@@ -124,19 +125,19 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
     bool first = true;
     std::string inStr;
     for (const memory::NodeId &srcId : srcs) {
-      const ComputeTensor &src = constSupergraph.get(srcId);
+      const TensorInstance &src = constSupergraph.get(srcId);
       if (!first) {
         inStr += ",";
       }
       first = false;
-      inStr += fmt::format("{}[{}]", src.layout()->to_string(), src.channels());
+      inStr += fmt::format("{}[{}]", src.layout.to_string(), src.channels);
     }
 
     const ComputeOpImpl &impl = constSupergraph.get(oid);
     memory::NodeId dstId = constSupergraph.dst(oid);
-    const ComputeTensor &dst = constSupergraph.get(dstId);
+    const TensorInstance &dst = constSupergraph.get(dstId);
     fmt::println("{:^22}{:-^30}> {}[{}]", inStr, impl.shader->name(),
-                 dst.layout()->to_string(), dst.channels());
+                 dst.layout.to_string(), dst.channels);
   }
 
   fmt::println("implementation size : {}", hyperpath->size());

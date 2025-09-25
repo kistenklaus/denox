@@ -4,5 +4,5 @@
 
 namespace denox::compiler {
 
-void implement(const ConstModel &model, const SymGraph& symGraph);
+void implement(const OpModel &model, const SymGraph& symGraph);
 }

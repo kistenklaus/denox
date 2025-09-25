@@ -11,20 +11,20 @@ namespace denox::compiler::shaders {
 
 class DirectConvShader : public compiler::IShader {
 private:
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   static constexpr unsigned int CONV_PATTERN = 0;
   static constexpr unsigned int CONV_RELU_PATTERN = 1;
 
 public:
   DirectConvShader() {
-    const auto tensorSupported = [](const ComputeTensor &tensor) {
-      if (tensor.type() != memory::Dtype::F16) {
+    const auto tensorSupported = [](const TensorInstance &tensor) {
+      if (tensor.type != memory::Dtype::F16) {
         return false;
       }
-      if (tensor.layout() != memory::ActivationLayout::HWC &&
-          tensor.layout() != memory::ActivationLayout::HWC8 &&
-          tensor.layout() != memory::ActivationLayout::CHWC8) {
+      if (tensor.layout != memory::ActivationLayout::HWC &&
+          tensor.layout != memory::ActivationLayout::HWC8 &&
+          tensor.layout != memory::ActivationLayout::CHWC8) {
         return false;
       }
       return true;
@@ -76,9 +76,9 @@ public:
   }
 
   std::size_t
-  parameterMemorySize(const memory::ConstGraph<ComputeTensor, ComputeOp> &graph,
+  parameterMemorySize(const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
                       unsigned int pattern,
-                      const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp>
+                      const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                           &match) const final override {
     const auto &convPattern = m_convPattern[pattern];
     memory::EdgeId convId = match[convPattern];
@@ -92,18 +92,16 @@ public:
     return elemCount * memory::Dtype::F16.size();
   }
 
-  void implement([[maybe_unused]] unsigned int pattern,
-                 [[maybe_unused]] const algorithm::ConstGraphMatch<
-                     ComputeTensor, ComputeOp> &match) const final override {}
+  void implement(
+      [[maybe_unused]] unsigned int pattern,
+      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+          &match) const final override {}
 
-
-  memory::string name() const final override {
-    return "direct-conv";
-  }
+  memory::string name() const final override { return "direct-conv"; }
 
 private:
   ShaderCapabilities m_capabilities;
-  memory::vector<algorithm::EdgePatternHandle<ComputeTensor, ComputeOp>>
+  memory::vector<algorithm::EdgePatternHandle<TensorInstance, ComputeOp>>
       m_convPattern;
 };
 

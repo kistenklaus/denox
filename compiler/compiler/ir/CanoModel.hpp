@@ -5,7 +5,7 @@
 #include "model/ComputeTensor.hpp"
 namespace denox::compiler {
 
-struct LinkedModel {
+struct CanoModel {
   using Graph = memory::LinkedGraph<ComputeTensor, ComputeOp>;
   Graph graph;
   Graph::NodeHandle input;

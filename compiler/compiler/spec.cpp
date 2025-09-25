@@ -2,114 +2,168 @@
 #include "memory/container/dynamic_bitset.hpp"
 #include "memory/container/small_vector.hpp"
 #include "memory/container/vector.hpp"
-#include "memory/hypergraph/NodeId.hpp"
-#include "memory/hypergraph/NullWeight.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include <exception>
 
 namespace denox::compiler {
 
-using Graph = LinkedModel::Graph;
+using Graph = CanoModel::Graph;
 using NodeHandle = Graph::NodeHandle;
 
-static void ensure_specialized_type(NodeHandle &node) {
-  if (node->value().type().has_value()) {
-    return;
+static inline void ensure_specialized_type(CanoModel::Graph::Node &node) {
+  if (!node.value().type().has_value()) {
+    node.value().setType(memory::Dtype::F16);
   }
-  node->value().setType(memory::Dtype::F16);
 }
 
-void specialize(LinkedModel &model,
-                memory::span<const memory::ActivationLayout> layouts) {
-  assert(!layouts.empty());
-  if (layouts.empty()) {
-    std::terminate();
+static inline SpecModel::Graph::NodeHandle
+create_spec_node(SpecModel &spec, const CanoModel::Graph::NodeHandle &src,
+                 const memory::ActivationLayout &layout) {
+  const auto &ct = src->value();
+  TensorInstance st{
+      .extent = ct.extent(),
+      .channels = ct.channels(),
+      .layout = layout,
+      .type = *ct.type(),
+      .originalNode = src,
+  };
+  return spec.graph.createNode(std::move(st));
+}
+
+static inline memory::vector<SpecModel::Graph::NodeHandle> &ensure_variants_for(
+    SpecModel &spec, memory::span<const memory::ActivationLayout> layouts,
+    memory::vector<memory::vector<SpecModel::Graph::NodeHandle>> &variants,
+    CanoModel::Graph::Node &n) {
+  const auto id = n.id();
+  if (id >= variants.size())
+    variants.resize(id + 1);
+  auto &bucket = variants[id];
+  if (!bucket.empty())
+    return bucket;
+
+  ensure_specialized_type(n);
+  const auto &ct = n.value();
+
+  if (ct.layout().has_value()) {
+    bucket.push_back(create_spec_node(spec, n, *ct.layout()));
+    return bucket;
   }
 
-  memory::vector<NodeHandle> stack;
-  stack.reserve(model.graph.upperNodeCount());
-  memory::dynamic_bitset visited(model.graph.upperNodeCount() * layouts.size());
+  const unsigned c = ct.channels();
+  for (const auto &l : layouts) {
+    if (l.supports(c))
+      bucket.push_back(create_spec_node(spec, n, l));
+  }
+  if (bucket.empty())
+    std::terminate(); // no supported layout
+  return bucket;
+}
 
-  stack.push_back(model.input);
+SpecModel specialize(CanoModel &model,
+                     memory::span<const memory::ActivationLayout> layouts) {
+  assert(!layouts.empty());
+  if (layouts.empty())
+    std::terminate();
+
+  using CanGraph = CanoModel::Graph;
+  using SpecGraph = SpecModel::Graph;
 
   assert(model.input->value().layout().has_value());
   assert(model.output->value().layout().has_value());
 
+  SpecModel spec{};
+
+  memory::vector<memory::vector<SpecGraph::NodeHandle>> variants;
+  variants.resize(model.graph.upperNodeCount());
+
+  memory::dynamic_bitset seen(model.graph.upperNodeCount(), false);
+  memory::vector<CanGraph::NodeHandle> stack;
+  stack.reserve(model.graph.upperNodeCount());
+  stack.push_back(model.input);
+
   while (!stack.empty()) {
-    NodeHandle node = std::move(stack.back());
+    CanGraph::NodeHandle node = std::move(stack.back());
     stack.pop_back();
-    memory::NodeId nid = node->id();
-    if (visited[nid]) {
+
+    const auto nid = node->id();
+    if (nid >= seen.size())
+      seen.resize(nid + 1, false);
+    if (seen[nid])
       continue;
-    }
-    visited[nid] = true;
+    seen[nid] = true;
 
-    ensure_specialized_type(node);
+    ensure_variants_for(spec, layouts, variants, *node);
 
-    if (node->value().layout().has_value()) {
-      // simple recurse.
-      for (const auto &op : node->outgoing()) {
-        stack.emplace_back(op.dst());
+    for (const auto &e : node->outgoing()) {
+      if (e.srcs().empty() || &e.srcs().front() != node.operator->()) {
+        stack.emplace_back(e.dst());
+        continue;
       }
-    } else {
-      // if layout is not specialized.
-      auto it = layouts.begin();
-      node->value().setLayout(*it);
 
-      for (const auto &op : node->outgoing()) {
-        stack.emplace_back(op.dst());
+      memory::vector<memory::vector<SpecGraph::NodeHandle> *> srcVarLists;
+      srcVarLists.reserve(e.srcs().size());
+      for (auto &s : e.srcs()) {
+        auto &b = ensure_variants_for(spec, layouts, variants, s);
+        srcVarLists.push_back(&b);
       }
-      while (++it != layouts.end()) {
-        if (!it->supports(node->value().channels())) {
-          continue;
-        }
-        auto snode = model.graph.createNode(node->value());
-        assert(snode->id() < visited.size());
-        visited[snode->id()] = false;
-        // fmt::println("Created node {} as instance of {}",
-        // static_cast<std::uint64_t>(snode->id()),
-        // static_cast<std::uint64_t>(nid));
-        snode->value().setLayout(*it);
-        auto incoming = snode->incoming();
-        for (const auto &edge : node->incoming()) {
-          memory::small_vector<NodeHandle, 2> srcs;
-          memory::small_vector<const NodeHandle *, 2> srcsp;
-          for (const auto &s : edge.srcs()) {
-            srcs.emplace_back(s);
-          }
-          for (const auto &h : srcs) {
-            srcsp.push_back(&h);
-          }
-          incoming.insert_after_with_dynamic_srcs(
-              incoming.begin(), memory::span<const NodeHandle *>(srcsp),
-              memory::NullWeight{}, edge.value());
+
+      NodeHandle dstH = e.dst();
+      auto &dstBucket = ensure_variants_for(spec, layouts, variants, *dstH);
+
+      const std::size_t k = srcVarLists.size();
+      if (k == 0) {
+        stack.emplace_back(e.dst());
+        continue;
+      }
+
+      memory::vector<std::size_t> idx(k, 0);
+      bool done = false;
+      while (!done) {
+        SpecGraph::NodeHandle &anchor = (*srcVarLists[0])[idx[0]];
+
+        memory::small_vector<const SpecGraph::NodeHandle *, 8> addSrcPtrs;
+        addSrcPtrs.reserve(k - 1);
+        for (std::size_t i = 1; i < k; ++i) {
+          addSrcPtrs.push_back(&((*srcVarLists[i])[idx[i]]));
         }
 
-        for (const auto &edge : node->outgoing()) {
-          memory::small_vector<NodeHandle, 1> additionalSrcs;
-          memory::small_vector<const NodeHandle *, 1> additionalSrcsp;
-
-          for (const auto &s : edge.srcs()) {
-            if (&s == node.operator->()) {
-              continue;
-            }
-            additionalSrcs.emplace_back(s);
-          }
-
-          for (const auto &h : additionalSrcs) {
-            additionalSrcsp.push_back(&h);
-          }
-
-          NodeHandle dst{edge.dst()};
-
-          snode->outgoing().insert_after_with_dynamic_srcs(
-              snode->outgoing().begin(), additionalSrcsp, dst,
-              memory::NullWeight{}, edge.value());
+        for (const auto &dstV : dstBucket) {
+          anchor->outgoing().insert_after_with_dynamic_srcs(
+              anchor->outgoing().begin(),
+              memory::span<const SpecGraph::NodeHandle *>(addSrcPtrs), dstV,
+              memory::NullWeight{}, e.value());
         }
-        stack.push_back(snode);
+
+        std::size_t pos = k;
+        while (pos > 0) {
+          --pos;
+          ++idx[pos];
+          if (idx[pos] < srcVarLists[pos]->size())
+            break;
+          idx[pos] = 0;
+          if (pos == 0) {
+            done = true;
+            break;
+          }
+        }
       }
+
+      stack.emplace_back(e.dst());
     }
   }
+
+  {
+    auto in = model.input;
+    auto out = model.output;
+    auto &inB = ensure_variants_for(spec, layouts, variants, *in);
+    auto &outB = ensure_variants_for(spec, layouts, variants, *out);
+    assert(inB.size() == 1 && "input must have a fixed layout");
+    assert(outB.size() == 1 && "output must have a fixed layout");
+    spec.input = inB.front();
+    spec.output = outB.front();
+  }
+
+  return spec;
 }
 
 } // namespace denox::compiler
