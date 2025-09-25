@@ -8,9 +8,18 @@
 namespace denox::compiler {
 
 struct ShaderOp {
-  algorithm::GraphPattern<ComputeTensor, ComputeOp> pattern;
-  algorithm::NodePatternHandle<ComputeTensor, ComputeOp> input;
-  algorithm::NodePatternHandle<ComputeTensor, ComputeOp> output;
+  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  Pattern pattern;
+  memory::small_vector<Pattern::NP, 1> inputs;
+  Pattern::NP output;
+
+  ShaderOp(Pattern pattern, Pattern::NP input, Pattern::NP output)
+      : pattern(std::move(pattern)), inputs{std::move(input)},
+        output(std::move(output)) {}
+
+  ShaderOp(Pattern pattern, Pattern::NP in0, Pattern::NP in1, Pattern::NP output)
+      : pattern(std::move(pattern)), inputs{std::move(in0), std::move(in1)},
+        output(std::move(output)) {}
 };
 
 struct ShaderCapabilities {

@@ -4,11 +4,11 @@
 #include "shaders/IShader.hpp"
 namespace denox::compiler::shaders {
 
-class BasicPadShader : public IShader {
+class MemoryPadShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
 
-  BasicPadShader() {
+  MemoryPadShader() {
     {
       Pattern p;
       auto in = p.matchNode();
