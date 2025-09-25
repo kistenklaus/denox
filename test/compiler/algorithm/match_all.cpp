@@ -503,11 +503,11 @@ insert_and_get(G &, const typename G::NodeHandle &src,
 }
 
 TEST(algorithm_match_all, line_same_label_two_step_paths_count) {
-  using G = denox::memory::AdjGraph<int,int>;
-  using CG = denox::memory::ConstGraph<int,int>;
+  using G = denox::memory::AdjGraph<int, int>;
+  using CG = denox::memory::ConstGraph<int, int>;
 
   // Build a linear chain of N nodes with edges labeled 1 or 2.
-  const std::size_t N = 20000;  // "a couple thousand"
+  const std::size_t N = 20000; // "a couple thousand"
   G adj;
   std::vector<denox::memory::NodeId> nodes;
   nodes.reserve(N);
@@ -516,14 +516,14 @@ TEST(algorithm_match_all, line_same_label_two_step_paths_count) {
   }
 
   std::mt19937 rng(123456); // deterministic
-  std::uniform_int_distribution<int> coin(1,2);
+  std::uniform_int_distribution<int> coin(1, 2);
 
   std::vector<int> labels;
   labels.reserve(N > 0 ? N - 1 : 0);
   for (std::size_t i = 0; i + 1 < N; ++i) {
     int v = coin(rng);
     labels.push_back(v);
-    adj.addEdge(nodes[i], nodes[i+1], v);
+    adj.addEdge(nodes[i], nodes[i + 1], v);
   }
 
   CG graph{adj};
@@ -531,35 +531,45 @@ TEST(algorithm_match_all, line_same_label_two_step_paths_count) {
   // Compute expected counts of two-step paths with equal labels.
   std::size_t expected11 = 0, expected22 = 0;
   for (std::size_t i = 0; i + 2 <= labels.size(); ++i) {
-    if (labels[i] == 1 && labels[i+1] == 1) ++expected11;
-    if (labels[i] == 2 && labels[i+1] == 2) ++expected22;
+    if (labels[i] == 1 && labels[i + 1] == 1)
+      ++expected11;
+    if (labels[i] == 2 && labels[i + 1] == 2)
+      ++expected22;
   }
 
   // Pattern: X --(rank 1, value==1)--> Y --(rank 1, value==1)--> Z
-  denox::algorithm::GraphPattern<int,int> p11;
-  auto X11  = p11.matchNode();
-  auto e1_1 = X11->matchOutgoing(); e1_1->matchRank(1); e1_1->matchValue([](const int& v){ return v == 1; });
-  auto Y11  = e1_1->matchDst();
-  auto e2_1 = Y11->matchOutgoing(); e2_1->matchRank(1); e2_1->matchValue([](const int& v){ return v == 1; });
-  auto Z11  = e2_1->matchDst();
+  denox::algorithm::GraphPattern<int, int> p11;
+  auto X11 = p11.matchNode();
+  auto e1_1 = X11->matchOutgoing();
+  e1_1->matchRank(1);
+  e1_1->matchValue([](const int &v) { return v == 1; });
+  auto Y11 = e1_1->matchDst();
+  auto e2_1 = Y11->matchOutgoing();
+  e2_1->matchRank(1);
+  e2_1->matchValue([](const int &v) { return v == 1; });
+  auto Z11 = e2_1->matchDst();
 
   std::size_t got11 = 0;
-  for (const auto& m : match_all(p11, graph)) {
+  for (const auto &m : match_all(p11, graph)) {
     (void)m;
     ++got11;
   }
   EXPECT_EQ(got11, expected11);
 
   // Pattern: X --(rank 1, value==2)--> Y --(rank 1, value==2)--> Z
-  denox::algorithm::GraphPattern<int,int> p22;
-  auto X22  = p22.matchNode();
-  auto e1_2 = X22->matchOutgoing(); e1_2->matchRank(1); e1_2->matchValue([](const int& v){ return v == 2; });
-  auto Y22  = e1_2->matchDst();
-  auto e2_2 = Y22->matchOutgoing(); e2_2->matchRank(1); e2_2->matchValue([](const int& v){ return v == 2; });
-  auto Z22  = e2_2->matchDst();
+  denox::algorithm::GraphPattern<int, int> p22;
+  auto X22 = p22.matchNode();
+  auto e1_2 = X22->matchOutgoing();
+  e1_2->matchRank(1);
+  e1_2->matchValue([](const int &v) { return v == 2; });
+  auto Y22 = e1_2->matchDst();
+  auto e2_2 = Y22->matchOutgoing();
+  e2_2->matchRank(1);
+  e2_2->matchValue([](const int &v) { return v == 2; });
+  auto Z22 = e2_2->matchDst();
 
   std::size_t got22 = 0;
-  for (const auto& m : match_all(p22, graph)) {
+  for (const auto &m : match_all(p22, graph)) {
     (void)m;
     ++got22;
   }
@@ -1545,4 +1555,257 @@ TEST(algorithm_match_all_linked_graph,
   // Having done at least one rewrite in most random inputs is expected,
   // but not guaranteed (a fully alternating initial line yields 0 changes).
   // So we don't assert total_changes > 0 here.
+}
+
+// Helper for readability
+template <typename V, typename E>
+static std::vector<ConstGraphMatch<V, E>>
+collect_all(const GraphPattern<V, E> &pat, const ConstGraph<V, E> &g) {
+  std::vector<ConstGraphMatch<V, E>> out;
+  for (const auto &m : match_all(pat, g))
+    out.push_back(m);
+  return out;
+}
+
+TEST(algorithm_match_all, node_single_incoming) {
+  AdjGraph<int, int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId B = adj.addNode(2);
+  EdgeId AB = adj.addEdge(A, B, 7); // single-source
+
+  ConstGraph<int, int> g{adj};
+
+  GraphPattern<int, int> pat;
+  auto X = pat.matchNode(); // root node
+  X->matchValue([](int v) { return v == 2; });
+
+  auto e_in = X->matchIncoming(); // require one incoming
+  e_in->matchValue([](int e) { return e == 7; });
+  auto S0 = e_in->matchSrc(0); // constrain the (only) source
+  S0->matchValue([](int v) { return v == 1; });
+
+  auto Ms = collect_all(pat, g);
+  ASSERT_EQ(Ms.size(), 1u);
+  EXPECT_EQ(Ms[0][X], B);
+  EXPECT_EQ(Ms[0][e_in], AB);
+  EXPECT_EQ(Ms[0][S0], A);
+}
+
+TEST(algorithm_match_all,
+     node_two_incoming_permutations) {
+  AdjGraph<int, int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId C = adj.addNode(3);
+  NodeId B = adj.addNode(2);
+  EdgeId AB = adj.addEdge(A, B, 5);
+  EdgeId CB = adj.addEdge(C, B, 6);
+
+  ConstGraph<int, int> g{adj};
+
+  GraphPattern<int, int> pat;
+  auto X = pat.matchNode();
+  X->matchValue([](int v) { return v == 2; });
+
+  auto e1 = X->matchIncoming();
+  e1->matchValue([](int e) { return e == 5; });
+  auto S1 = e1->matchSrc(0);
+  S1->matchValue([](int v) { return v == 1; });
+
+  auto e2 = X->matchIncoming();
+  e2->matchValue([](int e) { return e == 6; });
+  auto S2 = e2->matchSrc(0);
+  S2->matchValue([](int v) { return v == 3; });
+
+  auto Ms = collect_all(pat, g);
+  ASSERT_EQ(Ms.size(), 1u); // e1/e2 or e2/e1
+
+  // Just verify both bindings appear among permutations
+  bool has_15_36 = false;
+  for (const auto &m : Ms) {
+    has_15_36 |=
+        (m[X] == B) &&
+        ((m[e1] == AB && m[e2] == CB) || (m[e1] == CB && m[e2] == AB)) &&
+        m[S1] == A && m[S2] == C;
+  }
+  EXPECT_TRUE(has_15_36);
+}
+
+TEST(algorithm_match_all,
+     edge_root_two_ordered_sources_and_dst) {
+  AdjGraph<int, int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId B = adj.addNode(2);
+  NodeId D = adj.addNode(4);
+
+  // Add a hyperedge with sources (A,B) -> D, value 9.
+  // If your AdjGraph overload is different, adapt accordingly.
+  EdgeId ABD = adj.addEdge(A, B, D, 9);
+
+  ConstGraph<int, int> g{adj};
+
+  GraphPattern<int, int> pat;
+  auto e = pat.matchEdge();
+  e->matchValue([](int e) { return e == 9; });
+  auto SA = e->matchSrc(0);
+  SA->matchValue([](int v) { return v == 1; });
+  auto SB = e->matchSrc(1);
+  SB->matchValue([](int v) { return v == 2; });
+  auto Y = e->matchDst();
+  Y->matchValue([](int v) { return v == 4; });
+
+  auto Ms = collect_all(pat, g);
+  ASSERT_EQ(Ms.size(), 1u);
+  EXPECT_EQ(Ms[0][e], ABD);
+  EXPECT_EQ(Ms[0][SA], A);
+  EXPECT_EQ(Ms[0][SB], B);
+  EXPECT_EQ(Ms[0][Y], D);
+}
+
+TEST(algorithm_match_all, edge_root_two_sources_wrong_order_no_match) {
+  AdjGraph<int,int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId B = adj.addNode(2);
+  NodeId D = adj.addNode(4);
+  adj.addEdge(A,B, D, 9);
+
+  ConstGraph<int,int> g{adj};
+
+  GraphPattern<int,int> pat;
+  auto e = pat.matchEdge();           e->matchValue([](int e){ return e==9; });
+  auto SA = e->matchSrc(0);           SA->matchValue([](int v){ return v==2; }); // swapped
+  auto SB = e->matchSrc(1);           SB->matchValue([](int v){ return v==1; }); // swapped
+  auto Y  = e->matchDst();            Y->matchValue([](int v){ return v==4; });
+
+  auto Ms = collect_all(pat, g);
+  EXPECT_TRUE(Ms.empty());
+}
+
+TEST(algorithm_match_all, node_incoming_then_outgoing_chain) {
+  AdjGraph<int,int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId X = adj.addNode(10);
+  NodeId C = adj.addNode(3);
+  EdgeId AX = adj.addEdge(A, X, 5);
+  EdgeId XC = adj.addEdge(X, C, 7);
+
+  ConstGraph<int,int> g{adj};
+
+  GraphPattern<int,int> pat;
+  auto NX  = pat.matchNode(); NX->matchValue([](int v){ return v==10; });
+
+  auto eIn  = NX->matchIncoming(); eIn->matchValue([](int e){ return e==5; });
+  auto S0   = eIn->matchSrc(0);    S0->matchValue([](int v){ return v==1; });
+
+  auto eOut = NX->matchOutgoing(); eOut->matchValue([](int e){ return e==7; });
+  auto NY   = eOut->matchDst();    NY->matchValue([](int v){ return v==3; });
+
+  auto Ms = collect_all(pat, g);
+  ASSERT_EQ(Ms.size(), 1u);
+  EXPECT_EQ(Ms[0][NX], X);
+  EXPECT_EQ(Ms[0][eIn], AX);
+  EXPECT_EQ(Ms[0][S0], A);
+  EXPECT_EQ(Ms[0][eOut], XC);
+  EXPECT_EQ(Ms[0][NY], C);
+}
+
+TEST(algorithm_match_all, node_incoming_rank_mismatch) {
+  AdjGraph<int,int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId X = adj.addNode(2);
+  (void)adj.addEdge(A, X, 11); // only one incoming
+
+  ConstGraph<int,int> g{adj};
+
+  GraphPattern<int,int> pat;
+  auto NX = pat.matchNode(); NX->matchValue([](int v){ return v==2; });
+
+  auto e1 = NX->matchIncoming(); e1->matchValue([](int){ return true; });
+  auto e2 = NX->matchIncoming(); e2->matchValue([](int){ return true; });
+
+  auto Ms = collect_all(pat, g);
+  EXPECT_TRUE(Ms.empty());
+}
+
+// 7) Edge root: sparse source constraints (only constrain src[1]).
+TEST(algorithm_match_all, edge_root_sparse_src_constraint) {
+  AdjGraph<int,int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId B = adj.addNode(2);
+  NodeId C = adj.addNode(3);
+  NodeId D = adj.addNode(4);
+
+  // Two candidate hyperedges to the same dst, both value==9:
+  EdgeId ABD = adj.addEdge(A,B, D, 9);
+  [[maybe_unused]] EdgeId ACD = adj.addEdge(A,C, D, 9);
+
+  ConstGraph<int,int> g{adj};
+
+  GraphPattern<int,int> pat;
+  auto e = pat.matchEdge();  e->matchValue([](int e){ return e==9; });
+  // Only constrain src[1] to be '2' ⇒ picks ABD only.
+  auto S1 = e->matchSrc(1);  S1->matchValue([](int v){ return v==2; });
+  auto Y  = e->matchDst();   Y->matchValue([](int v){ return v==4; });
+
+  auto Ms = collect_all(pat, g);
+  ASSERT_EQ(Ms.size(), 1u);
+  EXPECT_EQ(Ms[0][e], ABD);
+  EXPECT_EQ(Ms[0][S1], B);
+  EXPECT_EQ(Ms[0][Y], D);
+}
+
+
+TEST(algorithm_match_all, edge_root_concat_ordered_two_srcs) {
+  AdjGraph<int,int> adj;
+  // Inputs 1 and 3 feeding concat -> output 2
+  NodeId A = adj.addNode(1);
+  NodeId B = adj.addNode(3);
+  NodeId C = adj.addNode(2);
+
+  // NOTE: adjust to your AdjGraph multi-src API.
+  // Example API shape shown; if your API differs, adapt accordingly.
+  EdgeId CON = adj.addEdge(std::initializer_list<NodeId>{A, B}, C, /*op tag*/ 42);
+
+  ConstGraph<int,int> g{adj};
+
+  GraphPattern<int,int> pat;
+  auto e = pat.matchEdge();
+  e->matchRank(2); // concat takes 2 inputs
+
+  // Ordered source constraints (src slot 0 then 1)
+  auto S0 = e->matchSrc(0); S0->matchValue([](int v){ return v == 1; });
+  auto S1 = e->matchSrc(1); S1->matchValue([](int v){ return v == 3; });
+
+  auto D  = e->matchDst();  D->matchValue([](int v){ return v == 2; });
+
+  std::vector<ConstGraphMatch<int,int>> ms;
+  for (const auto& m : match_all(pat, g)) ms.push_back(m);
+
+  ASSERT_EQ(ms.size(), 1u);
+  const auto& m = ms[0];
+  EXPECT_EQ(m[e],  CON);
+  EXPECT_EQ(m[S0], A);
+  EXPECT_EQ(m[S1], B);
+  EXPECT_EQ(m[D],  C);
+}
+
+
+TEST(algorithm_match_all, edge_root_concat_wrong_order_no_match) {
+  AdjGraph<int,int> adj;
+  NodeId A = adj.addNode(1);
+  NodeId B = adj.addNode(3);
+  NodeId C = adj.addNode(2);
+  (void)adj.addEdge(std::initializer_list<NodeId>{A, B}, C, 42); // same edge
+
+  ConstGraph<int,int> g{adj};
+
+  GraphPattern<int,int> pat;
+  auto e = pat.matchEdge();
+  e->matchRank(2);
+  auto S0 = e->matchSrc(0); S0->matchValue([](int v){ return v == 3; }); // swapped
+  auto S1 = e->matchSrc(1); S1->matchValue([](int v){ return v == 1; });
+  auto D  = e->matchDst();  D->matchValue([](int v){ return v == 2; });
+
+  size_t count = 0;
+  for (const auto& m : match_all(pat, g)) { (void)m; ++count; }
+  EXPECT_EQ(count, 0u); // source order is significant
 }

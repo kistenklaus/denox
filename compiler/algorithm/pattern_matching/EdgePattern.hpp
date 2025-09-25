@@ -8,6 +8,7 @@
 #include "memory/hypergraph/LinkedGraph.hpp"
 #include <functional>
 #include <limits>
+#include <vector>
 namespace denox::algorithm {
 
 template <typename V, typename E, typename W> class EdgePattern {
@@ -35,6 +36,15 @@ public:
     return handle;
   }
 
+  NodePatternHandle<V, E, W> matchSrc(std::size_t i) {
+    auto handle = m_p->matchNode();
+    if (i >= m_srcs.size()) {
+      m_srcs.resize(i+1);
+    }
+    m_srcs[i] = handle;
+    return handle;
+  }
+
   void matchRank(rank_t rank) { m_rank = rank; }
 
   bool operator()(const memory::ConstGraph<V, E, W> &graph,
@@ -44,32 +54,31 @@ public:
     }
 
     return m_valuePredicate(graph.get(eid)) &&
-                m_weightPredicate(graph.weight(eid));
+           m_weightPredicate(graph.weight(eid));
   }
 
-  template<typename Allocator>
-  bool mutable_predicate(const typename memory::LinkedGraph<V, E, W, Allocator>::Edge& edge) {
+  template <typename Allocator>
+  bool mutable_predicate(
+      const typename memory::LinkedGraph<V, E, W, Allocator>::Edge &edge) const {
     if (m_rank != DONT_CARE && m_rank != edge.srcs().size()) {
       return false;
     }
 
-    return m_valuePredicate(edge.value()) &&
-                m_weightPredicate(edge.weight());
-
+    return m_valuePredicate(edge.value()) && m_weightPredicate(edge.weight());
   }
 
   std::size_t getId() const { return m_id; }
 
   const CB *details() const { return m_p; }
 
-  NodePatternHandle<V, E, W> getDst() { 
-    return m_dst; 
-  }
+  NodePatternHandle<V, E, W> getDst() { return m_dst; }
+  std::span<const NodePatternHandle<V, E, W>> getSrcs() const { return m_srcs; }
 
 private:
   CB *m_p;
   std::size_t m_id;
   NodePatternHandle<V, E, W> m_dst; // <- must exists if != nullptr
+  std::vector<NodePatternHandle<V, E, W>> m_srcs; // <- elements may be nullptr!
   std::function<bool(const E &)> m_valuePredicate;
   std::function<bool(const W &)> m_weightPredicate;
   rank_t m_rank = DONT_CARE;

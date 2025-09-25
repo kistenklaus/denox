@@ -4,6 +4,7 @@
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/conv/DirectConvShader.hpp"
+#include "shaders/pad/BasicPadShader.hpp"
 #include "shaders/pool/BasicPoolShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
 
@@ -35,11 +36,13 @@ void implement(const ConstModel &model) {
   shaders::DirectConvShader directConv;
   shaders::BasicPoolShader basicPool;
   shaders::BasicUpsampleShader basicUpsample;
+  shaders::BasicPadShader basicPad;
 
   IShader *shaders[]{
       &directConv,
       &basicPool,
       &basicUpsample,
+      &basicPad,
   };
 
   std::size_t nodeCount = opGraph.nodeCount();

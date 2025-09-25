@@ -40,6 +40,12 @@ public:
     return handle;
   }
 
+  EdgePatternHandle<V, E, W> matchIncoming() { 
+    auto handle = m_p->matchEdge();
+    m_incoming.push_back(handle);
+    return handle;
+  }
+
   bool operator()(const memory::ConstGraph<V, E, W> &graph,
                   memory::NodeId nid) const {
     if (m_indeg != DONT_CARE && graph.incoming(nid).size() != m_indeg) {
@@ -76,11 +82,16 @@ public:
     return m_outgoing;
   }
 
+  std::span<const EdgePatternHandle<V, E, W>> getIncoming() const {
+    return m_incoming;
+  }
+
 private:
   CB *m_p;
   std::size_t m_id;
   std::function<bool(const V &)> m_valuePred;
   std::vector<EdgePatternHandle<V, E, W>> m_outgoing; // <- all must exist!
+  std::vector<EdgePatternHandle<V, E, W>> m_incoming; // <- all must exist!
   deg_t m_indeg = DONT_CARE;
   deg_t m_outdeg = DONT_CARE;
 };
