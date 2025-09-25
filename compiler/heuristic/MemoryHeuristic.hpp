@@ -33,8 +33,7 @@ public:
   float eval(std::span<const ComputeTensor *> ins, const ComputeTensor &out,
              unsigned int pattern,
              const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> &match,
-             unsigned int shaderId) const final override {
-    const IShader *shader = m_shaders[shaderId];
+             const IShader *shader) const final override {
 
     std::size_t byteSize =
         shader->parameterMemorySize(*m_opGraph, pattern, match);

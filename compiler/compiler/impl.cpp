@@ -5,7 +5,9 @@
 #include "heuristic/IHeuristic.hpp"
 #include "heuristic/MemoryHeuristic.hpp"
 #include "memory/container/dynamic_bitset.hpp"
+#include "memory/container/vector.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
+#include "memory/hypergraph/ConstGraph.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/conv/DirectConvShader.hpp"
 #include "shaders/copy/CopyTransformShader.hpp"
@@ -23,21 +25,24 @@ struct ComputeOpImpl {
   algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> match;
 };
 
+using SuperGraph = memory::AdjGraph<ComputeTensor, ComputeOpImpl, float>;
+
 void implement(const ConstModel &model, const SymGraph &symGraph) {
   const auto &opGraph = model.graph;
-  using SuperGraph = memory::AdjGraph<ComputeTensor, ComputeOpImpl, float>;
   SuperGraph supergraph{};
 
   for (std::uint64_t n = 0; n < opGraph.nodeCount(); ++n) {
     memory::NodeId nid{n};
     supergraph.addNode(opGraph.get(nid));
   }
+
   shaders::DirectConvShader directConv;
   shaders::BasicPoolShader basicPool;
   shaders::BasicUpsampleShader basicUpsample;
   shaders::MemoryPadShader memoryPad;
   shaders::MemorySliceShader memorySlice;
-  shaders::CopyTransformShader copyTransform;
+  shaders::CopyTransformShader
+      copyTransform; // <- TODO matching this one correctly is a pain!
 
   const IShader *shaders[]{
       &directConv,    //
@@ -86,8 +91,7 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
         }
         edgeExits[edgeId] = true;
 
-        const float w = heuristic->eval(ins, opGraph.get(out), p, m,
-                                        static_cast<unsigned int>(s));
+        const float w = heuristic->eval(ins, opGraph.get(out), p, m, shader);
 
         supergraph.addEdge(inputs, out,
                            ComputeOpImpl{
@@ -131,7 +135,8 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
     const ComputeOpImpl &impl = constSupergraph.get(oid);
     memory::NodeId dstId = constSupergraph.dst(oid);
     const ComputeTensor &dst = constSupergraph.get(dstId);
-    fmt::println("{:^22}{:-^30}> {}[{}]", inStr, impl.shader->name(), dst.layout()->to_string(), dst.channels());
+    fmt::println("{:^22}{:-^30}> {}[{}]", inStr, impl.shader->name(),
+                 dst.layout()->to_string(), dst.channels());
   }
 
   fmt::println("implementation size : {}", hyperpath->size());
