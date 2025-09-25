@@ -90,6 +90,10 @@ public:
                  [[maybe_unused]] const algorithm::ConstGraphMatch<
                      ComputeTensor, ComputeOp> &match) const final override {}
 
+  memory::string name() const final override {
+    return "basic-upsample";
+  }
+
 private:
   ShaderCapabilities m_capabilities;
 };

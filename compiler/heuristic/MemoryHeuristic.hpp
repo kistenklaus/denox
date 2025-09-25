@@ -3,12 +3,10 @@
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "heuristic/IHeuristic.hpp"
 #include "memory/container/small_vector.hpp"
-#include "memory/container/vector.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "shaders/IShader.hpp"
 #include "symbolic/SymGraph.hpp"
 #include "symbolic/SymGraphEval.hpp"
-#include <fmt/base.h>
 namespace denox::compiler {
 
 class MemoryHeuristic : public IHeuristic {
@@ -44,14 +42,24 @@ public:
       sym_vec2 extent = in->extent();
       Sym::value_type W = *m_eval[extent.x];
       Sym::value_type H = *m_eval[extent.y];
-      byteSize += static_cast<std::size_t>(W) * static_cast<std::size_t>(H) *
-                  in->type()->size();
+      std::size_t n = static_cast<std::size_t>(W) *
+                      static_cast<std::size_t>(H) * in->type()->size();
+      if (in->layout()->isVectorized()) {
+        byteSize += (n * 9) / 10;
+      } else {
+        byteSize += n;
+      }
     }
     sym_vec2 extent = out.extent();
     Sym::value_type W = *m_eval[extent.x];
     Sym::value_type H = *m_eval[extent.y];
-    byteSize += static_cast<std::size_t>(W) * static_cast<std::size_t>(H) *
-                out.type()->size();
+    std::size_t n = static_cast<std::size_t>(W) * static_cast<std::size_t>(H) *
+                    out.type()->size();
+    if (out.layout()->isVectorized()) {
+      byteSize += (n * 9) / 10;
+    } else {
+      byteSize += n;
+    }
     return static_cast<float>(static_cast<double>(byteSize) * 1e-6);
   }
 

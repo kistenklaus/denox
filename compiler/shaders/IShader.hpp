@@ -2,6 +2,7 @@
 
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "memory/container/string.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
@@ -48,6 +49,8 @@ public:
   implement(unsigned int pattern,
             const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> &match)
       const = 0;
+
+  virtual memory::string name() const = 0;
 };
 
 } // namespace denox::compiler

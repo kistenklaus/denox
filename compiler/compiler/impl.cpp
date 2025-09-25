@@ -56,12 +56,13 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
 
   constexpr std::size_t sn = sizeof(shaders) / sizeof(IShader *);
   for (std::size_t s = 0; s < sn; ++s) {
-    memory::dynamic_bitset edgeExits(nodeCount * nodeCount * nodeCount);
 
     const IShader *shader = shaders[s];
     const ShaderCapabilities &caps = shader->capabilities();
     const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
     for (unsigned int p = 0; p < pn; ++p) {
+      memory::dynamic_bitset edgeExits(nodeCount * nodeCount * nodeCount,
+                                       false);
       for (const auto &m :
            algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
         memory::small_vector<memory::NodeId, 2> inputs;
@@ -98,6 +99,7 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
       }
     }
   }
+  fmt::println("supergraph edges : {}", supergraph.edgeCount());
 
   memory::ConstGraph<ComputeTensor, ComputeOpImpl, float> constSupergraph{
       supergraph};
@@ -110,10 +112,28 @@ void implement(const ConstModel &model, const SymGraph &symGraph) {
   if (!hyperpath.has_value()) {
     DENOX_ERROR("Failed to implement model.");
     std::terminate(); // <- TODO proper error handling please
-  } else {
   }
 
-  fmt::println("supergraph edges : {}", supergraph.edgeCount());
+  for (std::size_t op = 0; op < hyperpath->size(); ++op) {
+    memory::EdgeId oid{(*hyperpath)[op]};
+    const auto &srcs = constSupergraph.src(oid);
+    bool first = true;
+    std::string inStr;
+    for (const memory::NodeId &srcId : srcs) {
+      const ComputeTensor &src = constSupergraph.get(srcId);
+      if (!first) {
+        inStr += ",";
+      }
+      first = false;
+      inStr += fmt::format("{}[{}]", src.layout()->to_string(), src.channels());
+    }
+
+    const ComputeOpImpl &impl = constSupergraph.get(oid);
+    memory::NodeId dstId = constSupergraph.dst(oid);
+    const ComputeTensor &dst = constSupergraph.get(dstId);
+    fmt::println("{:^22}{:-^30}> {}[{}]", inStr, impl.shader->name(), dst.layout()->to_string(), dst.channels());
+  }
+
   fmt::println("implementation size : {}", hyperpath->size());
 }
 

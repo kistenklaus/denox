@@ -55,7 +55,14 @@ void specialize(LinkedModel &model,
       // if layout is not specialized.
       auto it = layouts.begin();
       node->value().setLayout(*it);
+
+      for (const auto &op : node->outgoing()) {
+        stack.emplace_back(op.dst());
+      }
       while (++it != layouts.end()) {
+        if (!it->supports(node->value().channels())) {
+          continue;
+        }
         auto snode = model.graph.createNode(node->value());
         assert(snode->id() < visited.size());
         visited[snode->id()] = false;

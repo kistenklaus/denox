@@ -96,6 +96,11 @@ public:
                  [[maybe_unused]] const algorithm::ConstGraphMatch<
                      ComputeTensor, ComputeOp> &match) const final override {}
 
+
+  memory::string name() const final override {
+    return "direct-conv";
+  }
+
 private:
   ShaderCapabilities m_capabilities;
   memory::vector<algorithm::EdgePatternHandle<ComputeTensor, ComputeOp>>
