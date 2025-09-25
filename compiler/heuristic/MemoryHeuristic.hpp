@@ -2,10 +2,13 @@
 
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "heuristic/IHeuristic.hpp"
+#include "memory/container/small_vector.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "shaders/IShader.hpp"
 #include "symbolic/SymGraph.hpp"
+#include "symbolic/SymGraphEval.hpp"
+#include <fmt/base.h>
 namespace denox::compiler {
 
 class MemoryHeuristic : public IHeuristic {
@@ -19,47 +22,34 @@ public:
     const ComputeTensor &input = opGraph->get(inputId);
     // TODO requires Symbolic engine evaluation
     const sym_vec2 inputExtent = input.extent();
+    memory::small_vector<SymSpec, 2> symSpecs;
+    if (inputExtent.x.isSymbolic()) {
+      symSpecs.emplace_back(inputExtent.x.symbol(), Sym::value_type(1920));
+    }
+    if (inputExtent.y.isSymbolic()) {
+      symSpecs.emplace_back(inputExtent.y.symbol(), Sym::value_type(1080));
+    }
+    m_eval = symGraph.eval(symSpecs);
   }
 
   float eval(std::span<const ComputeTensor *> ins, const ComputeTensor &out,
-            unsigned int pattern,
-            const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> &match,
-            unsigned int shaderId) const final override {
-    return 1.0f;
+             unsigned int pattern,
+             const algorithm::ConstGraphMatch<ComputeTensor, ComputeOp> &match,
+             unsigned int shaderId) const final override {
     const IShader *shader = m_shaders[shaderId];
 
     std::size_t byteSize =
         shader->parameterMemorySize(*m_opGraph, pattern, match);
     for (const ComputeTensor *in : ins) {
       sym_vec2 extent = in->extent();
-      Sym::value_type W;
-      if (extent.x.isConstant()) {
-        W = extent.x.constant();
-      } else {
-        W = m_symGraphEval[extent.x.symbol()];
-      }
-      Sym::value_type H;
-      if (extent.y.isConstant()) {
-        H = extent.y.constant();
-      } else {
-        H = m_symGraphEval[extent.y.symbol()];
-      }
+      Sym::value_type W = *m_eval[extent.x];
+      Sym::value_type H = *m_eval[extent.y];
       byteSize += static_cast<std::size_t>(W) * static_cast<std::size_t>(H) *
                   in->type()->size();
     }
     sym_vec2 extent = out.extent();
-    Sym::value_type W;
-    if (extent.x.isConstant()) {
-      W = extent.x.constant();
-    } else {
-      W = m_symGraphEval[extent.x.symbol()];
-    }
-    Sym::value_type H;
-    if (extent.y.isConstant()) {
-      H = extent.y.constant();
-    } else {
-      H = m_symGraphEval[extent.y.symbol()];
-    }
+    Sym::value_type W = *m_eval[extent.x];
+    Sym::value_type H = *m_eval[extent.y];
     byteSize += static_cast<std::size_t>(W) * static_cast<std::size_t>(H) *
                 out.type()->size();
     return static_cast<float>(static_cast<double>(byteSize) * 1e-6);
@@ -68,7 +58,7 @@ public:
 private:
   std::span<const IShader *> m_shaders;
   const memory::ConstGraph<ComputeTensor, ComputeOp> *m_opGraph;
-  memory::vector<Sym::value_type> m_symGraphEval;
+  SymGraphEval m_eval;
 };
 
 } // namespace denox::compiler

@@ -28,12 +28,14 @@ add_library(denox_compiler
   compiler/memory/tensor/BiasTensor.cpp
   compiler/memory/tensor/FilterTensor.cpp
 
+  compiler/symbolic/SymGraphEval.cpp
   compiler/symbolic/SymGraph_add_entry.cpp
   compiler/symbolic/SymGraph_affine.cpp
   compiler/symbolic/SymGraph_affine_symbol_cache.cpp
   compiler/symbolic/SymGraph_api.cpp
   compiler/symbolic/SymGraph_debug.cpp
   compiler/symbolic/SymGraph_div_entry.cpp
+  compiler/symbolic/SymGraph_eval.cpp
   compiler/symbolic/SymGraph_helpers.cpp
   compiler/symbolic/SymGraph_max_entry.cpp
   compiler/symbolic/SymGraph_min_entry.cpp

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/container/span.hpp"
 #include "memory/container/string.hpp"
 #include "symbolic/Sym.hpp"
 #include <cassert>
@@ -13,6 +14,7 @@
 #include <vector>
 
 #include "memory/container/optional.hpp"
+#include "symbolic/SymGraphEval.hpp"
 #include "symbolic/SymGraph_types.inl"
 
 namespace denox::compiler {
@@ -170,6 +172,8 @@ public:
         "testing that negative values are acceptable within the graph!");
     return sub(0, sym, dno);
   }
+
+  SymGraphEval eval(memory::span<const SymSpec> symSpecs) const;
 
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;
