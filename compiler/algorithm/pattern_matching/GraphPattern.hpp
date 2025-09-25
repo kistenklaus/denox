@@ -1,10 +1,8 @@
 #pragma once
 
 #include "algorithm/pattern_matching/EdgePattern.fwd.hpp"
-#include "algorithm/pattern_matching/EdgePattern.hpp"
 #include "algorithm/pattern_matching/GraphPatternControlBlock.hpp"
 #include "algorithm/pattern_matching/NodePattern.fwd.hpp"
-#include "algorithm/pattern_matching/NodePattern.hpp"
 #include "memory/hypergraph/NullWeight.hpp"
 #include <memory>
 #include <stdexcept>

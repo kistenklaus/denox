@@ -1,18 +1,14 @@
 #include "entry.hpp"
-#include "algorithm/count_children.hpp"
 #include "compiler/cano/cano.hpp"
 #include "compiler/dce.hpp"
 #include "compiler/freeze.hpp"
+#include "compiler/impl.hpp"
 #include "compiler/spec.hpp"
-#include "diag/logging.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/onnx.hpp"
-#include "memory/hypergraph/ConstGraph.hpp"
-#include "memory/hypergraph/LinkedGraph.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
-#include <fmt/base.h>
 #include <google/protobuf/port.h>
 
 namespace denox::compiler {
@@ -63,6 +59,8 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   // From this point we switch to a datastructure more suited
   // for graph traversal.
   ConstModel cmodel = compiler::freeze(amodel);
+
+  compiler::implement(cmodel);
 
   // 5. Implementation:
   // Build supergraph!

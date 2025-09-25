@@ -6,7 +6,6 @@
 #include "memory/hypergraph/NullWeight.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include <exception>
-#include <fmt/base.h>
 
 namespace denox::compiler {
 

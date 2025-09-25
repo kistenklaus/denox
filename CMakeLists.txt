@@ -17,8 +17,9 @@ add_library(denox_compiler
 
   compiler/compiler/cano/cano.cpp
   compiler/compiler/freeze.cpp
-  compiler/compiler/spec.cpp
   compiler/compiler/dce.cpp
+  compiler/compiler/impl.cpp
+  compiler/compiler/spec.cpp
 
   compiler/memory/dtype/dtype_reference.cpp
   compiler/memory/dtype/f16.cpp
@@ -100,6 +101,7 @@ add_library(denox_compiler
 
   compiler/model/Model.cpp
 
+  compiler/shaders/preprocessing.cpp
 
   compiler/api.cpp
   compiler/entry.cpp
