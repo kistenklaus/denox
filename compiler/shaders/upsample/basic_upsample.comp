@@ -68,21 +68,6 @@ void main() {
         }
     }
 
-    // for (uint zh = 0; zh < INVOC_H; ++zh) {
-    //     for (uint zw = 0; zw < INVOC_W; ++zw) {
-    //         for (uint zc = 0; zc < INVOC_C; ++zc) {
-    //             const uint h = h0 + zh * WG_H;
-    //             const uint h2 = h / SCALING_FACTOR;
-    //             const uint w = w0 + zw * WG_W;
-    //             const uint c = c0 + zc * WG_C;
-    //             if (h < H && w < W && c < CH) {
-    //                 const uint o = h * W * CH + w * CH + c;
-    //                 output_tensor_blob[o] = input_tensor_blob[o];
-    //             }
-    //         }
-    //     }
-    // }
-
     #elif defined(IN_LAYOUT_HWC8) && defined(OUT_LAYOUT_HWC8)
     const uint TILE_C8 = TILE_C / 8;
     const uint INVOC_C8 = INVOC_C / 8;

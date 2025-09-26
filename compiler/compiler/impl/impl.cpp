@@ -10,6 +10,7 @@
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
+#include "shaders/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/activation/BasicActivationShader.hpp"
 #include "shaders/conv/DirectConvShader.hpp"
@@ -19,8 +20,6 @@
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
 #include <exception>
-#include <fmt/base.h>
-#include <regex>
 
 namespace denox::compiler {
 
@@ -43,13 +42,15 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef) {
     supergraph.addNode(opGraph.get(nid));
   }
 
-  shaders::DirectConvShader directConv;
-  shaders::BasicPoolShader basicPool;
-  shaders::BasicUpsampleShader basicUpsample;
-  shaders::MemoryPadShader memoryPad;
-  shaders::MemorySliceShader memorySlice;
-  shaders::BasicActivationShader basicActivation;
-  shaders::CopyTransformShader copyTransform;
+  GlslCompiler glslCompiler;
+
+  shaders::DirectConvShader directConv{&glslCompiler};
+  shaders::BasicPoolShader basicPool{&glslCompiler};
+  shaders::BasicUpsampleShader basicUpsample{&glslCompiler};
+  shaders::MemoryPadShader memoryPad{&glslCompiler};
+  shaders::MemorySliceShader memorySlice{&glslCompiler};
+  shaders::BasicActivationShader basicActivation{&glslCompiler};
+  shaders::CopyTransformShader copyTransform{&glslCompiler};
 
   const IShader *shaders[]{
       &directConv,      //

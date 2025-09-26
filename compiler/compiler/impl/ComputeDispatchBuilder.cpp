@@ -1,7 +1,6 @@
 #include "compiler/impl/ComputeDispatchBuilder.hpp"
 #include "compiler/impl/Impl.hpp"
 #include "diag/unreachable.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 
 denox::compiler::ComputeDispatch &

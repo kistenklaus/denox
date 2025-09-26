@@ -104,6 +104,13 @@ add_library(denox_compiler
 
   compiler/model/Model.cpp
 
+  compiler/shaders/activation/BasicActivationShader.cpp
+  compiler/shaders/conv/DirectConvShader.cpp
+  compiler/shaders/copy/CopyTransformShader.cpp
+  compiler/shaders/pad/MemoryPadShader.cpp
+  compiler/shaders/pool/BasicPoolShader.cpp
+  compiler/shaders/slice/MemorySliceShader.cpp
+  compiler/shaders/upsample/BasicUpsampleShader.cpp
   compiler/shaders/preprocessing.cpp
 
   compiler/api.cpp
