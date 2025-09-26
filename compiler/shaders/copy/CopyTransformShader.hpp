@@ -1,6 +1,7 @@
 #pragma once
 
 #include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "diag/logging.hpp"
 #include "diag/unreachable.hpp"
 #include "shaders/IShader.hpp"
 namespace denox::compiler::shaders {
@@ -12,6 +13,9 @@ public:
   static constexpr unsigned int EXPLICIT_CONCAT_PATTERN = 0;
   static constexpr unsigned int IMPLICIT_CONCAT_PATTERN = 1;
   static constexpr unsigned int SINGLE_COPY_CONCAT_PATTERN = 2;
+
+  static constexpr bool
+      ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
 
   CopyTransformShader() {
     {
@@ -85,52 +89,59 @@ public:
       return IMPLICIT_CONCAT_PATTERN;
     }
 
-    const TensorInstance *aliasedSrc = nullptr;
-    if (src0ConcatFanout == 1 && src1ConcatFanout != 1) {
-      aliasedSrc = &src1;
-    } else if (src1ConcatFanout == 1 && src0ConcatFanout != 1) {
-      aliasedSrc = &src0;
-    } else {
-      compiler::diag::unreachable();
-    }
+    if (ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE) {
+      const TensorInstance *aliasedSrc = nullptr;
+      if (src0ConcatFanout == 1 && src1ConcatFanout != 1) {
+        aliasedSrc = &src1;
+      } else if (src1ConcatFanout == 1 && src0ConcatFanout != 1) {
+        aliasedSrc = &src0;
+      } else {
+        compiler::diag::unreachable();
+      }
 
-    memory::vector<memory::NodeId> otherConcatDsts;
-    for (const auto &e : aliasedSrc->originalNode->outgoing()) {
-      if (e.value().tag() != ComputeOpTag::Concat)
-        continue;
-      const memory::NodeId did = e.dst().id();
-      if (did == dst.originalNode->id())
-        continue;
-      otherConcatDsts.push_back(did);
-    }
+      memory::vector<memory::NodeId> otherConcatDsts;
+      for (const auto &e : aliasedSrc->originalNode->outgoing()) {
+        if (e.value().tag() != ComputeOpTag::Concat)
+          continue;
+        const memory::NodeId did = e.dst().id();
+        if (did == dst.originalNode->id())
+          continue;
+        otherConcatDsts.push_back(did);
+      }
 
-    bool allDisjoint = true;
-    for (std::size_t k = 0; k < otherConcatDsts.size() && allDisjoint; ++k) {
-      const std::uint64_t otherId = otherConcatDsts[k];
-      bool found = false;
-      Lifetime otherLife{};
-      for (std::size_t i = 0; i < graph.nodeCount(); ++i) {
-        const TensorInstance &ti = graph.get(memory::NodeId(i));
-        if (ti.originalNode->id() == otherId) {
-          otherLife = ti.lifetime;
-          found = true;
+      bool allDisjoint = true;
+      for (std::size_t k = 0; k < otherConcatDsts.size() && allDisjoint; ++k) {
+        const std::uint64_t otherId = otherConcatDsts[k];
+        bool found = false;
+        Lifetime otherLife{};
+        for (std::size_t i = 0; i < graph.nodeCount(); ++i) {
+          const TensorInstance &ti = graph.get(memory::NodeId(i));
+          if (ti.originalNode->id() == otherId) {
+            otherLife = ti.lifetime;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          allDisjoint = false;
           break;
         }
-      }
-      if (!found) {
-        allDisjoint = false;
-        break;
-      }
-      const bool disjointLifetimes = (dst.lifetime.end <= otherLife.start) ||
-                                     (otherLife.end <= dst.lifetime.start);
+        const bool disjointLifetimes = (dst.lifetime.end <= otherLife.start) ||
+                                       (otherLife.end <= dst.lifetime.start);
 
-      if (!disjointLifetimes)
-        allDisjoint = false;
-    }
+        if (!disjointLifetimes)
+          allDisjoint = false;
+      }
 
-    if (allDisjoint) {
-      return IMPLICIT_CONCAT_PATTERN; // viable implicit; actual anchor chosen
-                                      // later
+      if (allDisjoint) {
+        DENOX_WARN(
+            "Using unstable Feature: Implements a concat operation "
+            "implicitly in memory based on lifetime analysis. This may "
+            "currently result in unimplementable memory constraints (See "
+            "Github Issue #13)");
+        return IMPLICIT_CONCAT_PATTERN; // viable implicit; actual anchor chosen
+                                        // later
+      }
     }
 
     return SINGLE_COPY_CONCAT_PATTERN;
