@@ -19,6 +19,7 @@ add_library(denox_compiler
   compiler/compiler/dce.cpp
   compiler/compiler/impl.cpp
   compiler/compiler/spec.cpp
+  compiler/compiler/lifeness.cpp
 
   compiler/memory/dtype/dtype_reference.cpp
   compiler/memory/dtype/f16.cpp

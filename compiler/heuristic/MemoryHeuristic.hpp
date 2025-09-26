@@ -60,7 +60,8 @@ public:
     } else {
       byteSize += n;
     }
-    return static_cast<float>(static_cast<double>(byteSize) * 1e-6);
+    return static_cast<float>(static_cast<double>(byteSize) * 1e-6 *
+                              static_cast<double>(shader->speedup(pattern)));
   }
 
 private:

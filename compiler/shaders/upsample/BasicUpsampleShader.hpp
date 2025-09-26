@@ -86,12 +86,14 @@ public:
 
   // TODO Figure out the return from here, maybe directly somethig like a
   // dispatch with a compiled SPIR-V or something like this.
-  void implement(
-      [[maybe_unused]] unsigned int pattern,
-      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-          &match) const final override {}
+  void implement([[maybe_unused]] unsigned int pattern,
+                 [[maybe_unused]] const algorithm::ConstGraphMatch<
+                     TensorInstance, ComputeOp> &match) const final override {}
 
-  memory::string name() const final override { return "basic-upsample"; }
+  memory::string
+  name([[maybe_unused]] unsigned int pattern) const final override {
+    return "basic-upsample";
+  }
 
 private:
   ShaderCapabilities m_capabilities;

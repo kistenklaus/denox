@@ -171,7 +171,6 @@ public:
   ActivationLayoutKind kind() const { return m_layout.kind(); }
 
   static memory::span<const ActivationLayout> supported() {
-    // NOTE: The first layout has to be supported for all channel counts!!!
     static constexpr ActivationLayout layouts[] = {HWC, CHWC8};
     return layouts;
   }

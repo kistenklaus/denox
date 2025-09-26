@@ -303,6 +303,9 @@ memory::string Model::to_string() const {
   } else {
     str.append(fmt::format("    H: {}\n", (*input.height()).sym()));
   }
+  if (input.type().has_value()) {
+    str.append(fmt::format("    dtype: {}\n", input.type()->to_string()));
+  }
 
   auto output = getOutput();
   str.append(fmt::format("- Output: (TensorID: {})\n    C: {}\n",

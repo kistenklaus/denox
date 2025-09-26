@@ -5,7 +5,7 @@
 #include "memory/tensor/ActivationLayout.hpp"
 namespace denox::compiler {
 
-SpecModel specialize(CanoModel &model,
+SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes,
                      memory::span<const memory::ActivationLayout> layouts);
 
 }

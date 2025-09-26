@@ -38,11 +38,11 @@ memory::optional<denox::memory::Dtype>
 dtype::details::Dtype::toDenoxType() const {
   switch (m_kind) {
   case DtypeKind::Float64:
-    return memory::Dtype::F16;
+    return memory::Dtype::F64;
   case DtypeKind::Float32:
     return memory::Dtype::F32;
   case DtypeKind::Float16:
-    return memory::Dtype::F64;
+    return memory::Dtype::F16;
   // NOTE: All other types are not supported by denox!
   case DtypeKind::Undefined:
   case DtypeKind::Int8:

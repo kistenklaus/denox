@@ -18,6 +18,8 @@ int main() {
   deviceInfo.coopmatTypeCount = coopmatTypes.size();
   denox::CompileOptions options;
   options.deviceInfo = &deviceInfo;
+  options.inputStorageLayout = denox::STORAGE_LAYOUT_SSBO_HWC;
+  options.outputStorageLayout = denox::STORAGE_LAYOUT_SSBO_HWC;
 
   denox::compile("net.onnx", options);
 }

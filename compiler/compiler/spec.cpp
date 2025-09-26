@@ -17,7 +17,8 @@ static inline void ensure_specialized_type(CanoModel::Graph::Node &node) {
 }
 
 static inline SpecModel::Graph::NodeHandle
-create_spec_node(SpecModel &spec, const CanoModel::Graph::NodeHandle &src,
+create_spec_node(SpecModel &spec, const Lifetimes &lifetimes,
+                 const CanoModel::Graph::NodeHandle &src,
                  const memory::ActivationLayout &layout) {
   const auto &ct = src->value();
   TensorInstance st{
@@ -26,12 +27,14 @@ create_spec_node(SpecModel &spec, const CanoModel::Graph::NodeHandle &src,
       .layout = layout,
       .type = *ct.type(),
       .originalNode = src,
+      .lifetime = lifetimes.valueLifetimes[src->id()],
   };
   return spec.graph.createNode(std::move(st));
 }
 
 static inline memory::vector<SpecModel::Graph::NodeHandle> &ensure_variants_for(
-    SpecModel &spec, memory::span<const memory::ActivationLayout> layouts,
+    SpecModel &spec, const Lifetimes &lifetimes,
+    memory::span<const memory::ActivationLayout> layouts,
     memory::vector<memory::vector<SpecModel::Graph::NodeHandle>> &variants,
     CanoModel::Graph::Node &n) {
   const auto id = n.id();
@@ -45,21 +48,21 @@ static inline memory::vector<SpecModel::Graph::NodeHandle> &ensure_variants_for(
   const auto &ct = n.value();
 
   if (ct.layout().has_value()) {
-    bucket.push_back(create_spec_node(spec, n, *ct.layout()));
+    bucket.push_back(create_spec_node(spec, lifetimes, n, *ct.layout()));
     return bucket;
   }
 
   const unsigned c = ct.channels();
   for (const auto &l : layouts) {
     if (l.supports(c))
-      bucket.push_back(create_spec_node(spec, n, l));
+      bucket.push_back(create_spec_node(spec, lifetimes, n, l));
   }
   if (bucket.empty())
     std::terminate(); // no supported layout
   return bucket;
 }
 
-SpecModel specialize(CanoModel &model,
+SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes,
                      memory::span<const memory::ActivationLayout> layouts) {
   assert(!layouts.empty());
   if (layouts.empty())
@@ -92,7 +95,7 @@ SpecModel specialize(CanoModel &model,
       continue;
     seen[nid] = true;
 
-    ensure_variants_for(spec, layouts, variants, *node);
+    ensure_variants_for(spec, lifetimes, layouts, variants, *node);
 
     for (const auto &e : node->outgoing()) {
       if (e.srcs().empty() || &e.srcs().front() != node.operator->()) {
@@ -103,12 +106,13 @@ SpecModel specialize(CanoModel &model,
       memory::vector<memory::vector<SpecGraph::NodeHandle> *> srcVarLists;
       srcVarLists.reserve(e.srcs().size());
       for (auto &s : e.srcs()) {
-        auto &b = ensure_variants_for(spec, layouts, variants, s);
+        auto &b = ensure_variants_for(spec, lifetimes, layouts, variants, s);
         srcVarLists.push_back(&b);
       }
 
       NodeHandle dstH = e.dst();
-      auto &dstBucket = ensure_variants_for(spec, layouts, variants, *dstH);
+      auto &dstBucket =
+          ensure_variants_for(spec, lifetimes, layouts, variants, *dstH);
 
       const std::size_t k = srcVarLists.size();
       if (k == 0) {
@@ -155,8 +159,8 @@ SpecModel specialize(CanoModel &model,
   {
     auto in = model.input;
     auto out = model.output;
-    auto &inB = ensure_variants_for(spec, layouts, variants, *in);
-    auto &outB = ensure_variants_for(spec, layouts, variants, *out);
+    auto &inB = ensure_variants_for(spec, lifetimes, layouts, variants, *in);
+    auto &outB = ensure_variants_for(spec, lifetimes, layouts, variants, *out);
     assert(inB.size() == 1 && "input must have a fixed layout");
     assert(outB.size() == 1 && "output must have a fixed layout");
     spec.input = inB.front();

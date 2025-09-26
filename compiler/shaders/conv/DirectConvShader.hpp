@@ -2,6 +2,7 @@
 
 #include "algorithm/pattern_matching/EdgePattern.fwd.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "diag/unreachable.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
@@ -97,7 +98,16 @@ public:
       [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
           &match) const final override {}
 
-  memory::string name() const final override { return "direct-conv"; }
+  memory::string name(unsigned int pattern) const final override { 
+    switch (pattern) {
+      case CONV_PATTERN:
+        return "direct-conv";
+      case CONV_RELU_PATTERN:
+        return "direct-conv+relu";
+      default:
+        compiler::diag::unreachable();
+    }
+  }
 
 private:
   ShaderCapabilities m_capabilities;

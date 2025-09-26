@@ -17,7 +17,9 @@ namespace denox {
 static memory::ActivationLayout infer_layout(StorageLayoutFlags storageLayout) {
   if (storageLayout & LAYOUT_HWC) {
     return memory::ActivationLayout::HWC;
-  } else {
+  } else if (storageLayout & LAYOUT_CHWC8) {
+    return memory::ActivationLayout::CHWC8;
+  }else {
     compiler::diag::unreachable();
   }
 }

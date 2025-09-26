@@ -108,7 +108,7 @@ public:
       [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
           &match) const final override {}
 
-  memory::string name() const final override { return "basic-pool"; }
+  memory::string name([[maybe_unused]] unsigned int pattern) const final override { return "basic-pool"; }
 
 private:
   ShaderCapabilities m_capabilities;

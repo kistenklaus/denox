@@ -16,7 +16,6 @@
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
 #include <exception>
-#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -86,18 +85,23 @@ void implement(const OpModel &model, const SymGraph &symGraph) {
         if (inputs.size() == 2) {
           edgeId += inputs[1] * nodeCount * nodeCount;
         }
-
         if (edgeExits[edgeId]) {
           continue;
         }
+        auto pattern = shader->acceptMatch(opGraph, p, m);
+        if (!pattern.has_value()) {
+          continue;
+        }
+
         edgeExits[edgeId] = true;
 
-        const float w = heuristic->eval(ins, opGraph.get(out), p, m, shader);
+        const float w =
+            heuristic->eval(ins, opGraph.get(out), *pattern, m, shader);
 
         supergraph.addEdge(inputs, out,
                            ComputeOpImpl{
                                .shader = shader,
-                               .pattern = p,
+                               .pattern = *pattern,
                                .match = m,
                            },
                            w);
@@ -121,6 +125,7 @@ void implement(const OpModel &model, const SymGraph &symGraph) {
 
   for (std::size_t op = 0; op < hyperpath->size(); ++op) {
     memory::EdgeId oid{(*hyperpath)[op]};
+    const auto& o = constSupergraph.get(oid);
     const auto &srcs = constSupergraph.src(oid);
     bool first = true;
     std::string inStr;
@@ -136,7 +141,7 @@ void implement(const OpModel &model, const SymGraph &symGraph) {
     const ComputeOpImpl &impl = constSupergraph.get(oid);
     memory::NodeId dstId = constSupergraph.dst(oid);
     const TensorInstance &dst = constSupergraph.get(dstId);
-    fmt::println("{:^22}{:-^30}> {}[{}]", inStr, impl.shader->name(),
+    fmt::println("{:^22}{:-^40}> {}[{}]", inStr, impl.shader->name(o.pattern),
                  dst.layout.to_string(), dst.channels);
   }
 

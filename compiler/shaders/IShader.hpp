@@ -36,12 +36,26 @@ public:
 
   virtual const ShaderCapabilities &capabilities() const = 0;
 
+  virtual memory::optional<unsigned int> acceptMatch(
+      [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
+          &graph,
+      unsigned int pattern,
+      [[maybe_unused]] const algorithm::ConstGraphMatch<
+          TensorInstance, ComputeOp> &match) const {
+    return pattern;
+  }
+
   virtual std::size_t parameterMemorySize(
-      [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
+      [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
+          &graph,
       [[maybe_unused]] unsigned int pattern,
-      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-          &match) const {
+      [[maybe_unused]] const algorithm::ConstGraphMatch<
+          TensorInstance, ComputeOp> &match) const {
     return 0;
+  }
+
+  virtual float speedup([[maybe_unused]] unsigned int pattern) const {
+    return 1.0f;
   }
 
   // TODO Figure out the return from here, maybe directly somethig like a
@@ -51,7 +65,7 @@ public:
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match)
       const = 0;
 
-  virtual memory::string name() const = 0;
+  virtual memory::string name(unsigned int pattern) const = 0;
 };
 
 } // namespace denox::compiler

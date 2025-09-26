@@ -759,12 +759,12 @@ public:
           std::forward<Args>(args)...);
     }
 
-    [[nodiscard]] EdgeIt begin() noexcept {
+    [[nodiscard]] EdgeIt begin() const noexcept {
       return EdgeIt(&m_node.m_controlBlock->m_outgoing,
                     m_node.m_controlBlock->m_outgoing);
     }
 
-    [[nodiscard]] EdgeIt end() noexcept {
+    [[nodiscard]] EdgeIt end() const noexcept {
       return EdgeIt(&m_node.m_controlBlock->m_outgoing, nullptr);
     }
 
@@ -776,6 +776,10 @@ public:
         ++size;
       }
       return size;
+    }
+
+    [[nodiscard]] bool empty() const noexcept {
+      return begin() == end();
     }
 
   private:
