@@ -176,6 +176,7 @@ add_executable(denox_test EXCLUDE_FROM_ALL
   test/compiler/memory/linked_graph.cpp
   test/compiler/symbolic/affine.cpp
   test/compiler/symbolic/common.cpp
+  test/compiler/symbolic/eval.cpp
   test/compiler/symbolic/modsolve.cpp
   test/compiler/symbolic/nonaffine.cpp
   test/compiler/symbolic/unsolvable.cpp

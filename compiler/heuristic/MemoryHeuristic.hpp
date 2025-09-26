@@ -17,9 +17,7 @@ public:
       const memory::ConstGraph<TensorInstance, ComputeOp> *opGraph,
       const SymGraph &symGraph, memory::NodeId inputId)
       : m_shaders(shaders), m_opGraph(opGraph) {
-    // evaluate all symbolic values for 1920x1080
     const TensorInstance &input = opGraph->get(inputId);
-    // TODO requires Symbolic engine evaluation
     const sym_vec2 inputExtent = input.extent;
     memory::small_vector<SymSpec, 2> symSpecs;
     if (inputExtent.x.isSymbolic()) {
