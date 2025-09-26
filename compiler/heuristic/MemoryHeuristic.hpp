@@ -41,14 +41,15 @@ public:
       Sym::value_type W = *m_eval[extent.x];
       Sym::value_type H = *m_eval[extent.y];
       std::size_t n = static_cast<std::size_t>(W) *
-                      static_cast<std::size_t>(H) * in->type.size();
+                      static_cast<std::size_t>(H) * in->type.size() *
+                      in->channels;
       byteSize += n;
     }
     sym_vec2 extent = out.extent;
     Sym::value_type W = *m_eval[extent.x];
     Sym::value_type H = *m_eval[extent.y];
     std::size_t n = static_cast<std::size_t>(W) * static_cast<std::size_t>(H) *
-                    out.type.size();
+                    out.type.size() * out.channels;
     byteSize += n;
 
     return static_cast<float>(static_cast<double>(byteSize) * 1e-6 *
@@ -56,7 +57,9 @@ public:
   }
 
   memory::string weight_to_string(float weight) const final override {
-    if (weight >= 1.0f) {
+    if (weight > 1000.0f) {
+      return fmt::format("\x1B[1m{:.3f}GB\x1B[0m", weight * 1e-3f);
+    } else if (weight >= 1.0f) {
       return fmt::format("\x1B[1m{:.3f}MB\x1B[0m", weight);
     } else if (weight >= 1e-3f) {
       // KB range

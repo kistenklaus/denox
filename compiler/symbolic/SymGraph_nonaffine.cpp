@@ -98,8 +98,7 @@ Sym SymGraph::nonaffine_mul(symbol lhs, symbol rhs, bool dno) {
         affine_add_sym(out, P.sym(), coef.factor);
       }
     }
-    return require_affine_sym(ExprType::Mul, Sym::Symbol(s), Sym::Symbol(s),
-                              out, /*dno*/ dno);
+    return construct_affine_sym(out, dno);
   };
 
   // ---- Case 2: affine × symbol (Identity)
