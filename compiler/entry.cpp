@@ -9,7 +9,6 @@
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
-#include <absl/strings/str_format.h>
 #include <google/protobuf/port.h>
 
 namespace denox::compiler {
