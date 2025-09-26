@@ -17,7 +17,8 @@ add_library(denox_compiler
 
   compiler/compiler/cano/cano.cpp
   compiler/compiler/dce.cpp
-  compiler/compiler/impl.cpp
+  compiler/compiler/impl/ComputeDispatchBuilder.cpp
+  compiler/compiler/impl/impl.cpp
   compiler/compiler/spec.cpp
   compiler/compiler/lifeness.cpp
 

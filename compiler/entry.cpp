@@ -1,7 +1,7 @@
 #include "entry.hpp"
 #include "compiler/cano/cano.hpp"
 #include "compiler/dce.hpp"
-#include "compiler/impl.hpp"
+#include "compiler/impl/impl.hpp"
 #include "compiler/lifeness.hpp"
 #include "compiler/spec.hpp"
 #include "diag/unreachable.hpp"
@@ -35,6 +35,8 @@ static Model frontend(memory::span<const std::byte> raw,
 
 void entry(memory::span<const std::byte> raw, const Options &options) {
   Model model = frontend(raw, options);
+
+  fmt::println("\x1B[32m\x1B[1m{:=^40}\x1B[0m", "Imported=Model");
   fmt::println("{}", model.to_string());
   SymGraph symGraph = model.symGraph();
 

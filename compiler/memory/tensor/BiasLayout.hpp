@@ -53,6 +53,19 @@ public:
 
   BiasLayoutKind kind() const { return m_tag; }
 
+  bool isVectorized() const {
+    switch (m_tag) {
+    case BiasLayoutKind::C:
+      return false;
+    case BiasLayoutKind::C4:
+    case BiasLayoutKind::C8:
+    case BiasLayoutKind::C16:
+      return true;
+    default:
+      compiler::diag::unreachable();
+    }
+  }
+
 private:
   BiasLayoutKind m_tag;
 };
@@ -88,8 +101,10 @@ public:
 
   BiasLayoutKind kind() const { return m_layout.kind(); }
 
+  bool isVectorized() const { return m_layout.isVectorized(); }
+
 private:
   details::memory::tensors::BiasLayout m_layout;
 };
 
-} // namespace denox::compiler
+} // namespace denox::memory

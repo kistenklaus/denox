@@ -1,4 +1,5 @@
 #include "diag/unreachable.hpp"
+#include "memory/container/hashmap.hpp"
 #include "symbolic/SymGraph.hpp"
 #include <fmt/format.h>
 #include <stdexcept>
@@ -160,7 +161,9 @@ void SymGraph::debugDump() const {
   }
 }
 
-memory::string SymGraph::to_string(Sym sym) const {
+memory::string SymGraph::to_string(
+    Sym sym,
+    const memory::hash_map<Sym::symbol, memory::string> &symbolNames) const {
   if (sym.isConstant()) {
     return fmt::format("{}", sym.constant());
   }
@@ -170,23 +173,26 @@ memory::string SymGraph::to_string(Sym sym) const {
   }
   switch (expr.expr) {
   case symbolic::details::ExprType::Identity:
+    if (symbolNames.contains(sym.sym())) {
+      return symbolNames.at(sym.sym());
+    }
     return fmt::format("[{}]", sym.sym());
   case symbolic::details::ExprType::NonAffine: {
     const auto &nonaffine = m_nonAffineCache.expressions[expr.lhs.sym()];
     switch (nonaffine.expr) {
     case symbolic::details::ExprType::Div:
-      return fmt::format("({} / {})", to_string(nonaffine.symbols[0]),
-                         to_string(nonaffine.symbols[1]));
+      return fmt::format("({} / {})", to_string(nonaffine.symbols[0], symbolNames),
+                         to_string(nonaffine.symbols[1], symbolNames));
     case symbolic::details::ExprType::Mod:
-      return fmt::format("({} % {})", to_string(nonaffine.symbols[0]),
-                         to_string(nonaffine.symbols[1]));
+      return fmt::format("({} % {})", to_string(nonaffine.symbols[0], symbolNames),
+                         to_string(nonaffine.symbols[1], symbolNames));
     case symbolic::details::ExprType::Mul: {
       memory::string str = "(";
       for (std::size_t i = 0; i < nonaffine.symbols.size(); ++i) {
         if (i != 0) {
           str.append(" * ");
         }
-        str.append(fmt::format("{}", to_string(nonaffine.symbols[i])));
+        str.append(fmt::format("{}", to_string(nonaffine.symbols[i], symbolNames)));
       }
       str.append(")");
       return str;
@@ -204,19 +210,19 @@ memory::string SymGraph::to_string(Sym sym) const {
     return fmt::format("[NonAffine]");
   }
   case symbolic::details::ExprType::Div:
-    return fmt::format("({} / {})", to_string(expr.lhs), to_string(expr.rhs));
+    return fmt::format("({} / {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
   case symbolic::details::ExprType::Mod:
-    return fmt::format("({} % {})", to_string(expr.lhs), to_string(expr.rhs));
+    return fmt::format("({} % {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
   case symbolic::details::ExprType::Sub:
-    return fmt::format("({} - {})", to_string(expr.lhs), to_string(expr.rhs));
+    return fmt::format("({} - {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
   case symbolic::details::ExprType::Mul:
-    return fmt::format("({} * {})", to_string(expr.lhs), to_string(expr.rhs));
+    return fmt::format("({} * {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
   case symbolic::details::ExprType::Add:
-    return fmt::format("({} + {})", to_string(expr.lhs), to_string(expr.rhs));
+    return fmt::format("({} + {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
   case symbolic::details::ExprType::Min:
-    return fmt::format("min({}, {})", to_string(expr.lhs), to_string(expr.rhs));
+    return fmt::format("min({}, {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
   case symbolic::details::ExprType::Max:
-    return fmt::format("max({}, {})", to_string(expr.lhs), to_string(expr.rhs));
+    return fmt::format("max({}, {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
   case symbolic::details::ExprType::Const:
     return fmt::format("{}", expr.lhs.constant());
   }

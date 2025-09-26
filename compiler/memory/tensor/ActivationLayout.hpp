@@ -165,7 +165,7 @@ public:
 
   friend bool operator!=(const ActivationLayout &lhs,
                          const ActivationLayout &rhs) {
-    return lhs.m_layout == rhs.m_layout;
+    return lhs.m_layout != rhs.m_layout;
   }
 
   ActivationLayoutKind kind() const { return m_layout.kind(); }

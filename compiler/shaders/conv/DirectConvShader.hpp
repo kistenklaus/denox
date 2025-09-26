@@ -3,11 +3,14 @@
 #include "algorithm/pattern_matching/EdgePattern.fwd.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
 #include "diag/unreachable.hpp"
+#include "io/fs/Path.hpp"
+#include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "shaders/IShader.hpp"
+#include <cassert>
 namespace denox::compiler::shaders {
 
 class DirectConvShader : public compiler::IShader {
@@ -34,16 +37,16 @@ public:
     {
       Pattern conv_pattern;
       auto in = conv_pattern.matchNode();
-      auto op = in->matchOutgoing();
-      op->matchRank(1);
-      op->matchValue(
+      auto conv = in->matchOutgoing();
+      conv->matchRank(1);
+      conv->matchValue(
           [](const ComputeOp &op) { return op.tag() == ComputeOpTag::Conv; });
-      auto out = op->matchDst();
+      auto out = conv->matchDst();
 
       in->matchValue(tensorSupported);
       out->matchValue(tensorSupported);
 
-      m_convPattern.emplace_back(std::move(op));
+      m_patternHandles.emplace_back(in, std::move(conv), memory::nullopt, out);
       m_capabilities.patterns.emplace_back(std::move(conv_pattern),
                                            std::move(in), std::move(out));
     }
@@ -66,7 +69,7 @@ public:
       in->matchValue(tensorSupported);
       out->matchValue(tensorSupported);
 
-      m_convPattern.emplace_back(std::move(conv));
+      m_patternHandles.emplace_back(in, std::move(conv), std::move(relu), out);
       m_capabilities.patterns.emplace_back(std::move(conv_relu_pattern),
                                            std::move(in), std::move(out));
     }
@@ -76,12 +79,12 @@ public:
     return m_capabilities;
   }
 
-  std::size_t
-  parameterMemorySize(const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
-                      unsigned int pattern,
-                      const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-                          &match) const final override {
-    const auto &convPattern = m_convPattern[pattern];
+  std::size_t parameterMemorySize(
+      const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
+      unsigned int pattern,
+      const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match)
+      const final override {
+    const auto &convPattern = m_patternHandles[pattern].conv;
     memory::EdgeId convId = match[convPattern];
     const ComputeOp &op = graph.get(convId);
     assert(op.tag() == ComputeOpTag::Conv);
@@ -93,26 +96,62 @@ public:
     return elemCount * memory::Dtype::F16.size();
   }
 
-  void implement(
-      [[maybe_unused]] unsigned int pattern,
-      [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-          &match) const final override {}
+  void implement(Impl &impl,
+                 const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+                 [[maybe_unused]] unsigned int pattern,
+                 [[maybe_unused]] const algorithm::ConstGraphMatch<
+                     TensorInstance, ComputeOp> &match) const final override {
+    const auto &patternHandles = m_patternHandles[pattern];
+    memory::EdgeId convId = match[patternHandles.conv];
+    const ComputeOp &op = opGraph.get(convId);
+    assert(op.tag() == ComputeOpTag::Conv);
+    const ComputeOpConv &conv = op.conv();
+    TensorId weightTensorId = impl.createParameter(*conv->W);
+    memory::optional<TensorId> biasTensorId = memory::nullopt;
+    if (conv->B != nullptr) {
+      biasTensorId = impl.createParameter(*conv->B);
+    }
 
-  memory::string name(unsigned int pattern) const final override { 
+    auto dispatch = impl.dispatch({});
+    memory::NodeId inId = match[patternHandles.in];
+    memory::NodeId outId = match[patternHandles.out];
+    dispatch.addBinding(inId);
+    dispatch.addBinding(outId);
+    dispatch.addBinding(weightTensorId);
+    if (biasTensorId) {
+      dispatch.addBinding(*biasTensorId);
+    }
+    auto in = opGraph.get(inId);
+    dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
+    dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
+    dispatch.setName(name(pattern));
+    dispatch.setSourcePath(m_srcPath);
+  }
+
+  memory::string name(unsigned int pattern) const final override {
     switch (pattern) {
-      case CONV_PATTERN:
-        return "direct-conv";
-      case CONV_RELU_PATTERN:
-        return "direct-conv+relu";
-      default:
-        compiler::diag::unreachable();
+    case CONV_PATTERN:
+      return "direct-conv";
+    case CONV_RELU_PATTERN:
+      return "direct-conv+relu";
+    default:
+      compiler::diag::unreachable();
     }
   }
 
 private:
   ShaderCapabilities m_capabilities;
-  memory::vector<algorithm::EdgePatternHandle<TensorInstance, ComputeOp>>
-      m_convPattern;
+
+  struct Handles {
+    Pattern::NP in;
+    Pattern::EP conv;
+    memory::optional<Pattern::EP> relu;
+    Pattern::NP out;
+  };
+
+  memory::vector<Handles> m_patternHandles;
+
+  io::Path m_srcPath = io::Path::cwd() / "compiler/shaders/conv/direct_conv.comp";
 };
 
 } // namespace denox::compiler::shaders

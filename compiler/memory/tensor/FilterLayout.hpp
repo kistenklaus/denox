@@ -105,6 +105,27 @@ public:
     denox::compiler::diag::unreachable();
   }
 
+  bool isVectorized() const {
+    switch (m_tag) {
+    case FilterLayoutKind::KRSC:
+    case FilterLayoutKind::KCRS:
+    case FilterLayoutKind::RSCK:
+    case FilterLayoutKind::RSKC:
+      return false;
+    case FilterLayoutKind::RSCKC8:
+    case FilterLayoutKind::RCSKC8:
+    case FilterLayoutKind::RSCKC16:
+    case FilterLayoutKind::RCSKC16:
+    case FilterLayoutKind::RSKCK8:
+    case FilterLayoutKind::RSKCK16:
+    case FilterLayoutKind::KRSCK8:
+    case FilterLayoutKind::KRSCK16:
+      return true;
+    default:
+      compiler::diag::unreachable();
+    }
+  }
+
   friend bool operator==(const FilterLayout &lhs, const FilterLayout &rhs) {
     return lhs.m_tag == rhs.m_tag;
   }
@@ -175,7 +196,9 @@ public:
     return lhs.m_layout != rhs.m_layout;
   }
 
+  bool isVectorized() const { return m_layout.isVectorized(); }
+
 private:
   details::memory::tensors::FilterLayout m_layout;
 };
-} // namespace denox::compiler
+} // namespace denox::memory

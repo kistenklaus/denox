@@ -87,6 +87,7 @@ public:
   }
 
   const BiasDescriptor &desc() const { return m_desc; }
+  BiasLayout layout() const { return m_desc.layout; }
   unsigned int shape() const { return m_desc.shape; }
   Dtype type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }

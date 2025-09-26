@@ -307,6 +307,10 @@ memory::string Model::to_string() const {
     str.append(fmt::format("    dtype: {}\n", input.type()->to_string()));
   }
 
+  if (input.layout().has_value()) {
+    str.append(fmt::format("    layout: {}\n", input.layout()->to_string()));
+  }
+
   auto output = getOutput();
   str.append(fmt::format("- Output: (TensorID: {})\n    C: {}\n",
                          static_cast<std::uint64_t>(output.m_nodeId),
@@ -321,6 +325,13 @@ memory::string Model::to_string() const {
         fmt::format("    H: [{}] <- SymInt\n", (*output.height()).sym()));
   } else {
     str.append(fmt::format("    H: {}\n", (*output.height()).sym()));
+  }
+  if (output.type().has_value()) {
+    str.append(fmt::format("    dtype: {}\n", output.type()->to_string()));
+  }
+
+  if (output.layout().has_value()) {
+    str.append(fmt::format("    layout: {}\n", output.layout()->to_string()));
   }
 
   str.append("- Layers:\n");

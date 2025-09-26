@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/container/hashmap.hpp"
 #include "memory/container/span.hpp"
 #include "memory/container/string.hpp"
 #include "symbolic/Sym.hpp"
@@ -178,7 +179,7 @@ public:
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;
   void debugDump() const;
-  memory::string to_string(Sym sym) const;
+  memory::string to_string(Sym sym, const memory::hash_map<Sym::symbol, memory::string>& symbolNames = {}) const;
 
 private:
   // Affine symbol cache.

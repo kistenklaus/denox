@@ -51,6 +51,9 @@ memory::optional<Dtype> DeviceTensor::type() const {
     return Dtype::Float32;
   case memory::DtypeKind::F64:
     return Dtype::Float64;
+  case memory::DtypeKind::U32:
+  case memory::DtypeKind::I32:
+    compiler::diag::unreachable();
   };
   denox::compiler::diag::unreachable();
 }

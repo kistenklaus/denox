@@ -44,24 +44,31 @@ public:
       Sym::value_type H = *m_eval[extent.y];
       std::size_t n = static_cast<std::size_t>(W) *
                       static_cast<std::size_t>(H) * in->type.size();
-      if (in->layout.isVectorized()) {
-        byteSize += (n * 9) / 10;
-      } else {
-        byteSize += n;
-      }
+      byteSize += n;
     }
     sym_vec2 extent = out.extent;
     Sym::value_type W = *m_eval[extent.x];
     Sym::value_type H = *m_eval[extent.y];
     std::size_t n = static_cast<std::size_t>(W) * static_cast<std::size_t>(H) *
                     out.type.size();
-    if (out.layout.isVectorized()) {
-      byteSize += (n * 9) / 10;
-    } else {
-      byteSize += n;
-    }
+    byteSize += n;
+
     return static_cast<float>(static_cast<double>(byteSize) * 1e-6 *
                               static_cast<double>(shader->speedup(pattern)));
+  }
+
+  memory::string weight_to_string(float weight) const final override {
+    if (weight >= 1.0f) {
+      return fmt::format("\x1B[1m{:.3f}MB\x1B[0m", weight);
+    } else if (weight >= 1e-3f) {
+      // KB range
+      return fmt::format("{:.3f}KB", weight * 1e3f);
+    } else if (weight == 0.0f) {
+      return "0B";
+    } else {
+      // B range.
+      return fmt::format("{:.3f}B", weight * 1e6f);
+    }
   }
 
 private:

@@ -1,60 +1,60 @@
 #pragma once
 
 #include "algorithm/pattern_matching/GraphPattern.hpp"
-#include "memory/container/vector.hpp"
-#include "model/PoolFunction.hpp"
+#include "compiler/ir/TensorInstance.hpp"
+#include "diag/unreachable.hpp"
+#include "memory/dtype/dtype.hpp"
+#include "model/ActivationFunction.hpp"
 #include "shaders/IShader.hpp"
 namespace denox::compiler::shaders {
 
-class BasicPoolShader final : public IShader {
-  static constexpr std::size_t HWC_HWC_F16_PATTERN = 0;
-  static constexpr std::size_t CHWC8_CHWC8_F16_PATTERN = 1;
-
+class BasicActivationShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicPoolShader() {
+  static constexpr std::size_t ACTI_FUNC_TYPE_MASK = 0xFF << 8;
+  static constexpr std::size_t ACTI_FUNC_TYPE_ReLU = 1 << 8;
+
+  BasicActivationShader() {
     const auto supportedTensor = [](const TensorInstance &tensor) {
       if (tensor.type != memory::Dtype::F16) {
         return false;
       }
-      return tensor.layout == memory::ActivationLayout::HWC ||
-             tensor.layout == memory::ActivationLayout::HWC8 ||
-             tensor.layout == memory::ActivationLayout::CHWC8;
+      if (tensor.layout != memory::ActivationLayout::HWC &&
+          tensor.layout != memory::ActivationLayout::HWC8 &&
+          tensor.layout != memory::ActivationLayout::CHWC8) {
+        return false;
+      }
+      return true;
     };
-
     {
-
-      Pattern poolPattern;
-      auto in = poolPattern.matchNode();
-      auto pool = in->matchOutgoing();
-      auto out = pool->matchDst();
+      Pattern basicPattern;
+      auto in = basicPattern.matchNode();
+      auto acti = in->matchOutgoing();
+      auto out = acti->matchDst();
 
       in->matchValue(supportedTensor);
       out->matchValue(supportedTensor);
-      pool->matchRank(1);
-
-      pool->matchValue([](const ComputeOp &op) {
-        if (op.tag() != ComputeOpTag::Pool) {
+      acti->matchRank(1);
+      acti->matchValue([](const ComputeOp &op) {
+        if (op.tag() != ComputeOpTag::Activation) {
           return false;
         }
-        const auto &pool = op.pool();
-        if (pool->func != PoolFunction::Max) {
-          return false;
-        }
-        if (pool->stride != pool->kernelSize) {
-          return false;
-        }
-        if (pool->padding != memory::uvec2(0, 0)) {
+        if (op.activation().func != ActivationFunction::ReLU) {
           return false;
         }
         return true;
       });
-      m_patternHandles.emplace_back(in, std::move(pool), out);
-      m_capabilities.patterns.emplace_back(std::move(poolPattern),
+      m_patternHandles.emplace_back(in, std::move(acti), out);
+      m_capabilities.patterns.emplace_back(std::move(basicPattern),
                                            std::move(in), std::move(out));
     }
   }
+
+  const ShaderCapabilities &capabilities() const final override {
+    return m_capabilities;
+  }
+
   memory::optional<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
               unsigned int pattern,
@@ -66,48 +66,50 @@ public:
     if (in.layout != out.layout) {
       return memory::nullopt;
     }
-    return pattern;
-  }
 
-  const ShaderCapabilities &capabilities() const final override {
-    return m_capabilities;
+    return pattern | ACTI_FUNC_TYPE_ReLU;
   }
 
   void implement(Impl &impl,
                  const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-                 unsigned int pattern,
+                 unsigned int patternEnc,
                  const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                      &match) const final override {
+    unsigned int pattern = patternEnc & ~ACTI_FUNC_TYPE_MASK;
     const auto &patternHandles = m_patternHandles[pattern];
     memory::NodeId inId = match[patternHandles.in];
     memory::NodeId outId = match[patternHandles.out];
+    const auto &in = opGraph.get(inId);
 
     auto dispatch = impl.dispatch({});
     dispatch.addBinding(inId);
     dispatch.addBinding(outId);
-    const auto &in = opGraph.get(inId);
     dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
     dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
-    dispatch.setName(name(pattern));
+    dispatch.setName(name(patternEnc));
     dispatch.setSourcePath(m_srcPath);
   }
 
-  memory::string
-  name([[maybe_unused]] unsigned int pattern) const final override {
-    return "basic-pool";
+  memory::string name(unsigned int pattern) const final override {
+    switch (pattern & ACTI_FUNC_TYPE_MASK) {
+    case ACTI_FUNC_TYPE_ReLU:
+      return "relu";
+    default:
+      compiler::diag::unreachable();
+    }
   }
 
 private:
-  ShaderCapabilities m_capabilities;
-
   struct Handles {
     Pattern::NP in;
-    Pattern::EP pool;
+    Pattern::EP acti;
     Pattern::NP out;
   };
+  ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
 
-  io::Path m_srcPath = io::Path::cwd() / "compiler/shaders/pool/basic_pool.comp";
+  io::Path m_srcPath = io::Path::cwd() / "compiler/shaders/activation/basic_activation.comp";
+
 };
 
-} // namespace denox::compiler::shaders
+} // namespace denox::compiler

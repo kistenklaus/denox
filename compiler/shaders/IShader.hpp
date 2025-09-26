@@ -2,6 +2,7 @@
 
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "compiler/impl/Impl.hpp"
 #include "compiler/ir/SpecModel.hpp"
 #include "memory/container/string.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
@@ -58,10 +59,10 @@ public:
     return 1.0f;
   }
 
-  // TODO Figure out the return from here, maybe directly somethig like a
-  // dispatch with a compiled SPIR-V or something like this.
   virtual void
-  implement(unsigned int pattern,
+  implement(Impl &impl,
+            const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+            unsigned int pattern,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match)
       const = 0;
 

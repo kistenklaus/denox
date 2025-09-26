@@ -16,6 +16,10 @@ public:
             unsigned int pattern,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             const IShader* shader) const = 0;
+
+  virtual memory::string weight_to_string(float weight) const {
+    return fmt::format("{}", weight);
+  }
 };
 
 } // namespace denox::compiler

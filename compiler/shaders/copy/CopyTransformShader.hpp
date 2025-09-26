@@ -4,15 +4,18 @@
 #include "diag/logging.hpp"
 #include "diag/unreachable.hpp"
 #include "shaders/IShader.hpp"
+#include <stdexcept>
 namespace denox::compiler::shaders {
 
 class CopyTransformShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  static constexpr unsigned int EXPLICIT_CONCAT_PATTERN = 0;
-  static constexpr unsigned int IMPLICIT_CONCAT_PATTERN = 1;
-  static constexpr unsigned int SINGLE_COPY_CONCAT_PATTERN = 2;
+  static constexpr unsigned int IMPLICIT_CONCAT_MODE = 1 << 8;
+  static constexpr unsigned int SINGLE_COPY_CONCAT_MODE = 2 << 8;
+  static constexpr unsigned int EXPLICIT_CONCAT_MODE = 3 << 8;
+  static constexpr unsigned int CONCAT_MODE_MASK = 0xFF << 8;
+  static constexpr unsigned int PATTERN_MASK = 0xFF;
 
   static constexpr bool
       ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
@@ -27,10 +30,7 @@ public:
       auto out = concat->matchDst();
       concat->matchValue(
           [](const ComputeOp &op) { return op.tag() == ComputeOpTag::Concat; });
-      m_concatSrc0 = in0;
-      m_concatSrc1 = in1;
-      m_concatDst = out;
-
+      m_patternHandles.emplace_back(in0, in1, out);
       m_capabilities.patterns.emplace_back(std::move(concatPattern),
                                            std::move(in0), std::move(in1),
                                            std::move(out));
@@ -43,12 +43,17 @@ public:
 
   memory::optional<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
-              [[maybe_unused]] unsigned int pattern,
+              [[maybe_unused]] unsigned int patternEnc,
               const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                   &match) const final override {
-    const memory::NodeId src0Id = match[m_concatSrc0];
-    const memory::NodeId src1Id = match[m_concatSrc1];
-    const memory::NodeId dstId = match[m_concatDst];
+    unsigned int pattern = patternEnc & PATTERN_MASK;
+    unsigned int mode = patternEnc & CONCAT_MODE_MASK;
+    assert(mode == 0);
+
+    const auto &patternHandles = m_patternHandles[pattern];
+    const memory::NodeId src0Id = match[patternHandles.src0];
+    const memory::NodeId src1Id = match[patternHandles.src1];
+    const memory::NodeId dstId = match[patternHandles.dst];
 
     const TensorInstance &src0 = graph.get(src0Id);
     const TensorInstance &src1 = graph.get(src1Id);
@@ -61,10 +66,10 @@ public:
     if (!(src0.layout == memory::ActivationLayout::CHWC8 &&
           src1.layout == memory::ActivationLayout::CHWC8 &&
           dst.layout == memory::ActivationLayout::CHWC8)) {
-      return EXPLICIT_CONCAT_PATTERN;
+      return pattern | EXPLICIT_CONCAT_MODE;
     }
     if (!(src0.type == src1.type && src1.type == dst.type)) {
-      return EXPLICIT_CONCAT_PATTERN;
+      return pattern | EXPLICIT_CONCAT_MODE;
     }
     assert(dst.channels == src0.channels + src1.channels);
 
@@ -83,10 +88,10 @@ public:
     }
 
     if (src0ConcatFanout > 1 && src1ConcatFanout > 1) {
-      return EXPLICIT_CONCAT_PATTERN;
+      return pattern | EXPLICIT_CONCAT_MODE;
     }
     if (src0ConcatFanout == 1 && src1ConcatFanout == 1) {
-      return IMPLICIT_CONCAT_PATTERN;
+      return pattern | IMPLICIT_CONCAT_MODE;
     }
 
     if (ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE) {
@@ -139,40 +144,83 @@ public:
             "implicitly in memory based on lifetime analysis. This may "
             "currently result in unimplementable memory constraints (See "
             "Github Issue #13)");
-        return IMPLICIT_CONCAT_PATTERN; // viable implicit; actual anchor chosen
-                                        // later
+        return pattern | IMPLICIT_CONCAT_MODE; // viable implicit; actual anchor
+                                               // chosen later
       }
     }
 
-    return SINGLE_COPY_CONCAT_PATTERN;
+    return pattern | SINGLE_COPY_CONCAT_MODE;
   }
 
-  float speedup([[maybe_unused]] unsigned int pattern) const final override {
-    switch (pattern) {
-    case IMPLICIT_CONCAT_PATTERN:
+  float speedup([[maybe_unused]] unsigned int patternEnc) const final override {
+    switch (patternEnc & CONCAT_MODE_MASK) {
+    case IMPLICIT_CONCAT_MODE:
       return 0.0f;
-    case SINGLE_COPY_CONCAT_PATTERN:
+    case SINGLE_COPY_CONCAT_MODE:
       return 0.5f;
-    case EXPLICIT_CONCAT_PATTERN:
-      return 1.0f;
+    case EXPLICIT_CONCAT_MODE:
+      return 1.0f; // <- horrible performance
     default:
       compiler::diag::unreachable();
     }
   }
 
-  // TODO Figure out the return from here, maybe directly somethig like a
-  // dispatch with a compiled SPIR-V or something like this.
-  void implement([[maybe_unused]] unsigned int pattern,
-                 [[maybe_unused]] const algorithm::ConstGraphMatch<
-                     TensorInstance, ComputeOp> &match) const final override {}
+  void implement(Impl &impl,
+                 const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+                 unsigned int patternEnc,
+                 const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+                     &match) const final override {
+    unsigned int pattern = patternEnc & PATTERN_MASK;
+    unsigned int mode = patternEnc & CONCAT_MODE_MASK;
+    const auto &patternHandles = m_patternHandles[pattern];
 
-  memory::string name(unsigned int pattern) const final override {
-    switch (pattern) {
-    case IMPLICIT_CONCAT_PATTERN:
+    memory::NodeId src0Id = match[patternHandles.src0];
+    memory::NodeId src1Id = match[patternHandles.src1];
+    memory::NodeId dstId = match[patternHandles.dst];
+
+    const auto& src0 = opGraph.get(src0Id);
+    const auto& src1 = opGraph.get(src1Id);
+
+    switch (mode) {
+    case IMPLICIT_CONCAT_MODE: {
+      impl.createImplicitConcatConstrain(src0Id, src1Id, dstId);
+      break;
+    }
+    case SINGLE_COPY_CONCAT_MODE: {
+      [[maybe_unused]] auto dispatch = impl.dispatch({});
+      // TODO Select anchor.
+      throw std::runtime_error("not implemented yet.");
+
+      break;
+    }
+    case EXPLICIT_CONCAT_MODE: {
+      auto copySrc0Dispatch = impl.dispatch({});
+      copySrc0Dispatch.addBinding(src0Id);
+      copySrc0Dispatch.addBinding(dstId);
+      copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.x));
+      copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.y));
+      copySrc0Dispatch.setName("explicit-concat-copy-src0");
+      copySrc0Dispatch.setSourcePath(m_srcPath);
+
+      auto copySrc1Dispatch = impl.dispatch({});
+      copySrc1Dispatch.addBinding(src1Id);
+      copySrc1Dispatch.addBinding(dstId);
+      copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.x));
+      copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.y));
+      copySrc1Dispatch.setName("explicit-concat-copy-src1");
+      copySrc1Dispatch.setSourcePath(m_srcPath);
+      break;
+    }
+    }
+  }
+
+  memory::string name(unsigned int patternEnc) const final override {
+    switch (patternEnc & CONCAT_MODE_MASK) {
+    case IMPLICIT_CONCAT_MODE:
       return "implicit-concat";
-    case SINGLE_COPY_CONCAT_PATTERN:
+    case SINGLE_COPY_CONCAT_MODE:
       return "single-copy-concat";
-    case EXPLICIT_CONCAT_PATTERN:
+    case EXPLICIT_CONCAT_MODE:
       return "explicit-concat";
     default:
       compiler::diag::unreachable();
@@ -181,9 +229,14 @@ public:
 
 private:
   ShaderCapabilities m_capabilities;
-  Pattern::NP m_concatSrc0;
-  Pattern::NP m_concatSrc1;
-  Pattern::NP m_concatDst;
+  struct Handles {
+    Pattern::NP src0;
+    Pattern::NP src1;
+    Pattern::NP dst;
+  };
+  memory::vector<Handles> m_patternHandles;
+
+  io::Path m_srcPath = io::Path::cwd() / "compiler/shaders/copy/copy_transform.comp";
 };
 
 } // namespace denox::compiler::shaders
