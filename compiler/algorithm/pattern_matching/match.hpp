@@ -118,14 +118,15 @@ match_all_rec(const NodePatternHandle<V, E, W> &nodePattern,
       nodePattern->getIncoming(); // span of EdgePatternHandle
   const auto outgoingReq =
       nodePattern->getOutgoing();                  // span of EdgePatternHandle
-  const auto incomingAdj = graph.incoming(nodeId); // span of EdgeId
-  const auto outgoingAdj = graph.outgoing(nodeId); // span of EdgeId
+  memory::span<const memory::EdgeId> incomingAdj = graph.incoming(nodeId); // span of EdgeId
+  memory::span<const memory::EdgeId> outgoingAdj = graph.outgoing(nodeId); // span of EdgeId
 
   // Helper: satisfy a set of edge-requirements against an adjacency list,
   // with backtracking and "no edge reuse" within the set.
   auto satisfy_edge_set =
       [&](const std::span<const EdgePatternHandle<V, E, W>> &reqs,
-          const auto &adj, const ConstGraphMatch<V, E, W> &seed)
+          memory::span<const memory::EdgeId> adj,
+          const ConstGraphMatch<V, E, W> &seed)
       -> std::vector<ConstGraphMatch<V, E, W>> {
     std::vector<ConstGraphMatch<V, E, W>> results;
 
