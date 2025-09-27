@@ -43,9 +43,6 @@ If you interessted in running the current version:
 Checkout the Github Actions tab and look for a commit, where the 
 CI passed.
 
-> Currently CI always fails because clang-18-1-3 dies with some internal error, just look for a CI, where gcc-stable or gcc-latest pass.
-> If you use clang and the build fails try upgrading clang 20.
-
 ##### 1. Install dependencies (Ubuntu)
 ```
 sudo apt-get install -y protobuf-compiler libprotobuf-dev libfmt-dev libvulkan1 vulkan-tools libvulkan-dev libshaderc-dev glslc glslang-tools
