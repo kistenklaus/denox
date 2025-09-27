@@ -39,6 +39,7 @@ endif()
 # --------------------------------------------------------------------------
 set(DENOX_PROTOBUF_ABSL_CONFIGS "Debug" CACHE STRING "Configs that must link Abseil with protobuf")
 
+
 # Normalize config list
 separate_arguments(DENOX_PROTOBUF_ABSL_CONFIGS)
 

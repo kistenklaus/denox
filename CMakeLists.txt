@@ -3,6 +3,13 @@ project(denox VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS true)
 
+include(cmake/colorful.cmake)
+
+if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "") 
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
@@ -150,6 +157,8 @@ target_link_libraries(denox_compiler
     denox::spdlog
     denox::onnx
     denox::generator
+    # denox::vulkan
+    # denox::shaderc
 )
 
 
