@@ -14,7 +14,8 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 include(cmake/vulkan.cmake)
-include(cmake/shaderc.cmake)
+include(cmake/glslang.cmake)
+include(cmake/spirv-tools.cmake)
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/onnx.cmake)
@@ -120,6 +121,8 @@ add_library(denox_compiler
   compiler/shaders/pool/BasicPoolShader.cpp
   compiler/shaders/slice/MemorySliceShader.cpp
   compiler/shaders/upsample/BasicUpsampleShader.cpp
+  compiler/shaders/GlslCompiler.cpp
+  compiler/shaders/global_glslang_runtime.cpp
   compiler/shaders/preprocessing.cpp
 
   compiler/api.cpp
@@ -157,8 +160,9 @@ target_link_libraries(denox_compiler
     denox::spdlog
     denox::onnx
     denox::generator
-    # denox::vulkan
-    # denox::shaderc
+    denox::vulkan
+    denox::glslang
+    denox::spirv-tools
 )
 
 

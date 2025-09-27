@@ -1,0 +1,37 @@
+include_guard(GLOBAL)
+include(cmake/colorful.cmake)
+
+# Prefer the official CMake config package
+find_package(glslang CONFIG QUIET)
+
+if (glslang_FOUND)
+  if (TARGET glslang::glslang)
+    add_library(denox::glslang INTERFACE IMPORTED)
+    target_link_libraries(denox::glslang INTERFACE glslang::glslang)
+    log_success("✅ glslang available (system) ${glslang_DIR}")
+    return()
+  elseif (TARGET glslang) # older exports
+    add_library(denox::glslang INTERFACE IMPORTED)
+    target_link_libraries(denox::glslang INTERFACE glslang)
+    log_success("✅ glslang available (system) ${glslang_DIR}")
+    return()
+  endif()
+endif()
+
+# Fallback: pkg-config (core lib only)
+find_package(PkgConfig QUIET)
+if (PkgConfig_FOUND)
+  pkg_check_modules(GLSLANG IMPORTED_TARGET glslang QUIET)
+  if (GLSLANG_FOUND)
+    add_library(denox::glslang INTERFACE IMPORTED)
+    target_link_libraries(denox::glslang INTERFACE PkgConfig::GLSLANG)
+    if (DEFINED GLSLANG_VERSION)
+      log_success("✅ glslang available (pkg-config) v${GLSLANG_VERSION}")
+    else()
+      log_success("✅ glslang available (pkg-config)")
+    endif()
+    return()
+  endif()
+endif()
+
+log_error("❌ glslang not found. Install 'glslang' (dev package) or provide a CMake config path.")

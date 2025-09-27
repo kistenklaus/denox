@@ -31,7 +31,7 @@ denox::compiler::shaders::CopyTransformShader::acceptMatch(
     [[maybe_unused]] unsigned int patternEnc,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match) const {
   unsigned int pattern = patternEnc & PATTERN_MASK;
-  unsigned int mode = patternEnc & CONCAT_MODE_MASK;
+  [[maybe_unused]] unsigned int mode = patternEnc & CONCAT_MODE_MASK;
   assert(mode == 0);
 
   const auto &patternHandles = m_patternHandles[pattern];

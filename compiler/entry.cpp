@@ -9,6 +9,7 @@
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
+#include "shaders/global_glslang_runtime.hpp"
 #include <google/protobuf/port.h>
 
 namespace denox::compiler {
@@ -33,6 +34,11 @@ static Model frontend(memory::span<const std::byte> raw,
 }
 
 void entry(memory::span<const std::byte> raw, const Options &options) {
+
+  if (options.externally_managed_glslang_runtime) {
+    global_glslang_runtime::assume_externally_managed();
+  }
+
   Model model = frontend(raw, options);
 
   fmt::println("\x1B[32m\x1B[1m{:=^40}\x1B[0m", "Imported=Model");
@@ -43,8 +49,8 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
 
   Lifetimes lifetimes = compiler::lifeness(canoModel);
 
-  SpecModel specModel =
-      compiler::specialize(canoModel, lifetimes, memory::ActivationLayout::supported());
+  SpecModel specModel = compiler::specialize(
+      canoModel, lifetimes, memory::ActivationLayout::supported());
 
   OpModel opModel = compiler::dce(specModel);
 

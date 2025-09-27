@@ -66,8 +66,6 @@ else()
     include(cmake/absl.cmake)
     target_link_libraries(denox::protobuf INTERFACE denox::absl)
     log_info("Linking absl to libprotobuf (Only a ${CMAKE_BUILD_TYPE} dependency)")
-  else()
-    log_success("✅ No Abseil for ${CMAKE_BUILD_TYPE}; Release stays absl-free")
   endif()
 endif()
 

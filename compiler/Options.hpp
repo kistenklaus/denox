@@ -34,6 +34,7 @@ struct Features {
 
 struct Options {
   unsigned int version;
+  bool externally_managed_glslang_runtime = false;
   SrcType srcType;
   DeviceInfo deviceInfo;
   Features features;
