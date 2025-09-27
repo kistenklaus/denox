@@ -1,3 +1,4 @@
+
 function(denox_enable_strict_warnings tgt)
   if (MSVC)
     target_compile_options(${tgt} PRIVATE

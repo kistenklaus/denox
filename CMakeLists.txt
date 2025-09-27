@@ -6,12 +6,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS true)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-include(cmake/options.cmake)
+include(cmake/vulkan.cmake)
+include(cmake/shaderc.cmake)
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
-include(cmake/onnx_proto.cmake)
-include(cmake/googletest.cmake)
+include(cmake/onnx.cmake)
 include(cmake/generator.cmake)
+
+include(cmake/warnings.cmake)
 
 add_library(denox_compiler 
 
@@ -144,20 +146,18 @@ target_include_directories(denox_compiler
 
 target_link_libraries(denox_compiler
   PUBLIC 
-    fmt::fmt
-    spdlog::spdlog_header_only
-    denox::onnx_proto
-    lewissbaker_generator
+    denox::fmt
+    denox::spdlog
+    denox::onnx
+    denox::generator
 )
-
-denox_enable_strict_warnings(denox_compiler)
-
 
 
 add_executable(denox
   cli/main.cpp
 )
-denox_enable_strict_warnings(denox)
+
+
 
 set_target_properties(denox PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -166,41 +166,57 @@ target_link_libraries(denox
       denox::compiler
 )
 
+option(DENOX_ENABLE_STRICT_WARNINGS "Enables most warning flags" ON)
+if (DENOX_ENABLE_STRICT_WARNINGS)
+  denox_enable_strict_warnings(denox)
+  denox_enable_strict_warnings(denox_compiler)
+endif()
+
 # ================= Testing ======================
-add_executable(denox_test EXCLUDE_FROM_ALL
-  test/main.cpp
-  test/compiler/algorithm/match_first.cpp
-  test/compiler/algorithm/match_all.cpp
-  test/compiler/algorithm/shortest_dag_hyperpath.cpp
-  test/compiler/memory/monotone_pool_allocator.cpp
-  test/compiler/memory/linked_graph.cpp
-  test/compiler/symbolic/affine.cpp
-  test/compiler/symbolic/common.cpp
-  test/compiler/symbolic/eval.cpp
-  test/compiler/symbolic/modsolve.cpp
-  test/compiler/symbolic/nonaffine.cpp
-  test/compiler/symbolic/unsolvable.cpp
-)
 
-denox_enable_strict_warnings(denox_test)
+option(BUILD_TESTING "Build tests" ON)
+if (BUILD_TESTING)
+  include(cmake/googletest.cmake)
+
+  enable_testing()
+
+  add_executable(denox_test EXCLUDE_FROM_ALL
+    test/main.cpp
+    test/compiler/algorithm/match_first.cpp
+    test/compiler/algorithm/match_all.cpp
+    test/compiler/algorithm/shortest_dag_hyperpath.cpp
+    test/compiler/memory/monotone_pool_allocator.cpp
+    test/compiler/memory/linked_graph.cpp
+    test/compiler/symbolic/affine.cpp
+    test/compiler/symbolic/common.cpp
+    test/compiler/symbolic/eval.cpp
+    test/compiler/symbolic/modsolve.cpp
+    test/compiler/symbolic/nonaffine.cpp
+    test/compiler/symbolic/unsolvable.cpp
+  )
 
 
-target_link_libraries(denox_test
-  PUBLIC
-    denox::compiler
-    GTest::gtest
-    lewissbaker_generator
-)
+  if (DENOX_ENABLE_STRICT_WARNINGS)
+    denox_enable_strict_warnings(denox_test)
+  endif()
 
-target_include_directories(denox_test
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/compiler
-    ${CMAKE_CURRENT_SOURCE_DIR}/test
-)
 
-gtest_discover_tests(denox_test
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
+  target_link_libraries(denox_test
+    PUBLIC
+      denox::compiler
+      denox::gtest
+  )
+
+  target_include_directories(denox_test
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/compiler
+      ${CMAKE_CURRENT_SOURCE_DIR}/test
+  )
+
+  gtest_discover_tests(denox_test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+endif()
   
 
 
