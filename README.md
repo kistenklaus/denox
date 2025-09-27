@@ -48,7 +48,7 @@ CI passed.
 
 ##### 1. Install dependencies (Ubuntu)
 ```
-sudo apt-get install -y protobuf-compiler libprotobuf-dev libfmt-dev
+sudo apt-get install -y protobuf-compiler libprotobuf-dev libfmt-dev libvulkan1 vulkan-tools libvulkan-dev libshaderc-dev glslc glslang-tools
 ```
 If you are on another linux distro, just make sure that ```protobuf``` and```fmt```is installed,
 but on most systems they should be installed anyway, as part of other packages.
