@@ -1,9 +1,11 @@
 #include "entry.hpp"
+#include "Options.hpp"
 #include "compiler/cano/cano.hpp"
 #include "compiler/dce.hpp"
 #include "compiler/impl/impl.hpp"
 #include "compiler/lifeness.hpp"
 #include "compiler/spec.hpp"
+#include "device_info/query/query_driver_device_info.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/onnx.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
@@ -34,10 +36,6 @@ static Model frontend(memory::span<const std::byte> raw,
 }
 
 void entry(memory::span<const std::byte> raw, const Options &options) {
-
-  if (options.externally_managed_glslang_runtime) {
-    global_glslang_runtime::assume_externally_managed();
-  }
 
   Model model = frontend(raw, options);
 

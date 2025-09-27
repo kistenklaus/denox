@@ -32,6 +32,10 @@ add_library(denox_compiler
   compiler/compiler/spec.cpp
   compiler/compiler/lifeness.cpp
 
+  compiler/device_info/query/query_driver_device_info.cpp
+  compiler/device_info/query/select_physical_device.cpp
+  compiler/device_info/query/create_query_instance.cpp
+
   compiler/memory/dtype/dtype_reference.cpp
   compiler/memory/dtype/f16.cpp
 
@@ -136,6 +140,8 @@ add_library(denox::denox ALIAS denox_compiler)
 
 
 target_compile_definitions(denox_compiler 
+  PUBLIC
+    DENOX_VERSION=0
   PRIVATE 
     SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
     SPDLOG_NO_ATOMIC_LEVELS
@@ -154,8 +160,12 @@ target_include_directories(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/compiler
 )
 
+option(DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT 
+  "Exposes vulkan as a public dependency and allows passing a vulkan instance and device, which will be used for device queries" 
+  ON)
+
 target_link_libraries(denox_compiler
-  PUBLIC 
+  PRIVATE 
     denox::fmt
     denox::spdlog
     denox::onnx
@@ -164,6 +174,12 @@ target_link_libraries(denox_compiler
     denox::glslang
     denox::spirv-tools
 )
+
+if (DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT)
+  target_link_libraries(denox_compiler PUBLIC denox::vulkan)
+  target_compile_definitions(denox_compiler PUBLIC DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT)
+endif()
+
 
 
 add_executable(denox
@@ -218,6 +234,13 @@ if (BUILD_TESTING)
     PUBLIC
       denox::compiler
       denox::gtest
+      denox::fmt
+      denox::spdlog
+      denox::onnx
+      denox::generator
+      denox::vulkan
+      denox::glslang
+      denox::spirv-tools
   )
 
   target_include_directories(denox_test

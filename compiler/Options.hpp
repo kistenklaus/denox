@@ -1,45 +1,29 @@
 #pragma once
 
+#include "device_info/DeviceInfo.hpp"
 #include "io/fs/Path.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
+#include <vulkan/vulkan_core.h>
+
 namespace denox::compiler {
 
 enum class SrcType {
   Onnx,
 };
 
-struct CoopMatType {
-  unsigned int m;
-  unsigned int k;
-  unsigned int n;
-  memory::Dtype atype;
-  memory::Dtype btype;
-  memory::Dtype accType;
-};
-
-struct DeviceInfo {
-  std::pair<unsigned int, unsigned int> spirvVersion;
-  memory::vector<CoopMatType> coopmatTypes;
-};
-
-struct Features {
-  bool fusion;
-  bool memory_concat;
-  bool coopmat;
-};
-
 
 struct Options {
-  unsigned int version;
-  bool externally_managed_glslang_runtime = false;
+  unsigned int dnxVersion;
   SrcType srcType;
-  DeviceInfo deviceInfo;
-  Features features;
   memory::ActivationLayout inputLayout;
+  memory::Dtype inputType;
   memory::ActivationLayout outputLayout;
+  memory::Dtype outputType;
+  DeviceInfo deviceInfo;
+
   io::Path cwd;
   memory::optional<io::Path> srcPath;
 };

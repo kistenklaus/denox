@@ -1,42 +1,16 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
-#include <span>
-#include <string_view>
+
+#ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
+#include <vulkan/vulkan_core.h>
+#endif
 
 namespace denox {
 
 enum class SrcType {
   Auto, // <- infer from file extention.
-  ONNX, // <- force onnx frontend.
-};
-
-enum class CoopMatElemType {
-  float16_t,
-};
-
-enum class CoopMatScope {
-  Device,
-  QueueFamily,
-  Workgroup,
-  Subgroup,
-};
-
-struct DeviceCoopMatType {
-  unsigned int m;
-  unsigned int k;
-  unsigned int n;
-  CoopMatElemType aType;
-  CoopMatElemType bType;
-  CoopMatElemType accType;
-  CoopMatScope scope;
-};
-
-struct DeviceInfo {
-  std::pair<unsigned int, unsigned int> spirvVersion;
-  DeviceCoopMatType *coopmatTypes;
-  std::size_t coopmatTypeCount;
+  Onnx, // <- force onnx frontend.
 };
 
 enum FeatureState {
@@ -51,31 +25,52 @@ struct Features {
   FeatureState coopmat = Enable;
 };
 
-struct Heuristic {
-  // TODO later (but a discriminated type union or something like it.)
+enum class Heuristic {
+  MemoryBandwidth,
 };
 
-enum StorageLayoutFlags : std::uint64_t {
-  STORAGE_SSBO_BIT = 1 << 0,
-  LAYOUT_HWC = 1 << 1,
-  LAYOUT_CHWC8 = 1 << 2,
-  STORAGE_LAYOUT_SSBO_HWC = STORAGE_SSBO_BIT | LAYOUT_HWC,
-  STORAGE_LAYOUT_SSBO_CHWC8 = STORAGE_SSBO_BIT | LAYOUT_CHWC8
+enum class Storage {
+  StorageBuffer,
 };
+
+enum class Layout {
+  HWC,
+  CHWC8,
+};
+
+enum DataType {
+  Float16,
+};
+
+struct BufferDescription {
+  Storage storage;
+  Layout layout;
+  DataType dtype;
+};
+
+#ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
+struct ExternallyManagedVulkanContext {
+  VkInstance instance;
+  VkPhysicalDevice physicalDevice;
+};
+#endif
 
 struct CompileOptions {
-  unsigned int version = 0; // <- 0 no specific version.
+  unsigned int dnxVersion = 0; // <- 0 "auto" picks stable version.
   SrcType srcType = SrcType::Auto;
-  DeviceInfo *deviceInfo = nullptr;
   Features features;
-  Heuristic heuristic = {};
-  StorageLayoutFlags inputStorageLayout = STORAGE_LAYOUT_SSBO_HWC;
-  StorageLayoutFlags outputStorageLayout = STORAGE_LAYOUT_SSBO_HWC;
-
+  Heuristic heuristic = Heuristic::MemoryBandwidth;
+  BufferDescription inputDescription;
+  BufferDescription outputDescription;
   const char *cwd = nullptr;
+
+  bool externally_managed_glslang_runtime = false;
+#ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
+  ExternallyManagedVulkanContext *externally_managed_vulkan_context = nullptr;
+#endif
 };
 
-void compile(const char *path, const CompileOptions &options = {});
-void compile(void *data, std::size_t n, const CompileOptions &options = {});
+void compile(const char *path, const CompileOptions &options);
+void compile(void *data, std::size_t n, const CompileOptions &options);
 
 } // namespace denox

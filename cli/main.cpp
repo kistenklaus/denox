@@ -1,25 +1,18 @@
 #include "denox/compiler.hpp"
-#include <vector>
 
 int main() {
-  denox::DeviceInfo deviceInfo;
-  deviceInfo.spirvVersion = {1, 6};
-  std::vector<denox::DeviceCoopMatType> coopmatTypes = {
-      denox::DeviceCoopMatType{
-          .m = 16,
-          .k = 16,
-          .n = 16,
-          .aType = denox::CoopMatElemType::float16_t,
-          .bType = denox::CoopMatElemType::float16_t,
-          .accType = denox::CoopMatElemType::float16_t,
-          .scope = denox::CoopMatScope::Subgroup,
-      }};
-  deviceInfo.coopmatTypes = coopmatTypes.data();
-  deviceInfo.coopmatTypeCount = coopmatTypes.size();
   denox::CompileOptions options;
-  options.deviceInfo = &deviceInfo;
-  options.inputStorageLayout = denox::STORAGE_LAYOUT_SSBO_HWC;
-  options.outputStorageLayout = denox::STORAGE_LAYOUT_SSBO_HWC;
+  options.dnxVersion = 0;
+  options.features.coopmat = denox::Require;
+  options.features.fusion = denox::Require;
+  options.features.memory_concat = denox::Enable;
+
+  options.inputDescription.storage = denox::Storage::StorageBuffer;
+  options.inputDescription.layout = denox::Layout::HWC;
+  options.inputDescription.dtype = denox::DataType::Float16;
+  options.outputDescription.storage = denox::Storage::StorageBuffer;
+  options.outputDescription.layout = denox::Layout::HWC;
+  options.outputDescription.dtype = denox::DataType::Float16;
 
   denox::compile("net.onnx", options);
 }

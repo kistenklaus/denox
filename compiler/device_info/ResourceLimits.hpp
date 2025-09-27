@@ -6,7 +6,7 @@ namespace denox::compiler {
 struct ResourceLimits {
   std::uint32_t maxComputeWorkGroupCount[3];
   std::uint32_t maxComputeWorkGroupSize[3];
-  std::uint32_t maxComputeWorkGroupInvocations[3];
+  std::uint32_t maxComputeWorkGroupInvocations;
   std::uint32_t maxComputeSharedMemory;
 
   std::uint32_t maxPerStageResources;
