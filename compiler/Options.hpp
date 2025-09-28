@@ -3,7 +3,6 @@
 #include "device_info/DeviceInfo.hpp"
 #include "io/fs/Path.hpp"
 #include "memory/container/optional.hpp"
-#include "memory/container/vector.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include <vulkan/vulkan_core.h>
@@ -16,6 +15,8 @@ enum class SrcType {
 
 struct FusionRules {
   bool enableSliceSliceFusion = false;
+  bool enableImplicitConcat = false;
+  bool enableConvReluFusion = false;
 };
 
 struct Options {

@@ -146,6 +146,11 @@ void compile(const char *cpath, const CompileOptions &options) {
   compiler::FusionRules fusionRules;
   if (options.features.fusion != Disable) {
     fusionRules.enableSliceSliceFusion = true;
+    fusionRules.enableConvReluFusion = true;
+  }
+
+  if (options.features.memory_concat != Disable) {
+    fusionRules.enableImplicitConcat = true;
   }
 
   std::size_t pathLen = std::strlen(cpath);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Options.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
 #include "io/fs/Path.hpp"
 #include "memory/container/optional.hpp"
@@ -19,7 +20,7 @@ private:
   static constexpr unsigned int CONV_RELU_PATTERN = 1;
 
 public:
-  DirectConvShader(GlslCompiler *compiler);
+  DirectConvShader(GlslCompiler *compiler, const Options& options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -53,6 +54,7 @@ private:
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
       io::Path::cwd() / "compiler/shaders/conv/direct_conv.comp";
+  bool m_enableConvReluFusion;
 };
 
 } // namespace denox::compiler::shaders

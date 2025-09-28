@@ -5,8 +5,8 @@
 
 namespace denox::compiler::shaders {
 
-DirectConvShader::DirectConvShader(GlslCompiler *compiler)
-    : m_compiler(compiler) {
+DirectConvShader::DirectConvShader(GlslCompiler *compiler, const Options& options)
+    : m_compiler(compiler), m_enableConvReluFusion(options.fusionRules.enableConvReluFusion) {
   const auto tensorSupported = [](const TensorInstance &tensor) {
     if (tensor.type != memory::Dtype::F16) {
       return false;
@@ -35,7 +35,7 @@ DirectConvShader::DirectConvShader(GlslCompiler *compiler)
     m_capabilities.patterns.emplace_back(std::move(conv_pattern), std::move(in),
                                          std::move(out));
   }
-  { // possibly more patterns.
+  if (m_enableConvReluFusion) { // possibly more patterns.
     Pattern conv_relu_pattern;
     auto in = conv_relu_pattern.matchNode();
     auto conv = in->matchOutgoing();

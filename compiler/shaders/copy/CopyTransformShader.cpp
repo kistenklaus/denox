@@ -7,8 +7,8 @@ namespace denox::compiler::shader {
 
 }
 denox::compiler::shaders::CopyTransformShader::CopyTransformShader(
-    GlslCompiler *compiler)
-    : m_compiler(compiler) {
+    GlslCompiler *compiler, const Options& options)
+    : m_compiler(compiler), m_enableImplicitConcat(options.fusionRules.enableImplicitConcat) {
   {
     Pattern concatPattern;
     auto concat = concatPattern.matchEdge();
@@ -45,6 +45,10 @@ denox::compiler::shaders::CopyTransformShader::acceptMatch(
 
   if (!(src0.layout == src1.layout && src1.layout == dst.layout)) {
     return memory::nullopt;
+  }
+
+  if (!m_enableImplicitConcat) {
+    return pattern | EXPLICIT_CONCAT_MODE;
   }
 
   if (!(src0.layout == memory::ActivationLayout::CHWC8 &&

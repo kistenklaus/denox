@@ -52,6 +52,6 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
 
   OpModel opModel = compiler::dce(specModel);
 
-  compiler::implement(opModel, symGraph);
+  compiler::implement(opModel, symGraph, options);
 }
 } // namespace denox::compiler

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Options.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
 #include "shaders/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
@@ -19,7 +20,7 @@ public:
   static constexpr bool
       ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
 
-  CopyTransformShader(GlslCompiler *compiler);
+  CopyTransformShader(GlslCompiler *compiler, const Options& options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -54,6 +55,8 @@ private:
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
       io::Path::cwd() / "compiler/shaders/copy/copy_transform.comp";
+
+  bool m_enableImplicitConcat;
 };
 
 } // namespace denox::compiler::shaders

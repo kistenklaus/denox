@@ -29,7 +29,7 @@ struct ComputeOpImpl {
 
 using SuperGraph = memory::AdjGraph<TensorInstance, ComputeOpImpl, float>;
 
-ImplModel implement(const OpModel &model, const SymGraph &symGraphRef) {
+ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Options& options) {
   SymGraph symGraph = symGraphRef;
   const auto &opGraph = model.graph;
   SuperGraph supergraph{};
@@ -42,13 +42,13 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef) {
 
   GlslCompiler glslCompiler;
 
-  shaders::DirectConvShader directConv{&glslCompiler};
+  shaders::DirectConvShader directConv{&glslCompiler, options};
   shaders::BasicPoolShader basicPool{&glslCompiler};
   shaders::BasicUpsampleShader basicUpsample{&glslCompiler};
   shaders::MemoryPadShader memoryPad{&glslCompiler};
   shaders::MemorySliceShader memorySlice{&glslCompiler};
   shaders::BasicActivationShader basicActivation{&glslCompiler};
-  shaders::CopyTransformShader copyTransform{&glslCompiler};
+  shaders::CopyTransformShader copyTransform{&glslCompiler, options};
 
   const IShader *shaders[]{
       &directConv,      //
