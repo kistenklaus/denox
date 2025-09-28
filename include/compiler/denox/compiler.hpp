@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
 #include <vulkan/vulkan_core.h>
@@ -48,6 +49,19 @@ struct BufferDescription {
   DataType dtype;
 };
 
+enum class VulkanApiVersion {
+  Vulkan_1_0,
+  Vulkan_1_1,
+  Vulkan_1_2,
+  Vulkan_1_3,
+  Vulkan_1_4,
+};
+
+struct Device {
+  std::string deviceName; // <- allows of patterns like *AMD*
+  VulkanApiVersion apiVersion = VulkanApiVersion::Vulkan_1_3;
+};
+
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
 struct ExternallyManagedVulkanContext {
   VkInstance instance;
@@ -62,6 +76,7 @@ struct CompileOptions {
   Heuristic heuristic = Heuristic::MemoryBandwidth;
   BufferDescription inputDescription;
   BufferDescription outputDescription;
+  Device device;
   const char *cwd = nullptr;
 
   bool externally_managed_glslang_runtime = false;

@@ -11,9 +11,6 @@ struct SubgroupProperties {
   bool supportsBallotOps;
   bool supportsShuffleOps;
   bool supportsShuffleRelativeOps;
-
-  bool subgroupControl;
-  bool subgroupControlSupportsComputeFullSubgroups;
 };
 
 }

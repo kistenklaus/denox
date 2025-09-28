@@ -1,4 +1,5 @@
 #include "compiler/cano/cano.hpp"
+#include "Options.hpp"
 #include "algorithm/pattern_matching/match.hpp"
 #include "compiler/cano/rules/IFusionRule.hpp"
 #include "compiler/cano/rules/SliceSlice.hpp"
@@ -9,7 +10,7 @@
 
 namespace denox::compiler {
 
-CanoModel canonicalize(const Model &model) {
+CanoModel canonicalize(const Model &model, const Options &options) {
   // 1. Build LinkedGraph
   using LinkedGraph = memory::LinkedGraph<ComputeTensor, ComputeOp>;
   auto [mapping, graph] = LinkedGraph::from(model.graph());
@@ -29,11 +30,12 @@ CanoModel canonicalize(const Model &model) {
     throw std::runtime_error("Failed to canonicalize.");
   }
 
-  cano::SliceSlice sliceSliceRule;
+  memory::vector<cano::IFusionRule*> rules;
 
-  cano::IFusionRule *rules[] = {
-      &sliceSliceRule,
-  };
+  cano::SliceSlice sliceSliceRule;
+  if (options.fusionRules.enableSliceSliceFusion) {
+    rules.push_back(&sliceSliceRule);
+  }
 
   for (const auto &rule : rules) {
     const auto &pattern = rule->pattern();

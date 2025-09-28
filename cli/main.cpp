@@ -3,8 +3,8 @@
 int main() {
   denox::CompileOptions options;
   options.dnxVersion = 0;
-  options.features.coopmat = denox::Require;
-  options.features.fusion = denox::Require;
+  options.features.coopmat = denox::Enable;
+  options.features.fusion = denox::Enable;
   options.features.memory_concat = denox::Enable;
 
   options.inputDescription.storage = denox::Storage::StorageBuffer;
@@ -13,6 +13,9 @@ int main() {
   options.outputDescription.storage = denox::Storage::StorageBuffer;
   options.outputDescription.layout = denox::Layout::HWC;
   options.outputDescription.dtype = denox::DataType::Float16;
+
+  options.device.deviceName = "*AMD*";
+  options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_4;
 
   denox::compile("net.onnx", options);
 }

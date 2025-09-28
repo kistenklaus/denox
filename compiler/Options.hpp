@@ -14,6 +14,9 @@ enum class SrcType {
   Onnx,
 };
 
+struct FusionRules {
+  bool enableSliceSliceFusion = false;
+};
 
 struct Options {
   unsigned int dnxVersion;
@@ -23,7 +26,7 @@ struct Options {
   memory::ActivationLayout outputLayout;
   memory::Dtype outputType;
   DeviceInfo deviceInfo;
-
+  FusionRules fusionRules;
   io::Path cwd;
   memory::optional<io::Path> srcPath;
 };

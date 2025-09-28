@@ -1,7 +1,9 @@
 #include "Options.hpp"
 #include "denox/compiler.hpp"
+#include "device_info/ApiVersion.hpp"
 #include "device_info/DeviceInfo.hpp"
 #include "device_info/query/query_driver_device_info.hpp"
+#include "diag/logging.hpp"
 #include "diag/unreachable.hpp"
 #include "entry.hpp"
 #include "io/fs/File.hpp"
@@ -12,6 +14,7 @@
 #include "shaders/global_glslang_runtime.hpp"
 #include <cassert>
 #include <cstring>
+#include <exception>
 #include <fmt/format.h>
 #include <stdexcept>
 
@@ -79,22 +82,47 @@ static memory::Dtype parse_dtype(const DataType type) {
 }
 
 static compiler::DeviceInfo query_driver(const CompileOptions &options) {
+  compiler::ApiVersion apiVersion;
+  switch (options.device.apiVersion) {
+  case VulkanApiVersion::Vulkan_1_0:
+    apiVersion = compiler::ApiVersion::VULKAN_1_0;
+    break;
+  case VulkanApiVersion::Vulkan_1_1:
+    apiVersion = compiler::ApiVersion::VULKAN_1_1;
+    break;
+  case VulkanApiVersion::Vulkan_1_2:
+    apiVersion = compiler::ApiVersion::VULKAN_1_2;
+    break;
+  case VulkanApiVersion::Vulkan_1_3:
+    apiVersion = compiler::ApiVersion::VULKAN_1_3;
+    break;
+  case VulkanApiVersion::Vulkan_1_4:
+    apiVersion = compiler::ApiVersion::VULKAN_1_4;
+    break;
+  default:
+    compiler::diag::unreachable();
+  }
+
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
   if (options.externally_managed_vulkan_context != nullptr) {
     if (options.externally_managed_vulkan_context->instance != nullptr &&
         options.externally_managed_vulkan_context->physicalDevice != nullptr) {
       return compiler::device_info::query_driver_device_info(
           options.externally_managed_vulkan_context->instance,
-          options.externally_managed_vulkan_context->physicalDevice);
+          options.externally_managed_vulkan_context->physicalDevice,
+          apiVersion);
     } else if (options.externally_managed_vulkan_context->instance != nullptr &&
                options.externally_managed_vulkan_context->physicalDevice ==
                    nullptr) {
       return compiler::device_info::query_driver_device_info(
-          options.externally_managed_vulkan_context->instance);
+          options.externally_managed_vulkan_context->instance,
+          options.device.deviceName, apiVersion);
     }
   }
 #endif
-  return compiler::device_info::query_driver_device_info();
+
+  return compiler::device_info::query_driver_device_info(
+      apiVersion, options.device.deviceName);
 }
 
 void compile(const char *cpath, const CompileOptions &options) {
@@ -104,6 +132,21 @@ void compile(const char *cpath, const CompileOptions &options) {
   }
 
   compiler::DeviceInfo deviceInfo = query_driver(options);
+
+  if (options.features.coopmat == Require &&
+      deviceInfo.coopmat.supported == false) {
+    DENOX_ERROR("Feature coopmat required, but not supported for device \"{}\"",
+                deviceInfo.name);
+    std::terminate();
+  }
+  if (options.features.coopmat == Disable) {
+    deviceInfo.coopmat.supported = false;
+  }
+
+  compiler::FusionRules fusionRules;
+  if (options.features.fusion != Disable) {
+    fusionRules.enableSliceSliceFusion = true;
+  }
 
   std::size_t pathLen = std::strlen(cpath);
   memory::string_view pathView{cpath, pathLen};
@@ -135,6 +178,7 @@ void compile(const char *cpath, const CompileOptions &options) {
       .outputLayout = outputLayout,
       .outputType = outputType,
       .deviceInfo = std::move(deviceInfo),
+      .fusionRules = fusionRules,
       .cwd = cwd,
       .srcPath = path,
   };

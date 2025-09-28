@@ -43,7 +43,7 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   fmt::println("{}", model.to_string());
   SymGraph symGraph = model.symGraph();
 
-  CanoModel canoModel = compiler::canonicalize(model);
+  CanoModel canoModel = compiler::canonicalize(model, options);
 
   Lifetimes lifetimes = compiler::lifeness(canoModel);
 

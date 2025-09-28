@@ -4,8 +4,8 @@ namespace denox::compiler {
 
 struct MemoryModelProperties {
   bool vmm;
-  bool vmm_deviceScope;
-  bool vmm_availablityVisibilityChains;
+  bool vmmDeviceScope;
+  bool vmmAvailabilityVisibilityChains;
 
   bool bufferDeviceAddress;
   bool bufferDeviceAddressCaptureReplay;

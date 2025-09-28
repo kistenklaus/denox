@@ -34,6 +34,11 @@ add_library(denox_compiler
 
   compiler/device_info/query/query_driver_device_info.cpp
   compiler/device_info/query/select_physical_device.cpp
+  compiler/device_info/query/query_resource_limits.cpp
+  compiler/device_info/query/query_layout_rules.cpp
+  compiler/device_info/query/query_memory_model_properties.cpp
+  compiler/device_info/query/query_coopmat_properties.cpp
+  compiler/device_info/query/query_subgroup_properties.cpp
   compiler/device_info/query/create_query_instance.cpp
 
   compiler/memory/dtype/dtype_reference.cpp
