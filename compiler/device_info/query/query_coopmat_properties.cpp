@@ -5,6 +5,7 @@
 #include <fmt/format.h>
 #include <unistd.h>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 
 namespace denox::compiler::device_info::query {
 
@@ -14,6 +15,7 @@ query_coopmat_properties([[maybe_unused]] vk::Instance instance,
 
   CoopmatProperties props{};
   props.supported = false;
+#if defined(VK_KHR_cooperative_matrix) && VK_KHR_cooperative_matrix
 
   for (auto &ext : physicalDevice.enumerateDeviceExtensionProperties()) {
     if (strcmp(ext.extensionName, VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME) ==
@@ -40,11 +42,17 @@ query_coopmat_properties([[maybe_unused]] vk::Instance instance,
     case vk::ComponentTypeKHR::eUint16:
     case vk::ComponentTypeKHR::eUint32:
     case vk::ComponentTypeKHR::eUint64:
+#if defined(VK_KHR_shader_bfloat16) && VK_KHR_shader_bfloat16
     case vk::ComponentTypeKHR::eBfloat16:
+#endif
+#if defined(VK_NV_cooperative_vector) && VK_NV_cooperative_vector
     case vk::ComponentTypeKHR::eSint8PackedNV:
     case vk::ComponentTypeKHR::eUint8PackedNV:
+#endif
+#if defined(VK_EXT_shader_float8) && VK_EXT_shader_float8
     case vk::ComponentTypeKHR::eFloat8E4M3EXT:
     case vk::ComponentTypeKHR::eFloat8E5M2EXT:
+#endif
       return memory::nullopt;
     default:
       compiler::diag::unreachable();
@@ -101,6 +109,7 @@ query_coopmat_properties([[maybe_unused]] vk::Instance instance,
       }
     }
   }
+#endif
   return props;
 }
 

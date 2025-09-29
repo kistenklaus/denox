@@ -18,16 +18,32 @@ vk::Instance query::create_query_instance(ApiVersion apiVersion) {
     appInfo.apiVersion = VK_API_VERSION_1_0;
     break;
   case ApiVersion::VULKAN_1_1:
+#ifdef VK_API_VERSION_1_1
     appInfo.apiVersion = VK_API_VERSION_1_1;
+#else 
+    appInfo.apiVersion = VK_API_VERSION_1_0;
+#endif
     break;
   case ApiVersion::VULKAN_1_2:
+#ifdef VK_API_VERSION_1_2
     appInfo.apiVersion = VK_API_VERSION_1_2;
+#else
+    appInfo.apiVersion = VK_API_VERSION_1_0;
+#endif
     break;
   case ApiVersion::VULKAN_1_3:
+#ifdef VK_API_VERSION_1_3
     appInfo.apiVersion = VK_API_VERSION_1_3;
+#else
+    appInfo.apiVersion = VK_API_VERSION_1_0;
+#endif
     break;
   case ApiVersion::VULKAN_1_4:
+#ifdef VK_API_VERSION_1_4
     appInfo.apiVersion = VK_API_VERSION_1_4;
+#else 
+    appInfo.apiVersion = VK_API_VERSION_1_0;
+#endif
     break;
   default:
     compiler::diag::unreachable();
