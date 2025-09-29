@@ -1,53 +1,101 @@
 include_guard(GLOBAL)
-include(cmake/colorful.cmake)
 
-# Try official CMake config first
+option(DENOX_REQUIRE_SPIRV_TOOLS_OPT "Fail if SPIRV-Tools optimizer is not found" ON)
+
+# Helper: collect existing targets
+function(_collect out)
+  set(acc "")
+  foreach(t IN LISTS ARGN)
+    if (TARGET "${t}")
+      list(APPEND acc "${t}")
+    endif()
+  endforeach()
+  set(${out} "${acc}" PARENT_SCOPE)
+endfunction()
+
+set(_core_libs "")
+set(_opt_libs  "")
+
+# 1) Prefer CMake config
 find_package(SPIRV-Tools CONFIG QUIET)
 
-set(_core_targets "")
-set(_opt_targets  "")
-
 if (SPIRV-Tools_FOUND)
-  # Core (validator/as/dis)
-  if (TARGET SPIRV-Tools::SPIRV-Tools)
-    list(APPEND _core_targets SPIRV-Tools::SPIRV-Tools)
-  elseif (TARGET SPIRV-Tools)
-    list(APPEND _core_targets SPIRV-Tools)
-  endif()
+  # Core targets (names vary by build)
+  _collect(_core_targets
+    SPIRV-Tools::SPIRV-Tools
+    SPIRV-Tools                         # un-namespaced
+    SPIRV-Tools-static                  # some builds
+  )
+  list(APPEND _core_libs ${_core_targets})
 
-  # Optimizer (optional, if present)
-  if (TARGET SPIRV-Tools-opt::SPIRV-Tools-opt)
-    list(APPEND _opt_targets SPIRV-Tools-opt::SPIRV-Tools-opt)
-  elseif (TARGET SPIRV-Tools-opt)
-    list(APPEND _opt_targets SPIRV-Tools-opt)
-  endif()
+  # Optimizer targets (names vary)
+  _collect(_opt_targets
+    SPIRV-Tools-opt::SPIRV-Tools-opt
+    SPIRV-Tools-opt
+    SPIRV-Tools-opt-static
+  )
+  list(APPEND _opt_libs ${_opt_targets})
 endif()
 
-if (_core_targets STREQUAL "")
+# 2) pkg-config fallback
+if (_core_libs STREQUAL "" OR _opt_libs STREQUAL "")
   find_package(PkgConfig QUIET)
   if (PkgConfig_FOUND)
-    pkg_check_modules(SPVT     IMPORTED_TARGET SPIRV-Tools     QUIET)
-    pkg_check_modules(SPVT_OPT IMPORTED_TARGET SPIRV-Tools-opt QUIET)
-
-    if (SPVT_FOUND)
-      list(APPEND _core_targets PkgConfig::SPVT)
+    if (_core_libs STREQUAL "")
+      pkg_check_modules(SPVT IMPORTED_TARGET SPIRV-Tools QUIET)
+      if (SPVT_FOUND)
+        list(APPEND _core_libs PkgConfig::SPVT)
+      endif()
     endif()
-    if (SPVT_OPT_FOUND)
-      list(APPEND _opt_targets PkgConfig::SPVT_OPT)
+    if (_opt_libs STREQUAL "")
+      pkg_check_modules(SPVT_OPT IMPORTED_TARGET SPIRV-Tools-opt QUIET)
+      if (SPVT_OPT_FOUND)
+        list(APPEND _opt_libs PkgConfig::SPVT_OPT)
+      endif()
     endif()
   endif()
 endif()
 
-if (_core_targets STREQUAL "")
-  log_error("❌ SPIRV-Tools not found. Install 'spirv-tools' (dev package) or provide a CMake config path.")
+# 3) Direct library lookup (shared preferred, then static)
+function(_find_lib out name)
+  # Try shared first
+  set(_save "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".dylib" ".dll.a" ".a")
+  find_library(_loc NAMES "${name}")
+  set(CMAKE_FIND_LIBRARY_SUFFIXES "${_save}")
+  set(${out} "${_loc}" PARENT_SCOPE)
+endfunction()
+
+if (_core_libs STREQUAL "")
+  _find_lib(_loc_core "SPIRV-Tools")
+  if (_loc_core)
+    list(APPEND _core_libs "${_loc_core}")
+  endif()
+endif()
+
+if (_opt_libs STREQUAL "")
+  _find_lib(_loc_opt "SPIRV-Tools-opt")
+  if (_loc_opt)
+    list(APPEND _opt_libs "${_loc_opt}")
+  endif()
+endif()
+
+# 4) Validate and create interface target
+if (_core_libs STREQUAL "")
+  message(FATAL_ERROR
+    "❌ SPIRV-Tools core not found. Install 'spirv-tools' dev package or provide a CMake config/pkg-config.")
 endif()
 
 add_library(denox::spirv-tools INTERFACE IMPORTED)
-target_link_libraries(denox::spirv-tools INTERFACE ${_core_targets})
+target_link_libraries(denox::spirv-tools INTERFACE ${_core_libs})
 
-if (NOT _opt_targets STREQUAL "")
-  target_link_libraries(denox::spirv-tools INTERFACE ${_opt_targets})
-  log_success("✅ SPIRV-Tools available (core + optimizer)")
+if (NOT _opt_libs STREQUAL "")
+  target_link_libraries(denox::spirv-tools INTERFACE ${_opt_libs})
+  message(STATUS "✅ SPIRV-Tools: core + optimizer")
 else()
-  log_warn("⚠️ SPIRV-Tools available (core only, optimizer missing)")
+  if (DENOX_REQUIRE_SPIRV_TOOLS_OPT)
+    message(FATAL_ERROR "❌ SPIRV-Tools optimizer (SPIRV-Tools-opt) not found but required.")
+  else()
+    message(WARNING "⚠️ SPIRV-Tools: core found, optimizer missing (SPIRV-Tools-opt).")
+  endif()
 endif()
