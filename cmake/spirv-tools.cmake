@@ -1,4 +1,5 @@
 include_guard(GLOBAL)
+include(cmake/colorful.cmake)
 
 option(DENOX_REQUIRE_SPIRV_TOOLS_OPT "Fail if SPIRV-Tools optimizer is not found" ON)
 
@@ -82,8 +83,7 @@ endif()
 
 # 4) Validate and create interface target
 if (_core_libs STREQUAL "")
-  message(FATAL_ERROR
-    "❌ SPIRV-Tools core not found. Install 'spirv-tools' dev package or provide a CMake config/pkg-config.")
+  log_error("❌ SPIRV-Tools core not found. Install 'spirv-tools' dev package or provide a CMake config/pkg-config.")
 endif()
 
 add_library(denox::spirv-tools INTERFACE IMPORTED)
@@ -91,11 +91,11 @@ target_link_libraries(denox::spirv-tools INTERFACE ${_core_libs})
 
 if (NOT _opt_libs STREQUAL "")
   target_link_libraries(denox::spirv-tools INTERFACE ${_opt_libs})
-  message(STATUS "✅ SPIRV-Tools: core + optimizer")
+  log_success("✅ SPIRV-Tools: core + optimizer")
 else()
   if (DENOX_REQUIRE_SPIRV_TOOLS_OPT)
-    message(FATAL_ERROR "❌ SPIRV-Tools optimizer (SPIRV-Tools-opt) not found but required.")
+    log_error("❌ SPIRV-Tools optimizer (SPIRV-Tools-opt) not found but required.")
   else()
-    message(WARNING "⚠️ SPIRV-Tools: core found, optimizer missing (SPIRV-Tools-opt).")
+    log_warn("⚠️ SPIRV-Tools: core found, optimizer missing (SPIRV-Tools-opt).")
   endif()
 endif()
