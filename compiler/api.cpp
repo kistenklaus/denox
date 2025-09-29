@@ -11,7 +11,7 @@
 #include "memory/container/span.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
-#include "shaders/global_glslang_runtime.hpp"
+#include "shaders/compiler/global_glslang_runtime.hpp"
 #include <cassert>
 #include <cstring>
 #include <exception>

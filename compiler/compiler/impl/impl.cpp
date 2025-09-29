@@ -9,9 +9,10 @@
 #include "memory/coroutines/generator.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
-#include "shaders/GlslCompiler.hpp"
+#include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/activation/BasicActivationShader.hpp"
+#include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/conv/DirectConvShader.hpp"
 #include "shaders/copy/CopyTransformShader.hpp"
 #include "shaders/pad/MemoryPadShader.hpp"
@@ -40,7 +41,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     supergraph.addNode(opGraph.get(nid));
   }
 
-  GlslCompiler glslCompiler;
+  GlslCompiler glslCompiler(options);
 
   shaders::DirectConvShader directConv{&glslCompiler, options};
   shaders::BasicPoolShader basicPool{&glslCompiler};

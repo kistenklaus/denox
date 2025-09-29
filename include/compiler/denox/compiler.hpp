@@ -4,7 +4,7 @@
 #include <string>
 
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
-#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan.h>
 #endif
 
 namespace denox {

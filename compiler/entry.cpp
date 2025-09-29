@@ -5,13 +5,11 @@
 #include "compiler/impl/impl.hpp"
 #include "compiler/lifeness.hpp"
 #include "compiler/spec.hpp"
-#include "device_info/query/query_driver_device_info.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/onnx.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
-#include "shaders/global_glslang_runtime.hpp"
 #include <google/protobuf/port.h>
 
 namespace denox::compiler {

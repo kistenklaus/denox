@@ -130,9 +130,11 @@ add_library(denox_compiler
   compiler/shaders/pool/BasicPoolShader.cpp
   compiler/shaders/slice/MemorySliceShader.cpp
   compiler/shaders/upsample/BasicUpsampleShader.cpp
-  compiler/shaders/GlslCompiler.cpp
-  compiler/shaders/global_glslang_runtime.cpp
-  compiler/shaders/preprocessing.cpp
+
+  compiler/shaders/compiler/GlslCompiler.cpp
+  compiler/shaders/compiler/GlslCompilerInstance.cpp
+  compiler/shaders/compiler/ShaderPreprocessor.cpp
+  compiler/shaders/compiler/global_glslang_runtime.cpp
 
   compiler/api.cpp
   compiler/entry.cpp
@@ -156,6 +158,7 @@ target_compile_definitions(denox_compiler
 target_compile_features(denox_compiler PUBLIC cxx_std_20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
+set_target_properties(denox_compiler PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(denox_compiler
   PUBLIC
@@ -170,14 +173,16 @@ option(DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
   ON)
 
 target_link_libraries(denox_compiler
-  PRIVATE 
+  PUBLIC 
     denox::fmt
     denox::spdlog
     denox::onnx
     denox::generator
     denox::vulkan
-    denox::glslang
     denox::spirv-tools
+  PRIVATE
+    denox::glslang
+
 )
 
 if (DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT)
@@ -198,6 +203,9 @@ set_target_properties(denox PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(denox 
     PUBLIC 
       denox::compiler
+    PRIVATE
+      denox::glslang
+      
 )
 
 option(DENOX_ENABLE_STRICT_WARNINGS "Enables most warning flags" ON)
@@ -258,41 +266,3 @@ if (BUILD_TESTING)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   )
 endif()
-  
-
-
-# ========== PACKAGE-CONFIG-STUFF =============
-
-# install(TARGETS denox_compiler
-#   EXPORT denoxTargets
-#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-#   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-# )
-#
-# install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-#
-# write_basic_package_version_file(
-#   "${CMAKE_CURRENT_BINARY_DIR}/denoxConfigVersion.cmake"
-#   VERSION ${PROJECT_VERSION}
-#   COMPATIBILITY AnyNewerVersion
-# )
-#
-# configure_package_config_file(
-#   cmake/denoxConfig.cmake.in
-#   "${CMAKE_CURRENT_BINARY_DIR}/denoxConfig.cmake"
-#   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/denox
-# )
-#
-# install(FILES
-#   "${CMAKE_CURRENT_BINARY_DIR}/denoxConfig.cmake"
-#   "${CMAKE_CURRENT_BINARY_DIR}/denoxConfigVersion.cmake"
-#   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/denox
-# )
-#
-# install(EXPORT denoxTargets
-#   FILE denoxTargets.cmake
-#   NAMESPACE denox::
-#   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/denox
-# )

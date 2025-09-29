@@ -3,11 +3,9 @@
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
 #include "compiler/impl/Impl.hpp"
-#include "compiler/ir/SpecModel.hpp"
 #include "memory/container/string.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "model/ComputeOp.hpp"
-#include "model/ComputeTensor.hpp"
 
 namespace denox::compiler {
 

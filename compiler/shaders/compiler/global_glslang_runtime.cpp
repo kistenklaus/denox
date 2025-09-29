@@ -1,4 +1,4 @@
-#include "shaders/global_glslang_runtime.hpp"
+#include "shaders/compiler/global_glslang_runtime.hpp"
 #include <glslang/Public/ShaderLang.h>
 #include <mutex>
 #include <stdexcept>

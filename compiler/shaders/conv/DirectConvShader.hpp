@@ -6,13 +6,13 @@
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
-#include "shaders/GlslCompiler.hpp"
+#include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
 #include <cassert>
 
 namespace denox::compiler::shaders {
 
-class DirectConvShader : public compiler::IShader {
+class DirectConvShader final : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 

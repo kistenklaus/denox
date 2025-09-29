@@ -2,7 +2,7 @@
 #include "diag/unreachable.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/dtype/dtype.hpp"
-#include <fmt/base.h>
+#include <fmt/format.h>
 #include <unistd.h>
 #include <vulkan/vulkan.hpp>
 

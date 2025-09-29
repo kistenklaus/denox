@@ -2,7 +2,7 @@
 
 #include "Options.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
-#include "shaders/GlslCompiler.hpp"
+#include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
 
 namespace denox::compiler::shaders {
