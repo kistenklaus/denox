@@ -1,7 +1,9 @@
 #pragma once
 
+#include "diag/logging.hpp"
 #include "shaders/compiler/CompilationError.hpp"
 #include "shaders/compiler/ShaderBinary.hpp"
+#include <exception>
 #include <stdexcept>
 #include <variant>
 
@@ -27,11 +29,12 @@ public:
     return std::get<CompilationError>(m_repr);
   }
 
-  const ShaderBinary &operator*() const {
+  ShaderBinary operator*() const {
     if (isOk()) {
       return std::get<ShaderBinary>(m_repr);
     } else {
-      throw std::runtime_error("Compilation Failed: blablbablab");
+      DENOX_ERROR(error().msg);
+      std::terminate();
     }
   }
 

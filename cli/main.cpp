@@ -14,8 +14,12 @@ int main() {
   options.outputDescription.layout = denox::Layout::HWC;
   options.outputDescription.dtype = denox::DataType::Float16;
 
-  options.device.deviceName = "*AMD*";
+  options.device.deviceName = "*RTX*";
   options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_4;
+
+  options.spirvOptions.debugInfo = false;
+  options.spirvOptions.nonSemanticDebugInfo = false;
+  options.spirvOptions.optimize = true;
 
   denox::compile("net.onnx", options);
 }

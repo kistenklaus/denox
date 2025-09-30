@@ -20,3 +20,6 @@ layout(push_constant) uniform PushConstant {
     uint OUT_W;
     uint OUT_H;
 } pc;
+
+layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
+void main() {}

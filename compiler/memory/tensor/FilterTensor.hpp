@@ -146,7 +146,7 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
-    requires(!std::same_as<Alloc, std::span<std::byte>>)
+    requires(!std::same_as<Alloc, std::span<std::byte>> && !std::same_as<Alloc, FilterTensorConstView>)
   explicit FilterTensor(FilterDescriptor descriptor,
                             const Alloc &alloc = {})
       : m_desc(descriptor) {

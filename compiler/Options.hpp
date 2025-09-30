@@ -5,6 +5,7 @@
 #include "memory/container/optional.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
+#include "shaders/compiler/ShaderDebugInfoLevel.hpp"
 #include <vulkan/vulkan_core.h>
 
 namespace denox::compiler {
@@ -28,6 +29,8 @@ struct Options {
   memory::Dtype outputType;
   DeviceInfo deviceInfo;
   FusionRules fusionRules;
+  ShaderDebugInfoLevel shaderDebugInfo;
+  bool optimizeSpirv;
   io::Path cwd;
   memory::optional<io::Path> srcPath;
 };

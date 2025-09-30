@@ -19,6 +19,7 @@
 #include "shaders/pool/BasicPoolShader.hpp"
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -48,7 +49,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
   shaders::BasicUpsampleShader basicUpsample{&glslCompiler};
   shaders::MemoryPadShader memoryPad{&glslCompiler};
   shaders::MemorySliceShader memorySlice{&glslCompiler};
-  shaders::BasicActivationShader basicActivation{&glslCompiler};
+  shaders::BasicActivationShader basicActivation{&glslCompiler, options};
   shaders::CopyTransformShader copyTransform{&glslCompiler, options};
 
   const IShader *shaders[]{
@@ -168,6 +169,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     }
     fmt::println("\x1B[31m{:>89} {}\x1B[0m",
                  "Total Cost:", heuristic->weight_to_string(totalWeight));
+    fmt::println("");
   }
 
   ImplModel implModel;
@@ -178,6 +180,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
   TensorId output;
   for (const auto &opId : hyperpath) {
     const ComputeOpImpl &op = constSupergraph.get(opId);
+
     memory::span<const memory::NodeId> srcs = constSupergraph.src(opId);
     for (const memory::NodeId src : srcs) {
       TensorId tensorId =
@@ -192,11 +195,12 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     if (dst == model.output) {
       output = dstTensorId;
     }
-
     op.shader->implement(impl, opGraph, op.pattern, op.match);
   }
   assert(input.index != TensorId::nullindex);
   assert(output.index != TensorId::nullindex);
+
+  impl.compileAll();
 
   fmt::println("\n\x1B[32m\x1B[1m{:=^100}\x1B[0m", "Implemented=Schedule");
 
@@ -228,6 +232,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     fmt::println("\x1B[34m\x1B[1m{}\x1B[0m: (\x1B[4m{}\x1B[0m)",
     dispatchName,
                  sourcePath);
+    fmt::print("\u2022 Binary-Size: {}B\n", dispatch.binary.spv.size() * sizeof(std::uint32_t));
     fmt::print("\u2022 TensorBindings: [");
     bool first = true;
     for (const auto &binding : dispatch.bindings) {
@@ -251,6 +256,23 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
   fmt::println("\u2022 {:<20} : {}", "Number-Of-Dispatches",
                implModel.dispatches.size());
 
+  std::size_t spirvByteSize = 0;
+  for (std::size_t d = 0; d < implModel.dispatches.size(); ++d) {
+    spirvByteSize += implModel.dispatches[d].binary.spv.size() * sizeof(std::uint32_t);
+  }
+  if (spirvByteSize > 1000000) {
+    fmt::println("\u2022 {:<20} : {:.1f}MB", "SPIRV-ByteSize",
+                 static_cast<float>(spirvByteSize) / 1000000.0f);
+  } else if (spirvByteSize > 1000) {
+    fmt::println("\u2022 {:<20} : {:.1f}KB", "SPIRV-ByteSize",
+                 static_cast<float>(spirvByteSize) / 1000.0f);
+  } else {
+    fmt::println("\u2022 {:<20} : {}B", "SPIRV-ByteSize",
+                 spirvByteSize);
+  }
+
+
+
   std::size_t parameterByteSize = 0;
   for (std::size_t p = 0; p < implModel.parameters.size(); ++p) {
     parameterByteSize += implModel.parameters[p].data.size();
@@ -259,7 +281,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     fmt::println("\u2022 {:<20} : {:.1f}MB", "Parameter-ByteSize",
                  static_cast<float>(parameterByteSize) / 1000000.0f);
   } else if (parameterByteSize > 1000) {
-    fmt::println("\u2022 Parameter-ByteSize : {:.1f}KB",
+    fmt::println("\u2022 {:<20} : {:.1f}KB", "Parameter-ByteSize",
                  static_cast<float>(parameterByteSize) / 1000.0f);
   } else {
     fmt::println("\u2022 {:<20} : {}B", "Parameter-ByteSize",

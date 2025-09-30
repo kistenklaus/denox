@@ -14,7 +14,7 @@ public:
   static constexpr std::size_t ACTI_FUNC_TYPE_MASK = 0xFF << 8;
   static constexpr std::size_t ACTI_FUNC_TYPE_ReLU = 1 << 8;
 
-  BasicActivationShader(GlslCompiler *compiler);
+  BasicActivationShader(GlslCompiler *compiler, const Options& options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -48,6 +48,8 @@ private:
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
       io::Path::cwd() / "compiler/shaders/activation/basic_activation.comp";
+
+  unsigned m_subgroupSize;
 };
 
 } // namespace denox::compiler::shaders

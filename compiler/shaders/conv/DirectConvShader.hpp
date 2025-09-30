@@ -17,7 +17,7 @@ private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   static constexpr unsigned int CONV_PATTERN = 0;
-  static constexpr unsigned int CONV_RELU_PATTERN = 1;
+  static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
 public:
   DirectConvShader(GlslCompiler *compiler, const Options& options);
@@ -55,6 +55,7 @@ private:
   io::Path m_srcPath =
       io::Path::cwd() / "compiler/shaders/conv/direct_conv.comp";
   bool m_enableConvReluFusion;
+  unsigned int m_subgroupSize;
 };
 
 } // namespace denox::compiler::shaders

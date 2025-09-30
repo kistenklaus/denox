@@ -5,9 +5,12 @@
 #include "compiler/ir/impl/ImplModel.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
+#include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/tensor/FilterTensor.hpp"
+#include "shaders/compiler/GlslCompilerInstance.hpp"
+#include "shaders/compiler/ShaderBinary.hpp"
 #include <stdexcept>
 namespace denox::compiler {
 
@@ -93,20 +96,28 @@ public:
     return createParameter({bytes.begin(), bytes.end()}, minAlignment);
   }
 
-  ComputeDispatchBuilder dispatch(memory::vector<std::uint32_t> spirvSrc) {
+  [[deprecated]] ComputeDispatchBuilder dispatch(ShaderBinary binary) {
     auto builder = ComputeDispatchBuilder(m_impl->dispatches.size(), this);
     m_impl->dispatches.push_back({});
-    m_impl->dispatches.back().spirvSrc = std::move(spirvSrc);
+    m_impl->dispatches.back().binary = std::move(binary);
     return builder;
   }
 
-  void createMemoryPlacementConstrain(TensorId src0, TensorId src1,
-                                      TensorId dst) {
+  ComputeDispatchBuilder registerDispatch(GlslCompilerInstance shader) {
+    std::size_t index = m_impl->dispatches.size();
+    auto builder = ComputeDispatchBuilder(index, this);
+    m_impl->dispatches.push_back({});
+    m_compilationUnits.emplace_back(index, std::move(shader));
+    return builder;
+  }
+
+  void createImplicitConcatConstrain(TensorId src0, TensorId src1,
+                                     TensorId dst) {
     m_impl->memoryImplicitConcatConstrains.emplace_back(src0, src1, dst);
   }
 
-  /// Ensures that tensors nodeA and nodeB memory is placed directly after one
-  /// another.
+  /// Ensures that tensors src0 and src1 are placed directly after one
+  /// another in memory, the result is called dst.
   void createImplicitConcatConstrain(memory::NodeId src0, memory::NodeId src1,
                                      memory::NodeId dst) {
     memory::optional<TensorId> tensorSrc0 = tryRemap(src0);
@@ -114,10 +125,24 @@ public:
     memory::optional<TensorId> tensorDst = tryRemap(dst);
     if (tensorSrc0.has_value() && tensorSrc1.has_value() &&
         tensorDst.has_value()) {
-      createMemoryPlacementConstrain(*tensorSrc0, *tensorSrc1, *tensorDst);
+      createImplicitConcatConstrain(*tensorSrc0, *tensorSrc1, *tensorDst);
     } else {
       throw std::runtime_error(
           "Failed to create memory constrain, invalid node ids");
+    }
+  }
+
+  void compileAll() {
+    std::size_t n = m_compilationUnits.size();
+    for (std::size_t c = 0; c < n; ++c) {
+      auto &unit = m_compilationUnits[c];
+      std::size_t percentage = ((c + 1) * 100 + n - 1) / n;
+      fmt::println("[{:>3}%] \x1B[32m\x1B[1mBuilding SPIRV object\x1B[0m "
+                   "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
+                   percentage, unit.instance.getSourcePath().str(),
+                   unit.instance.hashPreamble());
+      ShaderBinary binary = *unit.instance.compile();
+      m_impl->dispatches[unit.dispatchIndex].binary = std::move(binary);
     }
   }
 
@@ -135,6 +160,11 @@ private:
 
   memory::vector<memory::optional<TensorId>> m_nodeTensorMapping;
   ImplModel *m_impl;
+  struct LazyCompilationUnit {
+    std::size_t dispatchIndex;
+    GlslCompilerInstance instance;
+  };
+  memory::vector<LazyCompilationUnit> m_compilationUnits;
 };
 
 } // namespace denox::compiler

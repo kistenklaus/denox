@@ -25,7 +25,6 @@ const uint TILE_W = WG_W * INVOC_W;
 
 layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
 void main() {
-    #if IN_ATYPE_SIZE == 2 && OUT_ATYPE_SIZE == 2
     #if defined(IN_LAYOUT_HWC) && defined(OUT_LAYOUT_HWC)
     // => istype: uint16_t, ostype: uint16_t, atype: float16_t
 
@@ -163,9 +162,5 @@ void main() {
 
     #else
     UNSUPPORTED_LAYOUT;
-    #endif
-
-    #else
-    UNSUPPORTED_TYPE; // we only support f16 for now.
     #endif
 }

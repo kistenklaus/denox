@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/compiler.hpp"
 #include "memory/container/span.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "memory/dtype/dtype_reference.hpp"
@@ -133,7 +134,7 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
-    requires(!std::same_as<Alloc, denox::memory::span<std::byte>>)
+    requires(!std::same_as<Alloc, denox::memory::span<std::byte>> && !std::same_as<Alloc, BiasTensorConstView>)
   explicit BiasTensor(BiasDescriptor desc, const Alloc &alloc = {})
       : m_desc(desc) {
     using allocator_traits = std::allocator_traits<Alloc>;
@@ -162,6 +163,29 @@ public:
           allocator_traits::deallocate(allocator, p, n);
         });
   }
+  template <typename Alloc = std::allocator<std::byte>>
+    requires(!std::same_as<Alloc, denox::memory::span<std::byte>>)
+  explicit BiasTensor(BiasDescriptor desc, BiasTensorConstView view, const Alloc &alloc = {})
+      : m_desc(desc) {
+    using allocator_traits = std::allocator_traits<Alloc>;
+    Alloc allocator = alloc;
+    std::size_t n = m_desc.byteSize();
+    std::byte *ptr = allocator_traits::allocate(allocator, n);
+    
+    if (shape() != view.shape()) {
+      throw std::runtime_error("Invalid tensor shape! Shapes do not match!");
+    }
+    if (layout() == view.layout() && type() == view.type()) {
+      std::memcpy(ptr, view.data(), n);
+    } else {
+      BiasTensorView{m_desc, ptr}.assignFrom(view);
+    }
+
+    m_storage = std::unique_ptr<std::byte[], std::function<void(std::byte *)>>(
+        ptr, [allocator, n](std::byte *p) mutable {
+          allocator_traits::deallocate(allocator, p, n);
+        });
+  }
 
   const std::byte *data() const { return m_storage.get(); }
   std::byte *data() { return m_storage.get(); }
@@ -175,6 +199,7 @@ public:
   }
 
   const BiasDescriptor &desc() const { return m_desc; }
+  BiasLayout layout() const { return m_desc.layout; }
   unsigned int shape() const { return m_desc.shape; }
   Dtype type() const { return m_desc.type; }
   std::size_t byteSize() const { return m_desc.byteSize(); }

@@ -11,6 +11,7 @@
 #include "memory/container/span.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
+#include "shaders/compiler/ShaderDebugInfoLevel.hpp"
 #include "shaders/compiler/global_glslang_runtime.hpp"
 #include <cassert>
 #include <cstring>
@@ -175,6 +176,18 @@ void compile(const char *cpath, const CompileOptions &options) {
   memory::Dtype inputType = parse_dtype(options.inputDescription.dtype);
   memory::Dtype outputType = parse_dtype(options.outputDescription.dtype);
 
+  compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
+      compiler::ShaderDebugInfoLevel::Strip;
+  if (options.spirvOptions.debugInfo &&
+      options.spirvOptions.nonSemanticDebugInfo) {
+    spirvDebugInfoLevel =
+        compiler::ShaderDebugInfoLevel::ForceNonSemanticDebugInfo;
+  } else if (options.spirvOptions.debugInfo) {
+    spirvDebugInfoLevel = compiler::ShaderDebugInfoLevel::Enable;
+  } else {
+    spirvDebugInfoLevel = compiler::ShaderDebugInfoLevel::Strip;
+  }
+
   compiler::Options opt{
       .dnxVersion = dnxVersion,
       .srcType = srcType,
@@ -184,6 +197,8 @@ void compile(const char *cpath, const CompileOptions &options) {
       .outputType = outputType,
       .deviceInfo = std::move(deviceInfo),
       .fusionRules = fusionRules,
+      .shaderDebugInfo = spirvDebugInfoLevel,
+      .optimizeSpirv = options.spirvOptions.optimize,
       .cwd = cwd,
       .srcPath = path,
   };

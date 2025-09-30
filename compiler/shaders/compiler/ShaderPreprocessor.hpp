@@ -2,6 +2,8 @@
 #include "memory/container/string.hpp"
 #include "memory/container/vector.hpp"
 #include <regex>
+#include <string>
+#include <string_view>
 
 namespace denox::compiler {
 
@@ -40,13 +42,17 @@ private:
   memory::vector<Block> m_blocks;
   bool m_enableUnroll = true;
 
-  // Regex (compiled once)
-  const std::regex m_rxUnroll{R"(^\s*(?!\/)\s*#pragma\s+unroll\s*$)"};
   const std::regex m_rxBegin{
-      R"(^\s*(?!\/)\s*#pragma\s+begin_block\s*\(\s*([a-zA-Z,_]+)\s*\)\s*$)"};
-  const std::regex m_rxEnd{R"(^\s*(?!\/)\s*#pragma\s+end_block\s*$)"};
+      R"(^\s*#\s*pragma\s+(?:denox\s+)?begin_block\s*\(\s*([A-Za-z_]\w*)\s*\)\s*;?\s*(?://.*)?$)"};
+
+  const std::regex m_rxEnd{
+      R"(^\s*#\s*pragma\s+(?:denox\s+)?end_block(?:\s*\(\s*([A-Za-z_]\w*)\s*\))?\s*;?\s*(?://.*)?$)"};
+
   const std::regex m_rxInline{
-      R"(^\s*(?!\/)\s*#pragma\s+inline_block\s*\(\s*([a-zA-Z,_]+)\s*\)\s*$)"};
+      R"(^\s*#\s*pragma\s+(?:denox\s+)?inline_block\s*\(\s*([A-Za-z_]\w*)\s*\)\s*;?\s*(?://.*)?$)"};
+
+  const std::regex m_rxUnroll{
+      R"(^\s*#\s*pragma\s+(?:denox\s+)?unroll\b\s*;?\s*(?://.*)?$)"};
 };
 
-} // namespace denox::compiler::shaders
+} // namespace denox::compiler

@@ -7,7 +7,7 @@ namespace denox::compiler {
 
 GlslCompiler::GlslCompiler(const Options &options)
     : m_deviceInfo(options.deviceInfo), m_buildInResource(),
-      m_debugInfo(ShaderDebugInfoLevel::Enable) {
+      m_debugInfo(options.shaderDebugInfo), m_optimize(options.optimizeSpirv) {
   m_buildInResource.maxLights = 32;
   m_buildInResource.maxClipPlanes = 6;
   m_buildInResource.maxTextureUnits = 32;
@@ -123,33 +123,33 @@ GlslCompilerInstance GlslCompiler::read(io::Path sourcePath) {
   memory::vector<std::byte> glslSource(file.size());
   file.read_exact(glslSource);
 
-  glslang::TShader shader(EShLangCompute);
+  auto shader = std::make_unique<glslang::TShader>(EShLangCompute);
   memory::string source_path_str = sourcePath.str();
-  shader.setSourceFile(source_path_str.data());
+  shader->setSourceFile(source_path_str.data());
 
-  shader.setEnvInput(glslang::EShSourceGlsl, EShLangCompute,
+  shader->setEnvInput(glslang::EShSourceGlsl, EShLangCompute,
                      glslang::EShClientVulkan, 100);
 
   switch (m_deviceInfo.apiVersion) {
   case ApiVersion::VULKAN_1_0:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
+    shader->setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
+    shader->setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
     break;
   case ApiVersion::VULKAN_1_1:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_1);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_3);
+    shader->setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_1);
+    shader->setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_3);
     break;
   case ApiVersion::VULKAN_1_2:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_2);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_5);
+    shader->setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_2);
+    shader->setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_5);
     break;
   case ApiVersion::VULKAN_1_3:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_3);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_6);
+    shader->setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_3);
+    shader->setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_6);
     break;
   case ApiVersion::VULKAN_1_4:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_4);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_6);
+    shader->setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_4);
+    shader->setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_6);
     break;
   }
 

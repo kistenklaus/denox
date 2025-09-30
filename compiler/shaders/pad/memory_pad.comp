@@ -20,3 +20,8 @@ layout(push_constant) uniform PushConstant {
     uint OUT_W;
     uint OUT_H;
 } pc;
+
+
+void main() {
+
+}

@@ -57,6 +57,12 @@ enum class VulkanApiVersion {
   Vulkan_1_4,
 };
 
+struct SpirvOptions {
+  bool debugInfo = false;
+  bool nonSemanticDebugInfo = false;
+  bool optimize = true;
+};
+
 struct Device {
   std::string deviceName; // <- allows of patterns like *AMD*
   VulkanApiVersion apiVersion = VulkanApiVersion::Vulkan_1_3;
@@ -77,6 +83,7 @@ struct CompileOptions {
   BufferDescription inputDescription;
   BufferDescription outputDescription;
   Device device;
+  SpirvOptions spirvOptions;
   const char *cwd = nullptr;
 
   bool externally_managed_glslang_runtime = false;

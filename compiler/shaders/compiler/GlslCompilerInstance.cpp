@@ -7,6 +7,8 @@
 #include "shaders/compiler/ShaderPreprocessor.hpp"
 #include <cstring>
 #include <diag/logging.hpp>
+#include <fmt/base.h>
+#include <functional>
 #include <glslang/MachineIndependent/Versions.h>
 #include <glslang/Public/ShaderLang.h>
 #include <glslang/SPIRV/GlslangToSpv.h>
@@ -18,7 +20,10 @@
 namespace denox::compiler {
 
 CompilationResult GlslCompilerInstance::compile() {
+
   const char *preambleCStr = m_preamble.data();
+
+
 
   unsigned int vulkanApiVersionOrd;
   switch (m_compiler->m_deviceInfo.apiVersion) {
@@ -41,7 +46,7 @@ CompilationResult GlslCompilerInstance::compile() {
     compiler::diag::unreachable();
   }
 
-  m_shader.setPreamble(preambleCStr);
+  m_shader->setPreamble(preambleCStr);
 
   ShaderPreprocessor preprocessor(m_sourcePath.str());
   memory::string strSrc(m_src.size() + 1, '\0');
@@ -49,8 +54,7 @@ CompilationResult GlslCompilerInstance::compile() {
   memory::string preprocessed = preprocessor.preprocess(strSrc);
 
   const char *srcPtr = preprocessed.data();
-  int srcLen = static_cast<int>(preprocessed.size());
-  m_shader.setStringsWithLengths(&srcPtr, &srcLen, 1);
+  m_shader->setStrings(&srcPtr, 1);
 
   const TBuiltInResource &buildInResource = m_compiler->m_buildInResource;
 
@@ -58,34 +62,32 @@ CompilationResult GlslCompilerInstance::compile() {
       EShMsgDefault | EShMsgEnhanced | EShMsgSpvRules | EShMsgVulkanRules);
   switch (m_compiler->m_debugInfo) {
   case ShaderDebugInfoLevel::Strip:
-    m_shader.setDebugInfo(false);
+    m_shader->setDebugInfo(false);
     break;
   case ShaderDebugInfoLevel::Enable:
   case ShaderDebugInfoLevel::ForceNonSemanticDebugInfo:
     messages = static_cast<EShMessages>(messages | EShMsgDebugInfo);
-    m_shader.setDebugInfo(true);
+    m_shader->setDebugInfo(true);
     break;
+  default:
+    compiler::diag::unreachable();
   }
-
-  // m_shader.preprocess(const TBuiltInResource *builtInResources, int
-  // defaultVersion, EProfile defaultProfile, bool
-  // forceDefaultVersionAndProfile, bool forwardCompatible, EShMessages message,
-  // std::string *outputString, Includer &includer);
 
   //  =============GLSLANG-FRONTEND-STAGE==============
-  if (!m_shader.parse(&buildInResource, 450, false, messages)) {
-    return CompilationError{CompilationStage::GlslangParse,
-                            memory::string(m_shader.getInfoLog())};
+  if (!m_shader->parse(&buildInResource, 450, false, messages)) {
+    return CompilationError{
+        CompilationStage::GlslangParse,
+        fmt::format("[glslang-parse]: \n{}", m_shader->getInfoLog())};
   }
   {
-    const char *w1 = m_shader.getInfoLog();
+    const char *w1 = m_shader->getInfoLog();
     if (w1 && *w1) { // <- check if empty string.
       DENOX_WARN("[glslang-parse] {}", w1);
     }
   }
 
   glslang::TProgram program;
-  program.addShader(&m_shader);
+  program.addShader(m_shader.get());
   if (!program.link(messages)) {
     return CompilationError{CompilationStage::GlslangLink,
                             memory::string(program.getInfoLog())};
@@ -115,12 +117,14 @@ CompilationResult GlslCompilerInstance::compile() {
     break;
   case ShaderDebugInfoLevel::Enable:
     enableDebugInfo = true;
-    enableNonSemanticDebugInfo = vulkanApiVersionOrd >= 3;
+    enableNonSemanticDebugInfo = false;
     break;
   case ShaderDebugInfoLevel::ForceNonSemanticDebugInfo:
     enableDebugInfo = true;
     enableNonSemanticDebugInfo = true;
     break;
+  default:
+    compiler::diag::unreachable();
   };
 
   spvOptions.generateDebugInfo = enableDebugInfo;
@@ -159,6 +163,8 @@ CompilationResult GlslCompilerInstance::compile() {
   case ApiVersion::VULKAN_1_4:
     spvTargetEnv = SPV_ENV_VULKAN_1_4;
     break;
+  default:
+    compiler::diag::unreachable();
   }
   spvtools::SpirvTools tools(spvTargetEnv);
   std::string spvLog;
@@ -302,7 +308,9 @@ CompilationResult GlslCompilerInstance::compile() {
   memory::vector<std::uint32_t> current = std::move(spirv);
   memory::vector<std::uint32_t> next;
 
-  for (int iter = 0; iter < 20; ++iter) {
+  bool optimizeUntilConvergence =
+      m_compiler->m_debugInfo == ShaderDebugInfoLevel::Strip;
+  for (int iter = 0; iter < (optimizeUntilConvergence ? 10 : 1); ++iter) {
     next.clear();
     bool ok =
         spvOptimizer.Run(current.data(), current.size(), &next, optOptions);
@@ -312,8 +320,10 @@ CompilationResult GlslCompilerInstance::compile() {
           memory::string(spvLog),
       };
     }
-    if (next == current)
-      break;            // converged → stop
+
+    if (next == current) {
+      break; // converged → stop
+    }
     current.swap(next); // keep improving
   }
 
@@ -321,23 +331,6 @@ CompilationResult GlslCompilerInstance::compile() {
     DENOX_WARN("[spv-opt]: {}", spvLog);
   }
   spvLog.clear();
-
-  spvtools::Optimizer canon(spvTargetEnv);
-  canon.RegisterPass(spvtools::CreateCompactIdsPass());
-  // In release, uncomment these two lines to maximize dedupe across machines:
-  if (m_compiler->m_debugInfo == ShaderDebugInfoLevel::Strip) {
-    canon.RegisterPass(spvtools::CreateStripDebugInfoPass());
-  }
-  if (m_compiler->m_debugInfo == ShaderDebugInfoLevel::Enable ||
-      m_compiler->m_debugInfo == ShaderDebugInfoLevel::Strip) {
-    canon.RegisterPass(spvtools::CreateStripNonSemanticInfoPass());
-  }
-
-  std::vector<uint32_t> canonSpv;
-  if (canon.Run(current.data(), current.size(), &canonSpv)) {
-    current.swap(canonSpv);
-  }
-
   return ShaderBinary{
       .spv = std::move(current),
   };

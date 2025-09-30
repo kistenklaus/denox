@@ -8,7 +8,7 @@
 
 namespace denox::memory {
 
-enum class ActivationLayoutKind { CHW, HWC, HWC8, CHWC4, CHWC8, CHWC16 };
+enum class ActivationLayoutKind { CHW, HWC, CHWC4, CHWC8, CHWC16 };
 
 namespace details::memory::tensors {
 class ActivationLayout {
@@ -27,10 +27,6 @@ public:
 
     switch (m_tag) {
     case ActivationLayoutKind::HWC:
-      return H * (SW * SC) + W * SC + C;
-
-    case ActivationLayoutKind::HWC8:
-      assert(SC % 8u == 0u);
       return H * (SW * SC) + W * SC + C;
 
     case ActivationLayoutKind::CHW:
@@ -66,8 +62,6 @@ public:
       return true;
     case ActivationLayoutKind::HWC:
       return true;
-    case ActivationLayoutKind::HWC8:
-      return channels % 8 == 0;
     case ActivationLayoutKind::CHWC4:
       return channels % 4 == 0;
     case ActivationLayoutKind::CHWC8:
@@ -85,8 +79,6 @@ public:
       return "CHW";
     case ActivationLayoutKind::HWC:
       return "HWC";
-    case ActivationLayoutKind::HWC8:
-      return "HWC8";
     case ActivationLayoutKind::CHWC4:
       return "CHWC4";
     case ActivationLayoutKind::CHWC8:
@@ -103,7 +95,6 @@ public:
     case ActivationLayoutKind::CHW:
     case ActivationLayoutKind::HWC:
       return false;
-    case ActivationLayoutKind::HWC8:
     case ActivationLayoutKind::CHWC4:
     case ActivationLayoutKind::CHWC8:
     case ActivationLayoutKind::CHWC16:
@@ -137,9 +128,6 @@ public:
       : m_layout(layout) {}
   static constexpr details::memory::tensors::ActivationLayout HWC{
       ActivationLayoutKind::HWC};
-
-  static constexpr details::memory::tensors::ActivationLayout HWC8{
-      ActivationLayoutKind::HWC8};
 
   static constexpr details::memory::tensors::ActivationLayout CHW{
       ActivationLayoutKind::CHW};
@@ -182,6 +170,42 @@ public:
   }
 
   bool isVectorized() const { return m_layout.isVectorized(); }
+
+  static ActivationLayout promote(ActivationLayout layout,
+                                  [[maybe_unused]] unsigned int channels) {
+    switch (layout.kind()) {
+    case ActivationLayoutKind::CHW:
+      return ActivationLayout::CHW;
+    case ActivationLayoutKind::HWC:
+      return ActivationLayout::HWC;
+    case ActivationLayoutKind::CHWC4:
+      return ActivationLayout::CHWC4;
+    case ActivationLayoutKind::CHWC8:
+      return ActivationLayout::CHWC8;
+    case ActivationLayoutKind::CHWC16:
+      return ActivationLayout::CHWC16;
+    default:
+      compiler::diag::unreachable();
+    }
+  }
+
+  static ActivationLayout demote(ActivationLayout layout,
+                                 [[maybe_unused]] unsigned int channels) {
+    switch (layout.kind()) {
+    case ActivationLayoutKind::CHW:
+      return ActivationLayout::CHW;
+    case ActivationLayoutKind::HWC:
+      return ActivationLayout::HWC;
+    case ActivationLayoutKind::CHWC4:
+      return ActivationLayout::CHWC4;
+    case ActivationLayoutKind::CHWC8:
+      return ActivationLayout::CHWC8;
+    case ActivationLayoutKind::CHWC16:
+      return ActivationLayout::CHWC16;
+    default:
+      compiler::diag::unreachable();
+    }
+  }
 
 private:
   details::memory::tensors::ActivationLayout m_layout;

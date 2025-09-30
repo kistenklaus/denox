@@ -1,18 +1,20 @@
 #include "shaders/activation/BasicActivationShader.hpp"
+#include "diag/invalid_state.hpp"
 #include "diag/unreachable.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "model/ActivationFunction.hpp"
 
 namespace denox::compiler::shaders {
 
-BasicActivationShader::BasicActivationShader(GlslCompiler *compiler)
-    : m_compiler(compiler) {
+BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
+                                             const Options &options)
+    : m_compiler(compiler),
+      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize) {
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != memory::Dtype::F16) {
       return false;
     }
     if (tensor.layout != memory::ActivationLayout::HWC &&
-        tensor.layout != memory::ActivationLayout::HWC8 &&
         tensor.layout != memory::ActivationLayout::CHWC8) {
       return false;
     }
@@ -48,10 +50,10 @@ memory::optional<unsigned int> BasicActivationShader::acceptMatch(
   const auto &patternHandles = m_patternHandles[pattern];
   const auto &in = opGraph.get(match[patternHandles.in]);
   const auto &out = opGraph.get(match[patternHandles.out]);
-  if (in.layout != out.layout) {
+  if (memory::ActivationLayout::demote(in.layout, in.channels) !=
+      memory::ActivationLayout::demote(out.layout, out.channels)) {
     return memory::nullopt;
   }
-
   return pattern | ACTI_FUNC_TYPE_ReLU;
 }
 void BasicActivationShader::implement(
@@ -63,8 +65,101 @@ void BasicActivationShader::implement(
   memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
   const auto &in = opGraph.get(inId);
+  const auto &out = opGraph.get(outId);
+  const auto &acti = opGraph.get(match[patternHandles.acti]).activation();
 
-  auto dispatch = impl.dispatch({});
+  auto shader = m_compiler->read(m_srcPath);
+  shader.define("SG_SIZE", m_subgroupSize);
+  assert(in.channels == out.channels);
+  shader.define("CH", in.channels);
+
+  switch (acti.func) {
+  case ActivationFunction::ReLU:
+    shader.define("ACTIVATION_ReLU");
+    break;
+  case ActivationFunction::LeakyReLU:
+  case ActivationFunction::SiLU:
+    diag::invalid_state();
+  }
+
+  if (in.layout == memory::ActivationLayout::HWC &&
+      out.layout == memory::ActivationLayout::HWC &&
+      (in.channels % 8 != 0 || out.channels % 8 != 0)) {
+    shader.define("istype", "uint16_t");
+    shader.define("ISTYPE_SIZE", 2);
+    shader.define("ostype", "uint16_t");
+    shader.define("OSTYPE_SIZE", 2);
+
+    shader.define("IN_LAYOUT_HWC");
+    shader.define("OUT_LAYOUT_HWC");
+
+    if (in.channels >= 16) {
+      shader.define("INVOC_C", 2);
+      shader.define("INVOC_W", 2);
+      shader.define("INVOC_H", 1);
+      shader.define("WG_C", 8);
+      shader.define("WG_W", 32);
+      shader.define("WG_H", 1);
+    } else {
+      shader.define("INVOC_C", 1);
+      shader.define("INVOC_W", 4);
+      shader.define("INVOC_H", 1);
+      shader.define("WG_C", in.channels);
+      shader.define("WG_W", 32);
+      shader.define("WG_H", 1);
+    }
+  } else if (in.layout == memory::ActivationLayout::HWC &&
+             out.layout == memory::ActivationLayout::HWC &&
+             (in.channels % 8 == 0 && out.channels % 8 == 0)) {
+    shader.define("istype", "uvec4");
+    shader.define("ISTYPE_SIZE", 16);
+    shader.define("ostype", "uvec4");
+    shader.define("OSTYPE_SIZE", 16);
+
+    shader.define("IN_LAYOUT_HWC8");
+    shader.define("OUT_LAYOUT_HWC8");
+
+    if (in.channels >= 32) {
+      shader.define("INVOC_C", 8);
+      shader.define("INVOC_W", 1);
+      shader.define("INVOC_H", 1);
+      shader.define("WG_C", 4);
+      shader.define("WG_W", 64);
+      shader.define("WG_H", 1);
+    } else if (in.channels >= 16) {
+      shader.define("INVOC_C", 8);
+      shader.define("INVOC_W", 1);
+      shader.define("INVOC_H", 1);
+      shader.define("WG_C", 2);
+      shader.define("WG_W", 128);
+      shader.define("WG_H", 1);
+    } else {
+      shader.define("INVOC_C", 8);
+      shader.define("INVOC_W", 1);
+      shader.define("INVOC_H", 1);
+      shader.define("WG_C", 1);
+      shader.define("WG_W", 256);
+      shader.define("WG_H", 1);
+    }
+  } else if (in.layout == memory::ActivationLayout::CHWC8 &&
+             out.layout == memory::ActivationLayout::CHWC8) {
+    shader.define("istype", "uvec4");
+    shader.define("ISTYPE_SIZE", 16);
+    shader.define("ostype", "uvec4");
+    shader.define("OSTYPE_SIZE", 16);
+
+    shader.define("IN_LAYOUT_CHWC8");
+    shader.define("OUT_LAYOUT_CHWC8");
+
+    shader.define("INVOC_C", 8);
+    shader.define("INVOC_W", 1);
+    shader.define("INVOC_H", 1);
+    shader.define("WG_C", 1);
+    shader.define("WG_W", 256);
+    shader.define("WG_H", 1);
+  }
+
+  auto dispatch = impl.registerDispatch(std::move(shader));
   dispatch.addBinding(inId);
   dispatch.addBinding(outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));

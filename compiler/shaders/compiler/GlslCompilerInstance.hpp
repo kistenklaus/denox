@@ -19,8 +19,10 @@ public:
   friend class GlslCompiler;
 
   template <typename T>
-    requires(fmt::is_formattable<T>::value && !std::same_as<T, memory::string_view> &&
-             !std::same_as<T, bool>)
+    requires(fmt::is_formattable<T>::value &&
+             !std::same_as<T, memory::string_view> &&
+             !std::same_as<T, memory::string> &&
+             !std::same_as<T, const char *> && !std::same_as<T, bool>)
   void define(std::string_view name, const T &value) {
     m_preamble.append(fmt::format("#define {} ({})\n", name, value));
   }
@@ -29,24 +31,43 @@ public:
     m_preamble.append(fmt::format("#define {} {}\n", name, value));
   }
 
+  void define(std::string_view name, memory::string value) {
+    m_preamble.append(fmt::format("#define {} {}\n", name, value));
+  }
+
+  void define(std::string_view name, const char *value) {
+    m_preamble.append(fmt::format("#define {} {}\n", name, value));
+  }
+
   void define(std::string_view name, bool value) {
     m_preamble.append(fmt::format("#define {} ({})\n", name, value ? 0 : 1));
+  }
+
+  void define(std::string_view name) {
+    m_preamble.append(fmt::format("#define {}\n", name));
   }
 
   void enableDenoxPreprocessor() { m_denoxPreprocessor = true; }
 
   CompilationResult compile();
 
+  const io::Path &getSourcePath() const { return m_sourcePath; }
+
+  std::size_t hashPreamble() const {
+    std::size_t preambleHash = std::hash<memory::string>{}(m_preamble);
+    return preambleHash;
+  }
+
 private:
-  GlslCompilerInstance(GlslCompiler *compiler, glslang::TShader shader,
-                       memory::vector<std::byte> src,
-                       io::Path sourcePath)
+  GlslCompilerInstance(GlslCompiler *compiler,
+                       std::unique_ptr<glslang::TShader> shader,
+                       memory::vector<std::byte> src, io::Path sourcePath)
       : m_compiler(compiler), m_shader(std::move(shader)),
         m_src(std::move(src)), m_sourcePath(std::move(sourcePath)) {}
 
 private:
   GlslCompiler *m_compiler;
-  glslang::TShader m_shader;
+  std::unique_ptr<glslang::TShader> m_shader;
   memory::string m_preamble;
   bool m_denoxPreprocessor;
   memory::vector<std::byte> m_src;

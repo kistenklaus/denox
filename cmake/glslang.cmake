@@ -21,40 +21,40 @@ function(_denox_collect_targets out_var)
 endfunction()
 
 # ---- 1) Try system static libglslang.a (+ headers) ------------------------
-# if (NOT DENOX_GLSLANG_FORCE_FETCH)
-#   # Prefer .a
-#   set(_save_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
-#   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-#   find_library(_GLSLANG_STATIC NAMES glslang)
-#   set(CMAKE_FIND_LIBRARY_SUFFIXES "${_save_suffixes}")
-#
-#   find_path(_GLSLANG_INCLUDE_DIR
-#     NAMES glslang/Public/ShaderLang.h
-#     PATH_SUFFIXES include
-#   )
-#
-#   if (_GLSLANG_STATIC AND _GLSLANG_INCLUDE_DIR)
-#     add_library(denox_glslang STATIC IMPORTED GLOBAL)
-#     set_target_properties(denox_glslang PROPERTIES
-#       IMPORTED_LOCATION "${_GLSLANG_STATIC}"
-#       INTERFACE_INCLUDE_DIRECTORIES "${_GLSLANG_INCLUDE_DIR}"
-#     )
-#
-#     # Try to add companion libs if present (optional on modern glslang)
-#     foreach(_n IN ITEMS SPIRV SPVRemapper OGLCompiler OSDependent HLSL glslang-default-resource-limits)
-#       # prefer shared, then static
-#       set(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".a")
-#       find_library(_lib_${_n} NAMES ${_n})
-#       if (_lib_${_n})
-#         target_link_libraries(denox_glslang INTERFACE "${_lib_${_n}}")
-#       endif()
-#     endforeach()
-#
-#     add_library(denox::glslang ALIAS denox_glslang)
-#     log_success("✅ glslang: using system STATIC core: ${_GLSLANG_STATIC} (headers: ${_GLSLANG_INCLUDE_DIR})")
-#     return()
-#   endif()
-# endif()
+if (NOT DENOX_GLSLANG_FORCE_FETCH)
+  # Prefer .a
+  set(_save_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+  find_library(_GLSLANG_STATIC NAMES glslang)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES "${_save_suffixes}")
+
+  find_path(_GLSLANG_INCLUDE_DIR
+    NAMES glslang/Public/ShaderLang.h
+    PATH_SUFFIXES include
+  )
+
+  if (_GLSLANG_STATIC AND _GLSLANG_INCLUDE_DIR)
+    add_library(denox_glslang STATIC IMPORTED GLOBAL)
+    set_target_properties(denox_glslang PROPERTIES
+      IMPORTED_LOCATION "${_GLSLANG_STATIC}"
+      INTERFACE_INCLUDE_DIRECTORIES "${_GLSLANG_INCLUDE_DIR}"
+    )
+
+    # Try to add companion libs if present (optional on modern glslang)
+    foreach(_n IN ITEMS SPIRV SPVRemapper OGLCompiler OSDependent HLSL glslang-default-resource-limits)
+      # prefer shared, then static
+      set(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".a")
+      find_library(_lib_${_n} NAMES ${_n})
+      if (_lib_${_n})
+        target_link_libraries(denox_glslang INTERFACE "${_lib_${_n}}")
+      endif()
+    endforeach()
+
+    add_library(denox::glslang ALIAS denox_glslang)
+    log_success("✅ glslang: using system STATIC core: ${_GLSLANG_STATIC} (headers: ${_GLSLANG_INCLUDE_DIR})")
+    return()
+  endif()
+endif()
 
 # ---- 2) FetchContent from release tarball (static) ------------------------
 include(FetchContent)
