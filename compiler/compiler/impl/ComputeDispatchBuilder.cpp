@@ -9,12 +9,13 @@ denox::compiler::ComputeDispatchBuilder::self() {
 };
 
 void denox::compiler::ComputeDispatchBuilder::addBinding(
+    std::uint32_t set, std::uint32_t binding, AccessFlag access,
     memory::NodeId nodeId) {
 
   assert(nodeId < m_impl->m_nodeTensorMapping.size());
   assert(m_impl->m_nodeTensorMapping[nodeId].has_value());
   TensorId id = m_impl->m_nodeTensorMapping[nodeId].value();
-  return addBinding(id);
+  return addBinding(set, binding, access, id);
 }
 
 void denox::compiler::ComputeDispatchBuilder::setName(memory::string name) {

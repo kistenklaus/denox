@@ -16,11 +16,12 @@ class ComputeDispatchBuilder {
 public:
   friend class Impl;
 
-  void addBinding(TensorId tensor) {
-    self().bindings.push_back(TensorBinding{tensor});
+  void addBinding(std::uint32_t set, std::uint32_t binding, AccessFlag access,
+                  TensorId tensor) {
+    self().bindings.push_back(TensorBinding{set, binding, access, tensor});
   }
 
-  void addBinding(memory::NodeId nodeId);
+  void addBinding(std::uint32_t set, std::uint32_t binding, AccessFlag access, memory::NodeId nodeId);
 
   void addPushConstant(PushConstant pushConstant) {
     self().pushConstants.push_back(pushConstant);

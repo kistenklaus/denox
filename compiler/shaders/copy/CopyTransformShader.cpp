@@ -282,8 +282,8 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         compiler::diag::unreachable();
       }
       auto copySrc0Dispatch = impl.registerDispatch(std::move(shader));
-      copySrc0Dispatch.addBinding(src0Id);
-      copySrc0Dispatch.addBinding(dstId);
+      copySrc0Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src0Id);
+      copySrc0Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.x));
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.y));
       copySrc0Dispatch.setName("explicit-concat-copy-src0");
@@ -375,8 +375,8 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         compiler::diag::unreachable();
       }
       auto copySrc1Dispatch = impl.registerDispatch(std::move(shader));
-      copySrc1Dispatch.addBinding(src1Id);
-      copySrc1Dispatch.addBinding(dstId);
+      copySrc1Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src1Id);
+      copySrc1Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.x));
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.y));
       copySrc1Dispatch.setName("explicit-concat-copy-src1");

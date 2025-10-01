@@ -265,11 +265,11 @@ void DirectConvShader::implement(
                                    memory::BiasTensorConstView(conv->B.get())};
     biasTensorId = impl.createParameter(*conv->B);
   }
-  dispatch.addBinding(inId);
-  dispatch.addBinding(outId);
-  dispatch.addBinding(weightTensorId);
+  dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
+  dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
+  dispatch.addBinding(0, 2, AccessFlag::ReadOnly, weightTensorId);
   if (biasTensorId) {
-    dispatch.addBinding(*biasTensorId);
+    dispatch.addBinding(0, 3, AccessFlag::ReadOnly, *biasTensorId);
   }
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));

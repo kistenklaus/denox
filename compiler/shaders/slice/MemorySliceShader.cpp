@@ -111,8 +111,8 @@ void MemorySliceShader::implement(
   }
 
   auto dispatch = impl.registerDispatch(std::move(shader));
-  dispatch.addBinding(inId);
-  dispatch.addBinding(outId);
+  dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
+  dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
   dispatch.addPushConstant(PushConstant::Dynamic(out.extent.x));
