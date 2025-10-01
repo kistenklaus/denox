@@ -31,6 +31,7 @@ add_library(denox_compiler
   compiler/compiler/impl/impl.cpp
   compiler/compiler/spec.cpp
   compiler/compiler/lifeness.cpp
+  compiler/compiler/placement/placement.cpp
 
   compiler/device_info/query/query_driver_device_info.cpp
   compiler/device_info/query/select_physical_device.cpp

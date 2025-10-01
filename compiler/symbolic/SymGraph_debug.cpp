@@ -197,12 +197,14 @@ memory::string SymGraph::to_string(
       str.append(")");
       return str;
     }
+    case symbolic::details::ExprType::Min:
+      return fmt::format("min({}, {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
+    case symbolic::details::ExprType::Max:
+      return fmt::format("max({}, {})", to_string(expr.lhs, symbolNames), to_string(expr.rhs, symbolNames));
     case symbolic::details::ExprType::Identity:
     case symbolic::details::ExprType::NonAffine:
     case symbolic::details::ExprType::Sub:
     case symbolic::details::ExprType::Add:
-    case symbolic::details::ExprType::Min:
-    case symbolic::details::ExprType::Max:
     case symbolic::details::ExprType::Const:
       denox::compiler::diag::unreachable();
     }

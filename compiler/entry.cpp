@@ -4,6 +4,7 @@
 #include "compiler/dce.hpp"
 #include "compiler/impl/impl.hpp"
 #include "compiler/lifeness.hpp"
+#include "compiler/placement/placement.hpp"
 #include "compiler/spec.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/onnx.hpp"
@@ -50,6 +51,16 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
 
   OpModel opModel = compiler::dce(specModel);
 
-  compiler::implement(opModel, symGraph, options);
+  ImplModel implModel = compiler::implement(opModel, symGraph, options);
+
+  compiler::placement(implModel);
+
+  // TODO: Produce barriers. 
+  // - Somehow find a way to get information about who is reading and 
+  //   who is writing. (Missing from our IR).
+
+  // TODO: Compute lifetimes of buffers based on compModel.
+  // - lifetimes based on dispatch index.
+  // - this can and should includes weights.
 }
 } // namespace denox::compiler

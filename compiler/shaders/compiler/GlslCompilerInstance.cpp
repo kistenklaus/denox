@@ -7,8 +7,6 @@
 #include "shaders/compiler/ShaderPreprocessor.hpp"
 #include <cstring>
 #include <diag/logging.hpp>
-#include <fmt/base.h>
-#include <functional>
 #include <glslang/MachineIndependent/Versions.h>
 #include <glslang/Public/ShaderLang.h>
 #include <glslang/SPIRV/GlslangToSpv.h>

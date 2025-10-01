@@ -4,9 +4,15 @@ namespace denox::compiler {
 
 Sym SymGraph::max_xx(Sym lhs, Sym rhs, bool dno) {
   if (lhs.isConstant() && rhs.isConstant()) {
-    return require_const_sym(std::min(lhs.constant(), rhs.constant()), dno);
+    return require_const_sym(std::max(lhs.constant(), rhs.constant()), dno);
   }
   if (lhs == rhs) {
+    return lhs;
+  }
+  if (lhs.isConstant() && lhs.constant() == 0) {
+    return rhs;
+  }
+  if (rhs.isConstant() && rhs.constant() == 0) {
     return lhs;
   }
 
@@ -16,4 +22,4 @@ Sym SymGraph::max_xx(Sym lhs, Sym rhs, bool dno) {
   return Sym::Symbol(require_nonaffine_sym(nonaffine));
 }
 
-} // namespace vkcnn
+} // namespace denox::compiler

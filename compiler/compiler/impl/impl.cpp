@@ -19,7 +19,6 @@
 #include "shaders/pool/BasicPoolShader.hpp"
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
-#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -32,7 +31,6 @@ struct ComputeOpImpl {
 using SuperGraph = memory::AdjGraph<TensorInstance, ComputeOpImpl, float>;
 
 ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Options& options) {
-  SymGraph symGraph = symGraphRef;
   const auto &opGraph = model.graph;
   SuperGraph supergraph{};
 
@@ -173,6 +171,8 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
   }
 
   ImplModel implModel;
+  implModel.symGraph = symGraphRef;
+  SymGraph& symGraph = implModel.symGraph;
   Impl impl{&implModel};
 
   // 1. Collect all intermediate tensors.

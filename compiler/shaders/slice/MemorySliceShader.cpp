@@ -1,7 +1,5 @@
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "memory/dtype/dtype.hpp"
-#include <fmt/base.h>
-#include <stdexcept>
 
 namespace denox::compiler::shaders {
 

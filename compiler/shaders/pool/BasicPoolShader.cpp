@@ -1,7 +1,6 @@
 #include "shaders/pool/BasicPoolShader.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/PoolFunction.hpp"
-#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
@@ -185,6 +184,7 @@ void BasicPoolShader::implement(
   shader.define("PADDING_Y", pool.pool()->padding.y);
 
   auto dispatch = impl.registerDispatch(std::move(shader));
+  dispatch.addBinding(inId);
   dispatch.addBinding(outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
