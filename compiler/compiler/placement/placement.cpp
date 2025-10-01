@@ -3,6 +3,7 @@
 #include "compiler/ir/impl/MemoryConstrain.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
+#include "diag/invalid_state.hpp"
 #include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
 #include "memory/container/dynamic_bitset.hpp"
@@ -14,41 +15,14 @@
 
 namespace denox::compiler {
 
-struct TensorView {
-  std::uint64_t buffer;
-  Sym offset;
-};
 
-struct Buffer {
-  Sym size;
-  unsigned int alignment;
-  memory::optional<std::uint64_t> initalizer;
-};
-
-struct ShaderSourceView {
-  std::uint64_t offset;
-  std::uint64_t size;
-};
-
-struct CompModel {
-  // TODO : serialize SymGraph into some immutable IR, fast to parse IR.
-  SymGraph symGraph;
-
-  memory::vector<TensorView> tensors;
-  memory::vector<memory::optional<TensorMeta>> tensorInfo;
-
-  memory::vector<ShaderSourceView> shaders;
-  memory::vector<Buffer> buffers;
-
-  memory::vector<std::byte> roData;
-};
 
 // NOTE: must not be the same as alignof(std::uint32_t)
 // some architectures are weird.
 static constexpr std::size_t RO_SHADER_SRC_ALIGNMENT = 4;
 static constexpr std::size_t RO_PARAM_ALIGNMENT = 8;
 
-void placement(const ImplModel &model) {
+CompModel placement(const ImplModel &model) {
 
   CompModel compModel;
   compModel.symGraph = model.symGraph;
@@ -67,13 +41,25 @@ void placement(const ImplModel &model) {
   compModel.roData.resize(roSize, std::byte('\0'));
   // Write shader source to roData
   std::size_t roOffset = 0;
-  for (const auto &dispatch : model.dispatches) {
+  for (const auto &computeDispatch : model.dispatches) {
     roOffset = algorithm::align_up(roOffset, RO_SHADER_SRC_ALIGNMENT);
 
-    std::memcpy(compModel.roData.data() + roOffset, dispatch.binary.spv.data(),
-                dispatch.binary.spv.size() * sizeof(std::uint32_t));
+    std::memcpy(compModel.roData.data() + roOffset,
+                computeDispatch.binary.spv.data(),
+                computeDispatch.binary.spv.size() * sizeof(std::uint32_t));
 
-    roOffset += dispatch.binary.spv.size() * sizeof(std::uint32_t);
+    ShaderSourceView src{
+        .offset = roOffset,
+        .size = computeDispatch.binary.spv.size() * sizeof(std::uint32_t),
+    };
+    Dispatch dispatch{
+        .src = src,
+        .setBindings = {}, // <- handeled after tensor placement.
+        .pushConstants = computeDispatch.pushConstants,
+    };
+    compModel.dispatches.push_back(std::move(dispatch));
+
+    roOffset += computeDispatch.binary.spv.size() * sizeof(std::uint32_t);
   }
 
   static constexpr std::uint64_t u64sential =
@@ -330,14 +316,42 @@ void placement(const ImplModel &model) {
       placed[tensorId] = true;
     }
   }
-  fmt::println("tensors: {}", compModel.tensors.size());
-  fmt::println("buffers: {}", compModel.buffers.size());
 
-  // TODO: Remapping of all tensor ids. (model -> compModel)
-  // Basically encode the dispatches within a CompModel.
-  // - source is now in roData. (ShaderSourceView)
-  // - bindings now refer to views. (TensorViews)
-  // - push constants stay the same.
+  for (std::size_t d = 0; d < model.dispatches.size(); ++d) {
+    const auto &computeDispatch = model.dispatches[d];
+    auto &dispatch = compModel.dispatches[d];
+
+    for (const TensorBinding &binding : computeDispatch.bindings) {
+      auto setBindingIt =
+          std::find_if(dispatch.setBindings.begin(), dispatch.setBindings.end(),
+                       [&](const DescriptorSetBinding &setBinding) {
+                         return setBinding.set == binding.set;
+                       });
+      if (setBindingIt == dispatch.setBindings.end()) {
+        DescriptorSetBinding setBinding;
+        setBinding.set = binding.set;
+        dispatch.setBindings.push_back(setBinding);
+        setBindingIt = --dispatch.setBindings.end();
+      }
+      assert(setBindingIt != dispatch.setBindings.end());
+
+      auto bindingIt = std::find_if(
+          setBindingIt->bindings.begin(), setBindingIt->bindings.end(),
+          [&](const DescriptorBinding &descriptorBinding) {
+            return descriptorBinding.binding == binding.binding;
+          });
+      if (bindingIt != setBindingIt->bindings.end()) {
+        diag::invalid_state(); // <- Binding Collision.
+      }
+      std::uint64_t viewId = tensorIdToViewMap[binding.tensorId.index];
+      DescriptorBinding descriptorBinding;
+      descriptorBinding.binding = binding.binding;
+      descriptorBinding.access = binding.accessFlag;
+      descriptorBinding.tensor = viewId;
+      setBindingIt->bindings.push_back(descriptorBinding);
+    }
+  }
+  return compModel;
 }
 
 } // namespace denox::compiler

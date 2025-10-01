@@ -6,6 +6,7 @@
 #include "compiler/lifeness.hpp"
 #include "compiler/placement/placement.hpp"
 #include "compiler/spec.hpp"
+#include "compiler/sym_compile.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/onnx.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
@@ -53,7 +54,9 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
 
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
-  compiler::placement(implModel);
+  CompModel compModel = compiler::placement(implModel);
+
+  compiler::sym_compile(compModel);
 
   // TODO: Produce barriers. 
   // - Somehow find a way to get information about who is reading and 

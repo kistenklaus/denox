@@ -25,12 +25,15 @@ include(cmake/warnings.cmake)
 
 add_library(denox_compiler 
 
+  compiler/algorithm/binary_op_permutations.cpp
+
   compiler/compiler/cano/cano.cpp
   compiler/compiler/dce.cpp
   compiler/compiler/impl/ComputeDispatchBuilder.cpp
   compiler/compiler/impl/impl.cpp
   compiler/compiler/spec.cpp
   compiler/compiler/lifeness.cpp
+  compiler/compiler/sym_compile.cpp
   compiler/compiler/placement/placement.cpp
 
   compiler/device_info/query/query_driver_device_info.cpp
@@ -54,6 +57,7 @@ add_library(denox_compiler
   compiler/symbolic/SymGraph_affine.cpp
   compiler/symbolic/SymGraph_affine_symbol_cache.cpp
   compiler/symbolic/SymGraph_api.cpp
+  compiler/symbolic/SymGraph_compile.cpp
   compiler/symbolic/SymGraph_debug.cpp
   compiler/symbolic/SymGraph_div_entry.cpp
   compiler/symbolic/SymGraph_eval.cpp
@@ -225,6 +229,7 @@ if (BUILD_TESTING)
 
   add_executable(denox_test EXCLUDE_FROM_ALL
     test/main.cpp
+    test/compiler/algorithm/binary_op_permutations.cpp
     test/compiler/algorithm/match_first.cpp
     test/compiler/algorithm/match_all.cpp
     test/compiler/algorithm/shortest_dag_hyperpath.cpp

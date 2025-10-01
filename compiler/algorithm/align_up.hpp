@@ -23,8 +23,7 @@ inline const std::byte *align_up(const std::byte *ptr,
                                  std::size_t alignment) noexcept {
   assert(alignment && (alignment & (alignment - 1)) == 0 &&
          "alignment must be power of two");
-  return const_cast<std::byte *>(
-      align_up(const_cast<std::byte *>(ptr), alignment));
+  return align_up(const_cast<std::byte *>(ptr), alignment);
 }
 
 template <std::size_t Align>

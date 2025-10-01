@@ -17,6 +17,8 @@
 #include "memory/container/optional.hpp"
 #include "symbolic/SymGraphEval.hpp"
 #include "symbolic/SymGraph_types.inl"
+#include "symbolic/SymIR.hpp"
+#include "symbolic/SymRemap.hpp"
 
 namespace denox::compiler {
 
@@ -179,7 +181,13 @@ public:
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;
   void debugDump() const;
-  memory::string to_string(Sym sym, const memory::hash_map<Sym::symbol, memory::string>& symbolNames = {}) const;
+  memory::string to_string(Sym sym,
+                           const memory::hash_map<Sym::symbol, memory::string>
+                               &symbolNames = {}) const;
+
+  std::pair<SymIR, SymRemap> compile(memory::span<const symbol> symbols) const;
+
+  std::size_t symbolCount() const { return m_expressions.size(); }
 
 private:
   // Affine symbol cache.
@@ -255,6 +263,8 @@ private:
 
   // Non-Affine Solver
   auto require_nonaffine_sym(const NonAffineExpr &nonaffine) -> symbol;
+  auto find_nonaffine_sym(const NonAffineExpr &nonaffine) const
+      -> memory::optional<symbol>;
 
   Sym nonaffine_mul(symbol lhs, symbol rhs, bool dno);
   Sym nonaffine_div(Sym lhs, Sym rhs, bool dno);
@@ -306,7 +316,7 @@ private:
 
   std::vector<Expr> m_expressions;
   symbolic::details::AffineExprCache m_affineCache;
-  symbolic::details::NonAffineExprCache m_nonAffineCache;
+  mutable symbolic::details::NonAffineExprCache m_nonAffineCache;
   symbolic::details::ModSolverCache m_modSolverCache;
 };
 

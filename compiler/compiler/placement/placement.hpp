@@ -1,9 +1,10 @@
 #pragma once
 
+#include "compiler/ir/comp/CompModel.hpp"
 #include "compiler/ir/impl/ImplModel.hpp"
 
 namespace denox::compiler {
 
-void placement(const ImplModel &model);
+CompModel placement(const ImplModel &model);
 
 }
