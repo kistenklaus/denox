@@ -1,11 +1,14 @@
 #pragma once
 
+#include "compiler/ir/impl/InputDesc.hpp"
+#include "compiler/ir/impl/OutputDesc.hpp"
 #include "compiler/ir/impl/PushConstant.hpp"
 #include "compiler/ir/impl/TensorBinding.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "symbolic/Sym.hpp"
+#include "symbolic/sym_vec2.hpp"
 #include <cstdint>
 
 namespace denox::compiler {
@@ -43,6 +46,7 @@ struct Dispatch {
   memory::vector<PushConstant> pushConstants;
 };
 
+
 struct CompModel {
   SymGraph symGraph;
 
@@ -53,6 +57,9 @@ struct CompModel {
   memory::vector<Buffer> buffers;
 
   memory::vector<std::byte> roData;
+
+  memory::vector<InputDesc> inputs;
+  memory::vector<OutputDesc> outputs;
 };
 
 } // namespace denox::compiler

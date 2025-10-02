@@ -10,9 +10,7 @@
 #include "symbolic/SymGraph.hpp"
 #include "symbolic/SymIR.hpp"
 #include <algorithm>
-#include <fmt/base.h>
 #include <map>
-#include <spirv-tools/libspirv.h>
 #include <utility>
 
 namespace denox::compiler {

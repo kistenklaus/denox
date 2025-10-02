@@ -30,11 +30,11 @@ public:
 
   enum class OpenMode : unsigned {
     Read = 1u << 0,     // open existing for reading
-    write = 1u << 1,    // open for writing
+    Write = 1u << 1,    // open for writing
     Append = 1u << 2,   // append at end
     Truncate = 1u << 3, // truncate on open
     Create = 1u << 4,   // create if not exist
-    Readwrite = Read | write
+    Readwrite = Read | Write
   };
 
   enum class SeekWhence : int { Set = 0, Cur = 1, End = 2 };

@@ -85,8 +85,6 @@ else()
   )
 endif()
 
-# Put sources in a stable path (avoids stale subbuilds)
-set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/_deps")
 FetchContent_MakeAvailable(denox_glslang_src)
 
 # Upstream exports these targets; collect whatever exists on this tag.

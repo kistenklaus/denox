@@ -10,11 +10,12 @@ private:
   static constexpr Sym::symbol mask63 =
       (Sym::symbol{1} << 63) - 1; // 0x7FFF...FFFF
 public:
+  sym() : m_isConstant(false), m_value(0) {}
   sym(Sym s)
       : m_isConstant(s.isConstant()),
-        m_value((m_isConstant ? static_cast<Sym::symbol>(s.constant())
-                              : s.sym()) &
-                mask63) {
+        m_value(
+            (m_isConstant ? static_cast<Sym::symbol>(s.constant()) : s.sym()) &
+            mask63) {
     assert(!s.isConstant() || s.constant() >= 0);
   }
 

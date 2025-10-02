@@ -29,6 +29,8 @@ imgui.ini
 *.sh
 **.data
 
+**.dnx
+
 dump
 
 preprocessed.comp

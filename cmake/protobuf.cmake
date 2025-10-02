@@ -162,7 +162,7 @@ function(denox_add_proto_lib tgt)
 
   list(LENGTH _protos _nprotos)
 
-  log_info("protoc ${_protos} >> ${DAP_OUT_DIR}")
+  # log_info("protoc ${_protos} >> ${DAP_OUT_DIR}")
 
   # Define library
   add_library(${_tgt_real} ${DAP_TYPE} ${_gen_srcs} ${_gen_hdrs})

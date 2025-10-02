@@ -207,7 +207,14 @@ void compile(const char *cpath, const CompileOptions &options) {
   memory::vector<std::byte> buf{file.size()};
   file.read_exact(buf);
 
-  compiler::entry(buf, opt);
+  auto dnx = compiler::entry(buf, opt);
+
+  // Write to file.
+
+  io::File dnxFile = io::File::open(io::Path::cwd() / "net.dnx", io::File::OpenMode::Write | io::File::OpenMode::Truncate);;
+  memory::span<const std::byte> dnxView{reinterpret_cast<const std::byte*>(dnx.data()), dnx.size()};
+  dnxFile.write_exact(dnxView);
+
 }
 
 } // namespace denox

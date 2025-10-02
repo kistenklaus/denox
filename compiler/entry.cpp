@@ -8,11 +8,11 @@
 #include "compiler/spec.hpp"
 #include "compiler/sym_compile.hpp"
 #include "diag/unreachable.hpp"
+#include "dnx/serialize.hpp"
 #include "frontend/onnx/onnx.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
-#include <google/protobuf/port.h>
 
 namespace denox::compiler {
 
@@ -35,7 +35,8 @@ static Model frontend(memory::span<const std::byte> raw,
   denox::compiler::diag::unreachable();
 }
 
-void entry(memory::span<const std::byte> raw, const Options &options) {
+flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
+                                  const Options &options) {
 
   Model model = frontend(raw, options);
 
@@ -58,7 +59,12 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
 
   auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel);
 
+  auto dnx = dnx::serialize(compModel, symIR);
+
   fmt::println("\n\x1B[31mSummary:\x1B[0m");
+
+  fmt::println("\u2022 {:<20} : {}", "Inputs ", compModel.inputs.size());
+  fmt::println("\u2022 {:<20} : {}", "Outputs ", compModel.outputs.size());
 
   fmt::println("\u2022 {:<20} : {}", "Number-Of-Dispatches",
                implModel.dispatches.size());
@@ -91,20 +97,28 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
     fmt::println("\u2022 {:<20} : {}B", "Parameter-ByteSize",
                  parameterByteSize);
   }
+  std::size_t dnxByteSize = dnx.size();
+  if (dnxByteSize > 1000000) {
+    fmt::println("\u2022 {:<20} : {:.1f}MB", "DNX-ByteSize",
+                 static_cast<float>(dnxByteSize) / 1000000.0f);
+  } else if (dnxByteSize > 1000) {
+    fmt::println("\u2022 {:<20} : {:.1f}KB", "DNX-ByteSize",
+                 static_cast<float>(dnxByteSize) / 1000.0f);
+  } else {
+    fmt::println("\u2022 {:<20} : {}B", "DNX-ByteSize", dnxByteSize);
+  }
 
   fmt::println("\u2022 {:<20} : {}", "Dynamic Variables", symIR.varCount);
   fmt::println("\u2022 {:<20} : {}", "Dynamic Expressions", symCount);
   fmt::println("\u2022 {:<20} : {}", "SymIR OpCount", symIR.ops.size());
-  fmt::println("\u2022 {:<20} : {}", "Amount of buffers", compModel.buffers.size());
+  fmt::println("\u2022 {:<20} : {}", "Amount of buffers",
+               compModel.buffers.size());
   fmt::println("\u2022 {:<20} : {}", "Tensor views ", compModel.tensors.size());
 
 
-  // TODO: Produce barriers.
-  // - Somehow find a way to get information about who is reading and
-  //   who is writing. (Missing from our IR).
 
-  // TODO: Compute lifetimes of buffers based on compModel.
-  // - lifetimes based on dispatch index.
-  // - this can and should includes weights.
+
+
+  return dnx;
 }
 } // namespace denox::compiler

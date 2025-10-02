@@ -9,7 +9,6 @@
 #include "memory/coroutines/generator.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/activation/BasicActivationShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
@@ -30,7 +29,8 @@ struct ComputeOpImpl {
 
 using SuperGraph = memory::AdjGraph<TensorInstance, ComputeOpImpl, float>;
 
-ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Options& options) {
+ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
+                    const Options &options) {
   const auto &opGraph = model.graph;
   SuperGraph supergraph{};
 
@@ -73,53 +73,52 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     const ShaderCapabilities &caps = shader->capabilities();
     const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
 
-
-    algorithm::match_all<TensorInstance, ComputeOp>(caps.patterns[0].pattern, opGraph);
-    
+    algorithm::match_all<TensorInstance, ComputeOp>(caps.patterns[0].pattern,
+                                                    opGraph);
 
     denox::memory::generator<algorithm::ConstGraphMatch<int, int>> x;
 
     for (unsigned int p = 0; p < pn; ++p) {
       memory::dynamic_bitset edgeExits(nodeCount * nodeCount * nodeCount,
                                        false);
-    for (const auto &m :
-         algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
-          memory::small_vector<memory::NodeId, 2> inputs;
-          memory::small_vector<const TensorInstance *, 2> ins;
-          for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
-            memory::NodeId in = m[caps.patterns[p].inputs[i]];
+      for (const auto &m :
+           algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
+        memory::small_vector<memory::NodeId, 2> inputs;
+        memory::small_vector<const TensorInstance *, 2> ins;
+        for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
+          memory::NodeId in = m[caps.patterns[p].inputs[i]];
 
-            inputs.push_back(in);
-            ins.push_back(&opGraph.get(in));
-          }
-          memory::NodeId out = m[caps.patterns[p].output];
-          std::uint64_t edgeId =
-              static_cast<std::uint64_t>(inputs[0]) * nodeCount +
-              static_cast<std::uint64_t>(out);
-          if (inputs.size() == 2) {
-            edgeId += *inputs[1] * nodeCount * nodeCount;
-          }
-          if (edgeExits[edgeId]) {
-            continue;
-          }
-          auto pattern = shader->acceptMatch(opGraph, p, m);
-          if (!pattern.has_value()) {
-            continue;
-          }
+          inputs.push_back(in);
+          ins.push_back(&opGraph.get(in));
+        }
+        memory::NodeId out = m[caps.patterns[p].output];
+        std::uint64_t edgeId =
+            static_cast<std::uint64_t>(inputs[0]) * nodeCount +
+            static_cast<std::uint64_t>(out);
+        if (inputs.size() == 2) {
+          edgeId += *inputs[1] * nodeCount * nodeCount;
+        }
+        if (edgeExits[edgeId]) {
+          continue;
+        }
+        auto pattern = shader->acceptMatch(opGraph, p, m);
+        if (!pattern.has_value()) {
+          continue;
+        }
 
-          edgeExits[edgeId] = true;
+        edgeExits[edgeId] = true;
 
-          const float w =
-              heuristic->eval(ins, opGraph.get(out), *pattern, m, shader);
+        const float w =
+            heuristic->eval(ins, opGraph.get(out), *pattern, m, shader);
 
-          supergraph.addEdge(inputs, out,
-                             ComputeOpImpl{
-                                 .shader = shader,
-                                 .pattern = *pattern,
-                                 .match = m,
-                             },
-                             w);
-    }
+        supergraph.addEdge(inputs, out,
+                           ComputeOpImpl{
+                               .shader = shader,
+                               .pattern = *pattern,
+                               .match = m,
+                           },
+                           w);
+      }
     }
   }
   memory::ConstGraph<TensorInstance, ComputeOpImpl, float> constSupergraph{
@@ -161,8 +160,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
       totalWeight += constSupergraph.weight(oid);
       fmt::println("{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} : {}", inStr,
                    impl.shader->name(o.pattern),
-                   fmt::format("{}[{}]", dst.layout.to_string(),
-                   dst.channels),
+                   fmt::format("{}[{}]", dst.layout.to_string(), dst.channels),
                    heuristic->weight_to_string(constSupergraph.weight(oid)));
     }
     fmt::println("\x1B[31m{:>89} {}\x1B[0m",
@@ -172,7 +170,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
 
   ImplModel implModel;
   implModel.symGraph = symGraphRef;
-  SymGraph& symGraph = implModel.symGraph;
+  SymGraph &symGraph = implModel.symGraph;
   Impl impl{&implModel};
 
   // 1. Collect all intermediate tensors.
@@ -199,6 +197,16 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
   }
   assert(input.index != TensorId::nullindex);
   assert(output.index != TensorId::nullindex);
+  {
+    auto in = model.graph.get(model.input);
+    sym_vec2 extent = in.extent;
+    implModel.inputs.emplace_back(in.channels, extent, input);
+  }
+  {
+    auto out = model.graph.get(model.output);
+    sym_vec2 extent = out.extent;
+    implModel.outputs.emplace_back(out.channels, extent, output);
+  }
 
   impl.compileAll();
 
@@ -229,10 +237,10 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     } else {
       sourcePath = "<unknown>";
     }
-    fmt::println("\x1B[34m\x1B[1m{}\x1B[0m: (\x1B[4m{}\x1B[0m)",
-    dispatchName,
+    fmt::println("\x1B[34m\x1B[1m{}\x1B[0m: (\x1B[4m{}\x1B[0m)", dispatchName,
                  sourcePath);
-    fmt::print("\u2022 Binary-Size: {}B\n", dispatch.binary.spv.size() * sizeof(std::uint32_t));
+    fmt::print("\u2022 Binary-Size: {}B\n",
+               dispatch.binary.spv.size() * sizeof(std::uint32_t));
     fmt::print("\u2022 TensorBindings: [");
     bool first = true;
     for (const auto &binding : dispatch.bindings) {
@@ -250,7 +258,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
     }
   }
   fmt::println("=> \x1B[35m\x1B[1m{}\x1B[0m: {}", "Output", output.index);
-
 
   return implModel;
 }

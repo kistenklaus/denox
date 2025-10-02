@@ -1,5 +1,6 @@
 #include "compiler/placement/placement.hpp"
 #include "algorithm/align_up.hpp"
+#include "compiler/ir/ConstModel.hpp"
 #include "compiler/ir/impl/MemoryConstrain.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
@@ -23,7 +24,6 @@ static constexpr std::size_t RO_SHADER_SRC_ALIGNMENT = 4;
 static constexpr std::size_t RO_PARAM_ALIGNMENT = 8;
 
 CompModel placement(const ImplModel &model) {
-
   CompModel compModel;
   compModel.symGraph = model.symGraph;
   SymGraph &symGraph = compModel.symGraph;
@@ -351,6 +351,19 @@ CompModel placement(const ImplModel &model) {
       setBindingIt->bindings.push_back(descriptorBinding);
     }
   }
+
+  for (std::size_t i = 0; i < model.inputs.size(); ++i) {
+    InputDesc input = model.inputs[i];
+    input.tensor.index = tensorIdToViewMap[input.tensor.index];
+    compModel.inputs.push_back(input);
+  }
+
+  for (std::size_t o = 0; o < model.outputs.size(); ++o) {
+    OutputDesc output = model.outputs[o];
+    output.tensor.index = tensorIdToViewMap[output.tensor.index];
+    compModel.outputs.push_back(output);
+  }
+
   return compModel;
 }
 

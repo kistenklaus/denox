@@ -2,7 +2,6 @@
 #include "diag/not_implemented.hpp"
 #include "memory/container/dynamic_bitset.hpp"
 #include "symbolic/SymGraph.hpp"
-#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -33,6 +32,30 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
     if (tensor.offset.isSymbolic() && !symbolAdded[tensor.offset.sym()]) {
       symbols.push_back(tensor.offset.sym());
       symbolAdded[tensor.offset.sym()] = true;
+    }
+  }
+
+  for (const auto& input : model.inputs) {
+    if (input.extent.x.isSymbolic() && !symbolAdded[input.extent.x.symbol()]) {
+      symbols.push_back(input.extent.x.symbol());
+      symbolAdded[input.extent.x.symbol()] = true;
+    }
+
+    if (input.extent.y.isSymbolic() && !symbolAdded[input.extent.y.symbol()]) {
+      symbols.push_back(input.extent.y.symbol());
+      symbolAdded[input.extent.y.symbol()] = true;
+    }
+  }
+
+  for (const auto& output : model.outputs) {
+    if (output.extent.x.isSymbolic() && !symbolAdded[output.extent.x.symbol()]) {
+      symbols.push_back(output.extent.x.symbol());
+      symbolAdded[output.extent.x.symbol()] = true;
+    }
+
+    if (output.extent.y.isSymbolic() && !symbolAdded[output.extent.y.symbol()]) {
+      symbols.push_back(output.extent.y.symbol());
+      symbolAdded[output.extent.y.symbol()] = true;
     }
   }
 
@@ -71,6 +94,15 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
   }
   for (auto &tensor : model.tensors) {
     tensor.offset = remap[tensor.offset];
+  }
+
+  for (auto& input : model.inputs) {
+    input.extent.x = sym(remap[input.extent.x.asSym()]);
+    input.extent.y = sym(remap[input.extent.y.asSym()]);
+  }
+  for (auto& output : model.outputs) {
+    output.extent.x = sym(remap[output.extent.x.asSym()]);
+    output.extent.y = sym(remap[output.extent.y.asSym()]);
   }
 
   return std::make_pair(symIR, symbols.size());

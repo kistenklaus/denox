@@ -1,0 +1,172 @@
+
+
+namespace denox.dnx;
+
+file_extension "dnx";
+
+enum ScalarType:ubyte { 
+  I16=0, 
+  U16=1, 
+  I32=2, 
+  U32=3, 
+  I64=4, 
+  U64=5, 
+  F16=6, 
+  F32=7, 
+  F64=8
+}
+
+table SymRef {
+  sid:uint;   // Index into sym_ir.ops
+}
+
+table ScalarLiteral {
+  dtype:ScalarType;
+  bytes:[ubyte];
+}
+
+union ScalarSource { 
+  literal:ScalarLiteral, 
+  symbolic:SymRef 
+}
+
+table PushConstantField {
+  dtype:ScalarType;         
+  offset:ushort;            
+  source:ScalarSource;      
+}
+
+table PushConstant {
+  size:ushort;
+  fields:[PushConstantField];
+}
+
+enum Access:ubyte { 
+  ReadOnly=0,
+  WriteOnly=1, 
+  ReadWrite=2 
+}
+
+table DescriptorBinding {
+  binding:ushort;
+  access:Access;
+  tensor:uint;
+}
+
+table DescriptorSetBinding {
+  set:ushort;
+  bindings:[DescriptorBinding];
+}
+
+table ComputeDispatchInfo {
+  name:string;
+  spirv_source_file:string;
+}
+
+table ComputeDispatch {
+  spirv_src:[uint32];
+  entry_point:string;
+  bindings:[DescriptorSetBinding];
+  push_constant: PushConstant; 
+}
+
+union Dispatch {
+  ComputeDispatch,
+}
+
+table Buffer {
+  size:ScalarSource;
+  alignment:ushort;
+}
+
+table TensorInfo {
+  width:ScalarSource; 
+  height:ScalarSource; 
+  channels:ScalarSource;
+  layout:string;
+  name:string;
+}
+
+table Tensor {
+  buffer:uint;
+  offset:ScalarSource;
+}
+
+enum SymIROpCode:uint16 {
+  NOP = 0,
+  ADD = 1,
+  SUB = 2,
+  MUL = 3,
+  DIV = 4,
+  MOD = 5,
+  MIN = 6,
+  MAX = 7,
+  LHSC = 0x8000, // lhs is constant
+  RHSC = 0x4000, // rhs is constant
+}
+
+struct SymIROp  {
+  opcode:SymIROpCode;
+  lhs:int64;
+  rhs:int64;
+}
+
+table SymVar {
+  name:string;
+}
+
+table SymIR {
+  vars:[SymVar];
+  ops:[SymIROp];
+}
+
+table BufferInitializer {
+  buffer:uint (key);
+  data:[ubyte];
+}
+
+table Input {
+  name:string;
+  tensor:uint;
+  width:ScalarSource;
+  height:ScalarSource;
+  channels:ScalarSource;
+}
+
+table Output {
+  name:string;
+  tensor:uint;
+  width:ScalarSource;
+  height:ScalarSource;
+  channels:ScalarSource;
+}
+
+enum Version:ushort {
+  DNX_VERSION_1_0,
+}
+
+table ModelInfo {
+  producer:string;
+  producer_version:string;
+  model_version:string;
+}
+
+enum RuntimeFeature:uint {
+  CooperativeMatrix,
+}
+
+table Model {
+  version: Version;
+  info:ModelInfo; // optional.
+  required_features:[RuntimeFeature];
+  tensors:[Tensor];
+  buffers:[Buffer];
+  dispatches:[Dispatch];
+  sym_ir:SymIR;
+  initializers:[BufferInitializer];
+  inputs:[Input];
+  outputs:[Output];
+}
+
+
+root_type Model;

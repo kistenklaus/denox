@@ -7,7 +7,6 @@
 #include "symbolic/SymGraph.hpp"
 #include "symbolic/ssym.hpp"
 #include <cstdint>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <limits>
 #include <stdexcept>

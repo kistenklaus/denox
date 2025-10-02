@@ -7,9 +7,6 @@ include(GoogleTest) # for gtest_discover_tests()
 # Version pin (choose a concrete tag or commit)
 set(DENOX_GTEST_TAG "v1.17.x" CACHE STRING "googletest tag to fetch")
 
-# Keep updates off in normal builds (opt-in to update if needed)
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
-
 # Windows: use same CRT as parent project
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
@@ -25,6 +22,7 @@ FetchContent_Declare(
   EXCLUDE_FROM_ALL
   GIT_REPOSITORY ${DENOX_GTEST_REPO}
   GIT_TAG        ${DENOX_GTEST_TAG}
+  GIT_PROGRESS TRUE
 )
 FetchContent_MakeAvailable(googletest)
 

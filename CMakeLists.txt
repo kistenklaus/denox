@@ -9,6 +9,7 @@ if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
+Set(FETCHCONTENT_QUIET FALSE)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -20,6 +21,8 @@ include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/onnx.cmake)
 include(cmake/generator.cmake)
+include(cmake/flatbuffers.cmake)
+include(cmake/dnx.cmake)
 
 include(cmake/warnings.cmake)
 
@@ -44,6 +47,8 @@ add_library(denox_compiler
   compiler/device_info/query/query_coopmat_properties.cpp
   compiler/device_info/query/query_subgroup_properties.cpp
   compiler/device_info/query/create_query_instance.cpp
+
+  compiler/dnx/serialize.cpp
 
   compiler/memory/dtype/dtype_reference.cpp
   compiler/memory/dtype/f16.cpp
@@ -185,6 +190,7 @@ target_link_libraries(denox_compiler
     denox::generator
     denox::vulkan
     denox::spirv-tools
+    denox::dnx
   PRIVATE
     denox::glslang
 

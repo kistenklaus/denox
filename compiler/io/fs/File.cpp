@@ -288,7 +288,7 @@ bool File::has(OpenMode m, OpenMode f) {
 
 const char *File::mode_cstr(OpenMode m) {
   const bool rd = has(m, OpenMode::Read);
-  const bool wr = has(m, OpenMode::write);
+  const bool wr = has(m, OpenMode::Write);
   const bool ap = has(m, OpenMode::Append);
   const bool tr = has(m, OpenMode::Truncate);
   const bool cr = has(m, OpenMode::Create);
