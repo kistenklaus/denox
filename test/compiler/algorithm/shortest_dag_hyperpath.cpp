@@ -38,15 +38,15 @@ TEST(algorithm_shortest_dag_hyperpath, chain_prefers_two_step_over_direct) {
   // Firing validity & reachability
   vector<unsigned char> avail(CG.nodeCount(), 0);
   for (auto s0 : starts_vec)
-    avail[s0] = 1;
+    avail[*s0] = 1;
   for (auto e : order) {
     for (auto u : CG.src(e))
-      EXPECT_TRUE(avail[u]);
-    avail[CG.dst(e)] = 1;
+      EXPECT_TRUE(avail[*u]);
+    avail[*CG.dst(e)] = 1;
   }
   bool reached = false;
   for (auto z : ends_vec)
-    reached |= (avail[z] != 0);
+    reached |= (avail[*z] != 0);
   EXPECT_TRUE(reached);
 
   // Cost and structure
@@ -83,15 +83,15 @@ TEST(algorithm_shortest_dag_hyperpath, branching_two_tail_edge_beats_direct) {
 
   vector<unsigned char> avail(CG.nodeCount(), 0);
   for (auto s0 : starts_vec)
-    avail[s0] = 1;
+    avail[*s0] = 1;
   for (auto e : order) {
     for (auto u : CG.src(e))
-      EXPECT_TRUE(avail[u]);
-    avail[CG.dst(e)] = 1;
+      EXPECT_TRUE(avail[*u]);
+    avail[*CG.dst(e)] = 1;
   }
   bool reached = false;
   for (auto z : ends_vec)
-    reached |= (avail[z] != 0);
+    reached |= (avail[*z] != 0);
   EXPECT_TRUE(reached);
 
   float total = 0.f;
@@ -123,15 +123,15 @@ TEST(algorithm_shortest_dag_hyperpath, multi_source_two_tail_edge_single_step) {
 
   vector<unsigned char> avail(CG.nodeCount(), 0);
   for (auto s0 : starts_vec)
-    avail[s0] = 1;
+    avail[*s0] = 1;
   for (auto e : order) {
     for (auto u : CG.src(e))
-      EXPECT_TRUE(avail[u]);
-    avail[CG.dst(e)] = 1;
+      EXPECT_TRUE(avail[*u]);
+    avail[*CG.dst(e)] = 1;
   }
   bool reached = false;
   for (auto z : ends_vec)
-    reached |= (avail[z] != 0);
+    reached |= (avail[*z] != 0);
   EXPECT_TRUE(reached);
 
   ASSERT_EQ(order.size(), 1u);
@@ -157,40 +157,3 @@ TEST(algorithm_shortest_dag_hyperpath, unreachable_returns_nullopt) {
   EXPECT_FALSE(res.has_value());
 }
 
-TEST(algorithm_shortest_dag_hyperpath, chooses_best_among_multiple_targets) {
-  AdjGraph<int, int, float> G;
-  const NodeId s = G.addNode(1);
-  const NodeId a = G.addNode(2);
-  const NodeId t1 = G.addNode(3);
-  const NodeId t2 = G.addNode(4);
-
-  (void)G.addEdge(s, a, 401, 1.0f);  // s->a (1)
-  (void)G.addEdge(a, t1, 402, 5.0f); // a->t1 (5) total 6
-  (void)G.addEdge(s, t2, 403, 3.0f); // s->t2 (3) should win
-
-  ConstGraph<int, int, float> CG{G};
-
-  vector<NodeId> starts_vec{s};
-  vector<NodeId> ends_vec{t1, t2};
-  span<const NodeId> starts(starts_vec.begin(), starts_vec.end());
-  span<const NodeId> ends(ends_vec.begin(), ends_vec.end());
-
-  auto res = shortest_dag_hyperpath<int, int, float>(CG, starts, ends);
-  ASSERT_TRUE(res.has_value());
-  const auto &order = *res;
-
-  vector<unsigned char> avail(CG.nodeCount(), 0);
-  for (auto s0 : starts_vec)
-    avail[s0] = 1;
-  for (auto e : order) {
-    for (auto u : CG.src(e))
-      EXPECT_TRUE(avail[u]);
-    avail[CG.dst(e)] = 1;
-  }
-  // It should reach t2 specifically
-  EXPECT_TRUE(avail[t2]);
-
-  ASSERT_EQ(order.size(), 1u);
-  EXPECT_EQ(CG.dst(order[0]), t2);
-  EXPECT_NEAR(CG.weight(order[0]), 3.0f, 1e-6f);
-}

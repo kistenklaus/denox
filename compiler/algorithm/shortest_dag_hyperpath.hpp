@@ -16,39 +16,39 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
   if (Vn == 0 || En == 0 || ends.size() == 0)
     return {};
 
+  // Distances and best incoming edge per node
   memory::vector<memory::optional<W>> dist(Vn, memory::optional<W>{});
   memory::vector<memory::optional<memory::EdgeId>> best_in(
       Vn, memory::optional<memory::EdgeId>{});
 
+  // Kahn-like topological sweep over tails
   memory::vector<std::uint32_t> indeg_by_tail(Vn, 0);
   memory::vector<std::uint16_t> rem(En, 0);
   memory::vector<memory::optional<W>> partial(En, W(0));
 
   for (std::size_t vi = 0; vi < Vn; ++vi) {
-    const auto v = memory::NodeId{vi};
+    memory::NodeId v{vi};
     for (memory::EdgeId e : graph.incoming(v)) {
-      const auto tails = graph.src(e);
-      const auto k = static_cast<std::uint16_t>(tails.size());
+      memory::span<const memory::NodeId> tails = graph.src(e);
+      std::uint16_t k = static_cast<std::uint16_t>(tails.size());
       rem[*e] = k;
       indeg_by_tail[*v] += k;
     }
   }
 
-  for (memory::NodeId s : starts) {
+  for (memory::NodeId s : starts)
     dist[*s] = W(0);
-  }
 
   memory::vector<memory::NodeId> q;
   q.reserve(Vn);
   for (std::size_t vi = 0; vi < Vn; ++vi) {
-    if (indeg_by_tail[vi] == 0) {
+    if (indeg_by_tail[vi] == 0)
       q.push_back(memory::NodeId{vi});
-    }
   }
 
   std::size_t qh = 0;
   while (qh < q.size()) {
-    const memory::NodeId u = q[qh++];
+    memory::NodeId u = q[qh++];
 
     for (memory::EdgeId e : graph.outgoing(u)) {
       if (!partial[*e] || !dist[*u]) {
@@ -56,33 +56,27 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
       } else {
         partial[*e] = W(*partial[*e] + *dist[*u]);
       }
-      const auto r = --rem[*e];
-      const memory::NodeId v = graph.dst(e);
+      std::uint16_t r = --rem[*e];
+      memory::NodeId v = graph.dst(e);
       if (r == 0 && partial[*e]) {
-        const W cand = W(*partial[*e] + graph.weight(e));
+        W cand = W(*partial[*e] + graph.weight(e));
         if (!dist[*v] || cand < *dist[*v]) {
           dist[*v] = cand;
           best_in[*v] = e;
         }
       }
-      if (--indeg_by_tail[*v] == 0) {
+      if (--indeg_by_tail[*v] == 0)
         q.push_back(v);
-      }
     }
   }
 
-  memory::optional<memory::NodeId> best_t;
-  memory::optional<W> best_cost;
+  // Require all requested ends to be reachable (synthetic sink semantics)
   for (memory::NodeId t : ends) {
-    if (dist[*t] && (!best_cost || *dist[*t] < *best_cost)) {
-      best_cost = dist[*t];
-      best_t = t;
-    }
-  }
-  if (!best_t) {
-    return memory::nullopt; // no reachable target
+    if (!dist[*t])
+      return memory::nullopt;
   }
 
+  // Reconstruct union of shortest paths to all ends
   memory::vector<unsigned char> emitted(En, 0);
   memory::vector<memory::EdgeId> order;
   order.reserve(En);
@@ -92,24 +86,26 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
     unsigned char stage;
   };
   memory::vector<Frame> stack;
-  stack.push_back(Frame{*best_t, 0});
+  stack.reserve(ends.size() * 2);
+  for (memory::NodeId t : ends)
+    stack.push_back(Frame{t, 0});
 
   while (!stack.empty()) {
-    const Frame fr = stack.back();
+    Frame fr = stack.back();
     stack.pop_back();
 
-    const memory::NodeId v = fr.v;
-    if (!best_in[*v]) {
+    memory::NodeId v = fr.v;
+    if (!best_in[*v])
       continue;
-    }
 
-    const memory::EdgeId e = *best_in[*v];
+    memory::EdgeId e = *best_in[*v];
     if (fr.stage == 0) {
       if (emitted[*e])
         continue;
       stack.push_back(Frame{v, 1});
-      for (auto u : graph.src(e)) {
-        stack.push_back(Frame{u, 0});
+      memory::span<const memory::NodeId> tails = graph.src(e);
+      for (std::size_t i = 0; i < tails.size(); ++i) {
+        stack.push_back(Frame{tails[i], 0});
       }
     } else {
       if (!emitted[*e]) {
@@ -118,6 +114,7 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
       }
     }
   }
+
   return memory::optional<memory::vector<memory::EdgeId>>(std::move(order));
 }
 

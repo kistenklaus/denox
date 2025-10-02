@@ -38,15 +38,15 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     dno[s] = true;
   }
 
-  using weight_type = std::int64_t;
+  using weight_type = float;
 
-  static constexpr weight_type ADD_WEIGHT = 0;
-  static constexpr weight_type SUB_WEIGHT = 0;
-  static constexpr weight_type MUL_WEIGHT = 0;
-  static constexpr weight_type DIV_WEIGHT = 0;
-  static constexpr weight_type MOD_WEIGHT = 0;
-  static constexpr weight_type MIN_WEIGHT = 0;
-  static constexpr weight_type MAX_WEIGHT = 0;
+  static constexpr weight_type ADD_WEIGHT = 1.0f;
+  static constexpr weight_type SUB_WEIGHT = 1.0f;
+  static constexpr weight_type MUL_WEIGHT = 1.0f;
+  static constexpr weight_type DIV_WEIGHT = 1.0f;
+  static constexpr weight_type MOD_WEIGHT = 1.0f;
+  static constexpr weight_type MIN_WEIGHT = 1.0f;
+  static constexpr weight_type MAX_WEIGHT = 1.0f;
 
   memory::AdjGraph<SymValue, SymOp, weight_type> adjSupergraph;
   memory::vector<memory::NodeId> symbolToNodeMap(m_expressions.size());
@@ -114,7 +114,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
       } else if (lhs.isConstant()) {
         assert(rhs.isSymbolic());
         memory::NodeId rid = symbolToNodeMap[rhs.sym()];
-        assert(rid);
+        assert(static_cast<bool>(rid));
         adjSupergraph.addEdge(rid, sid, SymOp{opcode, lhs.constant()}, weight);
       } else if (expr.rhs.isConstant()) {
         assert(expr.lhs.isSymbolic());
@@ -165,11 +165,13 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
           } else if (lhs.isConstant()) {
             assert(rhs.isSymbolic());
             memory::NodeId rid = symbolToNodeMap[rhs.sym()];
+            assert(rid);
             adjSupergraph.addEdge(rid, sid, SymOp{opcode, lhs.constant()},
                                   DIV_WEIGHT);
           } else if (expr.rhs.isConstant()) {
             assert(expr.lhs.isSymbolic());
             memory::NodeId lid = symbolToNodeMap[expr.lhs.sym()];
+            assert(lid);
             adjSupergraph.addEdge(lid, sid, SymOp{opcode, expr.rhs.constant()},
                                   DIV_WEIGHT);
           } else {
@@ -177,6 +179,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             assert(expr.rhs.isSymbolic());
             memory::NodeId lhs = symbolToNodeMap[expr.lhs.sym()];
             memory::NodeId rhs = symbolToNodeMap[expr.rhs.sym()];
+            assert(lhs);
+            assert(rhs);
             adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, DIV_WEIGHT);
           }
           break;
@@ -197,11 +201,13 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
           } else if (lhs.isConstant()) {
             assert(rhs.isSymbolic());
             memory::NodeId rid = symbolToNodeMap[rhs.sym()];
+            assert(rid);
             adjSupergraph.addEdge(rid, sid, SymOp{opcode, lhs.constant()},
                                   MOD_WEIGHT);
           } else if (expr.rhs.isConstant()) {
             assert(expr.lhs.isSymbolic());
             memory::NodeId lid = symbolToNodeMap[expr.lhs.sym()];
+            assert(lid);
             adjSupergraph.addEdge(lid, sid, SymOp{opcode, expr.rhs.constant()},
                                   MOD_WEIGHT);
           } else {
@@ -209,6 +215,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             assert(expr.rhs.isSymbolic());
             memory::NodeId lhs = symbolToNodeMap[expr.lhs.sym()];
             memory::NodeId rhs = symbolToNodeMap[expr.rhs.sym()];
+            assert(lhs);
+            assert(rhs);
             adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, MOD_WEIGHT);
           }
           break;
@@ -266,19 +274,24 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
               memory::NodeId lhs;
               if (op.lhsIntermediate) {
                 lhs = intermediates[op.lhs];
+                assert(lhs);
               } else {
                 lhs = symbolToNodeMap[factors[op.lhs]];
+                assert(lhs);
               }
               memory::NodeId rhs;
               if (op.rhsIntermediate) {
                 rhs = intermediates[op.rhs];
+                assert(rhs);
               } else {
                 rhs = symbolToNodeMap[factors[op.rhs]];
+                assert(rhs);
               }
               auto key = std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
               if (o == perm.ops.size() - 1) {
                 const auto it = mulCache.find(key);
                 if (it == mulCache.end()) {
+                  assert(!opcode.lhsIsConstant && !opcode.rhsIsConstant);
                   adjSupergraph.addEdge(lhs, rhs, factorProd, SymOp{opcode},
                                         MUL_WEIGHT);
                   mulCache.insert(std::make_pair(key, factorProd));
@@ -297,6 +310,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                 } else {
                   dst = it->second;
                 }
+                assert(!opcode.lhsIsConstant && !opcode.rhsIsConstant);
                 adjSupergraph.addEdge(lhs, rhs, dst, SymOp{opcode}, MUL_WEIGHT);
                 intermediates[o] = dst;
               }
@@ -341,6 +355,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             symbolToNodeMap[s] = sid;
             const Sym::symbol only = factors[0];
             memory::NodeId src = symbolToNodeMap[only];
+            assert(src);
 
             SymIROpCode opcode;
             opcode.op = SymIROpCode::OP_MIN;
@@ -371,14 +386,18 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
               memory::NodeId lhs;
               if (op.lhsIntermediate) {
                 lhs = intermediates[op.lhs];
+                assert(lhs);
               } else {
                 lhs = symbolToNodeMap[factors[op.lhs]];
+                assert(lhs);
               }
               memory::NodeId rhs;
               if (op.rhsIntermediate) {
                 rhs = intermediates[op.rhs];
+                assert(rhs);
               } else {
                 rhs = symbolToNodeMap[factors[op.rhs]];
+                assert(rhs);
               }
               auto key = std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
               if (o == perm.ops.size() - 1) {
@@ -446,6 +465,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             symbolToNodeMap[s] = sid;
             const Sym::symbol only = factors[0];
             memory::NodeId src = symbolToNodeMap[only];
+            assert(src);
 
             SymIROpCode opcode;
             opcode.op = SymIROpCode::OP_MAX;
@@ -476,14 +496,18 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
               memory::NodeId lhs;
               if (op.lhsIntermediate) {
                 lhs = intermediates[op.lhs];
+                assert(lhs);
               } else {
                 lhs = symbolToNodeMap[factors[op.lhs]];
+                assert(lhs);
               }
               memory::NodeId rhs;
               if (op.rhsIntermediate) {
                 rhs = intermediates[op.rhs];
+                assert(rhs);
               } else {
                 rhs = symbolToNodeMap[factors[op.rhs]];
+                assert(rhs);
               }
               auto key = std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
               if (o == perm.ops.size() - 1) {
@@ -562,7 +586,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     }
     Sym::symbol original = *node.original;
     if (dno[original]) {
-      fmt::println("result symbol {}", original);
+      fmt::println("result symbol {} => {}", original, n);
       results.push_back(nid);
     }
     if (m_expressions[original].expr == ExprType::Identity) {
@@ -580,17 +604,17 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
   fmt::println("len: {}", hyperpath->size());
 
   for (std::size_t e = 0; e < hyperpath->size(); ++e) {
-    memory::EdgeId eid{e};
+    memory::EdgeId eid{hyperpath.value()[e]};
     auto op = supergraph.get(eid);
 
     auto dst = supergraph.dst(eid);
     fmt::print("[{}] = ", static_cast<std::uint64_t>(dst));
 
+    assert(!(op.opcode.lhsIsConstant && op.opcode.rhsIsConstant));
     if (op.opcode.lhsIsConstant) {
       fmt::print("{}", op.constant);
     } else {
       auto srcs = supergraph.src(eid);
-      assert(srcs.size() == 1);
       memory::NodeId nid = srcs[0];
       fmt::print("[{}]", static_cast<std::uint64_t>(nid));
     }
