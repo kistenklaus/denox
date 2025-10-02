@@ -148,11 +148,11 @@ public:
 
 private:
   memory::optional<TensorId> tryRemap(memory::NodeId nodeId) {
-    if (nodeId >= m_nodeTensorMapping.size()) {
+    if (static_cast<std::uint64_t>(nodeId) >= m_nodeTensorMapping.size()) {
       return memory::nullopt;
     }
-    if (m_nodeTensorMapping[nodeId].has_value()) {
-      return m_nodeTensorMapping[nodeId].value();
+    if (m_nodeTensorMapping[*nodeId].has_value()) {
+      return m_nodeTensorMapping[*nodeId].value();
     } else {
       return memory::nullopt;
     }

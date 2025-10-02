@@ -124,12 +124,12 @@ denox::compiler::shaders::CopyTransformShader::acceptMatch(
 
     bool allDisjoint = true;
     for (std::size_t k = 0; k < otherConcatDsts.size() && allDisjoint; ++k) {
-      const std::uint64_t otherId = otherConcatDsts[k];
+      const std::uint64_t otherId = *otherConcatDsts[k];
       bool found = false;
       Lifetime otherLife{};
       for (std::size_t i = 0; i < graph.nodeCount(); ++i) {
         const TensorInstance &ti = graph.get(memory::NodeId(i));
-        if (ti.originalNode->id() == otherId) {
+        if (ti.originalNode->id() == memory::NodeId(otherId)) {
           otherLife = ti.lifetime;
           found = true;
           break;

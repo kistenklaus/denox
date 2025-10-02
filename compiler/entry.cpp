@@ -55,6 +55,7 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
   CompModel compModel = compiler::placement(implModel);
+  // compModel.symGraph.debugDump();
 
   compiler::sym_compile(compModel);
 

@@ -19,7 +19,7 @@ Lifetimes lifeness(const CanoModel &model) {
     while (!st.empty()) {
       Graph::NodeHandle n = std::move(st.back());
       st.pop_back();
-      const std::size_t id = n->id();
+      const std::size_t id = *n->id();
       if (id >= reach_in.size())
         reach_in.resize(id + 1, false);
       if (reach_in[id])
@@ -38,7 +38,7 @@ Lifetimes lifeness(const CanoModel &model) {
     while (!st.empty()) {
       Graph::NodeHandle n = std::move(st.back());
       st.pop_back();
-      const std::size_t id = n->id();
+      const std::size_t id = *n->id();
       if (id >= reach_out.size())
         reach_out.resize(id + 1, false);
       if (reach_out[id])

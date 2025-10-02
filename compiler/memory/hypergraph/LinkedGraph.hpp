@@ -1185,7 +1185,7 @@ public:
     memory::vector<NodeHandle> nodes(maxNodeId + 1);
     for (const auto &node : adj.nodes()) {
       NodeHandle handle = out.createNode(node.node());
-      nodes[node.id()] = std::move(handle);
+      nodes[*node.id()] = std::move(handle);
     }
 
     for (const auto &edgeInfo : adj.edges()) {
@@ -1195,7 +1195,7 @@ public:
 
       memory::vector<const NodeHandle *> srcs(edge.src().size());
       for (std::size_t i = 0; i < srcs.size(); ++i) {
-        srcs[i] = &(nodes[edge.src()[i]]);
+        srcs[i] = &(nodes[*edge.src()[i]]);
       }
 
       incoming.insert_after_with_dynamic_srcs(incoming.begin(), srcs,

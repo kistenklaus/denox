@@ -10,11 +10,14 @@ public:
   static constexpr std::uint64_t NullId{
       std::numeric_limits<std::uint64_t>::max()};
 
-
   explicit constexpr NodeId() : m_id(NullId) {}
   explicit constexpr NodeId(std::uint64_t id) : m_id(id) {}
 
-  constexpr operator std::uint64_t() const { return m_id; }
+  constexpr explicit operator std::uint64_t() const { return m_id; }
+
+  constexpr explicit operator bool() const { return m_id != NullId; }
+
+  constexpr std::uint64_t operator*() const { return m_id; }
 
   friend bool operator==(const NodeId &lhs, const NodeId &rhs) {
     return lhs.m_id == rhs.m_id;
@@ -28,4 +31,4 @@ private:
   std::uint64_t m_id;
 };
 
-} // namespace vkcnn::hypergraph
+} // namespace denox::memory

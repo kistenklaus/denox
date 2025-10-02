@@ -1,6 +1,7 @@
 #include "compiler/sym_compile.hpp"
 #include "memory/container/dynamic_bitset.hpp"
 #include "symbolic/SymGraph.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -21,12 +22,12 @@ SymIR sym_compile(const CompModel &model) {
       symbolAdded[buffer.size.sym()] = true;
     }
   }
-  for (const auto &tensor : model.tensors) {
-    if (tensor.offset.isSymbolic() && !symbolAdded[tensor.offset.sym()]) {
-      symbols.push_back(tensor.offset.sym());
-      symbolAdded[tensor.offset.sym()] = true;
-    }
-  }
+  // for (const auto &tensor : model.tensors) {
+  //   if (tensor.offset.isSymbolic() && !symbolAdded[tensor.offset.sym()]) {
+  //     symbols.push_back(tensor.offset.sym());
+  //     symbolAdded[tensor.offset.sym()] = true;
+  //   }
+  // }
 
   const auto [symIR, remap] = model.symGraph.compile(symbols);
   return symIR;

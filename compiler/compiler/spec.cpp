@@ -27,7 +27,7 @@ create_spec_node(SpecModel &spec, const Lifetimes &lifetimes,
       .layout = layout,
       .type = *ct.type(),
       .originalNode = src,
-      .lifetime = lifetimes.valueLifetimes[src->id()],
+      .lifetime = lifetimes.valueLifetimes[*src->id()],
   };
   return spec.graph.createNode(std::move(st));
 }
@@ -38,9 +38,9 @@ static inline memory::vector<SpecModel::Graph::NodeHandle> &ensure_variants_for(
     memory::vector<memory::vector<SpecModel::Graph::NodeHandle>> &variants,
     CanoModel::Graph::Node &n) {
   const auto id = n.id();
-  if (id >= variants.size())
-    variants.resize(id + 1);
-  auto &bucket = variants[id];
+  if (static_cast<std::uint64_t>(id) >= variants.size())
+    variants.resize(static_cast<std::uint64_t>(id) + 1);
+  auto &bucket = variants[*id];
   if (!bucket.empty())
     return bucket;
 
@@ -89,11 +89,11 @@ SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes,
     stack.pop_back();
 
     const auto nid = node->id();
-    if (nid >= seen.size())
-      seen.resize(nid + 1, false);
-    if (seen[nid])
+    if (static_cast<std::uint64_t>(nid) >= seen.size())
+      seen.resize(static_cast<std::uint64_t>(nid) + 1, false);
+    if (seen[*nid])
       continue;
-    seen[nid] = true;
+    seen[*nid] = true;
 
     ensure_variants_for(spec, lifetimes, layouts, variants, *node);
 

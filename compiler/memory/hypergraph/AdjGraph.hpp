@@ -20,7 +20,7 @@ public:
     } else {
       NodeId id{m_nodeFreelist.back()};
       m_nodeFreelist.pop_back();
-      m_nodes[id] = node;
+      m_nodes[*id] = node;
       return id;
     }
   }
@@ -34,14 +34,14 @@ public:
     } else {
       NodeId id{m_nodeFreelist.back()};
       m_nodeFreelist.pop_back();
-      m_nodes[id].emplace(std::forward<Args>(args)...);
+      m_nodes[*id].emplace(std::forward<Args>(args)...);
       return id;
     }
   }
 
   // TODO we probably need some form of index pool.
   bool removeNode(NodeId node) noexcept {
-    std::size_t id = node;
+    std::size_t id = *node;
     assert(id < m_nodes.size());
     if (!m_nodes[id].has_value()) {
       return false;
@@ -59,7 +59,7 @@ public:
     } else {
       EdgeId id{m_edgeFreelist.back()};
       m_edgeFreelist.pop_back();
-      m_edges[id].emplace(src, dst, edge, weight);
+      m_edges[*id].emplace(src, dst, edge, weight);
       return id;
     }
   }
@@ -74,7 +74,7 @@ public:
     } else {
       EdgeId id{m_edgeFreelist.back()};
       m_edgeFreelist.pop_back();
-      m_edges[id].emplace(src0, src1, dst, edge, weight);
+      m_edges[*id].emplace(src0, src1, dst, edge, weight);
       return id;
     }
   }
@@ -89,13 +89,13 @@ public:
     } else {
       EdgeId id{m_edgeFreelist.back()};
       m_edgeFreelist.pop_back();
-      m_edges[id].emplace(src, dst, edge, weight);
+      m_edges[*id].emplace(src, dst, edge, weight);
       return id;
     }
   }
 
   bool removeEdge(EdgeId edge) noexcept {
-    std::size_t id = edge;
+    std::size_t id = *edge;
     assert(id < m_edges.size());
     if (!m_edges[id].has_value()) {
       return false;
@@ -105,14 +105,14 @@ public:
     return true;
   }
 
-  const V &get(NodeId node) const noexcept { return *m_nodes[node]; }
-  V &get(NodeId node) noexcept { return *m_nodes[node]; }
-  const E &get(EdgeId edge) const noexcept { return m_edges[edge]->payload(); }
-  E &get(EdgeId edge) noexcept { return m_edges[edge]->payload(); }
+  const V &get(NodeId node) const noexcept { return *m_nodes[*node]; }
+  V &get(NodeId node) noexcept { return *m_nodes[*node]; }
+  const E &get(EdgeId edge) const noexcept { return m_edges[*edge]->payload(); }
+  E &get(EdgeId edge) noexcept { return m_edges[*edge]->payload(); }
   const W &weight(EdgeId edge) const noexcept {
     return m_edges[edge]->weight();
   }
-  W &weight(EdgeId edge) noexcept { return m_edges[edge]->weight(); }
+  W &weight(EdgeId edge) noexcept { return m_edges[*edge]->weight(); }
 
   std::size_t nodeCount() const {
     return m_nodes.size() - m_nodeFreelist.size();

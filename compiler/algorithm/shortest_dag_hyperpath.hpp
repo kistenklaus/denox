@@ -26,16 +26,16 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
 
   for (std::size_t vi = 0; vi < Vn; ++vi) {
     const auto v = memory::NodeId{vi};
-    for (auto e : graph.incoming(v)) {
+    for (memory::EdgeId e : graph.incoming(v)) {
       const auto tails = graph.src(e);
       const auto k = static_cast<std::uint16_t>(tails.size());
-      rem[e] = k;
-      indeg_by_tail[v] += k;
+      rem[*e] = k;
+      indeg_by_tail[*v] += k;
     }
   }
 
-  for (auto s : starts) {
-    dist[s] = W(0);
+  for (memory::NodeId s : starts) {
+    dist[*s] = W(0);
   }
 
   memory::vector<memory::NodeId> q;
@@ -48,24 +48,24 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
 
   std::size_t qh = 0;
   while (qh < q.size()) {
-    const auto u = q[qh++];
+    const memory::NodeId u = q[qh++];
 
-    for (auto e : graph.outgoing(u)) {
-      if (!partial[e] || !dist[u]) {
-        partial[e] = memory::optional<W>{};
+    for (memory::EdgeId e : graph.outgoing(u)) {
+      if (!partial[*e] || !dist[*u]) {
+        partial[*e] = memory::optional<W>{};
       } else {
-        partial[e] = W(*partial[e] + *dist[u]);
+        partial[*e] = W(*partial[*e] + *dist[*u]);
       }
-      const auto r = --rem[e];
-      const auto v = graph.dst(e);
-      if (r == 0 && partial[e]) {
-        const W cand = W(*partial[e] + graph.weight(e));
-        if (!dist[v] || cand < *dist[v]) {
-          dist[v] = cand;
-          best_in[v] = e;
+      const auto r = --rem[*e];
+      const memory::NodeId v = graph.dst(e);
+      if (r == 0 && partial[*e]) {
+        const W cand = W(*partial[*e] + graph.weight(e));
+        if (!dist[*v] || cand < *dist[*v]) {
+          dist[*v] = cand;
+          best_in[*v] = e;
         }
       }
-      if (--indeg_by_tail[v] == 0) {
+      if (--indeg_by_tail[*v] == 0) {
         q.push_back(v);
       }
     }
@@ -73,9 +73,9 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
 
   memory::optional<memory::NodeId> best_t;
   memory::optional<W> best_cost;
-  for (auto t : ends) {
-    if (dist[t] && (!best_cost || *dist[t] < *best_cost)) {
-      best_cost = dist[t];
+  for (memory::NodeId t : ends) {
+    if (dist[*t] && (!best_cost || *dist[*t] < *best_cost)) {
+      best_cost = dist[*t];
       best_t = t;
     }
   }
@@ -98,22 +98,22 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
     const Frame fr = stack.back();
     stack.pop_back();
 
-    const auto v = fr.v;
-    if (!best_in[v]) {
+    const memory::NodeId v = fr.v;
+    if (!best_in[*v]) {
       continue;
     }
 
-    const auto e = *best_in[v];
+    const memory::EdgeId e = *best_in[*v];
     if (fr.stage == 0) {
-      if (emitted[e])
+      if (emitted[*e])
         continue;
       stack.push_back(Frame{v, 1});
       for (auto u : graph.src(e)) {
         stack.push_back(Frame{u, 0});
       }
     } else {
-      if (!emitted[e]) {
-        emitted[e] = 1;
+      if (!emitted[*e]) {
+        emitted[*e] = 1;
         order.push_back(e);
       }
     }

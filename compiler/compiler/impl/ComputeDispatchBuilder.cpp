@@ -12,9 +12,9 @@ void denox::compiler::ComputeDispatchBuilder::addBinding(
     std::uint32_t set, std::uint32_t binding, AccessFlag access,
     memory::NodeId nodeId) {
 
-  assert(nodeId < m_impl->m_nodeTensorMapping.size());
-  assert(m_impl->m_nodeTensorMapping[nodeId].has_value());
-  TensorId id = m_impl->m_nodeTensorMapping[nodeId].value();
+  assert(static_cast<std::uint64_t>(nodeId) < m_impl->m_nodeTensorMapping.size());
+  assert(m_impl->m_nodeTensorMapping[*nodeId].has_value());
+  TensorId id = m_impl->m_nodeTensorMapping[*nodeId].value();
   return addBinding(set, binding, access, id);
 }
 

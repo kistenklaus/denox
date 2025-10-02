@@ -66,10 +66,10 @@ public:
       NodeHandle node = stack.back();
       stack.pop_back();
       memory::NodeId id = node->id();
-      if (visited[id]) {
+      if (visited[*id]) {
         continue;
       }
-      visited[id] = true;
+      visited[*id] = true;
 
       for (const auto &edge : node->incoming()) {
         memory::small_vector<memory::NodeId, 2> srcs;
@@ -85,7 +85,7 @@ public:
           }
         }
         adj.addEdge(std::span<const memory::NodeId>(srcs.begin(), srcs.end()),
-                    adjNodes[id], edge.value(), memory::NullWeight{});
+                    adjNodes[*id], edge.value(), memory::NullWeight{});
       }
     }
     ConstGraph<V, E, W> graph{adj};
@@ -117,7 +117,7 @@ public:
       std::size_t ix = 0;
       for (const typename AdjGraph<V, E, W>::const_node_iterator::Node &n :
            graph.nodes()) {
-        nodeRemap[n.id()] = NodeId{ix++};
+        nodeRemap[*n.id()] = NodeId{ix++};
       }
     }
     denox::memory::vector<EdgeId> edgeRemap(maxEdgeId + 1, EdgeId{0});
@@ -125,7 +125,7 @@ public:
       std::size_t ix = 0;
       for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
            graph.edges()) {
-        edgeRemap[e.id()] = EdgeId{ix++};
+        edgeRemap[*e.id()] = EdgeId{ix++};
       }
     }
 
@@ -135,14 +135,14 @@ public:
     denox::memory::vector<unsigned int> srclen(edgeCount, 0);
 
     for (const auto &e : graph.edges()) {
-      std::size_t ne = edgeRemap[e.id()];
+      std::size_t ne = *edgeRemap[*e.id()];
       auto srcs = e.edge().src();
       srclen[ne] = static_cast<unsigned int>(srcs.size());
-      std::size_t dv = nodeRemap[e.edge().dst()];
+      std::size_t dv = *nodeRemap[*e.edge().dst()];
       ++indeg[dv];
 
       for (NodeId u : srcs) {
-        std::size_t nu = nodeRemap[u];
+        std::size_t nu = *nodeRemap[*u];
         ++outdeg[nu];
       }
     }
@@ -185,17 +185,17 @@ public:
       for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
            graph.edges()) {
         m_edgeData.emplace_back(e.edge().payload());
-        NodeId di{nodeRemap[e.edge().dst()]};
+        NodeId di{nodeRemap[*e.edge().dst()]};
         m_edges.emplace_back(e.edge().weight(), srclenPrefix[idx],
                              srclenPrefix[idx] + srclen[idx], di);
         std::size_t nx = srclenPrefix[idx];
         for (const NodeId &src : e.edge().src()) {
-          NodeId si{nodeRemap[src]};
+          NodeId si{nodeRemap[*src]};
           m_nodeIds[nx++] = si;
-          m_edgeIds[outdegPrefix[si]++] = EdgeId{idx};
+          m_edgeIds[outdegPrefix[*si]++] = EdgeId{idx};
         }
 
-        m_edgeIds[indegPrefix[di]++] = EdgeId{idx};
+        m_edgeIds[indegPrefix[*di]++] = EdgeId{idx};
         ++idx;
       }
     }
@@ -204,30 +204,30 @@ public:
   denox::memory::span<const EdgeId> outgoing(NodeId node) const {
     return denox::memory::span<const EdgeId>{
         m_edgeIds.begin() +
-            static_cast<std::ptrdiff_t>(m_nodes[node].outgoingBegin),
+            static_cast<std::ptrdiff_t>(m_nodes[*node].outgoingBegin),
         m_edgeIds.begin() +
-            static_cast<std::ptrdiff_t>(m_nodes[node].outgoingEnd)};
+            static_cast<std::ptrdiff_t>(m_nodes[*node].outgoingEnd)};
   }
 
   denox::memory::span<const EdgeId> incoming(NodeId node) const {
     return denox::memory::span<const EdgeId>{
         m_edgeIds.begin() +
-            static_cast<std::ptrdiff_t>(m_nodes[node].incomingBegin),
+            static_cast<std::ptrdiff_t>(m_nodes[*node].incomingBegin),
         m_edgeIds.begin() +
-            static_cast<std::ptrdiff_t>(m_nodes[node].incomingEnd)};
+            static_cast<std::ptrdiff_t>(m_nodes[*node].incomingEnd)};
   }
 
-  const V &get(NodeId node) const { return m_nodeData[node]; }
-  const E &get(EdgeId edge) const { return m_edgeData[edge]; }
-  const W &weight(EdgeId edge) const { return m_edges[edge].weight; }
+  const V &get(NodeId node) const { return m_nodeData[*node]; }
+  const E &get(EdgeId edge) const { return m_edgeData[*edge]; }
+  const W &weight(EdgeId edge) const { return m_edges[*edge].weight; }
 
   denox::memory::span<const NodeId> src(EdgeId edge) const {
     return denox::memory::span<const NodeId>{
-        m_nodeIds.begin() + static_cast<std::ptrdiff_t>(m_edges[edge].srcBegin),
-        m_nodeIds.begin() + static_cast<std::ptrdiff_t>(m_edges[edge].srcEnd)};
+        m_nodeIds.begin() + static_cast<std::ptrdiff_t>(m_edges[*edge].srcBegin),
+        m_nodeIds.begin() + static_cast<std::ptrdiff_t>(m_edges[*edge].srcEnd)};
   }
 
-  NodeId dst(EdgeId edge) const { return m_edges[edge].dst; }
+  NodeId dst(EdgeId edge) const { return m_edges[*edge].dst; }
 
   std::size_t nodeCount() const { return m_nodes.size(); }
   std::size_t edgeCount() const { return m_edges.size(); }

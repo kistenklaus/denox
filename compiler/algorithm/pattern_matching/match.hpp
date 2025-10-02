@@ -498,10 +498,10 @@ match_all(const GraphPattern<V, E, W> &pattern,
     stack.pop_back();
 
     memory::NodeId nid = node->id();
-    if (visited[nid]) {
+    if (visited[*nid]) {
       continue;
     }
-    visited[nid] = true;
+    visited[*nid] = true;
 
     for (const auto &match :
          pattern_matching::details::mutable_match_all<V, E, W, Allocator>(

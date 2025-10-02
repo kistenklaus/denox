@@ -97,7 +97,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef, const Opt
               static_cast<std::uint64_t>(inputs[0]) * nodeCount +
               static_cast<std::uint64_t>(out);
           if (inputs.size() == 2) {
-            edgeId += inputs[1] * nodeCount * nodeCount;
+            edgeId += *inputs[1] * nodeCount * nodeCount;
           }
           if (edgeExits[edgeId]) {
             continue;

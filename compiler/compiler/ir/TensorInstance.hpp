@@ -16,7 +16,7 @@ struct TensorInstance {
   CanoModel::Graph::NodeHandle originalNode;
   Lifetime lifetime;
 
-  std::uint64_t valueId() const { return originalNode->id(); }
+  std::uint64_t valueId() const { return *originalNode->id(); }
 };
 
 } // namespace denox::compiler

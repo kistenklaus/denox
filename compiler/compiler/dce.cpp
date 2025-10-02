@@ -22,7 +22,7 @@ OpModel dce(const SpecModel &model) {
   stack.reserve(model.graph.upperNodeCount());
 
   memory::vector<memory::NodeId> adjNodes(model.graph.upperNodeCount());
-  adjNodes[model.output->id()] = adj.addNode(model.output->value());
+  adjNodes[*model.output->id()] = adj.addNode(model.output->value());
 
   stack.push_back(model.output);
 
@@ -30,27 +30,27 @@ OpModel dce(const SpecModel &model) {
     NodeHandle node = stack.back();
     stack.pop_back();
     memory::NodeId id = node->id();
-    if (visited[id]) {
+    if (visited[*id]) {
       continue;
     }
-    visited[id] = true;
+    visited[*id] = true;
 
     for (const auto &edge : node->incoming()) {
       memory::small_vector<memory::NodeId, 2> srcs;
       for (auto &src : edge.srcs()) {
-        if (exists[src.id()]) {
-          memory::NodeId adjSrc = adjNodes[src.id()];
+        if (exists[*src.id()]) {
+          memory::NodeId adjSrc = adjNodes[*src.id()];
           srcs.push_back(adjSrc);
         } else {
           memory::NodeId adjSrc = adj.addNode(src.value());
-          adjNodes[src.id()] = adjSrc;
-          exists[src.id()] = true;
+          adjNodes[*src.id()] = adjSrc;
+          exists[*src.id()] = true;
           srcs.push_back(adjSrc);
           stack.push_back(NodeHandle(src));
         }
       }
       adj.addEdge(std::span<const memory::NodeId>(srcs.begin(), srcs.end()),
-                  adjNodes[id], edge.value(), memory::NullWeight{});
+                  adjNodes[*id], edge.value(), memory::NullWeight{});
     }
   }
 
@@ -58,8 +58,8 @@ OpModel dce(const SpecModel &model) {
 
   return OpModel{
     .graph = std::move(opGraph),
-    .input = adjNodes[model.input->id()],
-      .output = adjNodes[model.output->id()],
+    .input = adjNodes[*model.input->id()],
+      .output = adjNodes[*model.output->id()],
   };
 }
 
