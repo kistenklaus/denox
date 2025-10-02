@@ -14,6 +14,7 @@ Set(FETCHCONTENT_QUIET FALSE)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+include(cmake/cli11.cmake)
 include(cmake/vulkan.cmake)
 include(cmake/spirv-tools.cmake)
 include(cmake/glslang.cmake)
@@ -216,6 +217,7 @@ target_link_libraries(denox
       denox::compiler
     PRIVATE
       denox::glslang
+      denox::cli11
       
 )
 

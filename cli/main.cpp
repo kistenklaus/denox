@@ -1,6 +1,8 @@
 #include "denox/compiler.hpp"
+#include <CLI/App.hpp>
 
 int main() {
+
   denox::CompileOptions options;
   options.dnxVersion = 0;
   options.features.coopmat = denox::Enable;
