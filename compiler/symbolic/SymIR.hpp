@@ -4,20 +4,30 @@
 #include <cstdint>
 namespace denox::compiler {
 
-struct SymIROpCode {
+enum class SymIROpCode {
+  Add_SS,
+  Add_SC,
 
-  static constexpr std::size_t OP_VAR = 0;
-  static constexpr std::size_t OP_ADD = 1;
-  static constexpr std::size_t OP_SUB = 2;
-  static constexpr std::size_t OP_MUL = 3;
-  static constexpr std::size_t OP_DIV = 4;
-  static constexpr std::size_t OP_MOD = 5;
-  static constexpr std::size_t OP_MIN = 6;
-  static constexpr std::size_t OP_MAX = 7;
+  Sub_SS,
+  Sub_SC,
+  Sub_CS,
 
-  std::uint8_t lhsIsConstant : 1;
-  std::uint8_t rhsIsConstant : 1;
-  std::uint8_t op : 8;
+  Mul_SS,
+  Mul_SC,
+
+  Div_SS,
+  Div_SC,
+  Div_CS,
+
+  Mod_SS,
+  Mod_SC,
+  Mod_CS,
+
+  Min_SS,
+  Min_SC,
+
+  Max_SS,
+  Max_SC,
 };
 
 struct SymIROp {
@@ -27,6 +37,7 @@ struct SymIROp {
 };
 
 struct SymIR {
+  std::size_t varCount;
   memory::vector<SymIROp> ops;
 };
 

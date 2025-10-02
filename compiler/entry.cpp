@@ -55,12 +55,52 @@ void entry(memory::span<const std::byte> raw, const Options &options) {
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
   CompModel compModel = compiler::placement(implModel);
-  // compModel.symGraph.debugDump();
 
-  compiler::sym_compile(compModel);
+  auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel);
 
-  // TODO: Produce barriers. 
-  // - Somehow find a way to get information about who is reading and 
+  fmt::println("\n\x1B[31mSummary:\x1B[0m");
+
+  fmt::println("\u2022 {:<20} : {}", "Number-Of-Dispatches",
+               implModel.dispatches.size());
+
+  std::size_t spirvByteSize = 0;
+  for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
+    spirvByteSize += compModel.dispatches[d].src.size;
+  }
+  if (spirvByteSize > 1000000) {
+    fmt::println("\u2022 {:<20} : {:.1f}MB", "SPIRV-ByteSize",
+                 static_cast<float>(spirvByteSize) / 1000000.0f);
+  } else if (spirvByteSize > 1000) {
+    fmt::println("\u2022 {:<20} : {:.1f}KB", "SPIRV-ByteSize",
+                 static_cast<float>(spirvByteSize) / 1000.0f);
+  } else {
+    fmt::println("\u2022 {:<20} : {}B", "SPIRV-ByteSize", spirvByteSize);
+  }
+
+  std::size_t parameterByteSize = 0;
+  for (std::size_t p = 0; p < implModel.parameters.size(); ++p) {
+    parameterByteSize += implModel.parameters[p].data.size();
+  }
+  if (parameterByteSize > 1000000) {
+    fmt::println("\u2022 {:<20} : {:.1f}MB", "Parameter-ByteSize",
+                 static_cast<float>(parameterByteSize) / 1000000.0f);
+  } else if (parameterByteSize > 1000) {
+    fmt::println("\u2022 {:<20} : {:.1f}KB", "Parameter-ByteSize",
+                 static_cast<float>(parameterByteSize) / 1000.0f);
+  } else {
+    fmt::println("\u2022 {:<20} : {}B", "Parameter-ByteSize",
+                 parameterByteSize);
+  }
+
+  fmt::println("\u2022 {:<20} : {}", "Dynamic Variables", symIR.varCount);
+  fmt::println("\u2022 {:<20} : {}", "Dynamic Expressions", symCount);
+  fmt::println("\u2022 {:<20} : {}", "SymIR OpCount", symIR.ops.size());
+  fmt::println("\u2022 {:<20} : {}", "Amount of buffers", compModel.buffers.size());
+  fmt::println("\u2022 {:<20} : {}", "Tensor views ", compModel.tensors.size());
+
+
+  // TODO: Produce barriers.
+  // - Somehow find a way to get information about who is reading and
   //   who is writing. (Missing from our IR).
 
   // TODO: Compute lifetimes of buffers based on compModel.

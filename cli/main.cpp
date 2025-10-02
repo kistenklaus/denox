@@ -19,7 +19,7 @@ int main() {
 
   options.spirvOptions.debugInfo = false;
   options.spirvOptions.nonSemanticDebugInfo = false;
-  options.spirvOptions.optimize = false;
+  options.spirvOptions.optimize = true;
 
   denox::compile("net.onnx", options);
 }

@@ -4,6 +4,6 @@
 #include "symbolic/SymIR.hpp"
 namespace denox::compiler {
 
-SymIR sym_compile(const CompModel &model);
+std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model);
 
 } // namespace denox::compiler

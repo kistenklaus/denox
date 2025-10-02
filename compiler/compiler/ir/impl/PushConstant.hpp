@@ -1,11 +1,13 @@
 #pragma once
 
+#include "diag/invalid_state.hpp"
 #include "diag/unreachable.hpp"
 #include "memory/container/hashmap.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "symbolic/SymGraph.hpp"
 #include "symbolic/ssym.hpp"
 #include <cstdint>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <limits>
 #include <stdexcept>
@@ -64,14 +66,16 @@ public:
     m_value.i32 = i32;
   }
 
-  memory::string to_string(const SymGraph &symGraph, const memory::hash_map<Sym::symbol, memory::string>& symbolNames = {}) const {
+  memory::string to_string(const SymGraph &symGraph,
+                           const memory::hash_map<Sym::symbol, memory::string>
+                               &symbolNames = {}) const {
     if (m_type & PushConstantType_DynamicSymbolBit) {
-      memory::string str = symGraph.to_string(Sym::Symbol(m_value.symbol), symbolNames);
+      memory::string str =
+          symGraph.to_string(Sym::Symbol(m_value.symbol), symbolNames);
       if (str.size() > 80) {
         return fmt::format("Sym: <very-long-symbolic-expression>");
       } else {
         return fmt::format("Sym: {}", str);
-
       }
     } else {
       if (m_type & PushConstantType_U32) {
@@ -83,6 +87,22 @@ public:
       }
     }
   }
+
+  bool isDynamic() const { return m_type & PushConstantType_DynamicSymbolBit; }
+
+  memory::Dtype type() const {
+    if (m_type & PushConstantType_U32) {
+      return memory::Dtype::U32;
+    } else if (m_type & PushConstantType_I32) {
+      return memory::Dtype::I32;
+    } else {
+      diag::invalid_state();
+    }
+  }
+
+  Sym::symbol dynamic() const { return m_value.symbol; }
+  std::uint32_t u32() const { return m_value.u32; }
+  std::int32_t i32() const { return m_value.i32; }
 
 private:
   enum PushConstantType : std::uint64_t {

@@ -1,18 +1,25 @@
 #include "compiler/sym_compile.hpp"
+#include "diag/not_implemented.hpp"
 #include "memory/container/dynamic_bitset.hpp"
 #include "symbolic/SymGraph.hpp"
 #include <fmt/base.h>
 
 namespace denox::compiler {
 
-SymIR sym_compile(const CompModel &model) {
+std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
 
   memory::vector<Sym::symbol> symbols;
   memory::dynamic_bitset symbolAdded(model.symGraph.symbolCount(), false);
 
   for (const auto &dispatch : model.dispatches) {
-    for (const auto &pushConstant : dispatch.pushConstants) {
-      // TODO
+    for (const PushConstant &pushConstant : dispatch.pushConstants) {
+      if (pushConstant.isDynamic()) {
+        Sym::symbol sym = pushConstant.dynamic();
+        if (!symbolAdded[sym]) {
+          symbols.push_back(sym);
+          symbolAdded[sym] = true;
+        }
+      }
     }
   }
 
@@ -22,15 +29,51 @@ SymIR sym_compile(const CompModel &model) {
       symbolAdded[buffer.size.sym()] = true;
     }
   }
-  // for (const auto &tensor : model.tensors) {
-  //   if (tensor.offset.isSymbolic() && !symbolAdded[tensor.offset.sym()]) {
-  //     symbols.push_back(tensor.offset.sym());
-  //     symbolAdded[tensor.offset.sym()] = true;
-  //   }
-  // }
+  for (const auto &tensor : model.tensors) {
+    if (tensor.offset.isSymbolic() && !symbolAdded[tensor.offset.sym()]) {
+      symbols.push_back(tensor.offset.sym());
+      symbolAdded[tensor.offset.sym()] = true;
+    }
+  }
 
   const auto [symIR, remap] = model.symGraph.compile(symbols);
-  return symIR;
+
+  for (auto &dispatch : model.dispatches) {
+    for (auto &pushConstant : dispatch.pushConstants) {
+      if (pushConstant.isDynamic()) {
+        Sym sym = remap[pushConstant.dynamic()];
+        memory::Dtype dtype = pushConstant.type();
+        if (sym.isConstant()) {
+          switch (dtype.kind()) {
+          case memory::DtypeKind::F16:
+          case memory::DtypeKind::F32:
+          case memory::DtypeKind::F64:
+            diag::not_implemented();
+          case memory::DtypeKind::U32:
+            pushConstant =
+                PushConstant(static_cast<std::uint32_t>(sym.constant()));
+            break;
+          case memory::DtypeKind::I32:
+            pushConstant =
+                PushConstant(static_cast<std::int32_t>(sym.constant()));
+            break;
+          }
+        } else {
+          pushConstant =
+              PushConstant::Dynamic(remap[pushConstant.dynamic()], dtype);
+        }
+      }
+    }
+  }
+
+  for (auto &buffer : model.buffers) {
+    buffer.size = remap[buffer.size];
+  }
+  for (auto &tensor : model.tensors) {
+    tensor.offset = remap[tensor.offset];
+  }
+
+  return std::make_pair(symIR, symbols.size());
 }
 
 } // namespace denox::compiler

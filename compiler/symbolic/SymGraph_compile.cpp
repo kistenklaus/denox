@@ -1,7 +1,6 @@
 #include "algorithm/binary_op_permutations.hpp"
 #include "algorithm/shortest_dag_hyperpath.hpp"
 #include "diag/invalid_state.hpp"
-#include "diag/logging.hpp"
 #include "diag/unreachable.hpp"
 #include "memory/container/dynamic_bitset.hpp"
 #include "memory/container/optional.hpp"
@@ -12,6 +11,7 @@
 #include "symbolic/SymIR.hpp"
 #include <algorithm>
 #include <fmt/base.h>
+#include <map>
 #include <spirv-tools/libspirv.h>
 #include <utility>
 
@@ -20,7 +20,7 @@ namespace denox::compiler {
 std::pair<SymIR, SymRemap>
 SymGraph::compile(memory::span<const symbol> symbols) const {
   SymIR ir;
-  memory::vector<Sym> remap(m_expressions.size());
+  memory::vector<memory::optional<Sym>> remap(m_expressions.size(), memory::nullopt);
 
   struct SymValue {
     // if null this means this is generated custom value.
@@ -32,7 +32,6 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     std::int64_t constant = 0;
   };
 
-  fmt::println("expr : {}", m_expressions.size());
   memory::dynamic_bitset dno(m_expressions.size(), false);
   for (Sym::symbol s : symbols) {
     dno[s] = true;
@@ -40,13 +39,23 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
 
   using weight_type = float;
 
-  static constexpr weight_type ADD_WEIGHT = 1.0f;
-  static constexpr weight_type SUB_WEIGHT = 1.0f;
-  static constexpr weight_type MUL_WEIGHT = 1.0f;
-  static constexpr weight_type DIV_WEIGHT = 1.0f;
-  static constexpr weight_type MOD_WEIGHT = 1.0f;
-  static constexpr weight_type MIN_WEIGHT = 1.0f;
-  static constexpr weight_type MAX_WEIGHT = 1.0f;
+  static constexpr weight_type ADD_SS_WEIGHT = 1.0f;
+  static constexpr weight_type ADD_SC_WEIGHT = 1.0f;
+  static constexpr weight_type SUB_SS_WEIGHT = 1.0f;
+  static constexpr weight_type SUB_SC_WEIGHT = 1.0f;
+  static constexpr weight_type SUB_CS_WEIGHT = 1.0f;
+  static constexpr weight_type MUL_SS_WEIGHT = 1.0f;
+  static constexpr weight_type MUL_SC_WEIGHT = 1.0f;
+  static constexpr weight_type DIV_SS_WEIGHT = 1.0f;
+  static constexpr weight_type DIV_SC_WEIGHT = 1.0f;
+  static constexpr weight_type DIV_CS_WEIGHT = 1.0f;
+  static constexpr weight_type MOD_SS_WEIGHT = 1.0f;
+  static constexpr weight_type MOD_SC_WEIGHT = 1.0f;
+  static constexpr weight_type MOD_CS_WEIGHT = 1.0f;
+  static constexpr weight_type MIN_SS_WEIGHT = 1.0f;
+  static constexpr weight_type MIN_SC_WEIGHT = 1.0f;
+  static constexpr weight_type MAX_SS_WEIGHT = 1.0f;
+  static constexpr weight_type MAX_SC_WEIGHT = 1.0f;
 
   memory::AdjGraph<SymValue, SymOp, weight_type> adjSupergraph;
   memory::vector<memory::NodeId> symbolToNodeMap(m_expressions.size());
@@ -65,72 +74,124 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     if (isAffine) {
       Sym lhs = resolve(expr.lhs);
       Sym rhs = resolve(expr.rhs);
-      memory::NodeId sid = adjSupergraph.addNode(SymValue{
-          .original = s,
-      });
-      symbolToNodeMap[s] = sid;
-      SymIROpCode opcode;
-      opcode.lhsIsConstant = lhs.isConstant();
-      opcode.rhsIsConstant = rhs.isConstant();
-      weight_type weight;
+
+      // if (lhs.isConstant() && rhs.isConstant()) {
+      // }
+      Sym::value_type constant = 0;
+      memory::optional<SymIROpCode> opcode = memory::nullopt;
+      weight_type weight = 0;
       switch (expr.expr) {
       case symbolic::details::ExprType::Div:
-        opcode.op = SymIROpCode::OP_DIV;
-        weight = DIV_WEIGHT;
+        if (lhs.isConstant() && rhs.isConstant()) {
+          constant = lhs.constant() / rhs.constant();
+        } else if (lhs.isConstant()) {
+          opcode = SymIROpCode::Div_CS;
+          constant = lhs.constant();
+          weight = DIV_CS_WEIGHT;
+        } else if (rhs.isConstant()) {
+          opcode = SymIROpCode::Div_SC;
+          constant = rhs.constant();
+          weight = DIV_SC_WEIGHT;
+        } else {
+          opcode = SymIROpCode::Div_SS;
+          weight = DIV_SS_WEIGHT;
+        }
         break;
       case symbolic::details::ExprType::Mod:
-        opcode.op = SymIROpCode::OP_MOD;
-        weight = MOD_WEIGHT;
+        if (lhs.isConstant() && rhs.isConstant()) {
+          constant = emod(lhs.constant(), rhs.constant());
+        } else if (lhs.isConstant()) {
+          opcode = SymIROpCode::Div_CS;
+          constant = lhs.constant();
+          weight = MOD_CS_WEIGHT;
+        } else if (rhs.isConstant()) {
+          opcode = SymIROpCode::Div_SC;
+          constant = rhs.constant();
+          weight = MOD_SC_WEIGHT;
+        } else {
+          opcode = SymIROpCode::Div_SS;
+          weight = MOD_SS_WEIGHT;
+        }
         break;
       case symbolic::details::ExprType::Sub:
-        opcode.op = SymIROpCode::OP_SUB;
-        weight = SUB_WEIGHT;
+        if (lhs.isConstant() && rhs.isConstant()) {
+          constant = lhs.constant() - rhs.constant();
+        } else if (lhs.isConstant()) {
+          opcode = SymIROpCode::Sub_CS;
+          constant = lhs.constant();
+          weight = SUB_CS_WEIGHT;
+        } else if (rhs.isConstant()) {
+          opcode = SymIROpCode::Sub_SC;
+          constant = rhs.constant();
+          weight = SUB_SC_WEIGHT;
+        } else {
+          opcode = SymIROpCode::Sub_SS;
+          weight = SUB_SS_WEIGHT;
+        }
         break;
       case symbolic::details::ExprType::Mul:
-        opcode.op = SymIROpCode::OP_MUL;
-        weight = MUL_WEIGHT;
+        if (lhs.isConstant() && rhs.isConstant()) {
+          constant = lhs.constant() * rhs.constant();
+        } else if (lhs.isSymbolic() && rhs.isSymbolic()) {
+          opcode = SymIROpCode::Mul_SS;
+          weight = MUL_SS_WEIGHT;
+        } else {
+          opcode = SymIROpCode::Mul_SC;
+          constant = rhs.isConstant() ? rhs.constant() : lhs.constant();
+          weight = MUL_SC_WEIGHT;
+        }
         break;
       case symbolic::details::ExprType::Add:
-        opcode.op = SymIROpCode::OP_ADD;
-        weight = ADD_WEIGHT;
+        if (lhs.isConstant() && rhs.isConstant()) {
+          constant = lhs.constant() * rhs.constant();
+        } else if (lhs.isSymbolic() && rhs.isSymbolic()) {
+          opcode = SymIROpCode::Add_SS;
+          weight = ADD_SS_WEIGHT;
+        } else {
+          opcode = SymIROpCode::Add_SC;
+          constant = rhs.isConstant() ? rhs.constant() : lhs.constant();
+          weight = ADD_SC_WEIGHT;
+        }
         break;
       case symbolic::details::ExprType::Min:
-        DENOX_WARN("Iam skeptial if this is actually right");
-        opcode.op = SymIROpCode::OP_MIN;
-        weight = MIN_WEIGHT;
-        break;
       case symbolic::details::ExprType::Max:
-        DENOX_WARN("Iam skeptial if this is actually right");
-        opcode.op = SymIROpCode::OP_MAX;
-        weight = MAX_WEIGHT;
-        break;
       case symbolic::details::ExprType::Const:
       case symbolic::details::ExprType::Identity:
       case symbolic::details::ExprType::NonAffine:
         diag::unreachable();
       }
-      if (lhs.isConstant() && rhs.isConstant()) {
-        diag::invalid_state();
-      } else if (lhs.isConstant()) {
-        assert(rhs.isSymbolic());
-        memory::NodeId rid = symbolToNodeMap[rhs.sym()];
-        assert(static_cast<bool>(rid));
-        adjSupergraph.addEdge(rid, sid, SymOp{opcode, lhs.constant()}, weight);
-      } else if (expr.rhs.isConstant()) {
-        assert(expr.lhs.isSymbolic());
-        memory::NodeId lid = symbolToNodeMap[expr.lhs.sym()];
-        assert(lid);
-        adjSupergraph.addEdge(lid, sid, SymOp{opcode, expr.rhs.constant()},
-                              weight);
+      if (opcode.has_value()) {
+        memory::NodeId sid = adjSupergraph.addNode(SymValue{
+            .original = s,
+        });
+        symbolToNodeMap[s] = sid;
+        if (lhs.isConstant() && rhs.isConstant()) {
+          diag::invalid_state();
+        } else if (lhs.isConstant()) {
+          assert(rhs.isSymbolic());
+          memory::NodeId rid = symbolToNodeMap[rhs.sym()];
+          assert(static_cast<bool>(rid));
+          adjSupergraph.addEdge(rid, sid, SymOp{*opcode, lhs.constant()},
+                                weight);
+        } else if (rhs.isConstant()) {
+          assert(lhs.isSymbolic());
+          memory::NodeId lid = symbolToNodeMap[expr.lhs.sym()];
+          assert(lid);
+          adjSupergraph.addEdge(lid, sid, SymOp{*opcode, rhs.constant()},
+                                weight);
+        } else {
+          assert(lhs.isSymbolic());
+          assert(rhs.isSymbolic());
+          memory::NodeId src0 = symbolToNodeMap[lhs.sym()];
+          memory::NodeId src1 = symbolToNodeMap[rhs.sym()];
+          assert(src0);
+          assert(src1);
+          adjSupergraph.addEdge(src0, src1, sid, SymOp{*opcode}, weight);
+        }
       } else {
-        assert(expr.lhs.isSymbolic());
-        assert(expr.rhs.isSymbolic());
-        memory::NodeId lhs = symbolToNodeMap[expr.lhs.sym()];
-        memory::NodeId rhs = symbolToNodeMap[expr.rhs.sym()];
-        assert(lhs);
-        assert(rhs);
-        adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, weight);
+        remap[s] = Sym::Const(constant);
       }
+
     } else {
       switch (expr.expr) {
       case symbolic::details::ExprType::Identity: {
@@ -149,6 +210,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
         case symbolic::details::ExprType::Add:
         case symbolic::details::ExprType::Const:
           diag::unreachable();
+          break;
         case symbolic::details::ExprType::Div: {
           Sym lhs = resolve(nonaffine.symbols[0]);
           Sym rhs = resolve(nonaffine.symbols[1]);
@@ -156,32 +218,36 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
               .original = s,
           });
           symbolToNodeMap[s] = sid;
-          SymIROpCode opcode;
-          opcode.lhsIsConstant = lhs.isConstant();
-          opcode.rhsIsConstant = rhs.isConstant();
-          opcode.op = SymIROpCode::OP_DIV;
+
           if (lhs.isConstant() && rhs.isConstant()) {
             diag::invalid_state();
           } else if (lhs.isConstant()) {
+            Sym::value_type constant = lhs.constant();
+            SymIROpCode opcode = SymIROpCode::Div_CS;
+            weight_type weight = DIV_CS_WEIGHT;
             assert(rhs.isSymbolic());
             memory::NodeId rid = symbolToNodeMap[rhs.sym()];
             assert(rid);
-            adjSupergraph.addEdge(rid, sid, SymOp{opcode, lhs.constant()},
-                                  DIV_WEIGHT);
-          } else if (expr.rhs.isConstant()) {
-            assert(expr.lhs.isSymbolic());
-            memory::NodeId lid = symbolToNodeMap[expr.lhs.sym()];
+            adjSupergraph.addEdge(rid, sid, SymOp{opcode, constant}, weight);
+          } else if (rhs.isConstant()) {
+            Sym::value_type constant = rhs.constant();
+            SymIROpCode opcode = SymIROpCode::Div_SC;
+            weight_type weight = DIV_SC_WEIGHT;
+            assert(rhs.constant() != 0);
+            assert(lhs.isSymbolic());
+            memory::NodeId lid = symbolToNodeMap[lhs.sym()];
             assert(lid);
-            adjSupergraph.addEdge(lid, sid, SymOp{opcode, expr.rhs.constant()},
-                                  DIV_WEIGHT);
+            adjSupergraph.addEdge(lid, sid, SymOp{opcode, constant}, weight);
           } else {
-            assert(expr.lhs.isSymbolic());
-            assert(expr.rhs.isSymbolic());
+            SymIROpCode opcode = SymIROpCode::Div_SS;
+            weight_type weight = DIV_SS_WEIGHT;
+            assert(lhs.isSymbolic());
+            assert(rhs.isSymbolic());
             memory::NodeId lhs = symbolToNodeMap[expr.lhs.sym()];
             memory::NodeId rhs = symbolToNodeMap[expr.rhs.sym()];
             assert(lhs);
             assert(rhs);
-            adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, DIV_WEIGHT);
+            adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, weight);
           }
           break;
         }
@@ -192,32 +258,36 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
               .original = s,
           });
           symbolToNodeMap[s] = sid;
-          SymIROpCode opcode;
-          opcode.lhsIsConstant = lhs.isConstant();
-          opcode.rhsIsConstant = rhs.isConstant();
-          opcode.op = SymIROpCode::OP_MOD;
+
           if (lhs.isConstant() && rhs.isConstant()) {
             diag::invalid_state();
           } else if (lhs.isConstant()) {
+            Sym::value_type constant = lhs.constant();
+            SymIROpCode opcode = SymIROpCode::Mod_CS;
+            weight_type weight = MOD_CS_WEIGHT;
             assert(rhs.isSymbolic());
             memory::NodeId rid = symbolToNodeMap[rhs.sym()];
             assert(rid);
-            adjSupergraph.addEdge(rid, sid, SymOp{opcode, lhs.constant()},
-                                  MOD_WEIGHT);
-          } else if (expr.rhs.isConstant()) {
-            assert(expr.lhs.isSymbolic());
+            adjSupergraph.addEdge(rid, sid, SymOp{opcode, constant}, weight);
+          } else if (rhs.isConstant()) {
+            Sym::value_type constant = rhs.constant();
+            SymIROpCode opcode = SymIROpCode::Mod_SC;
+            weight_type weight = MOD_SC_WEIGHT;
+            assert(rhs.constant() != 0);
+            assert(lhs.isSymbolic());
             memory::NodeId lid = symbolToNodeMap[expr.lhs.sym()];
             assert(lid);
-            adjSupergraph.addEdge(lid, sid, SymOp{opcode, expr.rhs.constant()},
-                                  MOD_WEIGHT);
+            adjSupergraph.addEdge(lid, sid, SymOp{opcode, constant}, weight);
           } else {
-            assert(expr.lhs.isSymbolic());
-            assert(expr.rhs.isSymbolic());
+            SymIROpCode opcode = SymIROpCode::Mod_SS;
+            weight_type weight = MOD_SS_WEIGHT;
+            assert(lhs.isSymbolic());
+            assert(rhs.isSymbolic());
             memory::NodeId lhs = symbolToNodeMap[expr.lhs.sym()];
             memory::NodeId rhs = symbolToNodeMap[expr.rhs.sym()];
             assert(lhs);
             assert(rhs);
-            adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, MOD_WEIGHT);
+            adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, weight);
           }
           break;
         }
@@ -245,11 +315,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             const Sym::symbol only = factors[0];
             memory::NodeId src = symbolToNodeMap[only];
 
-            SymIROpCode opcode;
-            opcode.op = SymIROpCode::OP_MUL;
-            opcode.lhsIsConstant = false;
-            opcode.rhsIsConstant = true;
-            adjSupergraph.addEdge(src, sid, SymOp{opcode, K}, MUL_WEIGHT);
+            SymIROpCode opcode = SymIROpCode::Mul_SC;
+            adjSupergraph.addEdge(src, sid, SymOp{opcode, K}, MUL_SC_WEIGHT);
             break;
           }
           // NOTE: No need to sort the factors because nonaffine.symbols
@@ -263,10 +330,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
           memory::vector<algorithm::BinaryOpPermutation> perms =
               algorithm::binary_op_permutation(k);
 
-          SymIROpCode opcode;
-          opcode.lhsIsConstant = false;
-          opcode.rhsIsConstant = false;
-          opcode.op = SymIROpCode::OP_MUL;
+          SymIROpCode opcode = SymIROpCode::Mul_SS;
           for (const auto &perm : perms) {
             memory::vector<memory::NodeId> intermediates(perm.ops.size());
             for (std::size_t o = 0; o < perm.ops.size(); ++o) {
@@ -287,13 +351,13 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                 rhs = symbolToNodeMap[factors[op.rhs]];
                 assert(rhs);
               }
-              auto key = std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
+              auto key =
+                  std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
               if (o == perm.ops.size() - 1) {
                 const auto it = mulCache.find(key);
                 if (it == mulCache.end()) {
-                  assert(!opcode.lhsIsConstant && !opcode.rhsIsConstant);
                   adjSupergraph.addEdge(lhs, rhs, factorProd, SymOp{opcode},
-                                        MUL_WEIGHT);
+                                        MUL_SS_WEIGHT);
                   mulCache.insert(std::make_pair(key, factorProd));
                 } else {
                   factorProd = it->second;
@@ -310,8 +374,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                 } else {
                   dst = it->second;
                 }
-                assert(!opcode.lhsIsConstant && !opcode.rhsIsConstant);
-                adjSupergraph.addEdge(lhs, rhs, dst, SymOp{opcode}, MUL_WEIGHT);
+                adjSupergraph.addEdge(lhs, rhs, dst, SymOp{opcode},
+                                      MUL_SS_WEIGHT);
                 intermediates[o] = dst;
               }
             }
@@ -323,12 +387,9 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             memory::NodeId sid = adjSupergraph.addNode(SymValue{
                 .original = s,
             });
-            SymIROpCode opcode;
-            opcode.lhsIsConstant = true;
-            opcode.rhsIsConstant = false;
-            opcode.op = SymIROpCode::OP_MUL;
+            SymIROpCode opcode = SymIROpCode::Mul_SC;
             adjSupergraph.addEdge(factorProd, sid, SymOp{opcode, K},
-                                  MUL_WEIGHT);
+                                  MUL_SC_WEIGHT);
           }
           break;
         }
@@ -357,11 +418,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             memory::NodeId src = symbolToNodeMap[only];
             assert(src);
 
-            SymIROpCode opcode;
-            opcode.op = SymIROpCode::OP_MIN;
-            opcode.lhsIsConstant = false;
-            opcode.rhsIsConstant = true;
-            adjSupergraph.addEdge(src, sid, SymOp{opcode, K}, MUL_WEIGHT);
+            SymIROpCode opcode = SymIROpCode::Min_SC;
+            adjSupergraph.addEdge(src, sid, SymOp{opcode, K}, MIN_SC_WEIGHT);
             break;
           }
           // NOTE: No need to sort the factors because nonaffine.symbols
@@ -375,10 +433,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
           memory::vector<algorithm::BinaryOpPermutation> perms =
               algorithm::binary_op_permutation(k);
 
-          SymIROpCode opcode;
-          opcode.lhsIsConstant = false;
-          opcode.rhsIsConstant = false;
-          opcode.op = SymIROpCode::OP_MIN;
+          SymIROpCode opcode = SymIROpCode::Min_SS;
           for (const auto &perm : perms) {
             memory::vector<memory::NodeId> intermediates(perm.ops.size());
             for (std::size_t o = 0; o < perm.ops.size(); ++o) {
@@ -399,12 +454,13 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                 rhs = symbolToNodeMap[factors[op.rhs]];
                 assert(rhs);
               }
-              auto key = std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
+              auto key =
+                  std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
               if (o == perm.ops.size() - 1) {
                 const auto it = minCache.find(key);
                 if (it == minCache.end()) {
                   adjSupergraph.addEdge(lhs, rhs, factorProd, SymOp{opcode},
-                                        MUL_WEIGHT);
+                                        MIN_SS_WEIGHT);
                   minCache.insert(std::make_pair(key, factorProd));
                 } else {
                   factorProd = it->second;
@@ -421,7 +477,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                 } else {
                   dst = it->second;
                 }
-                adjSupergraph.addEdge(lhs, rhs, dst, SymOp{opcode}, MUL_WEIGHT);
+                adjSupergraph.addEdge(lhs, rhs, dst, SymOp{opcode},
+                                      MIN_SS_WEIGHT);
                 intermediates[o] = dst;
               }
             }
@@ -433,12 +490,9 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             memory::NodeId sid = adjSupergraph.addNode(SymValue{
                 .original = s,
             });
-            SymIROpCode opcode;
-            opcode.lhsIsConstant = true;
-            opcode.rhsIsConstant = false;
-            opcode.op = SymIROpCode::OP_MIN;
+            SymIROpCode opcode = SymIROpCode::Min_SC;
             adjSupergraph.addEdge(factorProd, sid, SymOp{opcode, K},
-                                  MUL_WEIGHT);
+                                  MIN_SC_WEIGHT);
           }
           break;
         }
@@ -467,11 +521,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             memory::NodeId src = symbolToNodeMap[only];
             assert(src);
 
-            SymIROpCode opcode;
-            opcode.op = SymIROpCode::OP_MAX;
-            opcode.lhsIsConstant = false;
-            opcode.rhsIsConstant = true;
-            adjSupergraph.addEdge(src, sid, SymOp{opcode, K}, MUL_WEIGHT);
+            SymIROpCode opcode = SymIROpCode::Max_SC;
+            adjSupergraph.addEdge(src, sid, SymOp{opcode, K}, MAX_SC_WEIGHT);
             break;
           }
           // NOTE: No need to sort the factors because nonaffine.symbols
@@ -485,10 +536,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
           memory::vector<algorithm::BinaryOpPermutation> perms =
               algorithm::binary_op_permutation(k);
 
-          SymIROpCode opcode;
-          opcode.lhsIsConstant = false;
-          opcode.rhsIsConstant = false;
-          opcode.op = SymIROpCode::OP_MAX;
+          SymIROpCode opcode = SymIROpCode::Max_SS;
           for (const auto &perm : perms) {
             memory::vector<memory::NodeId> intermediates(perm.ops.size());
             for (std::size_t o = 0; o < perm.ops.size(); ++o) {
@@ -509,12 +557,13 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                 rhs = symbolToNodeMap[factors[op.rhs]];
                 assert(rhs);
               }
-              auto key = std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
+              auto key =
+                  std::make_pair(std::min(*lhs, *rhs), std::max(*lhs, *rhs));
               if (o == perm.ops.size() - 1) {
                 const auto it = maxCache.find(key);
                 if (it == maxCache.end()) {
                   adjSupergraph.addEdge(lhs, rhs, factorProd, SymOp{opcode},
-                                        MUL_WEIGHT);
+                                        MAX_SS_WEIGHT);
                   maxCache.insert(std::make_pair(key, factorProd));
                 } else {
                   factorProd = it->second;
@@ -531,7 +580,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                 } else {
                   dst = it->second;
                 }
-                adjSupergraph.addEdge(lhs, rhs, dst, SymOp{opcode}, MUL_WEIGHT);
+                adjSupergraph.addEdge(lhs, rhs, dst, SymOp{opcode},
+                                      MAX_SS_WEIGHT);
                 intermediates[o] = dst;
               }
             }
@@ -543,12 +593,9 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             memory::NodeId sid = adjSupergraph.addNode(SymValue{
                 .original = s,
             });
-            SymIROpCode opcode;
-            opcode.lhsIsConstant = true;
-            opcode.rhsIsConstant = false;
-            opcode.op = SymIROpCode::OP_MAX;
+            SymIROpCode opcode = SymIROpCode::Max_SC;
             adjSupergraph.addEdge(factorProd, sid, SymOp{opcode, K},
-                                  MUL_WEIGHT);
+                                  MAX_SC_WEIGHT);
           }
           break;
         }
@@ -572,7 +619,6 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     }
   }
 
-  debugDump();
   assert(adjSupergraph.nodeCount() >= m_expressions.size());
   memory::ConstGraph<SymValue, SymOp, weight_type> supergraph{adjSupergraph};
   memory::vector<memory::NodeId> vars;
@@ -586,73 +632,150 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     }
     Sym::symbol original = *node.original;
     if (dno[original]) {
-      fmt::println("result symbol {} => {}", original, n);
       results.push_back(nid);
     }
     if (m_expressions[original].expr == ExprType::Identity) {
       vars.push_back(nid);
     }
   }
-  fmt::println("edges: {}", supergraph.edgeCount());
-  fmt::println("nodes: {}", supergraph.nodeCount());
-  fmt::println("vars: {}", vars.size());
-  fmt::println("results: {}", results.size());
-  fmt::println("symbols: {}", symbols.size());
+  ir.varCount = vars.size();
 
-  auto hyperpath = algorithm::shortest_dag_hyperpath(supergraph, vars, results);
-  assert(hyperpath.has_value());
-  fmt::println("len: {}", hyperpath->size());
+  auto hyperpath =
+      *algorithm::shortest_dag_hyperpath(supergraph, vars, results);
 
-  for (std::size_t e = 0; e < hyperpath->size(); ++e) {
-    memory::EdgeId eid{hyperpath.value()[e]};
-    auto op = supergraph.get(eid);
-
-    auto dst = supergraph.dst(eid);
-    fmt::print("[{}] = ", static_cast<std::uint64_t>(dst));
-
-    assert(!(op.opcode.lhsIsConstant && op.opcode.rhsIsConstant));
-    if (op.opcode.lhsIsConstant) {
-      fmt::print("{}", op.constant);
-    } else {
-      auto srcs = supergraph.src(eid);
-      memory::NodeId nid = srcs[0];
-      fmt::print("[{}]", static_cast<std::uint64_t>(nid));
-    }
-    switch (op.opcode.op) {
-      case SymIROpCode::OP_ADD:
-        fmt::print(" + ");
-        break;
-      case SymIROpCode::OP_SUB:
-        fmt::print(" + ");
-        break;
-      case SymIROpCode::OP_MUL:
-        fmt::print(" * ");
-        break;
-      case SymIROpCode::OP_DIV:
-        fmt::print(" / ");
-        break;
-      case SymIROpCode::OP_MOD:
-        fmt::print(" % ");
-        break;
-      case SymIROpCode::OP_MIN:
-        fmt::print(" min* ");
-        break;
-      case SymIROpCode::OP_MAX:
-        fmt::print(" max* ");
-        break;
-    }
-
-    if (op.opcode.rhsIsConstant) {
-      fmt::println("{}", op.constant);
-    } else {
-      auto srcs = supergraph.src(eid);
-      if (srcs.size() == 1) {
-        fmt::println("[{}]", static_cast<std::uint64_t>(srcs[0]));
-      } else {
-        fmt::println("[{}]", static_cast<std::uint64_t>(srcs[1]));
-      }
-    }
+  // Reverse map.
+  memory::vector<memory::optional<Sym::symbol>> nodeIdToSymbol(
+      supergraph.nodeCount());
+  for (std::size_t n = 0; n < supergraph.nodeCount(); ++n) {
+    memory::NodeId nid{n};
+    auto node = supergraph.get(nid);
+    nodeIdToSymbol[*nid] = node.original;
   }
+
+  ir.ops.reserve(hyperpath.size());
+  memory::vector<std::int64_t> nodeIdToIR(supergraph.nodeCount());
+  for (std::size_t i = 0; i < hyperpath.size(); ++i) {
+    memory::EdgeId eid{hyperpath[i]};
+    auto op = supergraph.get(eid);
+    auto srcs = supergraph.src(eid);
+    auto dst = supergraph.dst(eid);
+    std::int64_t ird = static_cast<std::int64_t>(i + vars.size());
+    nodeIdToIR[*dst] = ird;
+
+    memory::optional<Sym::symbol> original = supergraph.get(dst).original;
+    if (original.has_value()) {
+      remap[*original] = Sym::Symbol(static_cast<std::uint64_t>(ird));
+    }
+    SymIROp irop;
+    irop.opcode = op.opcode;
+    switch (op.opcode) {
+    case SymIROpCode::Add_SS:
+    case SymIROpCode::Sub_SS:
+    case SymIROpCode::Mul_SS:
+    case SymIROpCode::Div_SS:
+    case SymIROpCode::Mod_SS:
+    case SymIROpCode::Min_SS:
+    case SymIROpCode::Max_SS:
+      irop.lhs = nodeIdToIR[*srcs[0]];
+      irop.rhs = nodeIdToIR[*srcs[1]];
+      break;
+    case SymIROpCode::Add_SC:
+    case SymIROpCode::Sub_SC:
+    case SymIROpCode::Mul_SC:
+    case SymIROpCode::Div_SC:
+    case SymIROpCode::Mod_SC:
+    case SymIROpCode::Min_SC:
+    case SymIROpCode::Max_SC:
+      irop.lhs = nodeIdToIR[*srcs[0]];
+      irop.rhs = op.constant;
+      break;
+    case SymIROpCode::Sub_CS:
+    case SymIROpCode::Div_CS:
+    case SymIROpCode::Mod_CS:
+      irop.lhs = op.constant;
+      irop.rhs = nodeIdToIR[*srcs[0]];
+      break;
+    }
+    ir.ops.push_back(irop);
+  }
+
+  for (std::uint64_t v = 0; v < vars.size(); ++v) {
+    auto varNode = supergraph.get(vars[v]);
+    assert(varNode.original.has_value());
+    Sym::symbol original = varNode.original.value();
+    remap[original] = Sym::Symbol(v);
+  }
+
+
+  // fmt::println("IR");
+  // for (std::size_t e = 0; e < ir.ops.size(); ++e) {
+  //   const auto &op = ir.ops[e];
+  //   std::int64_t ird = static_cast<std::int64_t>(e + vars.size());
+  //   fmt::print("s{} = ", ird);
+  //   switch (op.opcode) {
+  //   case SymIROpCode::Add_SS:
+  //     fmt::println("s{} + s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Add_SC:
+  //     fmt::println("s{} + {}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Sub_SS:
+  //     fmt::println("s{} - s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Sub_SC:
+  //     fmt::println("s{} - {}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Sub_CS:
+  //     fmt::println("{} - s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Mul_SS:
+  //     fmt::println("s{} * s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Mul_SC:
+  //     fmt::println("s{} * {}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Div_SS:
+  //     fmt::println("s{} / s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Div_SC:
+  //     fmt::println("s{} / {}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Div_CS:
+  //     fmt::println("{} / s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Mod_SS:
+  //     fmt::println("s{} % s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Mod_SC:
+  //     fmt::println("s{} % {}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Mod_CS:
+  //     fmt::println("{} % s{}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Min_SS:
+  //     fmt::println("min{{s{}, s{}}}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Min_SC:
+  //     fmt::println("min{{s{}, {}}}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Max_SS:
+  //     fmt::println("max{{s{}, {}}}", op.lhs, op.rhs);
+  //     break;
+  //   case SymIROpCode::Max_SC:
+  //     fmt::println("max{{s{}, {}}}", op.lhs, op.rhs);
+  //     break;
+  //   }
+  // }
+
+  // for (Sym::symbol s = 0; s < remap.size(); ++s) {
+  //   fmt::print("[{}] -> ", s);
+  //   Sym irs = remap[s];
+  //   if (irs.isConstant()) {
+  //     fmt::println("{}", irs.constant());
+  //   } else {
+  //     fmt::println("s{}", irs.sym());
+  //   }
+  // }
 
   return std::make_pair(ir, SymRemap(remap));
 }
