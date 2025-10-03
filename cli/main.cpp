@@ -1,7 +1,6 @@
 #include "CLI/CLI.hpp"
 #include "denox/compiler.hpp"
 #include <CLI/CLI.hpp>
-#include <fmt/base.h>
 #include <optional>
 #include <regex>
 #include <stdexcept>

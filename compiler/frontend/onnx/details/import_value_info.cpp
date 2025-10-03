@@ -5,7 +5,6 @@
 #include "model/DynamicInputExtent.hpp"
 #include "model/ModelControlBlock.hpp"
 
-#include <fmt/base.h>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {

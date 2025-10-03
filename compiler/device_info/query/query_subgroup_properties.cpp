@@ -1,6 +1,5 @@
 #include "device_info/query/query_subgroup_properties.hpp"
 #include "device_info/SubgroupProperties.hpp"
-#include <fmt/base.h>
 #include <vulkan/vulkan_structs.hpp>
 
 namespace denox::compiler::device_info::query {

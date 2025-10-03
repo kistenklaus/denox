@@ -7,7 +7,6 @@
 #include "memory/tensor/FilterTensor.hpp"
 #include "memory/tensor/FitlerDescriptor.hpp"
 #include "model/ActivationFunction.hpp"
-#include <fmt/base.h>
 
 namespace denox::compiler::shaders {
 

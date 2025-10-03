@@ -1,6 +1,5 @@
 #include "compiler/sym_table.hpp"
 #include "model/DynamicInputExtent.hpp"
-#include <fmt/base.h>
 
 namespace denox::compiler {
 
