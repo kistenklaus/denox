@@ -68,11 +68,11 @@ Lifetimes lifeness(const CanoModel &model) {
       continue;
     auto n = g.get(memory::NodeId(i));
     for (const auto &e : n->outgoing()) {
-      const std::size_t d = static_cast<std::size_t>(e.dst().id());
+      const std::uint64_t d = static_cast<std::uint64_t>(e.dst().id());
       if (!active[d])
         continue;
       for (const auto &s : e.srcs()) {
-        const std::size_t sid = static_cast<std::size_t>(s.id());
+        const std::uint64_t sid = static_cast<std::uint64_t>(s.id());
         if (!active[sid])
           continue;
         succ[sid].push_back(d);

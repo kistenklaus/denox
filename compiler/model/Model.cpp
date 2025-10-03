@@ -130,7 +130,7 @@ Tensor Model::conv2d(const Tensor &src, memory::FilterTensorConstView W,
 
 Tensor Model::activation(const Tensor &src, ActivationFunction func) const {
   memory::NodeId srcId = src.m_nodeId;
-  const auto &srcNode = m_controlBlock->hypergraph.get(srcId);
+  const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
   memory::NodeId dstId = m_controlBlock->hypergraph.emplaceNode(
       srcNode.m_extent, srcNode.m_channels, memory::nullopt, memory::nullopt);
@@ -143,7 +143,7 @@ Tensor Model::activation(const Tensor &src, ActivationFunction func) const {
 Tensor Model::upsample(const Tensor &src, unsigned int scalingFactor,
                        FilterMode mode) const {
   memory::NodeId srcId = src.m_nodeId;
-  const auto &srcNode = m_controlBlock->hypergraph.get(srcId);
+  const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
   sym_vec2 extent{
       m_controlBlock->symGraph.mul(scalingFactor, srcNode.m_extent.x.asSym()),
@@ -160,13 +160,14 @@ Tensor Model::upsample(const Tensor &src, unsigned int scalingFactor,
 Tensor Model::pool(const Tensor &src, memory::uvec2 kernelSize,
                    memory::uvec2 padding, memory::uvec2 stride,
                    memory::uvec2 dilation, PoolFunction poolFunc) const {
+
   if (dilation != memory::uvec2(1, 1)) {
     throw std::runtime_error(
         "vkcnn: Model::pool, does not support dilation != (1,1).");
   }
 
   memory::NodeId srcId = src.m_nodeId;
-  const auto &srcNode = m_controlBlock->hypergraph.get(srcId);
+  const auto srcNode = m_controlBlock->hypergraph.get(srcId);
   sym_vec2 extent{
       m_controlBlock->symGraph.pool(srcNode.m_extent.x.asSym(), kernelSize.x,
                                     padding.x, stride.x, dilation.x),
@@ -216,7 +217,7 @@ Tensor Model::pad(const Tensor &src0, Sym left, Sym right, Sym top, Sym bottom,
                   PaddingMode mode) const {
 
   auto srcId = src0.m_nodeId;
-  auto srcNode = m_controlBlock->hypergraph.get(srcId);
+  const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
   sym_vec2 extent{
       m_controlBlock->symGraph.add(
@@ -242,7 +243,7 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
                     Sym bottom) const {
 
   auto srcId = src0.m_nodeId;
-  auto srcNode = m_controlBlock->hypergraph.get(srcId);
+  const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
   sym_vec2 extent{
       m_controlBlock->symGraph.sub(right, left),

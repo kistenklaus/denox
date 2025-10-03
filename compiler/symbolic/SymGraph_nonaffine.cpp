@@ -5,8 +5,8 @@
 namespace denox::compiler {
 
 Sym SymGraph::nonaffine_mul(symbol lhs, symbol rhs, bool dno) {
-  const Expr &a = m_expressions[lhs];
-  const Expr &b = m_expressions[rhs];
+  const Expr a = m_expressions[lhs];
+  const Expr b = m_expressions[rhs];
 
   // Gather pure symbol factors from Identity or NonAffine(Mul) nodes.
   // Hoist any constant factors into `c` (never stored inside Mul.symbols).
@@ -81,7 +81,7 @@ Sym SymGraph::nonaffine_mul(symbol lhs, symbol rhs, bool dno) {
   }
 
   // Small helper: multiply an affine expression by a single symbol (Identity).
-  auto mul_affine_by_symbol = [&](const AffineExpr &aff, symbol s) -> Sym {
+  auto mul_affine_by_symbol = [&](AffineExpr aff, symbol s) -> Sym {
     AffineExpr out; // we'll accumulate as affine where possible
     // constant * symbol → coefficient on that symbol
     if (aff.constant != 0) {
@@ -119,19 +119,19 @@ Sym SymGraph::nonaffine_mul(symbol lhs, symbol rhs, bool dno) {
 
   // linear × constant (both sides)
   if (a.affine.constant != 0) {
-    for (const auto &coef : b.affine.coef) {
+    for (const auto coef : b.affine.coef) {
       affine_add_sym(out, coef.sym, coef.factor * a.affine.constant);
     }
   }
   if (b.affine.constant != 0) {
-    for (const auto &coef : a.affine.coef) {
+    for (const auto coef : a.affine.coef) {
       affine_add_sym(out, coef.sym, coef.factor * b.affine.constant);
     }
   }
 
   // linear × linear → normalized products
-  for (const auto &ac : a.affine.coef) {
-    for (const auto &bc : b.affine.coef) {
+  for (const auto ac : a.affine.coef) {
+    for (const auto bc : b.affine.coef) {
       Sym P = nonaffine_mul(ac.sym, bc.sym, /*dno*/ false);
       value_type k = ac.factor * bc.factor;
       if (P.isConstant()) {
@@ -177,8 +177,8 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
     // helper: (• div c0) div c1 → • div (c0*c1)   |   (c0 div •) div c1 → 0 if
     // c0<c1
     auto propagate_div_by_const = [&](symbol s, value_type d1) -> Sym {
-      const auto &ae = m_expressions[s];
-      const auto &na = m_nonAffineCache.expressions[ae.lhs.sym()];
+      const auto ae = m_expressions[s];
+      const auto na = m_nonAffineCache.expressions[ae.lhs.sym()];
       if (na.expr != ExprType::Div) {
         NonAffineExpr out;
         out.expr = ExprType::Div;
@@ -242,7 +242,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
     {
       // === NEW fast-paths BEFORE any modsolver peeling ===
       if (a.expr != ExprType::NonAffine && a.expr != ExprType::Identity) {
-        const auto &af = a.affine;
+        const auto af = a.affine;
 
         // Fast path 0: exact split for single-term, no-constant affine
         // (c * Z) div d  →  (c/d) * Z  when c % d == 0
@@ -260,7 +260,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
         //   (A) div d  ==  ((Σti) + (d/g - 1)) div (d/g)
         if (!af.coef.empty() && af.constant == d - 1) {
           value_type g = 0;
-          for (const auto &c : af.coef) {
+          for (const auto c : af.coef) {
             value_type f = (c.factor >= 0) ? c.factor : -c.factor;
             g = (g == 0) ? f : denox::algorithm::gcd(g, f);
             if (g == 1)
@@ -306,7 +306,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
       AffineExpr Qdiv;
       Qdiv.constant = Q.constant / d;
       Qdiv.coef.reserve(Q.coef.size());
-      for (const auto &qc : Q.coef) {
+      for (const auto qc : Q.coef) {
         if (qc.factor % d == 0) {
           affine_add_sym(Qdiv, qc.sym, qc.factor / d);
         } else {
@@ -328,7 +328,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
       if (d == 2 && R.coef.empty() && R.constant == 1 && Qdiv.constant == 0 &&
           Qdiv.coef.size() == 1) {
         const auto t = Qdiv.coef[0];
-        const auto &te = m_expressions[t.sym];
+        const auto te = m_expressions[t.sym];
         if (t.factor == 1 && te.expr == ExprType::NonAffine) {
           const auto &tna = m_nonAffineCache.expressions[te.lhs.sym()];
           if (tna.expr == ExprType::Div && tna.symbols[1].isConstant() &&
@@ -365,8 +365,8 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
   assert(lhs.isSymbolic() && rhs.isSymbolic());
   assert(lhs.sym() != rhs.sym());
 
-  const auto &a = m_expressions[lhs.sym()];
-  const auto &b = m_expressions[rhs.sym()];
+  const auto a = m_expressions[lhs.sym()];
+  const auto b = m_expressions[rhs.sym()];
 
   /* Helper: build a pure symbolic product (no constants).
    * - []      -> Const(1)
@@ -422,7 +422,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
     }
 
     if (e.expr == ExprType::NonAffine) {
-      const auto &na = m_nonAffineCache.expressions[e.lhs.sym()];
+      const auto na = m_nonAffineCache.expressions[e.lhs.sym()];
       if (na.expr != ExprType::Mul)
         return denox::memory::nullopt;
       for (const Sym &t : na.symbols) {
@@ -473,7 +473,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
 
   /* 1) (Div(U,V)) / W  ==>  Div(U, V*W)   (V*W stays pure-symbol Mul here) */
   if (a.expr == ExprType::NonAffine) {
-    const auto &ana = m_nonAffineCache.expressions[a.lhs.sym()];
+    const auto ana = m_nonAffineCache.expressions[a.lhs.sym()];
     if (ana.expr == ExprType::Div) {
       Sym U = ana.symbols[0], V = ana.symbols[1];
 
@@ -618,7 +618,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
         const auto &af = te.affine;
         if (af.constant == 0 && af.coef.size() == 1 && af.coef[0].factor == 1) {
           symbol inner = af.coef[0].sym;
-          const auto &ie = m_expressions[inner];
+          const auto ie = m_expressions[inner];
           if (ie.expr == ExprType::Identity) {
             return denox::memory::small_vector<Sym, 2>{Sym::Symbol(inner)};
           }
@@ -646,7 +646,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
       symbolic::details::AffineExpr peeled;
       value_type peeled_const = 0;
 
-      for (const auto &c : a.affine.coef) {
+      for (const auto c : a.affine.coef) {
         auto tvec = term_syms_of(c.sym);
         if (!tvec) {
           all_divisible = false;
@@ -657,7 +657,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
         bool removed = false;
         denox::memory::small_vector<Sym, 2> rest_syms;
         rest_syms.reserve(tvec->size());
-        for (const Sym &t : *tvec) {
+        for (const Sym t : *tvec) {
           if (!removed && t.isSymbolic() && t.sym() == Bsym) {
             removed = true;
             continue;
@@ -773,7 +773,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
       R_part.constant = a.affine.constant;
       bool peeled_any = false;
 
-      for (const auto &c : a.affine.coef) {
+      for (const auto c : a.affine.coef) {
         auto tvec = term_syms_of(c.sym);
         if (!tvec) {
           affine_add_sym(R_part, c.sym, c.factor);
@@ -783,7 +783,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
         bool removed = false;
         denox::memory::small_vector<Sym, 2> rest_syms;
         rest_syms.reserve(tvec->size());
-        for (const Sym &t : *tvec) {
+        for (const Sym t : *tvec) {
           if (!removed && t.isSymbolic() && t.sym() == Asym) {
             removed = true;
             continue;
@@ -837,6 +837,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
     return fail_build_div();
   }
 
+
   /* 4) Fallback: generic Div */
   {
     symbolic::details::NonAffineExpr nonaffine;
@@ -844,22 +845,6 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
     nonaffine.symbols = {lhs, rhs}; // ORDERED: numerator, denominator
     return Sym::Symbol(require_nonaffine_sym(nonaffine));
   }
-
-  /* ================================================================
-     4) Fallback: general non-affine division
-     ================================================================ */
-  {
-    NonAffineExpr nonaffine;
-    nonaffine.expr = ExprType::Div;
-    nonaffine.symbols = {lhs, rhs};
-    return Sym::Symbol(require_nonaffine_sym(nonaffine));
-  }
-
-  // Fallback: general non-affine division
-  NonAffineExpr nonaffine;
-  nonaffine.expr = ExprType::Div;
-  nonaffine.symbols = {lhs, rhs};
-  return Sym::Symbol(require_nonaffine_sym(nonaffine));
 }
 
 Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
@@ -888,9 +873,9 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
       return require_const_sym(0, dno); // X % 1 == 0
     }
 
-    const auto &le = m_expressions[lhs.sym()];
+    const auto le = m_expressions[lhs.sym()];
     if (le.expr == ExprType::NonAffine) {
-      const auto &lna = m_nonAffineCache.expressions[le.lhs.sym()];
+      const auto lna = m_nonAffineCache.expressions[le.lhs.sym()];
       if (lna.expr == ExprType::Mod && lna.symbols[1].isConstant()) {
         // (X % m) % n  ==>  X % gcd(m, n)
         value_type m = lna.symbols[1].constant();
@@ -953,7 +938,7 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
 
   // Idempotence: (X % Y) % Y == X % Y
   if (lhs.isSymbolic()) {
-    const auto &le = m_expressions[lhs.sym()];
+    const auto le = m_expressions[lhs.sym()];
     if (le.expr == ExprType::NonAffine) {
       const auto &lna = m_nonAffineCache.expressions[le.lhs.sym()];
       if (lna.expr == ExprType::Mod && lna.symbols[1].isSymbolic() &&
@@ -985,8 +970,8 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
 
   // Pure product divisibility: (product contains all rhs factors) → 0
   {
-    const auto &le = m_expressions[lhs.sym()];
-    const auto &re = m_expressions[rhs.sym()];
+    const auto le = m_expressions[lhs.sym()];
+    const auto re = m_expressions[rhs.sym()];
     if (auto N = as_mul_syms(lhs, le)) {
       if (auto D = as_mul_syms(rhs, re)) {
         if (includes_multiset(std::span<const Sym>(N->data(), N->size()),
@@ -999,8 +984,8 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
 
   // --- symbolic modulus: conservative affine sieve ---
   {
-    const auto &le = m_expressions[lhs.sym()];
-    const auto &re = m_expressions[rhs.sym()];
+    const auto le = m_expressions[lhs.sym()];
+    const auto re = m_expressions[rhs.sym()];
 
     // Collect denominator factor multiset (symbols-only), already sorted
     denox::memory::small_vector<Sym, 2> den_syms;
@@ -1010,7 +995,7 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
         return true;
       }
       if (re.expr == ExprType::NonAffine) {
-        const auto &rna = m_nonAffineCache.expressions[re.lhs.sym()];
+        const auto rna = m_nonAffineCache.expressions[re.lhs.sym()];
         if (rna.expr != ExprType::Mul)
           return false;
         den_syms = rna.symbols; // symbols-only (per invariant)
@@ -1040,7 +1025,7 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
         const bool const_is_zero = (le.affine.constant == 0);
         std::size_t droppable = 0, total = le.affine.coef.size();
 
-        for (const auto &c : le.affine.coef) {
+        for (const auto c : le.affine.coef) {
           if (term_is_droppable(c.sym))
             ++droppable;
         }

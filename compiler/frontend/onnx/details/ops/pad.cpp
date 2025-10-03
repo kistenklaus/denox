@@ -22,6 +22,14 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         fmt::format("vkcnn: Pad \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &dataT = *inputs[0];
+  assert(dataT.isDevice());
+  assert(dataT.shape().rank() == 4);
+  assert(dataT.shape().dims()[1].isConstant());
+  assert(dataT.shape().dims()[2].isSymbolic());
+  assert(dataT.shape().dims()[3].isSymbolic());
+  fmt::println("Padding: C = {}", dataT.shape().dims()[1].constant());
+
+
   const Tensor &padsT = *inputs[1];
   const bool hasConstVal = (inputs.size() >= 3) && inputs[2].has_value();
   const bool hasAxes = (inputs.size() >= 4) && inputs[3].has_value();
@@ -265,9 +273,22 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     // Call backend
     const compiler::Sym T = before[axH], B = after[axH], L = before[axW],
                         R = after[axW];
+    assert(T.isConstant());
+    assert(B.isSymbolic());
+    assert(L.isConstant());
+    assert(R.isSymbolic());
+
+    fmt::println("T = {}", T.constant());
+    fmt::println("B = [{}]", B.sym());
+    fmt::println("L = {}", L.constant());
+    fmt::println("R = [{}]", R.sym());
+
     compiler::Tensor outH =
         state.output.pad(devIn.handle(), L, R, T, B, devMode);
     DeviceTensor outDev(r, std::move(outH));
+
+    fmt::println("Channels : {}", outDev.handle().channels());
+    fmt::println("Returning here");
     return {Tensor::Device(std::move(outDev))};
   }
 

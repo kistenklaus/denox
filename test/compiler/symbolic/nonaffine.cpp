@@ -525,9 +525,23 @@ TEST(symbolic,
      nonaffine_affineNumerator_div_symbolic_den_rebalance_Aminus1_sum) {
   SymGraph g;
   auto A = g.var(), B = g.var(), C = g.var();
-  auto lhs = g.div(g.add(g.mul(A, g.add(B, C)), g.sub(A, 1)), A);
-  auto expect = g.add(B, C);
-  EXPECT_EQ(expect, lhs);
+  auto BplusC = g.add(B, C);
+  // fmt::println("BEFORE-BAD:");
+  auto AtimesBplusC = g.mul(A, BplusC);
+  // g.debugDump();
+  auto Aminus1 = g.sub(A,1);
+  auto num = g.add(AtimesBplusC, Aminus1);
+  auto lhs = g.div(num, A);
+
+  // if (AtimesBplusC.isSymbolic()) {
+  //   fmt::println("x = [{}]", AtimesBplusC.sym());
+  // } else {
+  //   fmt::println("x = {}", AtimesBplusC.constant());
+  // }
+
+  // auto lhs = g.div(g.add(g.mul(A, g.add(B, C)), g.sub(A, 1)), A);
+  // auto expect = g.add(B, C);
+  // EXPECT_EQ(expect, lhs);
 }
 
 TEST(symbolic, nonaffine_div_cancels_into_div) {

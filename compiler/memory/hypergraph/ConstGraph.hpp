@@ -105,12 +105,12 @@ public:
     // Pass 0: Compact IDs and build remapping tables.
     std::size_t maxNodeId{0};
     for (typename AdjGraph<V, E, W>::const_node_iterator::Node n : graph.nodes()) {
-      maxNodeId = std::max(static_cast<std::size_t>(n.id()), maxNodeId);
+      maxNodeId = std::max(static_cast<std::uint64_t>(n.id()), static_cast<std::uint64_t>(maxNodeId));
     }
     std::size_t maxEdgeId{0};
     for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
          graph.edges()) {
-      maxEdgeId = std::max(static_cast<std::size_t>(e.id()), maxEdgeId);
+      maxEdgeId = std::max(static_cast<std::uint64_t>(e.id()), static_cast<std::uint64_t>(maxEdgeId));
     }
     denox::memory::vector<NodeId> nodeRemap(maxNodeId + 1, NodeId{0});
     {

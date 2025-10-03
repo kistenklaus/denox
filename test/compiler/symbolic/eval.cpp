@@ -830,7 +830,7 @@ static void check_values(SymGraph &g, const Sym &a, const Sym &b, const Sym &X,
 }
 
 // Deg-2: P(x) = 7 + (-5)x + 3x^2
-TEST(symbolic, quad_horner_vs_naive_nodefirst) {
+TEST(symbolic, eval_quad_horner_vs_naive_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 
@@ -851,7 +851,7 @@ TEST(symbolic, quad_horner_vs_naive_nodefirst) {
 }
 
 // Deg-3 with zero x^2 term: P(x) = 7 + (-5)x + 0*x^2 + 3x^3
-TEST(symbolic, cubic_zero_middle_term_nodefirst) {
+TEST(symbolic, eval_cubic_zero_middle_term_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 
@@ -877,7 +877,7 @@ TEST(symbolic, cubic_zero_middle_term_nodefirst) {
 }
 
 // Deg-3 with zero constant: P(x) = (-5)x + 2x^2 + 3x^3
-TEST(symbolic, cubic_zero_constant_nodefirst) {
+TEST(symbolic, eval_cubic_zero_constant_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 
@@ -902,7 +902,7 @@ TEST(symbolic, cubic_zero_constant_nodefirst) {
 
 // Deg-4 like your failing pattern (explicit 0*x^3): P(x) = 7 + (-5)x + 2x^2 +
 // 0*x^3 + 3x^4
-TEST(symbolic, quartic_zero_cubic_term_nodefirst) {
+TEST(symbolic, eval_quartic_zero_cubic_term_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 
@@ -933,7 +933,7 @@ TEST(symbolic, quartic_zero_cubic_term_nodefirst) {
 }
 
 // Deg-4 with zero quadratic term: P(x) = 1 + (-4)x + 0*x^2 + 2x^3 + 5x^4
-TEST(symbolic, quartic_zero_quadratic_term_nodefirst) {
+TEST(symbolic, eval_quartic_zero_quadratic_term_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 
@@ -965,7 +965,7 @@ TEST(symbolic, quartic_zero_quadratic_term_nodefirst) {
 
 // Deg-4 all negative coeffs (no zeros): P(x) = -7 + (-2)x + (-3)x^2 + (-4)x^3 +
 // (-1)x^4
-TEST(symbolic, quartic_all_negative_nodefirst) {
+TEST(symbolic, eval_quartic_all_negative_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 
@@ -997,7 +997,7 @@ TEST(symbolic, quartic_all_negative_nodefirst) {
 }
 
 // Cross-check via expansion vs polynomial form: (x + 2)(x + 3) == x^2 + 5x + 6
-TEST(symbolic, binomial_expand_vs_poly_nodefirst) {
+TEST(symbolic, eval_binomial_expand_vs_poly_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 
@@ -1010,7 +1010,7 @@ TEST(symbolic, binomial_expand_vs_poly_nodefirst) {
 }
 
 // Template deg-2 identity: ax^2 + bx + c == ((a x + b) x + c)
-TEST(symbolic, quad_template_identity_nodefirst) {
+TEST(symbolic, eval_quad_template_identity_nodefirst) {
   SymGraph g;
   Sym X = g.var();
 

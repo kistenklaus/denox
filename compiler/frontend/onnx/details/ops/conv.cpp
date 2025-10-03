@@ -27,6 +27,10 @@ memory::vector<Tensor> conv(
     throw std::runtime_error("vkcnn: Conv: inputs X and W are required.");
 
   const Tensor &X = *inputs[0];
+  fmt::println("Conv: input -> {}", X.device().handle().id());
+  fmt::println("Conv: channels : {}", X.device().handle().channels());
+  fmt::println("Conv: rank = {}", X.shape().rank());
+  // fmt::println("Conv: dims()[1] = {}", X.shape().dims()[1].constant());
   const Tensor &W = *inputs[1];
 
   memory::optional<Tensor> B;
@@ -42,6 +46,7 @@ memory::vector<Tensor> conv(
         "vkcnn: Conv: B (if present) must be a HostTensor.");
 
   const DeviceTensor Xdev = X.device();
+
   if (Xdev.rank() != 3 && Xdev.rank() != 4)
     throw std::runtime_error("vkcnn: Conv: X must be CHW or NCHW.");
 
@@ -293,6 +298,10 @@ memory::vector<Tensor> conv(
                           dilations
                           // atype = memory::nullopt (let backend decide / W type)
       );
+
+  fmt::println("Conv: Out-channels: {}", out.channels());
+  fmt::println("Conv: {} -> output", out.id());
+
 
   return {Tensor::Device(DeviceTensor{Xdev.rank(), std::move(out)})};
 }

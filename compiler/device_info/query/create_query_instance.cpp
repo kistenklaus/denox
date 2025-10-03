@@ -1,7 +1,9 @@
 #include "device_info/query/create_query_instance.hpp"
 #include "device_info/ApiVersion.hpp"
 #include "diag/unreachable.hpp"
+#include "memory/container/vector.hpp"
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
 
@@ -51,6 +53,15 @@ vk::Instance query::create_query_instance(ApiVersion apiVersion) {
 
   vk::InstanceCreateInfo createInfo;
   createInfo.pApplicationInfo = &appInfo;
+#ifdef __APPLE__
+  const char* extensions[1] {
+    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+  };
+  createInfo.ppEnabledExtensionNames = extensions;
+  createInfo.enabledExtensionCount = 1;
+  createInfo.flags = vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+#else
+#endif
 
   return vk::createInstance(createInfo);
 }

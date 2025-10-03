@@ -3,7 +3,15 @@ include_guard(GLOBAL)
 include(cmake/colorful.cmake)
 
 # --- Find Protobuf via the CMake module (needed for protobuf_generate_cpp)
-find_package(Protobuf QUIET)
+if(APPLE)
+  list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew")
+endif()
+
+find_package(Protobuf CONFIG QUIET)
+if(NOT Protobuf_FOUND)
+  find_package(Protobuf QUIET)
+endif()
+
 if (NOT Protobuf_FOUND)
   log_error("❌ Protobuf not found. Install protoc & libprotobuf (set CMAKE_PREFIX_PATH if needed).")
   message(FATAL_ERROR "Protobuf is required.")
@@ -78,10 +86,6 @@ endif()
 #   [IN_ALL]                     # opt-in: build with 'all' instead of EXCLUDE_FROM_ALL
 # )
 function(denox_add_proto_lib tgt)
-  if (NOT COMMAND protobuf_generate_cpp)
-    log_error("❌ 'protobuf_generate_cpp' not available. Include your protobuf discovery first (FindProtobuf).")
-  endif()
-
   # ---- required: target + at least one .proto
   set(_args ${ARGV})
   list(POP_FRONT _args _tgt_in)
@@ -127,15 +131,13 @@ function(denox_add_proto_lib tgt)
   set(_tgt_real "${_tgt_in}")
   string(REPLACE "::" "_" _tgt_sanitized "${_tgt_in}")
   string(REGEX REPLACE "[^A-Za-z0-9_]" "_" _tgt_sanitized "${_tgt_sanitized}")
-
   if (_tgt_in MATCHES "::")
-    # We'll create a real target with sanitized name and then alias it
     set(_tgt_real "${_tgt_sanitized}")
   endif()
 
   # OUT_DIR default
   if (NOT DAP_OUT_DIR)
-    set(DAP_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/${_tgt_sanitized}")
+    set(DAP_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/${_tgt_sanitized})
   endif()
   file(MAKE_DIRECTORY "${DAP_OUT_DIR}")
 
@@ -150,19 +152,77 @@ function(denox_add_proto_lib tgt)
     set(DAP_IMPORT_DIRS "${_import_dirs}")
   endif()
 
-  # Generate
-  protobuf_generate_cpp(_gen_srcs _gen_hdrs
-    ${_protos}
-    PROTOC_OUT_DIR "${DAP_OUT_DIR}"
-    IMPORT_DIRS    ${DAP_IMPORT_DIRS}
-  )
+  # Resolve protoc (support CONFIG target, MODULE var, or plain PATH)
+  set(_PROTOC "")
+  if (TARGET protobuf::protoc)
+    # Use the path of the imported executable target
+    set(_PROTOC "$<TARGET_FILE:protobuf::protoc>")
+  elseif (DEFINED Protobuf_PROTOC_EXECUTABLE)
+    set(_PROTOC "${Protobuf_PROTOC_EXECUTABLE}")
+  else()
+    find_program(_PROTOC NAMES protoc)
+  endif()
+  if (NOT _PROTOC)
+    message(FATAL_ERROR "protoc not found. Ensure Protobuf is discovered (CONFIG or MODULE) or protoc is on PATH.")
+  endif()
+
+  # Construct protoc include args
+  set(_proto_includes)
+  foreach(dir IN LISTS DAP_IMPORT_DIRS)
+    list(APPEND _proto_includes "-I" "${dir}")
+  endforeach()
+
+  # Gather generated files (mirror protoc's output relative to first matching -I root)
+  set(_gen_srcs)
+  set(_gen_hdrs)
+  foreach(p IN LISTS _protos)
+    # Compute path of p relative to the first IMPORT_DIR that contains it
+    set(_rel "")
+    foreach(_idir IN LISTS DAP_IMPORT_DIRS)
+      file(RELATIVE_PATH _tmp_rel "${_idir}" "${p}")
+      if (NOT _tmp_rel MATCHES "^[.][.]/") # inside this _idir
+        set(_rel "${_tmp_rel}")
+        break()
+      endif()
+    endforeach()
+    if (_rel STREQUAL "")
+      # Fallback: just use the filename
+      get_filename_component(_rel "${p}" NAME)
+    endif()
+
+    # Strip extension; keep relative subdir
+    get_filename_component(_rel_dir "${_rel}" DIRECTORY)
+    get_filename_component(_rel_we  "${_rel}" NAME_WE)
+
+    set(_out_dir "${DAP_OUT_DIR}")
+    if (NOT _rel_dir STREQUAL "")
+      set(_out_dir "${DAP_OUT_DIR}/${_rel_dir}")
+    endif()
+
+    set(_gen_src "${_out_dir}/${_rel_we}.pb.cc")
+    set(_gen_hdr "${_out_dir}/${_rel_we}.pb.h")
+
+    log_success("${CMAKE_COMMAND} -E make_directory ${_out_dir}")
+
+    add_custom_command(
+      OUTPUT "${_gen_src}" "${_gen_hdr}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_out_dir}"
+      COMMAND ${_PROTOC}
+              --cpp_out=${DAP_OUT_DIR}
+              ${_proto_includes}
+              "${p}"
+      DEPENDS "${p}"
+      COMMENT "protoc ${p} -> ${_out_dir}"
+      VERBATIM
+    )
+
+    list(APPEND _gen_srcs "${_gen_src}")
+    list(APPEND _gen_hdrs "${_gen_hdr}")
+  endforeach()
+
   if (NOT _gen_srcs)
     log_error("❌ Protobuf generation produced no sources for target '${_tgt_in}'")
   endif()
-
-  list(LENGTH _protos _nprotos)
-
-  # log_info("protoc ${_protos} >> ${DAP_OUT_DIR}")
 
   # Define library
   add_library(${_tgt_real} ${DAP_TYPE} ${_gen_srcs} ${_gen_hdrs})
@@ -180,11 +240,8 @@ function(denox_add_proto_lib tgt)
   # Always route linking via your wrapper (handles absl per-config etc.)
   target_link_libraries(${_tgt_real} PUBLIC denox::protobuf)
 
-  # Create the requested alias if name was namespaced
   if (_tgt_in MATCHES "::")
     add_library(${_tgt_in} ALIAS ${_tgt_real})
-    log_success("✅ Generated target '${_tgt_in}'")
-  else()
-    log_success("✅ Generated target '${_tgt_in}'")
   endif()
+  log_success("✅ Generated target '${_tgt_in}'")
 endfunction()

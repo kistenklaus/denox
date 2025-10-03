@@ -278,13 +278,13 @@ private:
       -> const ModExpr &;
   auto modsolve_reduce_affine_mod_m(const AffineExpr &affine, const Sym msym)
       -> denox::memory::optional<ModExpr>;
-  auto modsolve_resume_solver(const ModSolverHandle &solver, symbol lhs,
+  auto modsolve_resume_solver(ModSolverHandle solver, symbol lhs,
                               Sym rhs) -> denox::memory::optional<value_type>;
-  auto modsolve_reverse_peel(const AffineExpr &expr, value_type m)
+  auto modsolve_reverse_peel(AffineExpr expr, value_type m)
       -> denox::memory::optional<value_type>;
-  auto modsolve_mul_only_exact(const AffineExpr &lhs, Sym rhs)
+  auto modsolve_mul_only_exact(AffineExpr lhs, Sym rhs)
       -> std::pair<AffineExpr, AffineExpr>;
-  auto modsolve_peel_by_d(const AffineExpr &lhs, value_type d)
+  auto modsolve_peel_by_d(AffineExpr lhs, value_type d)
       -> std::pair<AffineExpr, AffineExpr>;
   auto modsolve_affine_add(value_type m, const AffineExpr &lhs,
                            const AffineExpr &rhs) -> ModExpr;

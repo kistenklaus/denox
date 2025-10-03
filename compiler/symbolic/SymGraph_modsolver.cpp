@@ -28,7 +28,7 @@ SymGraph::modsolve_reduce_affine_mod_m(const AffineExpr &affine,
 
   ModExpr modexpr;
   modexpr.affine.constant = emod(affine.constant, m);
-  for (const auto &coef : affine.coef) {
+  for (const auto coef : affine.coef) {
     modsolve_resume_solver(solver, coef.sym, msym);
     const auto &c_affine = solver->expressions[coef.sym].affine;
     modsolve_affine_mul_add_acc(m, modexpr, c_affine, coef.factor);
@@ -36,7 +36,7 @@ SymGraph::modsolve_reduce_affine_mod_m(const AffineExpr &affine,
   return modexpr;
 }
 denox::memory::optional<SymGraph::value_type>
-SymGraph::modsolve_resume_solver(const ModSolverHandle &solver, symbol lhs,
+SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs,
                                  Sym rhs) {
   if (rhs.isConstant()) {
     const value_type m = rhs.constant();
@@ -140,14 +140,14 @@ SymGraph::modsolve_resume_solver(const ModSolverHandle &solver, symbol lhs,
 }
 
 denox::memory::optional<SymGraph::value_type>
-SymGraph::modsolve_reverse_peel(const AffineExpr &expr, value_type m) {
+SymGraph::modsolve_reverse_peel(AffineExpr expr, value_type m) {
 
   // NOTE: Find d, such that, there exists a U with, expr = Q div d.
   value_type d = 1;
   for (auto &coef : expr.coef) {
     const auto &c = m_expressions[coef.sym];
     if (c.expr == ExprType::NonAffine) {
-      const auto &c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
+      const auto c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
       if (c_nonaffine.expr == ExprType::Div &&
           c_nonaffine.symbols[1].isConstant()) {
         auto num = c_nonaffine.symbols[0];
@@ -164,10 +164,10 @@ SymGraph::modsolve_reverse_peel(const AffineExpr &expr, value_type m) {
 
   AffineExpr U;
   U.constant = expr.constant * d;
-  for (auto &coef : expr.coef) {
-    const auto &c = m_expressions[coef.sym];
+  for (auto coef : expr.coef) {
+    const auto c = m_expressions[coef.sym];
     if (c.expr == ExprType::NonAffine) {
-      const auto &c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
+      const auto c_nonaffine = m_nonAffineCache.expressions[c.lhs.sym()];
       if (c_nonaffine.expr == ExprType::Div &&
           c_nonaffine.symbols[1].isConstant()) {
         auto num = c_nonaffine.symbols[0];
@@ -203,7 +203,7 @@ SymGraph::modsolve_reverse_peel(const AffineExpr &expr, value_type m) {
   return d;
 }
 std::pair<SymGraph::AffineExpr, SymGraph::AffineExpr>
-SymGraph::modsolve_mul_only_exact(const AffineExpr &lhs, Sym rhs) {
+SymGraph::modsolve_mul_only_exact(AffineExpr lhs, Sym rhs) {
   AffineExpr Q, R;
   if (!rhs.isConstant()) {
     R = lhs;
@@ -245,7 +245,7 @@ SymGraph::modsolve_mul_only_exact(const AffineExpr &lhs, Sym rhs) {
   return {Q, R};
 }
 std::pair<SymGraph::AffineExpr, SymGraph::AffineExpr>
-SymGraph::modsolve_peel_by_d(const AffineExpr &lhs, value_type d) {
+SymGraph::modsolve_peel_by_d(AffineExpr lhs, value_type d) {
   assert(d > 0);
   AffineExpr Q, R;
 
@@ -256,7 +256,7 @@ SymGraph::modsolve_peel_by_d(const AffineExpr &lhs, value_type d) {
     R.constant = rc;     // 0 <= rc < d
   }
 
-  for (const auto &c : lhs.coef) {
+  for (const auto c : lhs.coef) {
     const symbol s = c.sym;
     const value_type f = c.factor;
 
@@ -408,7 +408,7 @@ denox::memory::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, 
     // -------- EXACT DIVISION MIRRORING affine_div --------
     // IMPORTANT: use the global ℤ-affine for lhs, not solver->expressions
     // (which is modulo m)
-    const AffineExpr &U_Z = m_expressions[lhs.sym()].affine;
+    const AffineExpr U_Z = m_expressions[lhs.sym()].affine;
     if (auto q = affine_div(U_Z, d)) { // your existing exact check
       ModExpr out;
       out.affine = *q;            // quotient in ℤ
@@ -440,7 +440,7 @@ denox::memory::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, 
       // peel only the coefficient-qd part; if any variable residual remains,
       // we can't express floor(residual/d) affinely → bail.
 
-      const AffineExpr &A = lifted.affine;
+      const AffineExpr A = lifted.affine;
 
       AffineExpr Qdiv;  // quotient part after dividing by d
       AffineExpr Resid; // residual with all coeffs in [0, d)
@@ -453,7 +453,7 @@ denox::memory::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, 
       }
 
       // Terms: f = q*d + r, with 0 <= r < d
-      for (const auto &t : A.coef) {
+      for (const auto t : A.coef) {
         auto [q, rcoef] = floordivmod(t.factor, d);
         if (q != 0) {
           // contributes q * t.sym to the quotient
