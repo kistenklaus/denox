@@ -72,12 +72,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
     const IShader *shader = shaders[s];
     const ShaderCapabilities &caps = shader->capabilities();
     const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
-
-    algorithm::match_all<TensorInstance, ComputeOp>(caps.patterns[0].pattern,
-                                                    opGraph);
-
-    denox::memory::generator<algorithm::ConstGraphMatch<int, int>> x;
-
     for (unsigned int p = 0; p < pn; ++p) {
       memory::dynamic_bitset edgeExits(nodeCount * nodeCount * nodeCount,
                                        false);

@@ -1,6 +1,11 @@
 #include "frontend/onnx/details/import_value_info.hpp"
+#include "diag/invalid_state.hpp"
+#include "diag/unreachable.hpp"
 #include "frontend/onnx/details/values/Tensor.hpp"
+#include "model/DynamicInputExtent.hpp"
+#include "model/ModelControlBlock.hpp"
 
+#include <fmt/base.h>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
@@ -31,9 +36,9 @@ void maybe_set_device_float_type_from_dtype(DeviceTensor &dev, Dtype onnxElem) {
   }
 }
 
-void import_value_info(
-    ImportState &state, const ::onnx::ValueInfoProto &valueInfo,
-    ValueInfoImportContext context) {
+void import_value_info(ImportState &state,
+                       const ::onnx::ValueInfoProto &valueInfo,
+                       ValueInfoImportContext context) {
   const memory::string &name = valueInfo.name();
   if (name.empty())
     throw std::runtime_error("vkcnn: \"\" is not a valid tensor name.");
@@ -96,7 +101,57 @@ void import_value_info(
           name));
     }
 
+    ::onnx::TensorShapeProto shape = ttype.shape();
     TensorShape tshape = TensorShape::parse(ttype.shape(), state.symGraph);
+
+    compiler::NamedExtent dynamicExtent;
+    if (tshape.hasSymbolic()) {
+      auto dims = ttype.shape().dim();
+      auto dimSyms = tshape.dims();
+      for (std::size_t d = 0; d < dimSyms.size(); ++d) {
+        const auto &dim = dims[static_cast<int>(d)];
+        const auto &sym = dimSyms[d];
+        if (sym.isSymbolic()) {
+          assert(dim.has_dim_param());
+          if (dims.size() == 3) {
+            if (d == 0) {
+              dynamicExtent.channels = dim.dim_param();
+            } else if (d == 1) {
+              dynamicExtent.height = dim.dim_param();
+            } else if (d == 2) {
+              dynamicExtent.width = dim.dim_param();
+            }
+          } else {
+            if (d == 1) {
+              dynamicExtent.channels = dim.dim_param();
+            } else if (d == 2) {
+              dynamicExtent.height = dim.dim_param();
+            } else if (d == 3) {
+              dynamicExtent.width = dim.dim_param();
+            }
+          }
+        } else {
+          if (dims.size() == 3) {
+            if (d == 0) {
+              dynamicExtent.channels = fmt::format("{}.channels", name);
+            } else if (d == 1) {
+              dynamicExtent.height = fmt::format("{}.height", name);
+            } else if (d == 2) {
+              dynamicExtent.width = fmt::format("{}.width", name);
+            }
+          } else {
+            if (d == 1) {
+              dynamicExtent.channels = fmt::format("{}.channels", name);
+            } else if (d == 2) {
+              dynamicExtent.height = fmt::format("{}.height", name);
+            } else if (d == 3) {
+              dynamicExtent.width = fmt::format("{}.width", name);
+            }
+          }
+        }
+      }
+    }
+
     const size_t r = tshape.rank();
 
     if (r != 3 && r != 4) {
@@ -134,7 +189,8 @@ void import_value_info(
     memory::optional<memory::Dtype> hint =
         dtypeOpt ? dtypeOpt->toDenoxType() : memory::nullopt;
 
-    compiler::Tensor rt = state.output.input(C, memory::nullopt, hint, Ws, Hs);
+    compiler::Tensor rt =
+        state.output.input(C, memory::nullopt, hint, Ws, Hs, dynamicExtent);
 
     DeviceTensor dev(r, std::move(rt));
     state.tensors.emplace(name, Tensor::Device(std::move(dev)));
@@ -172,6 +228,7 @@ void import_value_info(
 
   // (B) Channel-count check only (ignore all other dims/symbols)
   // We only do this if ONNX provided a tensor shape and a concrete channel dim.
+  compiler::NamedExtent extent;
   if (ttype.has_shape()) {
     const auto &oshape = ttype.shape();
 
@@ -203,10 +260,34 @@ void import_value_info(
       }
       // If dim_param or unknown → we ignore (no symbol tracking here).
     }
+
+    for (std::size_t d = 0; d < orank; ++d) {
+      const auto &dim = oshape.dim()[static_cast<int>(d)];
+      memory::string dimName;
+      std::size_t rd = (orank == 3) ? d : (d+1);
+      if (dim.has_dim_param()) {
+        dimName = dim.dim_param();
+      } else {
+        if (rd == 1) {
+          dimName = fmt::format("{}.channels", name);
+        } else if (rd == 2) {
+          dimName = fmt::format("{}.height", name);
+        } else if (rd == 3) {
+          dimName = fmt::format("{}.width", name);
+        } 
+      }
+      if (rd == 1) {
+        extent.channels = dimName;
+      } else if (rd == 2) {
+        extent.height = dimName;
+      } else if (rd == 3) {
+        extent.width = dimName;
+      } 
+    }
   }
 
   // Finalize output in backend
-  state.output.output(dev.handle());
+  state.output.output(dev.handle(), extent);
 }
 
 } // namespace denox::onnx::details

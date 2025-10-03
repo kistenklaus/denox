@@ -18,6 +18,7 @@
 #include <exception>
 #include <fmt/format.h>
 #include <stdexcept>
+#include <vulkan/vulkan.hpp>
 
 namespace denox {
 
@@ -82,6 +83,38 @@ static memory::Dtype parse_dtype(const DataType type) {
   denox::compiler::diag::unreachable();
 }
 
+static compiler::TensorShapeDesc parse_shape(const Shape &shape) {
+  compiler::TensorShapeDesc extent;
+  if (!shape.channels.infer) {
+    if (shape.channels.dynamic) {
+      assert(shape.channels.value.name != nullptr);
+      extent.channels = memory::string(shape.channels.value.name);
+    } else {
+      assert(shape.channels.value.extent);
+      extent.channels = shape.channels.value.extent;
+    }
+  }
+  if (!shape.width.infer) {
+    if (shape.width.dynamic) {
+      assert(shape.width.value.name != nullptr);
+      extent.width = memory::string(shape.width.value.name);
+    } else {
+      assert(shape.width.value.extent);
+      extent.width = shape.width.value.extent;
+    }
+  }
+  if (!shape.height.infer) {
+    if (shape.height.dynamic) {
+      assert(shape.height.value.name != nullptr);
+      extent.height = memory::string(shape.height.value.name);
+    } else {
+      assert(shape.height.value.extent);
+      extent.height = shape.height.value.extent;
+    }
+  }
+  return extent;
+}
+
 static compiler::DeviceInfo query_driver(const CompileOptions &options) {
   compiler::ApiVersion apiVersion;
   switch (options.device.apiVersion) {
@@ -104,6 +137,11 @@ static compiler::DeviceInfo query_driver(const CompileOptions &options) {
     compiler::diag::unreachable();
   }
 
+  memory::optional<memory::string> deviceName;
+  if (options.device.deviceName != nullptr) {
+    deviceName.emplace(options.device.deviceName);
+  }
+
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
   if (options.externally_managed_vulkan_context != nullptr) {
     if (options.externally_managed_vulkan_context->instance != nullptr &&
@@ -116,14 +154,14 @@ static compiler::DeviceInfo query_driver(const CompileOptions &options) {
                options.externally_managed_vulkan_context->physicalDevice ==
                    nullptr) {
       return compiler::device_info::query_driver_device_info(
-          options.externally_managed_vulkan_context->instance,
-          options.device.deviceName, apiVersion);
+          options.externally_managed_vulkan_context->instance, deviceName,
+          apiVersion);
     }
   }
 #endif
 
-  return compiler::device_info::query_driver_device_info(
-      apiVersion, options.device.deviceName);
+  return compiler::device_info::query_driver_device_info(apiVersion,
+                                                         deviceName);
 }
 
 void compile(const char *cpath, const CompileOptions &options) {
@@ -176,6 +214,11 @@ void compile(const char *cpath, const CompileOptions &options) {
   memory::Dtype inputType = parse_dtype(options.inputDescription.dtype);
   memory::Dtype outputType = parse_dtype(options.outputDescription.dtype);
 
+  compiler::TensorShapeDesc inputShape =
+      parse_shape(options.inputDescription.shape);
+  compiler::TensorShapeDesc outputShape =
+      parse_shape(options.outputDescription.shape);
+
   compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
       compiler::ShaderDebugInfoLevel::Strip;
   if (options.spirvOptions.debugInfo &&
@@ -193,8 +236,10 @@ void compile(const char *cpath, const CompileOptions &options) {
       .srcType = srcType,
       .inputLayout = inputLayout,
       .inputType = inputType,
+      .inputShape = inputShape,
       .outputLayout = outputLayout,
       .outputType = outputType,
+      .outputShape = outputShape,
       .deviceInfo = std::move(deviceInfo),
       .fusionRules = fusionRules,
       .shaderDebugInfo = spirvDebugInfoLevel,
@@ -210,11 +255,13 @@ void compile(const char *cpath, const CompileOptions &options) {
   auto dnx = compiler::entry(buf, opt);
 
   // Write to file.
-
-  io::File dnxFile = io::File::open(io::Path::cwd() / "net.dnx", io::File::OpenMode::Write | io::File::OpenMode::Truncate);;
-  memory::span<const std::byte> dnxView{reinterpret_cast<const std::byte*>(dnx.data()), dnx.size()};
+  io::File dnxFile =
+      io::File::open(io::Path::cwd() / "net.dnx",
+                     io::File::OpenMode::Write | io::File::OpenMode::Truncate);
+  ;
+  memory::span<const std::byte> dnxView{
+      reinterpret_cast<const std::byte *>(dnx.data()), dnx.size()};
   dnxFile.write_exact(dnxView);
-
 }
 
 } // namespace denox

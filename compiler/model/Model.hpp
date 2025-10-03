@@ -8,7 +8,9 @@
 #include "model/AutoPadMode.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
+#include "model/DynamicInputExtent.hpp"
 #include "model/FilterMode.hpp"
+#include "model/ModelControlBlock.hpp"
 #include "model/PaddingMode.hpp"
 #include "model/PoolFunction.hpp"
 #include "model/Tensor.hpp"
@@ -34,7 +36,8 @@ public:
         memory::optional<memory::ActivationLayout> layout = memory::nullopt,
         memory::optional<memory::Dtype> type = memory::nullopt,
         memory::optional<Sym> W = memory::nullopt,
-        memory::optional<Sym> H = memory::nullopt);
+        memory::optional<Sym> H = memory::nullopt,
+        NamedExtent dynamicExtent = {});
 
   Tensor conv2d(const Tensor &src, memory::FilterTensorConstView W,
                 memory::optional<memory::BiasTensorConstView> B,
@@ -59,7 +62,7 @@ public:
   Tensor slice(const Tensor &src0, Sym left, Sym right, Sym top,
                Sym bottom) const;
 
-  void output(const Tensor &src) const;
+  void output(const Tensor &src, NamedExtent extentNames = {}) const;
 
   const memory::AdjGraph<ComputeTensor, ComputeOp> &graph() const {
     return m_controlBlock->hypergraph;
@@ -69,6 +72,14 @@ public:
 
   Tensor getInput() const;
   Tensor getOutput() const;
+
+  const NamedExtent &getInputExtentNames() const {
+    return m_controlBlock->inputExtentNames;
+  }
+
+  const NamedExtent &getOutputExtentNames() const {
+    return m_controlBlock->outputExtentNames;
+  }
 
   memory::string to_string() const;
 

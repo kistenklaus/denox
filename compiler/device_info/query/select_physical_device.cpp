@@ -37,7 +37,7 @@ static bool glob_match_ci(std::string pat, std::string text) {
 }
 
 vk::PhysicalDevice select_physical_device(vk::Instance instance,
-                                          const memory::string &deviceName) {
+                                          const memory::optional<memory::string> &deviceName) {
   std::vector<vk::PhysicalDevice> devices = instance.enumeratePhysicalDevices();
   if (devices.empty()) {
     DENOX_ERROR("Failed to select physical device: No Vulkan device found.");
@@ -45,7 +45,7 @@ vk::PhysicalDevice select_physical_device(vk::Instance instance,
   }
 
   // Empty name => pick a discrete GPU (first one). Throw if none found.
-  if (deviceName.empty()) {
+  if (!deviceName.has_value()) {
     for (auto &d : devices) {
       auto props = d.getProperties();
       if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
@@ -59,7 +59,7 @@ vk::PhysicalDevice select_physical_device(vk::Instance instance,
   std::vector<vk::PhysicalDevice> matches;
   for (auto &d : devices) {
     auto props = d.getProperties();
-    if (glob_match_ci(deviceName.c_str(), props.deviceName)) {
+    if (glob_match_ci(deviceName->c_str(), props.deviceName)) {
       matches.push_back(d);
     }
   }
@@ -67,7 +67,7 @@ vk::PhysicalDevice select_physical_device(vk::Instance instance,
   if (matches.empty()) {
     DENOX_ERROR("Failed to select physical device: pattern: \"{}\" did not "
                 "match any device.",
-                deviceName);
+                *deviceName);
     std::terminate();
   }
   if (matches.size() > 1) {
@@ -78,7 +78,7 @@ vk::PhysicalDevice select_physical_device(vk::Instance instance,
     }
     DENOX_ERROR("Failed to select physical device: pattern :\"{}\" is "
                 "ambiguous, devices: {}",
-                deviceName, list);
+                *deviceName, list);
     std::terminate();
   }
 

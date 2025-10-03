@@ -194,7 +194,6 @@ TensorShape TensorShape::parse(const ::onnx::TensorShapeProto &shp,
       if (shp.dim_size() == 4 && i == 0) {
         s = compiler::Sym::Const(1);
       } else {
-
         s = symGraph->var();
       }
       dims.emplace_back(g, s);

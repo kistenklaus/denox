@@ -2,7 +2,10 @@
 #include "denox/compiler.hpp"
 #include <CLI/CLI.hpp>
 #include <fmt/base.h>
+#include <optional>
 #include <regex>
+#include <stdexcept>
+#include <string>
 
 static std::regex shape_pattern_regex{
     "^([A-Za-z]+[A-Za-z0-9_]*|[0-9]+):([A-Za-z]+[A-Za-z0-9_]*|[0-9]+):([A-Za-z]"
@@ -14,9 +17,6 @@ int main(int argc, char **argv) {
   denox::CompileOptions options;
 
   options.dnxVersion = 0;
-
-  options.device.deviceName = "*RTX*";
-  options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_4;
 
   options.features.coopmat = denox::Enable;
   app.add_flag(
@@ -80,9 +80,48 @@ int main(int argc, char **argv) {
       ->check(CLI::ExistingFile)
       ->required();
 
+  std::optional<std::string> deviceName = std::nullopt;
+  app.add_option("--device", deviceName, "Device name");
+
+  CLI::Validator targetEnv_validator {
+    [&](const std::string& env) {
+      if (env == "vulkan1.0") {
+        return "";
+      } else if (env == "vulkan1.1") {
+        return "";
+      } else if (env == "vulkan1.2") {
+        return "";
+      } else if (env == "vulkan1.3") {
+        return "";
+      } else if (env == "vulkan1.4") {
+        return "";
+      } else {
+        return "invalid target env";
+      }
+    }, 
+      "target env pattern",
+  };
+  std::string targetEnv = "vulkan1.0";
+  app.add_option("--target-env", targetEnv, "Target environment")
+    ->check(targetEnv_validator);
+  options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_4;
+
   options.inputDescription.storage = denox::Storage::StorageBuffer;
   options.inputDescription.layout = denox::Layout::HWC;
   options.inputDescription.dtype = denox::DataType::Float16;
+
+
+  options.inputDescription.shape.width.dynamic = false;
+  options.inputDescription.shape.width.infer = true;
+  options.inputDescription.shape.width.value.extent = 1920;
+  options.inputDescription.shape.height.dynamic = false;
+  options.inputDescription.shape.height.infer = true;
+  options.inputDescription.shape.height.value.extent = 1080;
+  options.inputDescription.shape.height.dynamic = false;
+  options.inputDescription.shape.height.infer = true;
+  options.inputDescription.shape.height.value.extent = 3;
+
+
   options.outputDescription.storage = denox::Storage::StorageBuffer;
   options.outputDescription.layout = denox::Layout::HWC;
   options.outputDescription.dtype = denox::DataType::Float16;
@@ -111,6 +150,24 @@ int main(int argc, char **argv) {
       // fmt::println("MATCH-STR: {}", match_str);
       ++it;
     }
+  }
+
+  options.device.deviceName = nullptr;
+  if (deviceName.has_value()) {
+    options.device.deviceName = deviceName->c_str();
+  }
+  if (targetEnv == "vulkan1.0") {
+    options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_0;
+  } else if (targetEnv == "vulkan1.1") {
+    options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_1;
+  } else if (targetEnv == "vulkan1.2") {
+    options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_2;
+  } else if (targetEnv == "vulkan1.3") {
+    options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_3;
+  } else if (targetEnv == "vulkan1.4") {
+    options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_4;
+  } else {
+    throw std::invalid_argument("target-env argument is invalid");
   }
 
   denox::compile(modelFile.data(), options);

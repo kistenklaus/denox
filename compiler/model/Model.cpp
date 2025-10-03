@@ -9,7 +9,8 @@ namespace denox::compiler {
 Tensor Model::input(unsigned int channels,
                     memory::optional<memory::ActivationLayout> layout,
                     memory::optional<memory::Dtype> type,
-                    memory::optional<Sym> W, memory::optional<Sym> H) {
+                    memory::optional<Sym> W, memory::optional<Sym> H,
+                    NamedExtent dynamicExtent) {
   Sym w = Sym::Const(0);
   if (W.has_value()) {
     w = *W;
@@ -28,6 +29,7 @@ Tensor Model::input(unsigned int channels,
   memory::NodeId id =
       m_controlBlock->hypergraph.emplaceNode(extent, channels, layout, type);
   m_controlBlock->input = id;
+  m_controlBlock->inputExtentNames = dynamicExtent;
   return Tensor{id, m_controlBlock.get()};
 }
 
@@ -258,8 +260,9 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
   return Tensor{dstId, m_controlBlock.get()};
 }
 
-void Model::output(const Tensor &src) const {
+void Model::output(const Tensor &src, NamedExtent extentNames) const {
   assert(m_controlBlock->output == details::model::ModelControlBlock::NullNode);
+  m_controlBlock->outputExtentNames = extentNames;
   m_controlBlock->output = src.m_nodeId;
 }
 

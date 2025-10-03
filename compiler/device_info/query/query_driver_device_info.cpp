@@ -10,24 +10,24 @@
 #include "device_info/query/query_resource_limits.hpp"
 #include "device_info/query/query_subgroup_properties.hpp"
 #include "device_info/query/select_physical_device.hpp"
-#include "fmt/format.h"
 
 namespace denox::compiler::device_info {
 
-DeviceInfo query_driver_device_info(const ApiVersion apiVersion,
-                                    const memory::string &deviceName) {
+DeviceInfo
+query_driver_device_info(const ApiVersion apiVersion,
+                         const memory::optional<memory::string> &deviceName) {
 
   vk::Instance instance = query::create_query_instance(apiVersion);
 
   return query_driver_device_info(instance, deviceName, apiVersion);
 }
 
-DeviceInfo query_driver_device_info(vk::Instance instance,
-                                    const memory::string &deviceName,
-                                    ApiVersion apiVersion) {
+DeviceInfo
+query_driver_device_info(vk::Instance instance,
+                         const memory::optional<memory::string> &deviceName,
+                         ApiVersion apiVersion) {
   vk::PhysicalDevice physicalDevice =
       query::select_physical_device(instance, deviceName);
-  fmt::println("Selected {}", physicalDevice.getProperties().deviceName.data());
   return query_driver_device_info(instance, physicalDevice, apiVersion);
 }
 

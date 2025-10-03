@@ -4,6 +4,7 @@
 #include "memory/hypergraph/NodeId.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
+#include "model/DynamicInputExtent.hpp"
 #include "model/ModelMeta.hpp"
 #include "symbolic/SymGraph.hpp"
 
@@ -14,8 +15,12 @@ struct ModelControlBlock {
   ModelControlBlock()
       : input(NullNode), output(NullNode), hypergraph(), symGraph() {}
 
+  NamedExtent inputExtentNames;
+  NamedExtent outputExtentNames;
+
   memory::NodeId input;
   memory::NodeId output;
+
   memory::AdjGraph<ComputeTensor, ComputeOp> hypergraph;
   ModelMeta meta;
 

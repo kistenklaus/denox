@@ -4,11 +4,17 @@
 #include "frontend/onnx/details/values/Tensor.hpp"
 #include "io/fs/Path.hpp"
 #include "memory/container/hashmap.hpp"
+#include "memory/container/vector.hpp"
 #include "model/Model.hpp"
 #include "symbolic/Sym.hpp"
 #include <string>
 
 namespace denox::onnx::details {
+
+struct SymbolName {
+  compiler::Sym sym;
+  std::string name;
+};
 
 struct ImportState {
   denox::io::Path externalDir;
@@ -23,9 +29,7 @@ struct ImportState {
 
   OpSetVersions opset_versions;
 
-
   memory::hash_map<memory::string, Tensor> tensors;
-
 };
 
 } // namespace denox::onnx::details

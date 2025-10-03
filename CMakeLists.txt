@@ -32,13 +32,14 @@ add_library(denox_compiler
   compiler/algorithm/binary_op_permutations.cpp
 
   compiler/compiler/cano/cano.cpp
+  compiler/compiler/placement/placement.cpp
   compiler/compiler/dce.cpp
   compiler/compiler/impl/ComputeDispatchBuilder.cpp
   compiler/compiler/impl/impl.cpp
   compiler/compiler/spec.cpp
   compiler/compiler/lifeness.cpp
   compiler/compiler/sym_compile.cpp
-  compiler/compiler/placement/placement.cpp
+  compiler/compiler/sym_table.cpp
 
   compiler/device_info/query/query_driver_device_info.cpp
   compiler/device_info/query/select_physical_device.cpp

@@ -7,6 +7,7 @@
 #include "compiler/placement/placement.hpp"
 #include "compiler/spec.hpp"
 #include "compiler/sym_compile.hpp"
+#include "compiler/sym_table.hpp"
 #include "diag/unreachable.hpp"
 #include "dnx/serialize.hpp"
 #include "frontend/onnx/onnx.hpp"
@@ -37,7 +38,6 @@ static Model frontend(memory::span<const std::byte> raw,
 
 flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
                                   const Options &options) {
-
   Model model = frontend(raw, options);
 
   fmt::println("\x1B[32m\x1B[1m{:=^40}\x1B[0m", "Imported=Model");
@@ -56,6 +56,8 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
   CompModel compModel = compiler::placement(implModel);
+
+  SymTable symTable = compiler::sym_table(model, options);
 
   auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel);
 
@@ -114,10 +116,6 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   fmt::println("\u2022 {:<20} : {}", "Amount of buffers",
                compModel.buffers.size());
   fmt::println("\u2022 {:<20} : {}", "Tensor views ", compModel.tensors.size());
-
-
-
-
 
   return dnx;
 }

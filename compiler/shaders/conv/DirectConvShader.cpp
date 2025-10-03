@@ -7,6 +7,7 @@
 #include "memory/tensor/FilterTensor.hpp"
 #include "memory/tensor/FitlerDescriptor.hpp"
 #include "model/ActivationFunction.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler::shaders {
 
@@ -25,6 +26,9 @@ DirectConvShader::DirectConvShader(GlslCompiler *compiler,
     }
     return true;
   };
+  if (m_subgroupSize == 0) {
+    return;
+  }
 
   {
     Pattern conv_pattern;

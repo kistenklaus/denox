@@ -43,7 +43,23 @@ enum DataType {
   Float16,
 };
 
+struct Extent {
+  bool dynamic;
+  bool infer;
+  union {
+    unsigned int extent;
+    const char *name;
+  } value;
+};
+
+struct Shape {
+  Extent width;
+  Extent height;
+  Extent channels;
+};
+
 struct BufferDescription {
+  Shape shape;
   Storage storage;
   Layout layout;
   DataType dtype;
@@ -64,7 +80,7 @@ struct SpirvOptions {
 };
 
 struct Device {
-  std::string deviceName; // <- allows of patterns like *AMD*
+  const char *deviceName; // <- allows of patterns like *AMD*
   VulkanApiVersion apiVersion = VulkanApiVersion::Vulkan_1_3;
 };
 

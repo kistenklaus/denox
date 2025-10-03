@@ -90,12 +90,13 @@ compiler::Model read(memory::span<const std::byte> raw, io::Path onnx_dir) {
 
     auto controlBlock =
         std::make_unique<denox::compiler::details::model::ModelControlBlock>();
-    controlBlock->meta.domain = onnx.domain().empty()
-                                    ? memory::nullopt
-                                    : memory::optional<memory::string>(onnx.domain());
+    controlBlock->meta.domain =
+        onnx.domain().empty() ? memory::nullopt
+                              : memory::optional<memory::string>(onnx.domain());
     controlBlock->meta.producerName =
-        onnx.producer_name().empty() ? memory::nullopt
-                                     : memory::optional<memory::string>(onnx.producer_name());
+        onnx.producer_name().empty()
+            ? memory::nullopt
+            : memory::optional<memory::string>(onnx.producer_name());
     controlBlock->meta.producerVersion =
         onnx.producer_version().empty()
             ? memory::nullopt
@@ -103,19 +104,21 @@ compiler::Model read(memory::span<const std::byte> raw, io::Path onnx_dir) {
     controlBlock->meta.modelVersion =
         onnx.model_version() == 0
             ? memory::nullopt
-            : memory::optional<memory::string>(fmt::format("{}", onnx.model_version()));
+            : memory::optional<memory::string>(
+                  fmt::format("{}", onnx.model_version()));
 
-    details::ImportState state{.externalDir = onnx_dir,
-                               .symGraph = &controlBlock->symGraph,
-                               .output =
-                                   compiler::Model(std::move(controlBlock)),
-                               .ir_version = onnx.ir_version(),
-                               .producer_name = onnx.producer_name(),
-                               .producer_version = onnx.producer_version(),
-                               .domain = onnx.domain(),
-                               .model_version = onnx.model_version(),
-                               .opset_versions = {},
-                               .tensors = {}};
+    details::ImportState state{
+        .externalDir = onnx_dir,
+        .symGraph = &controlBlock->symGraph,
+        .output = compiler::Model(std::move(controlBlock)),
+        .ir_version = onnx.ir_version(),
+        .producer_name = onnx.producer_name(),
+        .producer_version = onnx.producer_version(),
+        .domain = onnx.domain(),
+        .model_version = onnx.model_version(),
+        .opset_versions = {},
+        .tensors = {},
+    };
 
     state.opset_versions.map.clear();
     for (int i = 0; i < onnx.opset_import_size(); ++i) {

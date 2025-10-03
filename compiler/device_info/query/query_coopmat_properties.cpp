@@ -84,7 +84,6 @@ query_coopmat_properties([[maybe_unused]] vk::Instance instance,
     fpGetCoopMatProps(physicalDevice, &count, raw.data());
 
     for (auto &p : raw) {
-      fmt::println("coopmat {}", p.KSize);
       auto atype = mapCompType(static_cast<vk::ComponentTypeKHR>(p.AType));
       auto btype = mapCompType(static_cast<vk::ComponentTypeKHR>(p.BType));
       auto ctype = mapCompType(static_cast<vk::ComponentTypeKHR>(p.CType));
