@@ -105,7 +105,15 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
     output.extent.y = sym(remap[output.extent.y.asSym()]);
   }
 
-  return std::make_pair(symIR, symbols.size());
+  std::size_t symCount = 0;
+  for (auto s : symbols) {
+    Sym sym = remap[s];
+    if (sym.isSymbolic()) {
+      symCount += 1;
+    }
+  }
+
+  return std::make_pair(symIR, symCount);
 }
 
 } // namespace denox::compiler

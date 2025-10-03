@@ -1,10 +1,14 @@
 #include "frontend/onnx/details/import_value_info.hpp"
+#include "Options.hpp"
+#include "diag/invalid_argument.hpp"
 #include "diag/invalid_state.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/details/values/Tensor.hpp"
 #include "model/DynamicInputExtent.hpp"
 #include "model/ModelControlBlock.hpp"
+#include "symbolic/SymGraph.hpp"
 
+#include <exception>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
@@ -37,7 +41,8 @@ void maybe_set_device_float_type_from_dtype(DeviceTensor &dev, Dtype onnxElem) {
 
 void import_value_info(ImportState &state,
                        const ::onnx::ValueInfoProto &valueInfo,
-                       ValueInfoImportContext context) {
+                       ValueInfoImportContext context,
+                       const compiler::Options &options) {
   const memory::string &name = valueInfo.name();
   if (name.empty())
     throw std::runtime_error("vkcnn: \"\" is not a valid tensor name.");
@@ -100,56 +105,109 @@ void import_value_info(ImportState &state,
           name));
     }
 
-    ::onnx::TensorShapeProto shape = ttype.shape();
-    TensorShape tshape = TensorShape::parse(ttype.shape(), state.symGraph);
-
     compiler::NamedExtent dynamicExtent;
-    if (tshape.hasSymbolic()) {
-      auto dims = ttype.shape().dim();
-      auto dimSyms = tshape.dims();
-      for (std::size_t d = 0; d < dimSyms.size(); ++d) {
-        const auto &dim = dims[static_cast<int>(d)];
-        const auto &sym = dimSyms[d];
-        if (sym.isSymbolic()) {
-          assert(dim.has_dim_param());
-          if (dims.size() == 3) {
-            if (d == 0) {
-              dynamicExtent.channels = dim.dim_param();
-            } else if (d == 1) {
-              dynamicExtent.height = dim.dim_param();
-            } else if (d == 2) {
-              dynamicExtent.width = dim.dim_param();
+    // TensorShape::parse
+    const auto &shp = ttype.shape();
+    compiler::SymGraph *symGraph = state.symGraph;
+    memory::vector<compiler::Symbolic> dims;
+    dims.reserve(static_cast<std::size_t>(shp.dim_size()));
+    auto g = symGraph;
+    if (!g)
+      throw std::runtime_error("vkcnn: symGraph is null");
+
+    for (int i = 0; i < shp.dim_size(); ++i) {
+      const auto &d = shp.dim(i);
+      if (d.has_dim_value()) {
+        const int64_t v = d.dim_value();
+        if (v < 0) {
+          throw std::runtime_error(
+              fmt::format("vkcnn: {} has negative dim at axis {}", name, i));
+        }
+        dims.emplace_back(g, compiler::Sym::Const(v));
+        // NOTE: Check that it matches the input-shape option if set.
+        int ri = shp.dim_size() == 4 ? i : (i + 1);
+
+        if (ri == 1) {
+          if (options.inputShape.channels.value.has_value() &&
+              options.inputShape.channels.value.value() != v) {
+            compiler::diag::invalid_argument();
+          }
+          dynamicExtent.channels = options.inputShape.channels.name;
+        }
+        if (ri == 2) {
+          if (options.inputShape.height.value.has_value() &&
+              options.inputShape.height.value.value() != v) {
+            compiler::diag::invalid_argument();
+          }
+          dynamicExtent.height = options.inputShape.height.name;
+        }
+
+        if (ri == 3) {
+          if (options.inputShape.width.value.has_value() &&
+              options.inputShape.width.value.value() != v) {
+            compiler::diag::invalid_argument();
+          }
+          dynamicExtent.width = options.inputShape.width.name;
+        }
+
+      } else if (d.has_dim_param()) {
+        assert(symGraph != nullptr);
+        const std::string &label = d.dim_param();
+        if (label.empty()) {
+          throw std::runtime_error(
+              fmt::format("vkcnn: {} has empty dim_param at axis {}", name, i));
+        }
+        compiler::Sym s;
+        if (shp.dim_size() == 4 && i == 0) {
+          s = compiler::Sym::Const(1);
+        } else {
+          int ri = shp.dim_size() == 4 ? i : (i + 1);
+          if (ri == 1) {
+            if (options.inputShape.channels.value.has_value()) {
+              s = compiler::Sym::Const(
+                  options.inputShape.channels.value.value());
+            } else {
+              s = symGraph->var();
             }
-          } else {
-            if (d == 1) {
-              dynamicExtent.channels = dim.dim_param();
-            } else if (d == 2) {
-              dynamicExtent.height = dim.dim_param();
-            } else if (d == 3) {
-              dynamicExtent.width = dim.dim_param();
+            if (options.inputShape.channels.name.has_value()) {
+              dynamicExtent.channels = options.inputShape.channels.name.value();
+            } else {
+              // dynamicExtent.channels = label;
             }
           }
-        } else {
-          if (dims.size() == 3) {
-            if (d == 0) {
-              dynamicExtent.channels = fmt::format("{}.channels", name);
-            } else if (d == 1) {
-              dynamicExtent.height = fmt::format("{}.height", name);
-            } else if (d == 2) {
-              dynamicExtent.width = fmt::format("{}.width", name);
+          if (ri == 2) {
+            if (options.inputShape.height.value.has_value()) {
+              s = compiler::Sym::Const(options.inputShape.height.value.value());
+            } else {
+              s = symGraph->var();
             }
-          } else {
-            if (d == 1) {
-              dynamicExtent.channels = fmt::format("{}.channels", name);
-            } else if (d == 2) {
-              dynamicExtent.height = fmt::format("{}.height", name);
-            } else if (d == 3) {
-              dynamicExtent.width = fmt::format("{}.width", name);
+            if (options.inputShape.height.name.has_value()) {
+              dynamicExtent.height = options.inputShape.height.name.value();
+            } else {
+              // dynamicExtent.height = label;
+            }
+          }
+          if (ri == 3) {
+            if (options.inputShape.width.value.has_value()) {
+              s = compiler::Sym::Const(options.inputShape.width.value.value());
+            } else {
+              s = symGraph->var();
+            }
+            if (options.inputShape.width.name.has_value()) {
+              dynamicExtent.width = options.inputShape.width.name.value();
+            } else {
+              // dynamicExtent.width = label;
             }
           }
         }
+        dims.emplace_back(g, s);
+      } else {
+        assert(symGraph != nullptr);
+        compiler::Sym s = symGraph->var();
+        dims.emplace_back(g, s);
       }
     }
+    TensorShape tshape{state.symGraph, std::move(dims)};
 
     const size_t r = tshape.rank();
 
@@ -263,7 +321,7 @@ void import_value_info(ImportState &state,
     for (std::size_t d = 0; d < orank; ++d) {
       const auto &dim = oshape.dim()[static_cast<int>(d)];
       memory::string dimName;
-      std::size_t rd = (orank == 3) ? d : (d+1);
+      std::size_t rd = (orank == 3) ? d : (d + 1);
       if (dim.has_dim_param()) {
         dimName = dim.dim_param();
       } else {
@@ -273,7 +331,7 @@ void import_value_info(ImportState &state,
           dimName = fmt::format("{}.height", name);
         } else if (rd == 3) {
           dimName = fmt::format("{}.width", name);
-        } 
+        }
       }
       if (rd == 1) {
         extent.channels = dimName;
@@ -281,7 +339,7 @@ void import_value_info(ImportState &state,
         extent.height = dimName;
       } else if (rd == 3) {
         extent.width = dimName;
-      } 
+      }
     }
   }
 

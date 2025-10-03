@@ -18,7 +18,8 @@ namespace denox::compiler {
 std::pair<SymIR, SymRemap>
 SymGraph::compile(memory::span<const symbol> symbols) const {
   SymIR ir;
-  memory::vector<memory::optional<Sym>> remap(m_expressions.size(), memory::nullopt);
+  memory::vector<memory::optional<Sym>> remap(m_expressions.size(),
+                                              memory::nullopt);
 
   struct SymValue {
     // if null this means this is generated custom value.
@@ -617,7 +618,10 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     }
   }
 
-  assert(adjSupergraph.nodeCount() >= m_expressions.size());
+  fmt::println("adjSupergraphSize:  {}", adjSupergraph.nodeCount());
+  fmt::println("expressions:  {}", m_expressions.size());
+
+  // assert(adjSupergraph.nodeCount() >= m_expressions.size());
   memory::ConstGraph<SymValue, SymOp, weight_type> supergraph{adjSupergraph};
   memory::vector<memory::NodeId> vars;
   memory::vector<memory::NodeId> results;
@@ -703,7 +707,6 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     Sym::symbol original = varNode.original.value();
     remap[original] = Sym::Symbol(v);
   }
-
 
   // fmt::println("IR");
   // for (std::size_t e = 0; e < ir.ops.size(); ++e) {

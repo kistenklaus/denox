@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Options.hpp"
 #include "frontend/onnx/details/ImportState.hpp"
 #include <fmt/format.h>
 
@@ -17,6 +18,7 @@ enum ValueInfoImportContext {
 
 void import_value_info(ImportState &state,
                        const ::onnx::ValueInfoProto &valueInfo,
-                       ValueInfoImportContext context);
+                       ValueInfoImportContext context,
+                       const compiler::Options& options);
 
 } // namespace denox::onnx::details

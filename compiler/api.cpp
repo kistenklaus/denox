@@ -85,32 +85,24 @@ static memory::Dtype parse_dtype(const DataType type) {
 
 static compiler::TensorShapeDesc parse_shape(const Shape &shape) {
   compiler::TensorShapeDesc extent;
-  if (!shape.channels.infer) {
-    if (shape.channels.dynamic) {
-      assert(shape.channels.value.name != nullptr);
-      extent.channels = memory::string(shape.channels.value.name);
-    } else {
-      assert(shape.channels.value.extent);
-      extent.channels = shape.channels.value.extent;
-    }
+  if (shape.channels.name != nullptr) {
+    extent.channels.name.emplace(shape.channels.name);
   }
-  if (!shape.width.infer) {
-    if (shape.width.dynamic) {
-      assert(shape.width.value.name != nullptr);
-      extent.width = memory::string(shape.width.value.name);
-    } else {
-      assert(shape.width.value.extent);
-      extent.width = shape.width.value.extent;
-    }
+  if (shape.channels.value != 0) {
+    extent.channels.value = shape.channels.value;
   }
-  if (!shape.height.infer) {
-    if (shape.height.dynamic) {
-      assert(shape.height.value.name != nullptr);
-      extent.height = memory::string(shape.height.value.name);
-    } else {
-      assert(shape.height.value.extent);
-      extent.height = shape.height.value.extent;
-    }
+  if (shape.height.name != nullptr) {
+    fmt::println("name= {}", shape.height.name);
+    extent.height.name.emplace(shape.height.name);
+  }
+  if (shape.height.value != 0) {
+    extent.height.value = shape.height.value;
+  }
+  if (shape.width.name != nullptr) {
+    extent.width.name.emplace(shape.width.name);
+  }
+  if (shape.width.value != 0) {
+    extent.width.value = shape.width.value;
   }
   return extent;
 }

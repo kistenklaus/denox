@@ -38,7 +38,6 @@ relu(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   compiler::Tensor outHandle = state.output.activation(
       inDev.handle(), compiler::ActivationFunction::ReLU);
-    fmt::println("channels: {}", outHandle.channels());
 
   DeviceTensor outDev(r, std::move(outHandle));
   return {Tensor::Device(std::move(outDev))};

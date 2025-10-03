@@ -297,15 +297,15 @@ memory::string Model::to_string() const {
   str.append(fmt::format("- Input: (TensorID: {})\n    C: {}\n",
                          static_cast<std::uint64_t>(input.m_nodeId),
                          input.channels()));
-  if (input.height().isSymbolic()) {
+  if (input.width().isSymbolic()) {
     str.append(fmt::format("    W: [{}] <- SymInt\n", (*input.width()).sym()));
   } else {
-    str.append(fmt::format("    W: {}\n", (*input.width()).sym()));
+    str.append(fmt::format("    W: {}\n", (*input.width()).constant()));
   }
   if (input.height().isSymbolic()) {
     str.append(fmt::format("    H: [{}] <- SymInt\n", (*input.height()).sym()));
   } else {
-    str.append(fmt::format("    H: {}\n", (*input.height()).sym()));
+    str.append(fmt::format("    H: {}\n", (*input.height()).constant()));
   }
   if (input.type().has_value()) {
     str.append(fmt::format("    dtype: {}\n", input.type()->to_string()));
@@ -319,16 +319,16 @@ memory::string Model::to_string() const {
   str.append(fmt::format("- Output: (TensorID: {})\n    C: {}\n",
                          static_cast<std::uint64_t>(output.m_nodeId),
                          output.channels()));
-  if (input.height().isSymbolic()) {
+  if (output.width().isSymbolic()) {
     str.append(fmt::format("    W: [{}] <- SymInt\n", (*output.width()).sym()));
   } else {
-    str.append(fmt::format("    W: {}\n", (*output.width()).sym()));
+    str.append(fmt::format("    W: {}\n", output.width().constant()));
   }
   if (output.height().isSymbolic()) {
     str.append(
         fmt::format("    H: [{}] <- SymInt\n", (*output.height()).sym()));
   } else {
-    str.append(fmt::format("    H: {}\n", (*output.height()).sym()));
+    str.append(fmt::format("    H: {}\n", output.height().constant()));
   }
   if (output.type().has_value()) {
     str.append(fmt::format("    dtype: {}\n", output.type()->to_string()));

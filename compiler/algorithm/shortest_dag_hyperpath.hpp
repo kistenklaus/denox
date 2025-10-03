@@ -13,6 +13,12 @@ shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
                        memory::span<const memory::NodeId> ends) {
   const std::size_t Vn = graph.nodeCount();
   const std::size_t En = graph.edgeCount();
+
+  if (ends.size() == 0) {
+    memory::vector<memory::EdgeId> path;
+    return path;
+  }
+
   if (Vn == 0 || En == 0 || ends.size() == 0)
     return {};
 

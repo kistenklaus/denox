@@ -27,7 +27,7 @@ static Model frontend(memory::span<const std::byte> raw,
     } else {
       onnx_dir = options.cwd;
     }
-    auto model = denox::onnx::read(raw, onnx_dir);
+    auto model = denox::onnx::read(raw, onnx_dir, options);
     model.getInput().setLayout(options.inputLayout);
     model.getOutput().setLayout(options.outputLayout);
     return model;
@@ -65,7 +65,22 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
 
   fmt::println("\n\x1B[31mSummary:\x1B[0m");
 
-  fmt::println("\u2022 {:<20} : {}", "Inputs ", compModel.inputs.size());
+  auto inputExtentNames = model.getInputExtentNames();
+  fmt::println("\u2022 {:<20} : [{}, {}, {}]", "Inputs ", 
+      model.getInput().height().isSymbolic() ? 
+        (inputExtentNames.height.has_value() ? inputExtentNames.height.value() : "?") :
+        (inputExtentNames.height.has_value() ? 
+        fmt::format("{}={}",(inputExtentNames.height.value()), 
+          model.getInput().height().constant()) : fmt::format("{}", model.getInput().height().constant())),
+      model.getInput().width().isSymbolic() ? 
+        (inputExtentNames.width.has_value() ? inputExtentNames.width.value() : "?") :
+        (inputExtentNames.width.has_value() ? 
+        fmt::format("{}={}",(inputExtentNames.width.value()), 
+          model.getInput().width().constant()) : fmt::format("{}", model.getInput().width().constant())),
+        inputExtentNames.channels.has_value() ? 
+          fmt::format("{}={}", inputExtentNames.channels.value(), model.getInput().channels()) : 
+          fmt::format("{}", model.getInput().channels())
+      );
   fmt::println("\u2022 {:<20} : {}", "Outputs ", compModel.outputs.size());
 
   fmt::println("\u2022 {:<20} : {}", "Number-Of-Dispatches",

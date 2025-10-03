@@ -1,14 +1,62 @@
 #include "CLI/CLI.hpp"
 #include "denox/compiler.hpp"
 #include <CLI/CLI.hpp>
+#include <cctype>
+#include <cstring>
+#include <fmt/format.h>
 #include <optional>
 #include <regex>
 #include <stdexcept>
 #include <string>
 
 static std::regex shape_pattern_regex{
-    "^([A-Za-z]+[A-Za-z0-9_]*|[0-9]+):([A-Za-z]+[A-Za-z0-9_]*|[0-9]+):([A-Za-z]"
-    "+[A-Za-z]*|[0-9]+)$"};
+    "^([A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9_]*\\s*\\=\\s*[0-9]+|[0-9]+|\\?)"
+    ":([A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9_]*\\s*\\=\\s*[0-9]+|[0-9]+|\\?)"
+    ":([A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9_]*\\s*\\=\\s*[0-9]+|[0-9]+|\\?)"
+    "$"};
+
+static std::regex extent_pattern_regex{"^([A-Za-z0-9_]*)\\s*\\=?\\s*([0-9]*)$"};
+static std::regex extent_infer_pattern_regex{"^\\s*\\?\\s*$"};
+
+static std::vector<void *> g_deleteMe;
+
+bool is_number(const std::string &s) {
+  return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
+}
+
+static denox::Extent parseExtent(const std::string &extentDef) {
+  denox::Extent extent;
+  extent.name = nullptr;
+  extent.value = 0;
+
+  std::smatch infer_match;
+  if (std::regex_match(extentDef, infer_match, extent_infer_pattern_regex)) {
+    return extent;
+  }
+
+  std::smatch match;
+  if (std::regex_search(extentDef, match, extent_pattern_regex)) {
+    std::string g1 = match[1].str();
+    if (is_number(g1)) {
+      int v = std::stoi(g1);
+      extent.value = static_cast<unsigned int>(std::abs(v));
+    } else if (match.length() >= 3 && is_number(match[2].str())) {
+      std::string g2 = match[2].str();
+      int v = std::stoi(g2);
+      extent.value = static_cast<unsigned int>(std::abs(v));
+      void *name = calloc(sizeof(std::string::value_type), g1.size() + 1);
+      std::memcpy(name, g1.data(), g1.size());
+      g_deleteMe.push_back(name);
+      extent.name = static_cast<const char *>(name);
+    } else {
+      void *name = calloc(sizeof(std::string::value_type), g1.size() + 1);
+      std::memcpy(name, g1.data(), g1.size());
+      g_deleteMe.push_back(name);
+      extent.name = static_cast<const char *>(name);
+    }
+  }
+  return extent;
+}
 
 int main(int argc, char **argv) {
 
@@ -82,44 +130,32 @@ int main(int argc, char **argv) {
   std::optional<std::string> deviceName = std::nullopt;
   app.add_option("--device", deviceName, "Device name");
 
-  CLI::Validator targetEnv_validator {
-    [&](const std::string& env) {
-      if (env == "vulkan1.0") {
-        return "";
-      } else if (env == "vulkan1.1") {
-        return "";
-      } else if (env == "vulkan1.2") {
-        return "";
-      } else if (env == "vulkan1.3") {
-        return "";
-      } else if (env == "vulkan1.4") {
-        return "";
-      } else {
-        return "invalid target env";
-      }
-    }, 
+  CLI::Validator targetEnv_validator{
+      [&](const std::string &env) {
+        if (env == "vulkan1.0") {
+          return "";
+        } else if (env == "vulkan1.1") {
+          return "";
+        } else if (env == "vulkan1.2") {
+          return "";
+        } else if (env == "vulkan1.3") {
+          return "";
+        } else if (env == "vulkan1.4") {
+          return "";
+        } else {
+          return "invalid target env";
+        }
+      },
       "target env pattern",
   };
   std::string targetEnv = "vulkan1.0";
   app.add_option("--target-env", targetEnv, "Target environment")
-    ->check(targetEnv_validator);
-  options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_4;
+      ->check(targetEnv_validator);
+  options.device.apiVersion = denox::VulkanApiVersion::Vulkan_1_0;
 
   options.inputDescription.storage = denox::Storage::StorageBuffer;
   options.inputDescription.layout = denox::Layout::HWC;
   options.inputDescription.dtype = denox::DataType::Float16;
-
-
-  options.inputDescription.shape.width.dynamic = false;
-  options.inputDescription.shape.width.infer = true;
-  options.inputDescription.shape.width.value.extent = 1920;
-  options.inputDescription.shape.height.dynamic = false;
-  options.inputDescription.shape.height.infer = true;
-  options.inputDescription.shape.height.value.extent = 1080;
-  options.inputDescription.shape.height.dynamic = false;
-  options.inputDescription.shape.height.infer = true;
-  options.inputDescription.shape.height.value.extent = 3;
-
 
   options.outputDescription.storage = denox::Storage::StorageBuffer;
   options.outputDescription.layout = denox::Layout::HWC;
@@ -136,18 +172,35 @@ int main(int argc, char **argv) {
   };
   std::string input_shape;
   app.add_option("--input-shape", input_shape)->check(shape_pattern);
+  std::string output_shape;
+  app.add_option("--output-shape", output_shape)->check(shape_pattern);
 
   CLI11_PARSE(app, argc, argv);
 
   { // input shape.
-    std::sregex_iterator it(input_shape.begin(), input_shape.end(),
-                            shape_pattern_regex);
-    std::sregex_iterator end;
-    while (it != end) {
-      std::smatch match = *it;
-      std::string match_str = match.str();
-      // fmt::println("MATCH-STR: {}", match_str);
-      ++it;
+    std::smatch match;
+    if (std::regex_search(input_shape, match, shape_pattern_regex)) {
+      std::string hstr = match[1].str();
+      options.inputDescription.shape.height = parseExtent(hstr);
+      std::string wstr = match[2].str();
+      options.inputDescription.shape.width = parseExtent(wstr);
+      std::string cstr = match[3].str();
+      options.inputDescription.shape.channels = parseExtent(cstr);
+    } else {
+      std::memset(&options.inputDescription.shape, 0, sizeof(denox::Shape));
+    }
+  }
+  { // output shape
+    std::smatch match;
+    if (std::regex_search(output_shape, match, shape_pattern_regex)) {
+      std::string hstr = match[1].str();
+      options.outputDescription.shape.height = parseExtent(hstr);
+      std::string wstr = match[2].str();
+      options.outputDescription.shape.width = parseExtent(wstr);
+      std::string cstr = match[3].str();
+      options.outputDescription.shape.channels = parseExtent(cstr);
+    } else {
+      std::memset(&options.outputDescription.shape, 0, sizeof(denox::Shape));
     }
   }
 
@@ -170,6 +223,10 @@ int main(int argc, char **argv) {
   }
 
   denox::compile(modelFile.data(), options);
+
+  for (void *p : g_deleteMe) {
+    free(p);
+  }
 
   return 0;
 }

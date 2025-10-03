@@ -26,8 +26,6 @@ max_pool(ImportState &state,
   if (!X.isDevice())
     throw std::runtime_error("vkcnn: MaxPool: only DeviceTensor is supported.");
 
-  fmt::println("Max-pool: in-channels: {}", X.device().handle().channels());
-
   const DeviceTensor Xdev = X.device();
   const std::size_t r = Xdev.rank();
   if (r != 3 && r != 4)
@@ -163,8 +161,6 @@ max_pool(ImportState &state,
   compiler::Tensor outHandle =
       state.output.pool(Xdev.handle(), kernel, padding, stride, dilation,
                         compiler::PoolFunction::Max);
-  fmt::println("Max-pool: channels: {}", outHandle.channels());
-
   return {Tensor::Device(DeviceTensor{Xdev.rank(), std::move(outHandle)})};
 }
 

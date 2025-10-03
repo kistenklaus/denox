@@ -29,7 +29,8 @@ static void import_tensor(details::ImportState &state,
 }
 
 static void import_graph(details::ImportState &state,
-                         const ::onnx::GraphProto &graph) {
+                         const ::onnx::GraphProto &graph,
+                         const compiler::Options &options) {
   if (graph.sparse_initializer_size() != 0) {
     throw std::runtime_error("vkcnn: Model contains sparse initializers are "
                              "not supported by vkcnn.");
@@ -60,19 +61,22 @@ static void import_graph(details::ImportState &state,
   const auto &output = graph.output(0);
 
   // We probably need a special function for input / output
-  details::import_value_info(state, input,
-                             details::ValueInfoImportContext::Input);
+  import_value_info(state, input,
+                             details::ValueInfoImportContext::Input, options);
 
   for (const ::onnx::NodeProto &node : graph.node()) {
     details::import_node(state, node);
   }
   for (const auto &value_info : graph.value_info()) {
-    import_value_info(state, value_info, details::ValueInfoImportContext::Hint);
+    import_value_info(state, value_info, details::ValueInfoImportContext::Hint,
+                      options);
   }
-  import_value_info(state, output, details::ValueInfoImportContext::Output);
+  import_value_info(state, output, details::ValueInfoImportContext::Output,
+                    options);
 }
 
-compiler::Model read(memory::span<const std::byte> raw, io::Path onnx_dir) {
+compiler::Model read(memory::span<const std::byte> raw, io::Path onnx_dir,
+                     const compiler::Options &options) {
   try {
     ::onnx::ModelProto onnx;
     if (!onnx.ParseFromArray(raw.data(), static_cast<int>(raw.size_bytes()))) {
@@ -151,7 +155,7 @@ compiler::Model read(memory::span<const std::byte> raw, io::Path onnx_dir) {
       }
     }
 
-    import_graph(state, onnx.graph());
+    import_graph(state, onnx.graph(), options);
 
     return std::move(state.output);
   } catch (const std::runtime_error &e) {

@@ -22,10 +22,15 @@ struct FusionRules {
   bool enableConvReluFusion = false;
 };
 
+struct TensorShapeExtent {
+  memory::optional<std::string> name;
+  memory::optional<unsigned int> value;
+};
+
 struct TensorShapeDesc {
-  std::variant<std::monostate, memory::string, unsigned int> channels;
-  std::variant<std::monostate, memory::string, unsigned int> width;
-  std::variant<std::monostate, memory::string, unsigned int> height;
+  TensorShapeExtent channels;
+  TensorShapeExtent height;
+  TensorShapeExtent width;
 };
 
 struct Options {

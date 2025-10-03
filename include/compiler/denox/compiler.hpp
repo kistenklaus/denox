@@ -44,12 +44,8 @@ enum DataType {
 };
 
 struct Extent {
-  bool dynamic;
-  bool infer;
-  union {
-    unsigned int extent;
-    const char *name;
-  } value;
+  const char* name;
+  unsigned int value;
 };
 
 struct Shape {

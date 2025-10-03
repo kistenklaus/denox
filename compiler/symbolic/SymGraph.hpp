@@ -185,7 +185,7 @@ public:
                            const memory::hash_map<Sym::symbol, memory::string>
                                &symbolNames = {}) const;
 
-  std::pair<SymIR, SymRemap> compile(memory::span<const symbol> symbols) const;
+  std::pair<SymIR, SymRemap> compile(const memory::span<const symbol> symbols) const;
 
   std::size_t symbolCount() const { return m_expressions.size(); }
 
