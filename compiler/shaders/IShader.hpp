@@ -2,7 +2,7 @@
 
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
-#include "compiler/impl/Impl.hpp"
+#include "compiler/impl/ImplBuilder.hpp"
 #include "memory/container/string.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "model/ComputeOp.hpp"

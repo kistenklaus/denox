@@ -6,7 +6,6 @@
 #include "heuristic/IHeuristic.hpp"
 #include "heuristic/MemoryHeuristic.hpp"
 #include "memory/container/vector.hpp"
-#include "memory/coroutines/generator.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "shaders/IShader.hpp"

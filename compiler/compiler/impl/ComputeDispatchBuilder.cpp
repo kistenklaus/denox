@@ -1,5 +1,5 @@
 #include "compiler/impl/ComputeDispatchBuilder.hpp"
-#include "compiler/impl/Impl.hpp"
+#include "compiler/impl/ImplBuilder.hpp"
 #include "diag/unreachable.hpp"
 #include <fmt/format.h>
 
