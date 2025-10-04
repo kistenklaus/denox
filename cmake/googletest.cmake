@@ -21,8 +21,7 @@ FetchContent_Declare(
   googletest
   EXCLUDE_FROM_ALL
   GIT_REPOSITORY ${DENOX_GTEST_REPO}
-  GIT_TAG        ${DENOX_GTEST_TAG}
-  GIT_PROGRESS TRUE
+  GIT_TAG "52eb8108c5bdec04579160ae17225d66034bd723"
 )
 FetchContent_MakeAvailable(googletest)
 

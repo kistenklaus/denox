@@ -2,7 +2,7 @@ include_guard(GLOBAL)
 include(cmake/colorful.cmake)
 
 # --- Fetch upstream exactly (always) ---
-set(DENOX_FLATBUFFERS_GIT_TAG "v25.9.23" CACHE STRING "FlatBuffers tag")
+set(DENOX_FLATBUFFERS_GIT_TAG "187240970746d00bbd26b0f5873ed54d2477f9f3" CACHE STRING "FlatBuffers tag")
 set(FLATBUFFERS_BUILD_FLATC     ON  CACHE BOOL "" FORCE)
 set(FLATBUFFERS_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
 set(FLATBUFFERS_INSTALL         OFF CACHE BOOL "" FORCE)

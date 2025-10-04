@@ -36,10 +36,12 @@ enum class Storage {
 
 enum class Layout {
   HWC,
+  CHW,
   CHWC8,
 };
 
 enum DataType {
+  Auto,
   Float16,
 };
 
