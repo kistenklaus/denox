@@ -1,7 +1,6 @@
 #include "frontend/onnx/details/import_value_info.hpp"
 #include "Options.hpp"
 #include "diag/invalid_argument.hpp"
-#include "diag/invalid_state.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/details/values/Tensor.hpp"
 #include "model/DynamicInputExtent.hpp"
@@ -171,9 +170,7 @@ void import_value_info(ImportState &state,
             }
             if (options.inputShape.channels.name.has_value()) {
               dynamicExtent.channels = options.inputShape.channels.name.value();
-            } else {
-              // dynamicExtent.channels = label;
-            }
+            } 
           }
           if (ri == 2) {
             if (options.inputShape.height.value.has_value()) {
@@ -183,9 +180,7 @@ void import_value_info(ImportState &state,
             }
             if (options.inputShape.height.name.has_value()) {
               dynamicExtent.height = options.inputShape.height.name.value();
-            } else {
-              // dynamicExtent.height = label;
-            }
+            } 
           }
           if (ri == 3) {
             if (options.inputShape.width.value.has_value()) {
@@ -195,9 +190,7 @@ void import_value_info(ImportState &state,
             }
             if (options.inputShape.width.name.has_value()) {
               dynamicExtent.width = options.inputShape.width.name.value();
-            } else {
-              // dynamicExtent.width = label;
-            }
+            } 
           }
         }
         dims.emplace_back(g, s);
@@ -320,25 +313,25 @@ void import_value_info(ImportState &state,
 
     for (std::size_t d = 0; d < orank; ++d) {
       const auto &dim = oshape.dim()[static_cast<int>(d)];
-      memory::string dimName;
-      std::size_t rd = (orank == 3) ? d : (d + 1);
-      if (dim.has_dim_param()) {
-        dimName = dim.dim_param();
-      } else {
-        if (rd == 1) {
-          dimName = fmt::format("{}.channels", name);
-        } else if (rd == 2) {
-          dimName = fmt::format("{}.height", name);
-        } else if (rd == 3) {
-          dimName = fmt::format("{}.width", name);
-        }
-      }
+      std::size_t rd = (orank == 4) ? d : (d + 1);
       if (rd == 1) {
-        extent.channels = dimName;
+        extent.channels = options.outputShape.channels.name;
+        if (dim.has_dim_value() && options.outputShape.channels.value.has_value() && 
+            options.outputShape.channels.value.value() != dim.dim_value()) {
+          compiler::diag::invalid_argument();
+        }
       } else if (rd == 2) {
-        extent.height = dimName;
+        extent.height = options.outputShape.height.name;
+        if (dim.has_dim_value() && options.outputShape.height.value.has_value() && 
+            options.outputShape.height.value.value() != dim.dim_value()) {
+          compiler::diag::invalid_argument();
+        }
       } else if (rd == 3) {
-        extent.width = dimName;
+        extent.width = options.outputShape.width.name;
+        if (dim.has_dim_value() && options.outputShape.width.value.has_value() && 
+            options.outputShape.width.value.value() != dim.dim_value()) {
+          compiler::diag::invalid_argument();
+        }
       }
     }
   }

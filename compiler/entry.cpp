@@ -66,7 +66,7 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   fmt::println("\n\x1B[31mSummary:\x1B[0m");
 
   auto inputExtentNames = model.getInputExtentNames();
-  fmt::println("\u2022 {:<20} : [{}, {}, {}]", "Inputs ", 
+  fmt::println("\u2022 {:<20} : [{}, {}, {}]", "Input-Shape (HWC) ", 
       model.getInput().height().isSymbolic() ? 
         (inputExtentNames.height.has_value() ? inputExtentNames.height.value() : "?") :
         (inputExtentNames.height.has_value() ? 
@@ -81,6 +81,24 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
           fmt::format("{}={}", inputExtentNames.channels.value(), model.getInput().channels()) : 
           fmt::format("{}", model.getInput().channels())
       );
+
+  auto outputExtentNames = model.getOutputExtentNames();
+  fmt::println("\u2022 {:<20} : [{}, {}, {}]", "Output-Shape (HWC) ", 
+      model.getOutput().height().isSymbolic() ? 
+        (outputExtentNames.height.has_value() ? outputExtentNames.height.value() : "?") :
+        (outputExtentNames.height.has_value() ? 
+        fmt::format("{}={}",(outputExtentNames.height.value()), 
+          model.getOutput().height().constant()) : fmt::format("{}", model.getOutput().height().constant())),
+      model.getOutput().width().isSymbolic() ? 
+        (outputExtentNames.width.has_value() ? outputExtentNames.width.value() : "?") :
+        (outputExtentNames.width.has_value() ? 
+        fmt::format("{}={}",(outputExtentNames.width.value()), 
+          model.getOutput().width().constant()) : fmt::format("{}", model.getOutput().width().constant())),
+        outputExtentNames.channels.has_value() ? 
+          fmt::format("{}={}", outputExtentNames.channels.value(), model.getOutput().channels()) : 
+          fmt::format("{}", model.getOutput().channels())
+      );
+
   fmt::println("\u2022 {:<20} : {}", "Outputs ", compModel.outputs.size());
 
   fmt::println("\u2022 {:<20} : {}", "Number-Of-Dispatches",
