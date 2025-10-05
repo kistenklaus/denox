@@ -43,6 +43,9 @@ enum class Layout {
 enum DataType {
   Auto,
   Float16,
+  Float32,
+  Uint8,
+  Int8,
 };
 
 struct Extent {
@@ -51,8 +54,8 @@ struct Extent {
 };
 
 struct Shape {
-  Extent width;
   Extent height;
+  Extent width;
   Extent channels;
 };
 
@@ -99,7 +102,8 @@ struct CompileOptions {
   Device device;
   SpirvOptions spirvOptions;
   const char *cwd = nullptr;
-
+  bool verbose;
+  bool quite;
   bool externally_managed_glslang_runtime = false;
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
   ExternallyManagedVulkanContext *externally_managed_vulkan_context = nullptr;

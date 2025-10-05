@@ -5,6 +5,7 @@ namespace denox::compiler {
 
 SymTable sym_table(const Model &model, const Options &options) {
   SymTable table;
+  return table;
 
   NamedExtent inputExtentNames = model.getInputExtentNames();
   if (inputExtentNames.channels.has_value()) {

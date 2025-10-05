@@ -37,10 +37,10 @@ struct Options {
   unsigned int dnxVersion;
   SrcType srcType;
   memory::ActivationLayout inputLayout;
-  memory::Dtype inputType;
+  memory::optional<memory::Dtype> inputType;
   TensorShapeDesc inputShape;
   memory::ActivationLayout outputLayout;
-  memory::Dtype outputType;
+  memory::optional<memory::Dtype> outputType;
   TensorShapeDesc outputShape;
   DeviceInfo deviceInfo;
   FusionRules fusionRules;
@@ -48,6 +48,8 @@ struct Options {
   bool optimizeSpirv;
   io::Path cwd;
   memory::optional<io::Path> srcPath;
+  bool verbose;
+  bool quite;
 };
 
 } // namespace denox::compiler

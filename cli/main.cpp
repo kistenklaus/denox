@@ -65,8 +65,7 @@ static CLI::Validator shape_pattern{
       }
       return "";
     },
-    " (H:W:C)"
-};
+    ""};
 
 static bool is_number(const std::string &s) {
   return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
@@ -127,17 +126,28 @@ static CLI::Validator dtype_validator{
     [](const std::string &dtype) -> std::string {
       if (dtype == "f16" || dtype == "float16") {
         return "";
-      }
-      if (dtype == "auto" || dtype == "?") {
+      } else if (dtype == "f32" || dtype == "float32") {
+        return "";
+      } else if (dtype == "u8" || dtype == "uint8") {
+        return "";
+      } else if (dtype == "i8" || dtype == "int8") {
+        return "";
+      } else if (dtype == "auto" || dtype == "?") {
         return "";
       }
       return fmt::format("\"{}\" is not a invalid or unsupported datatype",
                          dtype);
     },
-    " (f16 | f32 | u8 | i8)"};
+    ""};
 static denox::DataType parseDataType(const std::string &datatype) {
   if (datatype == "f16" || datatype == "float16") {
     return denox::DataType::Float16;
+  } else if (datatype == "f32" || datatype == "float32") {
+    return denox::DataType::Float32;
+  } else if (datatype == "u8" || datatype == "uint8") {
+    return denox::DataType::Uint8;
+  } else if (datatype == "i8" || datatype == "int8") {
+    return denox::DataType::Int8;
   } else if (datatype == "auto" || datatype == "?") {
     return denox::DataType::Auto;
   } else {
@@ -159,7 +169,7 @@ static CLI::Validator layout_validator{
       return fmt::format("Layout \"{}\" is either invalid or not supported",
                          layout);
     },
-    " (HWC | CHW | CHWC8)"};
+    ""};
 
 static denox::Layout parseLayout(const std::string &layout) {
   if (layout == "HWC") {
@@ -183,7 +193,7 @@ static CLI::Validator storage_validator{
       }
       return fmt::format("Invalid storage type \"{}\"", storage);
     },
-    " =SSBO"};
+    ""};
 denox::Storage parseStorage(const std::string &storage) {
   if (storage == "SSBO" || storage == "buffer" || storage == "storage-buffer") {
     return denox::Storage::StorageBuffer;
@@ -199,83 +209,102 @@ int main(int argc, char **argv) {
   denox::CompileOptions options;
 
   bool showVersion = false;
-  app.add_flag("--version,-v", showVersion);
+  app.add_flag("--version", showVersion, "Print version information");
 
   std::optional<std::string> modelFile;
-  app.add_option("model", modelFile, "ONNX model file")
-      ->check(CLI::ExistingFile);
+  app.add_option("model", modelFile, "Path to ONNX model file")
+      ->check(CLI::ExistingFile)
+      ->type_name("");
+
+  bool verbose = false;
+  app.add_flag("--verbose,-v", verbose, "Print verbose log messages");
+  bool quite = false;
+  app.add_flag("--quite,-q", quite,
+               "Disable all logging to the console. Errors are still shown.");
 
   options.dnxVersion = 0;
 
+  std::string features = "Features";
+
   options.features.coopmat = denox::Enable;
   app.add_flag(
-      "--fcoopmat,!--fno-coopmat",
-      [&](int x) {
-        if (x > 0) {
-          options.features.coopmat = denox::FeatureState::Require;
-        } else if (x < 0) {
-          options.features.coopmat = denox::FeatureState::Disable;
-        } else {
-          options.features.coopmat = denox::FeatureState::Enable;
-        }
-      },
-      "Enable/Disable shaders which use cooperative matrix.\nIf no flag is "
-      "specified we "
-      "query the driver for cooperative matrix support.");
+         "--fcoopmat,!--fno-coopmat",
+         [&](int x) {
+           if (x > 0) {
+             options.features.coopmat = denox::FeatureState::Require;
+           } else if (x < 0) {
+             options.features.coopmat = denox::FeatureState::Disable;
+           } else {
+             options.features.coopmat = denox::FeatureState::Enable;
+           }
+         },
+         "Enable/Disable shaders which use cooperative matrix.\nIf no flag is "
+         "specified we "
+         "query the driver for cooperative matrix support.")
+      ->group(features);
 
   options.features.fusion = denox::Enable;
   app.add_flag(
-      "--ffusion,!--fno-fusion",
-      [&](int x) {
-        if (x > 0) {
-          options.features.fusion = denox::FeatureState::Require;
-        } else if (x < 0) {
-          options.features.fusion = denox::FeatureState::Disable;
-        } else {
-          options.features.fusion = denox::FeatureState::Enable;
-        }
-      },
-      "Enable/Disable all non trivial layer fusions.\n"
-      "By default all fusions are allowed.\nDisabling fusion will drastically "
-      "decreases\nperformance; only disable for debugging reasons.");
+         "--ffusion,!--fno-fusion",
+         [&](int x) {
+           if (x > 0) {
+             options.features.fusion = denox::FeatureState::Require;
+           } else if (x < 0) {
+             options.features.fusion = denox::FeatureState::Disable;
+           } else {
+             options.features.fusion = denox::FeatureState::Enable;
+           }
+         },
+         "Enable/Disable all non trivial layer fusions.\n"
+         "By default all fusions are allowed.\nDisabling fusion will "
+         "drastically "
+         "decreases\nperformance; only disable for debugging reasons.")
+      ->group(features);
 
   options.features.memory_concat = denox::Enable;
   app.add_flag(
-      "--fmemory-concat,!--fno-memory-concat",
-      [&](int x) {
-        if (x > 0) {
-          options.features.memory_concat = denox::FeatureState::Require;
-        } else if (x < 0) {
-          options.features.memory_concat = denox::FeatureState::Disable;
-        } else {
-          options.features.memory_concat = denox::FeatureState::Enable;
-        }
-      },
-      "Enable/Disable in-memory concat.\nconcat operations can be performed "
-      "implicitly within the memory layout,\n"
-      "for example if two tensors with a CHW layout are placed after each "
-      "other in memory.\n"
-      "This feature generally improves performance, only disable for debugging "
-      "reasons.");
+         "--fmemory-concat,!--fno-memory-concat",
+         [&](int x) {
+           if (x > 0) {
+             options.features.memory_concat = denox::FeatureState::Require;
+           } else if (x < 0) {
+             options.features.memory_concat = denox::FeatureState::Disable;
+           } else {
+             options.features.memory_concat = denox::FeatureState::Enable;
+           }
+         },
+         "Enable/Disable in-memory concat.\nconcat operations can be performed "
+         "implicitly within the memory layout,\n"
+         "for example if two tensors with a CHW layout are placed after each "
+         "other in memory.\n"
+         "This feature generally improves performance, only disable for "
+         "debugging "
+         "reasons.")
+      ->group(features);
+
+  std::string spirvOptions = "SPIRV compilation flags";
 
   options.spirvOptions.debugInfo = false;
   app.add_flag(
-      "--spirv-debug-info,!--spirv-no-debug-info",
-      options.spirvOptions.debugInfo,
-      "Emit \"debugInfo\" within the shader compiler frontends and within "
-      "SPIR-V tools.\n"
-      "Importantly this doesn't enable non-semantic debug info, which might be "
-      "interessting\n."
-      "for profiling. By default debug info is stripped from the shaders.");
+         "--spirv-debug-info,!--spirv-no-debug-info",
+         options.spirvOptions.debugInfo,
+         "Emit \"debugInfo\" within the shader compiler frontends and within "
+         "SPIR-V tools.\n"
+         "Importantly this doesn't enable non-semantic debug info, which might "
+         "be "
+         "interessting\n."
+         "for profiling. By default debug info is stripped from the shaders.")
+      ->group(spirvOptions);
 
   options.spirvOptions.nonSemanticDebugInfo = false;
   app.add_flag(
-      "--spirv-non-semantic-debug-info,!--no-spirv-non-semantic-debug-info",
-      options.spirvOptions.nonSemanticDebugInfo,
-      "Emit non semantic SPIR-V debug info within the shader compilers "
-      "frontend.\n"
-      "Sometimes this is useful for profiling tools like NVIDIA Nsight.\n"
-      "If not specified no non-semantic debug info is generated.");
+         "--spirv-non-semantic-debug-info,!--no-spirv-non-semantic-debug-info",
+         options.spirvOptions.nonSemanticDebugInfo,
+         "Emit non semantic SPIR-V debug info within the shader compilers "
+         "frontend.\n"
+         "Sometimes this is useful for profiling tools like NVIDIA Nsight.\n"
+         "If not specified no non-semantic debug info is generated.")
+      ->group(spirvOptions);
 
   options.spirvOptions.optimize = false;
   app.add_flag("--spirv-optimize,!--spirv-no-optimize",
@@ -283,41 +312,106 @@ int main(int argc, char **argv) {
                "Enables/Disables spirv optimizations powered by spirv-tools.\n"
                "Specifically we run the spirv-tools optimizer until the spirv "
                "binary converges.\n"
-               "By default no optimization passes are performed.");
+               "By default no optimization passes are performed.")
+      ->group(spirvOptions);
 
+  std::string deviceInfo = "Target properties";
   std::optional<std::string> deviceName = std::nullopt;
-  app.add_option("--device", deviceName, 
-      "Device name pattern, which is used to query device capabilities.\n"
-      "The pattern may contain .gitignore like expressions.\n"
-      "For example: *RTX* or *AMD*\n"
-      "If not specified we select the first discrete device.");
+  app.add_option(
+         "--device", deviceName,
+         "Device name pattern, which is used to query device capabilities.\n"
+         "The pattern may contain .gitignore like expressions.\n"
+         "For example: *RTX* or *AMD*\n"
+         "If not specified we select the first discrete device.")
+      ->type_name("")
+      ->group(deviceInfo);
 
   std::string targetEnv = "vulkan1.1";
   app.add_option("--target-env", targetEnv,
-      "We require currently require vulkan1.1 to query subgroup properties,\n"
-      "therefor we default to the api version 1.1")
-      ->check(targetEnv_validator);
+                 "We require currently require vulkan1.1 to query subgroup "
+                 "properties,\n"
+                 "therefor we default to the api version 1.1")
+      ->check(targetEnv_validator)
+      ->type_name("")
+      ->group(deviceInfo);
   options.outputDescription.storage = denox::Storage::StorageBuffer;
 
+  std::string inputOutputGroup = "Input & Output";
+
   std::string input_shape;
-  app.add_option("--input-shape", input_shape)->check(shape_pattern);
-  std::string output_shape;
-  app.add_option("--output-shape", output_shape)->check(shape_pattern);
+  app.add_option("--input-shape", input_shape,
+                 "Defines names for dynamic or specializes constant input "
+                 "dimensions.\nEach extent seperated by \":\" can be either,"
+                 "a C-style name,\na unsigned integral constant or a "
+                 "assignment expression.\n"
+                 "If not specified all dynamic extents are unnamed and \n"
+                 "constant extents are inferred from the model file.")
+      ->check(shape_pattern)
+      ->group(inputOutputGroup)
+      ->type_name("H:W:C");
 
   std::string inputType = "auto";
-  app.add_option("--input-type", inputType)->check(dtype_validator);
-  std::string outputType = "auto";
-  app.add_option("--output-type", outputType)->check(dtype_validator);
+  app.add_option(
+         "--input-type", inputType,
+         "Overwrites the input type, if not specified the input type is\n"
+         "inferred from the model. Supported types are: [f16, f32, u8, i8].")
+      ->check(dtype_validator)
+      ->type_name("")
+      ->group(inputOutputGroup);
 
   std::string inputLayout = "HWC";
-  app.add_option("--input-layout", inputLayout)->check(layout_validator);
-  std::string outputLayout = "HWC";
-  app.add_option("--output-layout", outputLayout)->check(layout_validator);
+  app.add_option(
+         "--input-layout", inputLayout,
+         "Specifies the input memory layout. Supported layouts are: [HWC, \n"
+         "CHW, CHWC8]. HWC is the default layout, if not specified.")
+      ->check(layout_validator)
+      ->type_name("")
+      ->group(inputOutputGroup);
 
   std::string inputStorage = "SSBO";
-  app.add_option("--input-storage", inputStorage)->check(storage_validator);
+  app.add_option("--input-storage", inputStorage,
+                 "Specifies the storage class of the input. Supported storage "
+                 "classes are:\n"
+                 "[SSBO]. In not specified SSBO is chosen.")
+      ->check(storage_validator)
+      ->type_name("")
+      ->group(inputOutputGroup);
+
+  std::string output_shape;
+  app.add_option("--output-shape", output_shape,
+                 "Defines names for dynamic or specializes "
+                 "constant output dimensions.\nSemantic rules are equivalent "
+                 "to \"--input-shape\"")
+      ->check(shape_pattern)
+      ->group(inputOutputGroup)
+      ->type_name("H:W:C");
+
+  std::string outputType = "auto";
+  app.add_option(
+         "--output-type", outputType,
+         "Overwrites the output type, if not specified the output type is\n"
+         "inferred from the model. Supported types are: [f16, f32, u8, i8].")
+      ->check(dtype_validator)
+      ->type_name("")
+      ->group(inputOutputGroup);
+
+  std::string outputLayout = "HWC";
+  app.add_option(
+         "--output-layout", outputLayout,
+         "Specifies the output memory layout. Supported layouts are: [HWC, \n"
+         "CHW, CHWC8]. HWC is the default layout, if not specified.")
+      ->check(layout_validator)
+      ->type_name("")
+      ->group(inputOutputGroup);
+
   std::string outputStorage = "SSBO";
-  app.add_option("--output-storage", outputStorage)->check(storage_validator);
+  app.add_option("--output-storage", outputStorage,
+                 "Specifies the storage class of the input. Supported storage "
+                 "classes are:\n"
+                 "[SSBO]. In not specified SSBO is chosen.")
+      ->check(storage_validator)
+      ->type_name("")
+      ->group(inputOutputGroup);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -333,6 +427,9 @@ int main(int argc, char **argv) {
   options.device.deviceName =
       deviceName.has_value() ? deviceName->c_str() : nullptr;
   options.device.apiVersion = parseTargetEnv(targetEnv);
+
+  options.verbose = verbose;
+  options.quite = quite;
 
   if (showVersion) {
     fmt::println("denox version: 0.0.0");

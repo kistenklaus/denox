@@ -3,6 +3,7 @@
 #include "diag/invalid_argument.hpp"
 #include "diag/unreachable.hpp"
 #include "frontend/onnx/details/values/Tensor.hpp"
+#include "memory/dtype/f32.hpp"
 #include "model/DynamicInputExtent.hpp"
 #include "model/ModelControlBlock.hpp"
 #include "symbolic/SymGraph.hpp"
@@ -238,9 +239,15 @@ void import_value_info(ImportState &state,
     // Optional float-type hint from dtype
     memory::optional<memory::Dtype> hint =
         dtypeOpt ? dtypeOpt->toDenoxType() : memory::nullopt;
+    memory::optional<memory::Dtype> dtype;
+    if (options.inputType.has_value()) {
+      dtype = *options.inputType;
+    } else if (hint.has_value()) {
+      dtype = *hint;
+    } 
 
     compiler::Tensor rt =
-        state.output.input(C, memory::nullopt, hint, Ws, Hs, dynamicExtent);
+        state.output.input(C, memory::nullopt, dtype, Ws, Hs, dynamicExtent);
 
     DeviceTensor dev(r, std::move(rt));
     state.tensors.emplace(name, Tensor::Device(std::move(dev)));

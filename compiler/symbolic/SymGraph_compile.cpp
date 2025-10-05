@@ -618,9 +618,6 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     }
   }
 
-  fmt::println("adjSupergraphSize:  {}", adjSupergraph.nodeCount());
-  fmt::println("expressions:  {}", m_expressions.size());
-
   // assert(adjSupergraph.nodeCount() >= m_expressions.size());
   memory::ConstGraph<SymValue, SymOp, weight_type> supergraph{adjSupergraph};
   memory::vector<memory::NodeId> vars;
@@ -707,76 +704,6 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
     Sym::symbol original = varNode.original.value();
     remap[original] = Sym::Symbol(v);
   }
-
-  // fmt::println("IR");
-  // for (std::size_t e = 0; e < ir.ops.size(); ++e) {
-  //   const auto &op = ir.ops[e];
-  //   std::int64_t ird = static_cast<std::int64_t>(e + vars.size());
-  //   fmt::print("s{} = ", ird);
-  //   switch (op.opcode) {
-  //   case SymIROpCode::Add_SS:
-  //     fmt::println("s{} + s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Add_SC:
-  //     fmt::println("s{} + {}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Sub_SS:
-  //     fmt::println("s{} - s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Sub_SC:
-  //     fmt::println("s{} - {}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Sub_CS:
-  //     fmt::println("{} - s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Mul_SS:
-  //     fmt::println("s{} * s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Mul_SC:
-  //     fmt::println("s{} * {}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Div_SS:
-  //     fmt::println("s{} / s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Div_SC:
-  //     fmt::println("s{} / {}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Div_CS:
-  //     fmt::println("{} / s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Mod_SS:
-  //     fmt::println("s{} % s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Mod_SC:
-  //     fmt::println("s{} % {}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Mod_CS:
-  //     fmt::println("{} % s{}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Min_SS:
-  //     fmt::println("min{{s{}, s{}}}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Min_SC:
-  //     fmt::println("min{{s{}, {}}}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Max_SS:
-  //     fmt::println("max{{s{}, {}}}", op.lhs, op.rhs);
-  //     break;
-  //   case SymIROpCode::Max_SC:
-  //     fmt::println("max{{s{}, {}}}", op.lhs, op.rhs);
-  //     break;
-  //   }
-  // }
-
-  // for (Sym::symbol s = 0; s < remap.size(); ++s) {
-  //   fmt::print("[{}] -> ", s);
-  //   Sym irs = remap[s];
-  //   if (irs.isConstant()) {
-  //     fmt::println("{}", irs.constant());
-  //   } else {
-  //     fmt::println("s{}", irs.sym());
-  //   }
-  // }
 
   return std::make_pair(ir, SymRemap(remap));
 }

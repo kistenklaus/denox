@@ -4,6 +4,7 @@
 #include "device_info/DeviceInfo.hpp"
 #include "device_info/query/query_driver_device_info.hpp"
 #include "diag/logging.hpp"
+#include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
 #include "entry.hpp"
 #include "io/fs/File.hpp"
@@ -26,11 +27,12 @@ static memory::ActivationLayout parse_layout(Layout layout) {
   switch (layout) {
   case Layout::HWC:
     return memory::ActivationLayout::HWC;
+  case Layout::CHW:
+    return memory::ActivationLayout::CHW;
   case Layout::CHWC8:
     return memory::ActivationLayout::CHWC8;
-  default:
-    compiler::diag::unreachable();
   }
+  compiler::diag::unreachable();
 }
 
 static constexpr std::size_t STABLE_DNX_VERSION = 1;
@@ -75,10 +77,17 @@ static compiler::SrcType infer_srctype(const std::optional<io::Path> &srcPath,
   denox::compiler::diag::unreachable();
 }
 
-static memory::Dtype parse_dtype(const DataType type) {
+static memory::optional<memory::Dtype> parse_dtype(const DataType type) {
   switch (type) {
+  case DataType::Auto:
+    return memory::nullopt;
   case DataType::Float16:
     return memory::Dtype::F16;
+  case DataType::Float32:
+    return memory::Dtype::F32;
+  case DataType::Uint8:
+  case DataType::Int8:
+    compiler::diag::not_implemented();
   }
   denox::compiler::diag::unreachable();
 }
@@ -203,8 +212,10 @@ void compile(const char *cpath, const CompileOptions &options) {
       parse_layout(options.inputDescription.layout);
   memory::ActivationLayout outputLayout =
       parse_layout(options.outputDescription.layout);
-  memory::Dtype inputType = parse_dtype(options.inputDescription.dtype);
-  memory::Dtype outputType = parse_dtype(options.outputDescription.dtype);
+  memory::optional<memory::Dtype> inputType =
+      parse_dtype(options.inputDescription.dtype);
+  memory::optional<memory::Dtype> outputType =
+      parse_dtype(options.outputDescription.dtype);
 
   compiler::TensorShapeDesc inputShape =
       parse_shape(options.inputDescription.shape);
@@ -238,6 +249,8 @@ void compile(const char *cpath, const CompileOptions &options) {
       .optimizeSpirv = options.spirvOptions.optimize,
       .cwd = cwd,
       .srcPath = path,
+      .verbose = options.verbose,
+      .quite = options.quite,
   };
 
   auto file = io::File::open(path, io::File::OpenMode::Read);

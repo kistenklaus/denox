@@ -128,7 +128,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   }
   const memory::vector<memory::EdgeId> &hyperpath = *opthyperpath;
 
-  { // Printing the hyperedge.
+  if (options.verbose) { // Printing the hyperedge.
     fmt::println("\x1B[32m\x1B[1m{:=^100}\x1B[0m",
                  "Selected=Execution=Schedule");
     float totalWeight = 0;
@@ -201,56 +201,58 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
     implModel.outputs.emplace_back(out.channels, extent, output);
   }
 
-  impl.compileAll();
+  impl.compileAll(!options.quite);
 
-  fmt::println("\n\x1B[32m\x1B[1m{:=^100}\x1B[0m", "Implemented=Schedule");
+  if (options.verbose) {
+    fmt::println("\n\x1B[32m\x1B[1m{:=^100}\x1B[0m", "Implemented=Schedule");
 
-  fmt::println("=> \x1B[35m\x1B[1m{}\x1B[0m: {}", "Input", input.index);
-  memory::hash_map<Sym::symbol, memory::string> symbolNames;
-  sym inputWidthSym = constSupergraph.get(model.input).extent.x;
-  if (inputWidthSym.isSymbolic()) {
-    symbolNames.emplace(inputWidthSym.symbol(), "Input.Width");
-  }
-  sym inputHeightSym = constSupergraph.get(model.input).extent.y;
-  if (inputHeightSym.isSymbolic()) {
-    symbolNames.emplace(inputHeightSym.symbol(), "Input.Height");
-  }
-
-  for (std::size_t d = 0; d < implModel.dispatches.size(); ++d) {
-    const auto &dispatch = implModel.dispatches[d];
-    memory::string dispatchName;
-    memory::string sourcePath;
-    if (dispatch.meta != nullptr && dispatch.meta->name.has_value()) {
-      dispatchName = fmt::format("{}", *dispatch.meta->name);
-    } else {
-      dispatchName = fmt::format("unnamed-dispatch");
+    fmt::println("=> \x1B[35m\x1B[1m{}\x1B[0m: {}", "Input", input.index);
+    memory::hash_map<Sym::symbol, memory::string> symbolNames;
+    sym inputWidthSym = constSupergraph.get(model.input).extent.x;
+    if (inputWidthSym.isSymbolic()) {
+      symbolNames.emplace(inputWidthSym.symbol(), "Input.Width");
     }
-    if (dispatch.meta != nullptr && dispatch.meta->sourcePath.has_value()) {
-      sourcePath = dispatch.meta->sourcePath.value().str();
-    } else {
-      sourcePath = "<unknown>";
+    sym inputHeightSym = constSupergraph.get(model.input).extent.y;
+    if (inputHeightSym.isSymbolic()) {
+      symbolNames.emplace(inputHeightSym.symbol(), "Input.Height");
     }
-    fmt::println("\x1B[34m\x1B[1m{}\x1B[0m: (\x1B[4m{}\x1B[0m)", dispatchName,
-                 sourcePath);
-    fmt::print("\u2022 Binary-Size: {}B\n",
-               dispatch.binary.spv.size() * sizeof(std::uint32_t));
-    fmt::print("\u2022 TensorBindings: [");
-    bool first = true;
-    for (const auto &binding : dispatch.bindings) {
-      if (!first) {
-        fmt::print(", ");
+
+    for (std::size_t d = 0; d < implModel.dispatches.size(); ++d) {
+      const auto &dispatch = implModel.dispatches[d];
+      memory::string dispatchName;
+      memory::string sourcePath;
+      if (dispatch.meta != nullptr && dispatch.meta->name.has_value()) {
+        dispatchName = fmt::format("{}", *dispatch.meta->name);
+      } else {
+        dispatchName = fmt::format("unnamed-dispatch");
       }
-      first = false;
-      fmt::print("{}", binding.tensorId.index);
+      if (dispatch.meta != nullptr && dispatch.meta->sourcePath.has_value()) {
+        sourcePath = dispatch.meta->sourcePath.value().str();
+      } else {
+        sourcePath = "<unknown>";
+      }
+      fmt::println("\x1B[34m\x1B[1m{}\x1B[0m: (\x1B[4m{}\x1B[0m)", dispatchName,
+                   sourcePath);
+      fmt::print("\u2022 Binary-Size: {}B\n",
+                 dispatch.binary.spv.size() * sizeof(std::uint32_t));
+      fmt::print("\u2022 TensorBindings: [");
+      bool first = true;
+      for (const auto &binding : dispatch.bindings) {
+        if (!first) {
+          fmt::print(", ");
+        }
+        first = false;
+        fmt::print("{}", binding.tensorId.index);
+      }
+      fmt::println("]");
+      fmt::println("\u2022 PushConstants: ");
+      for (std::size_t p = 0; p < dispatch.pushConstants.size(); ++p) {
+        const auto &pushConstant = dispatch.pushConstants[p];
+        fmt::println("  - {}", pushConstant.to_string(symGraph, symbolNames));
+      }
     }
-    fmt::println("]");
-    fmt::println("\u2022 PushConstants: ");
-    for (std::size_t p = 0; p < dispatch.pushConstants.size(); ++p) {
-      const auto &pushConstant = dispatch.pushConstants[p];
-      fmt::println("  - {}", pushConstant.to_string(symGraph, symbolNames));
-    }
+    fmt::println("=> \x1B[35m\x1B[1m{}\x1B[0m: {}", "Output", output.index);
   }
-  fmt::println("=> \x1B[35m\x1B[1m{}\x1B[0m: {}", "Output", output.index);
 
   return implModel;
 }

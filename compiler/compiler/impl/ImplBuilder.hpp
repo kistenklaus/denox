@@ -132,15 +132,17 @@ public:
     }
   }
 
-  void compileAll() {
+  void compileAll(bool logging) {
     std::size_t n = m_compilationUnits.size();
     for (std::size_t c = 0; c < n; ++c) {
       auto &unit = m_compilationUnits[c];
-      std::size_t percentage = ((c + 1) * 100 + n - 1) / n;
-      fmt::println("[{:>3}%] \x1B[32m\x1B[1mBuilding SPIRV object\x1B[0m "
-                   "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
-                   percentage, unit.instance.getSourcePath().str(),
-                   unit.instance.hashPreamble());
+      if (logging) {
+        std::size_t percentage = ((c + 1) * 100 + n - 1) / n;
+        fmt::println("[{:>3}%] \x1B[32m\x1B[1mBuilding SPIRV object\x1B[0m "
+                     "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
+                     percentage, unit.instance.getSourcePath().str(),
+                     unit.instance.hashPreamble());
+      }
       ShaderBinary binary = *unit.instance.compile();
       m_impl->dispatches[unit.dispatchIndex].binary = std::move(binary);
     }

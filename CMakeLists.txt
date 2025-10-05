@@ -50,6 +50,8 @@ add_library(denox_compiler
   compiler/device_info/query/query_subgroup_properties.cpp
   compiler/device_info/query/create_query_instance.cpp
 
+  compiler/diag/summary.cpp
+
   compiler/dnx/serialize.cpp
 
   compiler/memory/dtype/dtype_reference.cpp
