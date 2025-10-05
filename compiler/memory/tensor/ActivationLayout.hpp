@@ -159,7 +159,7 @@ public:
   ActivationLayoutKind kind() const { return m_layout.kind(); }
 
   static memory::span<const ActivationLayout> supported() {
-    static constexpr ActivationLayout layouts[] = {HWC, CHWC8};
+    static constexpr ActivationLayout layouts[] = {HWC, CHW, CHWC8};
     return layouts;
   }
 

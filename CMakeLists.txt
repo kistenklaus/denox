@@ -51,6 +51,7 @@ add_library(denox_compiler
   compiler/device_info/query/create_query_instance.cpp
 
   compiler/diag/summary.cpp
+  compiler/diag/failed_to_realize.cpp
 
   compiler/dnx/serialize.cpp
 

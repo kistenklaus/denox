@@ -2,7 +2,8 @@
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/match.hpp"
 #include "algorithm/shortest_dag_hyperpath.hpp"
-#include "diag/logging.hpp"
+#include "compiler/impl/ComputeOpImpl.hpp"
+#include "diag/failed_to_realize.hpp"
 #include "heuristic/IHeuristic.hpp"
 #include "heuristic/MemoryHeuristic.hpp"
 #include "memory/container/vector.hpp"
@@ -20,11 +21,7 @@
 
 namespace denox::compiler {
 
-struct ComputeOpImpl {
-  const IShader *shader;
-  unsigned int pattern;
-  algorithm::ConstGraphMatch<TensorInstance, ComputeOp> match;
-};
+using ComputeOpImpl = impl::details::ComputeOpImpl;
 
 using SuperGraph = memory::AdjGraph<TensorInstance, ComputeOpImpl, float>;
 
@@ -123,8 +120,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
       algorithm::shortest_dag_hyperpath<TensorInstance, ComputeOpImpl, float>(
           constSupergraph, starts, ends);
   if (!opthyperpath.has_value()) {
-    DENOX_ERROR("Failed to implement model.");
-    std::terminate(); // <- TODO proper error handling please
+    compiler::diag::failed_to_realize(model, constSupergraph);
   }
   const memory::vector<memory::EdgeId> &hyperpath = *opthyperpath;
 
