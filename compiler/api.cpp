@@ -92,6 +92,18 @@ static memory::optional<memory::Dtype> parse_dtype(const DataType type) {
   denox::compiler::diag::unreachable();
 }
 
+static compiler::FeatureState parseFeatureState(FeatureState state) {
+  switch (state) {
+  case Require:
+    return compiler::FeatureState::Require;
+  case Enable:
+    return compiler::FeatureState::Enable;
+  case Disable:
+    return compiler::FeatureState::Disable;
+  }
+  compiler::diag::unreachable();
+}
+
 static compiler::TensorShapeDesc parse_shape(const Shape &shape) {
   compiler::TensorShapeDesc extent;
   if (shape.channels.name != nullptr) {
@@ -234,9 +246,13 @@ void compile(const char *cpath, const CompileOptions &options) {
     spirvDebugInfoLevel = compiler::ShaderDebugInfoLevel::Strip;
   }
 
+  compiler::Features features;
+  features.coopmat = parseFeatureState(options.features.coopmat);
+
   compiler::Options opt{
       .dnxVersion = dnxVersion,
       .srcType = srcType,
+      .features = features,
       .inputLayout = inputLayout,
       .inputType = inputType,
       .inputShape = inputShape,

@@ -1,4 +1,5 @@
 #include "shaders/conv/DirectConvShader.hpp"
+#include "Options.hpp"
 #include "diag/invalid_state.hpp"
 #include "diag/unreachable.hpp"
 #include "memory/dtype/dtype.hpp"
@@ -15,6 +16,19 @@ DirectConvShader::DirectConvShader(GlslCompiler *compiler,
     : m_compiler(compiler),
       m_enableConvReluFusion(options.fusionRules.enableConvReluFusion),
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize) {
+          
+  if (m_subgroupSize == 0) {
+    return;
+  }
+  if (options.features.coopmat == FeatureState::Disable) {
+    return;
+  }
+  // TODO: uncomment this!
+  // if (options.deviceInfo.coopmat.supported == false) {
+  //   return;
+  // }
+
+
   const auto tensorSupported = [](const TensorInstance &tensor) {
     if (tensor.type != memory::Dtype::F16) {
       return false;
@@ -25,9 +39,6 @@ DirectConvShader::DirectConvShader(GlslCompiler *compiler,
     }
     return true;
   };
-  if (m_subgroupSize == 0) {
-    return;
-  }
 
   {
     Pattern conv_pattern;

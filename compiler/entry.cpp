@@ -47,10 +47,10 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
     fmt::println("\x1B[32m\x1B[1m{:=^40}\x1B[0m", "Imported=Model");
     fmt::println("{}", model.to_string());
   }
-  if (options.inputLayout.supports(model.getInput().channels())) {
+  if (!options.inputLayout.supports(model.getInput().channels())) {
     compiler::diag::invalid_argument();
   }
-  if (options.outputLayout.supports(model.getOutput().channels())) {
+  if (!options.outputLayout.supports(model.getOutput().channels())) {
     compiler::diag::invalid_argument();
   }
 
