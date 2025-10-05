@@ -263,6 +263,7 @@ void compile(const char *cpath, const CompileOptions &options) {
       .fusionRules = fusionRules,
       .shaderDebugInfo = spirvDebugInfoLevel,
       .optimizeSpirv = options.spirvOptions.optimize,
+      .skipSpirvCompile = options.spirvOptions.skipCompilation,
       .cwd = cwd,
       .srcPath = path,
       .verbose = options.verbose,

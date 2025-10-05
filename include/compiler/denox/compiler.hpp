@@ -78,6 +78,7 @@ struct SpirvOptions {
   bool debugInfo = false;
   bool nonSemanticDebugInfo = false;
   bool optimize = true;
+  bool skipCompilation;
 };
 
 struct Device {

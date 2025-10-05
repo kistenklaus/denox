@@ -315,6 +315,12 @@ int main(int argc, char **argv) {
                "By default no optimization passes are performed.")
       ->group(spirvOptions);
 
+  options.spirvOptions.skipCompilation = false;
+  app.add_flag("--spirv-skip-compilation", options.spirvOptions.skipCompilation,
+      "Skip all shader compilation.")
+    ->group(spirvOptions);
+  
+
   std::string deviceInfo = "Target properties";
   std::optional<std::string> deviceName = std::nullopt;
   app.add_option(

@@ -197,7 +197,9 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
     implModel.outputs.emplace_back(out.channels, extent, output);
   }
 
-  impl.compileAll(!options.quite);
+  if (!options.skipSpirvCompile) {
+    impl.compileAll(!options.quite);
+  }
 
   if (options.verbose) {
     fmt::println("\n\x1B[32m\x1B[1m{:=^100}\x1B[0m", "Implemented=Schedule");

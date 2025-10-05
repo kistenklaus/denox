@@ -80,6 +80,7 @@ struct Options {
 
   ShaderDebugInfoLevel shaderDebugInfo;
   bool optimizeSpirv;
+  bool skipSpirvCompile;
 
   io::Path cwd;
   memory::optional<io::Path> srcPath;
