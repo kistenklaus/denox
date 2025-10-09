@@ -79,11 +79,13 @@ prog = dnx.compile_from_torch(
 
     input_type="f16",
     input_layout="HWC",
+    input_shape="H:W:C",
 
     output_type="f16",
     output_layout="HWC",
 
     summarize=True,
+    verbose=True,
 
 )
 

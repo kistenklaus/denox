@@ -470,8 +470,8 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     flatbuffers::Offset<void> value;
     ScalarSource value_type;
     if (sym.isConstant()) {
+
       value_type = ScalarSource_literal;
-      auto bytes = fbb.CreateVector<uint8_t>(nullptr, 1);
       std::uint64_t v = static_cast<std::uint64_t>(sym.constant());
       value = CreateScalarLiteral(
                   fbb, ScalarType_U32,
