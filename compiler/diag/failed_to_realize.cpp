@@ -24,7 +24,6 @@ void failed_to_realize(const OpModel &opModel,
     memory::NodeId nid = stack.back();
     stack.pop_back();
     auto tensor = supergraph.get(nid);
-    fmt::println("Reached value {}", tensor.valueId());
     valuesReachable[tensor.valueId()] = true;
 
     if (visited[*nid]) {
@@ -46,7 +45,6 @@ void failed_to_realize(const OpModel &opModel,
       break;
     }
   }
-  fmt::println("v = {}", v);
   memory::vector<memory::NodeId> notreached;
   for (std::uint64_t n = 0; n < opModel.graph.nodeCount(); ++n) {
     memory::NodeId nid{n};

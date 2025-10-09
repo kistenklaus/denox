@@ -49,7 +49,7 @@ enum DataType {
 };
 
 struct Extent {
-  const char* name;
+  const char *name;
   unsigned int value;
 };
 
@@ -105,13 +105,22 @@ struct CompileOptions {
   const char *cwd = nullptr;
   bool verbose;
   bool quite;
+  bool summarize;
   bool externally_managed_glslang_runtime = false;
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
   ExternallyManagedVulkanContext *externally_managed_vulkan_context = nullptr;
 #endif
 };
 
-void compile(const char *path, const CompileOptions &options);
-void compile(void *data, std::size_t n, const CompileOptions &options);
+struct CompilationResult {
+  const void *dnx;
+  size_t dnxSize;
+  const char *message;
+};
+
+int compile(const char *path, const CompileOptions *options,
+            CompilationResult *result);
+
+void destroy_compilation_result(CompilationResult* result); 
 
 } // namespace denox

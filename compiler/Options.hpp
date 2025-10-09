@@ -87,6 +87,7 @@ struct Options {
 
   bool verbose;
   bool quite;
+  bool summarize;
 };
 
 } // namespace denox::compiler

@@ -3,7 +3,9 @@
 #include <CLI/CLI.hpp>
 #include <cctype>
 #include <cstring>
+#include <filesystem>
 #include <fmt/format.h>
+#include <fstream>
 #include <optional>
 #include <regex>
 #include <stdexcept>
@@ -220,7 +222,13 @@ int main(int argc, char **argv) {
   app.add_flag("--verbose,-v", verbose, "Print verbose log messages");
   bool quite = false;
   app.add_flag("--quite,-q", quite,
-               "Disable all logging to the console. Errors are still shown.");
+               "Disable all logging to the console. Errors are still shown");
+  bool summarize = false;
+  app.add_flag("--summarize", summarize,
+               "Prints a summary of the execution plan");
+  std::optional<std::string> artifactPath;
+  app.add_option("-o", artifactPath, "Path to the produced dnx artifact.")
+      ->type_name("");
 
   options.dnxVersion = 0;
 
@@ -317,9 +325,8 @@ int main(int argc, char **argv) {
 
   options.spirvOptions.skipCompilation = false;
   app.add_flag("--spirv-skip-compilation", options.spirvOptions.skipCompilation,
-      "Skip all shader compilation.")
-    ->group(spirvOptions);
-  
+               "Skip all shader compilation.")
+      ->group(spirvOptions);
 
   std::string deviceInfo = "Target properties";
   std::optional<std::string> deviceName = std::nullopt;
@@ -436,12 +443,33 @@ int main(int argc, char **argv) {
 
   options.verbose = verbose;
   options.quite = quite;
+  options.summarize = summarize;
 
   if (showVersion) {
     fmt::println("denox version: 0.0.0");
   }
   if (modelFile.has_value()) {
-    denox::compile(modelFile->data(), options);
+    denox::CompilationResult result;
+    if (denox::compile(modelFile->data(), &options, &result) < 0) {
+      fmt::println("\x1B[31m[Error:]\x1B[0m {}", result.message);
+    } else if (!options.spirvOptions.skipCompilation) {
+      std::filesystem::path opath;
+      if (artifactPath.has_value()) {
+        opath = std::filesystem::current_path() / artifactPath.value();
+      } else {
+        opath = std::filesystem::path(modelFile.value());
+        opath.replace_extension("dnx");
+      }
+      auto fstream = std::fstream(
+          opath.string(), std::ios::out | std::ios::binary | std::ios::trunc);
+      if (!fstream.is_open()) {
+        fmt::println("\x1B[31m[Error:]\x1B[0m Failed to write dnx to \"{}\"",
+                     opath.string());
+      }
+      fstream.write(static_cast<const char *>(result.dnx), result.dnxSize);
+      fstream.close();
+    }
+    denox::destroy_compilation_result(&result);
   }
   if (!showVersion && !modelFile.has_value()) {
     fmt::println("no input model provided");
