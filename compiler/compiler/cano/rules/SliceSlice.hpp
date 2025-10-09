@@ -1,71 +1,49 @@
 #pragma once
 
-#include "algorithm/pattern_matching/LinkedGraphMatch.hpp"
+#include "algorithm/pattern_matching/EdgePattern.hpp"
+#include "algorithm/pattern_matching/NodePattern.hpp"
 #include "compiler/cano/rules/IFusionRule.hpp"
-#include "diag/logging.hpp"
-#include "memory/container/optional.hpp"
 #include "model/ComputeOp.hpp"
-#include "symbolic/SymGraph.hpp"
 #include <cassert>
 namespace denox::compiler::cano {
 
 class SliceSlice : public IFusionRule {
-private:
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
-  struct StaticSliceSliceSingleton {
+public:
+  SliceSlice() {
     Pattern pattern;
-    Pattern::NP A;
-    Pattern::EP AB;
-    Pattern::NP B;
-    Pattern::EP BC;
-    Pattern::NP C;
-  };
+    m_handles.A = m_handles.pattern.matchNode();
+    m_handles.AB = m_handles.A->matchOutgoing();
+    m_handles.B = m_handles.AB->matchDst();
+    m_handles.BC = m_handles.B->matchOutgoing();
+    m_handles.C = m_handles.BC->matchDst();
 
-  static const StaticSliceSliceSingleton &getInstance() {
-    static StaticSliceSliceSingleton singleton = []() {
-      Pattern pattern;
-      auto A = pattern.matchNode();
-      auto AB = A->matchOutgoing();
-      auto B = AB->matchDst();
-      auto BC = B->matchOutgoing();
-      auto C = BC->matchDst();
+    m_handles.AB->matchRank(1);
+    m_handles.BC->matchRank(1);
 
-      AB->matchRank(1);
-      BC->matchRank(1);
+    m_handles.B->matchOutDeg(1);
+    m_handles.B->matchInDeg(1);
 
-      B->matchOutDeg(1);
-      B->matchInDeg(1);
+    static auto isSliceOp = [](const ComputeOp &op) {
+      return op.tag() == ComputeOpTag::Slice;
+    };
 
-      static auto isSliceOp = [](const ComputeOp &op) {
-        return op.tag() == ComputeOpTag::Slice;
-      };
-
-      AB->matchValue(isSliceOp);
-      BC->matchValue(isSliceOp);
-
-      return StaticSliceSliceSingleton{
-          //
-          .pattern = std::move(pattern), .A = std::move(A),
-          .AB = std::move(AB),           .B = std::move(B),
-          .BC = std::move(BC),           .C = std::move(C)};
-    }();
-    return singleton;
+    m_handles.AB->matchValue(isSliceOp);
+    m_handles.BC->matchValue(isSliceOp);
   }
 
-public:
   const algorithm::GraphPattern<ComputeTensor, ComputeOp> &
   pattern() final override {
-    return getInstance().pattern;
+    return m_handles.pattern;
   }
 
   virtual void apply(const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp>
                          &match) final override {
-    const auto &self = getInstance();
+    const auto &handles = m_handles;
 
-    auto nodeA = match[self.A];
-    auto nodeC = match[self.C];
-    auto edgeAB = match[self.AB];
-    auto edgeBC = match[self.BC];
+    auto nodeA = match[handles.A];
+    auto nodeC = match[handles.C];
+    auto edgeAB = match[handles.AB];
+    auto edgeBC = match[handles.BC];
 
     nodeA->outgoing().insert_after(edgeAB.nextOutgoingIterator(), nodeC,
                                    edgeBC.value().slice());
@@ -73,6 +51,16 @@ public:
   }
 
 private:
+  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  struct Handles {
+    Pattern pattern;
+    Pattern::NP A;
+    Pattern::EP AB;
+    Pattern::NP B;
+    Pattern::EP BC;
+    Pattern::NP C;
+  };
+  Handles m_handles;
 };
 
 } // namespace denox::compiler::cano
