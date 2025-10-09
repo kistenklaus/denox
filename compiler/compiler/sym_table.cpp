@@ -8,41 +8,29 @@ SymTable sym_table(const Model &model, const Options &options) {
 
   NamedExtent inputExtentNames = model.getInputExtentNames();
   if (inputExtentNames.channels.has_value()) {
-    fmt::println("IN-CH: {}", inputExtentNames.channels.value());
-  } else {
-    fmt::println("IN-CH: ?");
-  }
+    table.symbolNames.emplace_back(Sym::Const(model.getInput().channels()), inputExtentNames.channels.value());
+  } 
 
   if (inputExtentNames.width.has_value()) {
-    fmt::println("IN-W: {}", inputExtentNames.width.value());
-  } else {
-    fmt::println("IN-W: ?");
-  }
+    table.symbolNames.emplace_back(model.getInput().width().resolve(), inputExtentNames.width.value());
+  } 
 
   if (inputExtentNames.height.has_value()) {
-    fmt::println("IN-H: {}", inputExtentNames.height.value());
-  } else {
-    fmt::println("IN-H: ?");
-  }
+    table.symbolNames.emplace_back(model.getOutput().height().resolve(), inputExtentNames.height.value());
+  } 
 
   NamedExtent outputExtentNames = model.getOutputExtentNames();
   if (outputExtentNames.channels.has_value()) {
-    fmt::println("OUT-CH: {}", outputExtentNames.channels.value());
-  } else {
-    fmt::println("OUT-CH: ?");
-  }
+    table.symbolNames.emplace_back(Sym::Const(model.getOutput().channels()), outputExtentNames.channels.value());
+  } 
 
   if (outputExtentNames.width.has_value()) {
-    fmt::println("OUT-W: {}", outputExtentNames.width.value());
-  } else {
-    fmt::println("OUT-W: ?");
-  }
+    table.symbolNames.emplace_back(model.getOutput().width().resolve(), outputExtentNames.width.value());
+  } 
 
   if (outputExtentNames.height.has_value()) {
-    fmt::println("OUT-H: {}", outputExtentNames.height.value());
-  } else {
-    fmt::println("OUT-H: ?");
-  }
+    table.symbolNames.emplace_back(model.getOutput().height().resolve(), outputExtentNames.height.value());
+  } 
 
   return table;
 }

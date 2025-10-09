@@ -5,10 +5,21 @@
 
 namespace denox::compiler {
 
-std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
+std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
+                                                      SymTable &symTable) {
 
   memory::vector<Sym::symbol> symbols;
   memory::dynamic_bitset symbolAdded(model.symGraph.symbolCount(), false);
+
+  for (const auto &[sym, name] : symTable.symbolNames) {
+    if (sym.isSymbolic()) {
+      Sym::symbol s = sym.sym();
+      if (!symbolAdded[s]) {
+        symbols.push_back(s);
+        symbolAdded[s] = true;
+      }
+    }
+  }
 
   for (const auto &dispatch : model.dispatches) {
     for (const PushConstant &pushConstant : dispatch.pushConstants) {
@@ -35,7 +46,7 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
     }
   }
 
-  for (const auto& input : model.inputs) {
+  for (const auto &input : model.inputs) {
     if (input.extent.x.isSymbolic() && !symbolAdded[input.extent.x.symbol()]) {
       symbols.push_back(input.extent.x.symbol());
       symbolAdded[input.extent.x.symbol()] = true;
@@ -47,19 +58,25 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
     }
   }
 
-  for (const auto& output : model.outputs) {
-    if (output.extent.x.isSymbolic() && !symbolAdded[output.extent.x.symbol()]) {
+  for (const auto &output : model.outputs) {
+    if (output.extent.x.isSymbolic() &&
+        !symbolAdded[output.extent.x.symbol()]) {
       symbols.push_back(output.extent.x.symbol());
       symbolAdded[output.extent.x.symbol()] = true;
     }
 
-    if (output.extent.y.isSymbolic() && !symbolAdded[output.extent.y.symbol()]) {
+    if (output.extent.y.isSymbolic() &&
+        !symbolAdded[output.extent.y.symbol()]) {
       symbols.push_back(output.extent.y.symbol());
       symbolAdded[output.extent.y.symbol()] = true;
     }
   }
 
   const auto [symIR, remap] = model.symGraph.compile(symbols);
+
+  for (auto &[sym, name] : symTable.symbolNames) {
+    sym = remap[sym];
+  }
 
   for (auto &dispatch : model.dispatches) {
     for (auto &pushConstant : dispatch.pushConstants) {
@@ -96,11 +113,11 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model) {
     tensor.offset = remap[tensor.offset];
   }
 
-  for (auto& input : model.inputs) {
+  for (auto &input : model.inputs) {
     input.extent.x = sym(remap[input.extent.x.asSym()]);
     input.extent.y = sym(remap[input.extent.y.asSym()]);
   }
-  for (auto& output : model.outputs) {
+  for (auto &output : model.outputs) {
     output.extent.x = sym(remap[output.extent.x.asSym()]);
     output.extent.y = sym(remap[output.extent.y.asSym()]);
   }

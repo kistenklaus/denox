@@ -155,6 +155,11 @@ enum RuntimeFeature:uint {
   CooperativeMatrix,
 }
 
+table ValueName {
+  name: string;
+  value: ScalarSource;
+}
+
 table Model {
   version: Version;
   info:ModelInfo; // optional.
@@ -166,6 +171,7 @@ table Model {
   initializers:[BufferInitializer];
   inputs:[Input];
   outputs:[Output];
+  value_names:[ValueName];
 }
 
 

@@ -1,5 +1,6 @@
 #include "dnx/serialize.hpp"
 #include "algorithm/align_up.hpp"
+#include "compiler/ir/SymTable.hpp"
 #include "diag/invalid_state.hpp"
 #include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
@@ -10,7 +11,8 @@
 namespace denox::dnx {
 
 flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
-                                      const compiler::SymIR &symIR) {
+                                      const compiler::SymIR &symIR,
+                                      const compiler::SymTable &symTable) {
   flatbuffers::FlatBufferBuilder fbb(1 << 16);
 
   // TODO: add_info.
@@ -462,6 +464,30 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
 
   auto outputsVec = fbb.CreateVector(outputs);
 
+  memory::vector<flatbuffers::Offset<denox::dnx::ValueName>> valueNames;
+  for (const auto &[sym, name] : symTable.symbolNames) {
+    auto nameStr = fbb.CreateString(name);
+    flatbuffers::Offset<void> value;
+    ScalarSource value_type;
+    if (sym.isConstant()) {
+      value_type = ScalarSource_literal;
+      auto bytes = fbb.CreateVector<uint8_t>(nullptr, 1);
+      std::uint64_t v = static_cast<std::uint64_t>(sym.constant());
+      value = CreateScalarLiteral(
+                  fbb, ScalarType_U32,
+                  fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
+                                   sizeof(std::uint64_t)))
+                  .Union();
+    } else {
+      value_type = ScalarSource_symbolic;
+      value = CreateSymRef(fbb, static_cast<std::uint32_t>(sym.sym())).Union();
+    }
+
+    valueNames.push_back(CreateValueName(fbb, nameStr, value_type, value));
+  }
+
+  auto valueNamesVec = fbb.CreateVector(valueNames);
+
   ModelBuilder mb(fbb);
   mb.add_version(Version::Version_DNX_VERSION_1_0);
   mb.add_tensors(tensorsVec);
@@ -472,6 +498,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   mb.add_initializers(initializersVec);
   mb.add_inputs(inputsVec);
   mb.add_outputs(outputsVec);
+  mb.add_value_names(valueNamesVec);
 
   auto model = mb.Finish();
 
