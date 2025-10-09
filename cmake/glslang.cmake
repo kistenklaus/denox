@@ -66,7 +66,7 @@ set(ENABLE_HLSL             OFF  CACHE BOOL "" FORCE)  # switch OFF if you don't
 set(ENABLE_OPT              OFF CACHE BOOL "" FORCE)  # keep OFF to avoid pulling SPIRV-Tools optimizer
 set(SKIP_GLSLANG_INSTALL     ON CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS        OFF CACHE BOOL "" FORCE)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE BUILD_PIL)
 
 set(_GLSLANG_URL "https://github.com/KhronosGroup/glslang/archive/refs/tags/${DENOX_GLSLANG_VERSION}.tar.gz")
 

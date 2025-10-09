@@ -1,0 +1,21 @@
+[build-system]
+requires = [
+  "scikit-build-core>=0.10.0",
+  "pybind11>=2.12"
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pydenox"
+version = "0.0.1"
+description = "Realtime image denoising export"
+requires-python = ">=3.9"
+
+[tool.scikit-build]
+wheel.expand-macos-universal-tags = true
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["bindings/python/denox"]
+
+[tool.scikit-build.cmake.define]
+BUILD_PYTHON_BINDING = true
+CMAKE_EXPORT_COMPILE_COMMANDS = false

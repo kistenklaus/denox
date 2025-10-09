@@ -1,9 +1,18 @@
 cmake_minimum_required(VERSION 3.24)
 project(denox VERSION 0.1.0 LANGUAGES C CXX)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS true)
-
 include(cmake/colorful.cmake)
+
+option(BUILD_PYTHON_BINDING "Build tests" OFF)
+option(BUILD_TESTING "Build tests" ON)
+
+option(DENOX_ENABLE_STRICT_WARNINGS "Enables most warning flags" ON)
+
+option(DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT 
+  "Exposes vulkan as a public dependency and allows passing a vulkan instance and device, which will be used for device queries" 
+  ON)
+
+set(BUILD_PIL BUILD_PYTHON_BINDING)
 
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "") 
   set(CMAKE_BUILD_TYPE "Release")
@@ -173,7 +182,7 @@ target_compile_definitions(denox_compiler
 target_compile_features(denox_compiler PUBLIC cxx_std_20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
-set_target_properties(denox_compiler PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(denox_compiler PROPERTIES POSITION_INDEPENDENT_CODE BUILD_PIL)
 
 target_include_directories(denox_compiler
   PUBLIC
@@ -183,9 +192,6 @@ target_include_directories(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/compiler
 )
 
-option(DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT 
-  "Exposes vulkan as a public dependency and allows passing a vulkan instance and device, which will be used for device queries" 
-  ON)
 
 target_link_libraries(denox_compiler
   PUBLIC 
@@ -225,7 +231,6 @@ target_link_libraries(denox
       
 )
 
-option(DENOX_ENABLE_STRICT_WARNINGS "Enables most warning flags" ON)
 if (DENOX_ENABLE_STRICT_WARNINGS)
   denox_enable_strict_warnings(denox)
   denox_enable_strict_warnings(denox_compiler)
@@ -233,7 +238,6 @@ endif()
 
 # ================= Testing ======================
 
-option(BUILD_TESTING "Build tests" ON)
 if (BUILD_TESTING)
   include(cmake/googletest.cmake)
 
@@ -284,3 +288,27 @@ if (BUILD_TESTING)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   )
 endif()
+
+if (BUILD_PYTHON_BINDING)
+  include(cmake/pybind11.cmake)
+
+  pybind11_add_module(_denox MODULE bindings/python/pydenox/binding.cpp)
+  target_link_libraries(_denox PRIVATE denox::compiler)
+  target_compile_definitions(_denox PRIVATE PYBIND11_DETAILED_ERROR_MESSAGES)
+
+  install(TARGETS _denox DESTINATION pydenox)
+
+  if(APPLE)
+    set_target_properties(_denox PROPERTIES 
+      BUILD_RPATH "@loader_path" 
+      INSTALL_RPATH "@loader_path"
+    )
+  elseif(UNIX)
+    set_target_properties(_denox PROPERTIES 
+      BUILD_RPATH "$ORIGIN" 
+      INSTALL_RPATH "$ORIGIN"
+    )
+  endif()
+
+endif()
+
