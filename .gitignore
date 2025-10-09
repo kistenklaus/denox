@@ -40,4 +40,4 @@ cmake-debug-build
 
 *.onnx
 
-**/**__pycache__/**
+**/**__pycache__/
