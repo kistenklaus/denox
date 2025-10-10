@@ -71,22 +71,28 @@ model = Net().eval()
 
 example = torch.randn(1, 3, 64, 64, dtype=torch.float16)
 
-prog = dnx.compile_from_torch(
-    model, 
-    (torch.randn(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
-    dynamic_shapes={"I": {2 : torch.export.Dim.DYNAMIC, 3 : torch.export.Dim.DYNAMIC}},
-    target_env="vulkan1.3",
+# prog = dnx.compile_from_torch(
+#     model, 
+#     (torch.randn(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
+#     dynamic_shapes={"I": {2 : torch.export.Dim.DYNAMIC, 3 : torch.export.Dim.DYNAMIC}},
+#     target_env="vulkan1.3",
+#
+#     input_type="f16",
+#     input_layout="HWC",
+#     input_shape="H:W:C",
+#
+#     output_type="f16",
+#     output_layout="HWC",
+#
+#     summarize=True,
+#     verbose=True,
+#
+# )
+#
+# prog.save("net.dnx")
 
-    input_type="f16",
-    input_layout="HWC",
-    input_shape="H:W:C",
 
-    output_type="f16",
-    output_layout="HWC",
-
-    summarize=True,
-    verbose=True,
-
-)
-
-prog.save("net.dnx")
+prog = dnx.compile("net.onnx",
+                   summarize=True,
+                   input_shape=("H", "W", "C")
+                   );
