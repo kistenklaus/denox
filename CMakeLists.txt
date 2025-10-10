@@ -36,7 +36,7 @@ include(cmake/dnx.cmake)
 
 include(cmake/warnings.cmake)
 
-add_library(denox_compiler 
+add_library(denox_compiler EXCLUDE_FROM_ALL
 
   compiler/algorithm/binary_op_permutations.cpp
 
@@ -166,20 +166,6 @@ add_library(denox_compiler
 
 
 target_compile_features(denox_compiler PUBLIC cxx_std_20)
-add_library(denox::compiler ALIAS denox_compiler)
-add_library(denox::denox ALIAS denox_compiler)
-
-
-target_compile_definitions(denox_compiler 
-  PUBLIC
-    DENOX_VERSION=0
-  PRIVATE 
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
-    SPDLOG_NO_ATOMIC_LEVELS
-    SPDLOG_DISABLE_DEFAULT_LOGGER
-  )
-
-target_compile_features(denox_compiler PUBLIC cxx_std_20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(denox_compiler PROPERTIES POSITION_INDEPENDENT_CODE BUILD_PIL)
@@ -194,7 +180,7 @@ target_include_directories(denox_compiler
 
 
 target_link_libraries(denox_compiler
-  PUBLIC 
+  PRIVATE 
     denox::fmt
     denox::spdlog
     denox::onnx
@@ -202,10 +188,65 @@ target_link_libraries(denox_compiler
     denox::vulkan
     denox::spirv-tools
     denox::dnx
-  PRIVATE
     denox::glslang
 
 )
+
+target_compile_definitions(denox_compiler 
+  PUBLIC
+    DENOX_VERSION=0
+  PRIVATE 
+    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
+    SPDLOG_NO_ATOMIC_LEVELS
+    SPDLOG_DISABLE_DEFAULT_LOGGER
+)
+
+target_compile_features(denox_compiler PUBLIC cxx_std_20)
+add_library(denox::compiler ALIAS denox_compiler)
+
+
+
+add_library(denox_runtime EXCLUDE_FROM_ALL
+  runtime/api.cpp
+  runtime/context.cpp
+  runtime/model.cpp
+  runtime/runtime.cpp
+)
+
+target_include_directories(denox_runtime PUBLIC
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/runtime> 
+    $<INSTALL_INTERFACE:include/runtime>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime
+)
+
+target_compile_definitions(denox_runtime 
+  PUBLIC
+    DENOX_VERSION=0
+)
+
+target_link_libraries(denox_runtime 
+  PRIVATE
+    denox::fmt
+    denox::vulkan
+    denox::dnx
+)
+    
+  
+
+target_compile_features(denox_runtime PUBLIC cxx_std_20)
+
+add_library(denox::runtime ALIAS denox_runtime)
+
+
+## Super temporary!!
+
+add_executable(sandbox EXCLUDE_FROM_ALL
+  sandbox/main.cpp
+)
+target_link_libraries(sandbox PRIVATE denox::runtime denox::fmt)
+
 
 if (DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT)
   target_link_libraries(denox_compiler PUBLIC denox::vulkan)

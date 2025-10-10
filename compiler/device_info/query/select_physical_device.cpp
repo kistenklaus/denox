@@ -36,8 +36,9 @@ static bool glob_match_ci(std::string pat, std::string text) {
   return p == pat.size();
 }
 
-vk::PhysicalDevice select_physical_device(vk::Instance instance,
-                                          const memory::optional<memory::string> &deviceName) {
+vk::PhysicalDevice
+select_physical_device(vk::Instance instance,
+                       const memory::optional<memory::string> &deviceName) {
   std::vector<vk::PhysicalDevice> devices = instance.enumeratePhysicalDevices();
   if (devices.empty()) {
     DENOX_ERROR("Failed to select physical device: No Vulkan device found.");
