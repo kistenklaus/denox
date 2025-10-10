@@ -72,6 +72,10 @@ void BasicActivationShader::implement(
   shader.define("SG_SIZE", m_subgroupSize);
   assert(in.channels == out.channels);
   shader.define("CH", in.channels);
+  shader.define("in_atype", "float16_t");
+  shader.define("IN_ATYPE_SIZE", 2);
+  shader.define("out_atype", "float16_t");
+  shader.define("OUT_ATYPE_SIZE", 2);
 
   switch (acti.func) {
   case ActivationFunction::ReLU:

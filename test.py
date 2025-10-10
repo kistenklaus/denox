@@ -71,28 +71,58 @@ model = Net().eval()
 
 example = torch.randn(1, 3, 64, 64, dtype=torch.float16)
 
-# prog = dnx.compile_from_torch(
-#     model, 
-#     (torch.randn(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
-#     dynamic_shapes={"I": {2 : torch.export.Dim.DYNAMIC, 3 : torch.export.Dim.DYNAMIC}},
-#     target_env="vulkan1.3",
-#
-#     input_type="f16",
-#     input_layout="HWC",
-#     input_shape="H:W:C",
-#
-#     output_type="f16",
-#     output_layout="HWC",
-#
-#     summarize=True,
-#     verbose=True,
-#
-# )
-#
-# prog.save("net.dnx")
+prog = dnx.compile_from_torch(
+    model, 
+    (torch.randn(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
+    dynamic_shapes={"I": {2 : torch.export.Dim.DYNAMIC, 3 : torch.export.Dim.DYNAMIC}},
+    
+    ## Specifies the target env.
+    ## The target env is primarily used to query device information,
+    ## where query locations core / extentsion, might depend on the api version.
+    target_env="vulkan1.3",
 
+    ## GPU selector based on device name, otherwise 
+    ## we just select the the discrete GPU.
+    # device="*RTX*", 
 
-prog = dnx.compile("net.onnx",
-                   summarize=True,
-                   input_shape=("H", "W", "C")
-                   );
+    ## Input / Output description:
+    ## - type: overwrites torches type,
+    ##         if not specified we just use what is specified 
+    ##         in the torch model.
+    ## - layout: forces the input / output storage layout to be HWC, CHW or CHWC8.
+    ## - shape: Gives C-style names to the dimensions of the input / outputs.
+    ##          For example H:W:C means call the vertical extent H, the horizontal W
+    ##          and the amount of channels C.
+    ##          Any dimension with a torch.Dim.DYNAMIC extent, may be specified explicitly.
+    ##          For example H=1920:W=1080,C
+    ##          For any dimension with a static extent, you may specify a extent, but this will
+    ##          never modify the underlying network. So C=3 would be allowed, but C=4 would fail,
+    ##          during compilation.
+    ## - storage: Specifies the underlying storage, currently we only support storage-buffers (i.e. SSBO)
+    input_type="f16",    
+    input_layout="HWC",  
+    input_shape="H:W:C", 
+    input_storage="SSBO",
+    output_type="f16",
+    output_layout="HWC",
+
+    ## Feature toggles: (require, enable or disable)
+    coopmat = "enable", 
+    fusion = "enable",
+    memory_concat = "enable",
+
+    ## SPIRV-options:
+    spirv_debug_info=True,
+    spirv_non_semantic_debug_info=True,
+    spirv_optimize=False,
+    
+    ## Disables all logging
+    quiet=False,
+    ## Prints a summary after compliation.
+    summarize=True,
+    ## Print a bunch of debug stuff, which may be interessting for debugging.
+    verbose=False,
+)
+
+prog.save("net.dnx")
+

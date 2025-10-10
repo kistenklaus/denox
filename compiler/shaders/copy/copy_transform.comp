@@ -67,7 +67,6 @@ void main() {
     #elif defined(IN_LAYOUT_HWC8) && defined(OUT_LAYOUT_HWC8)
     const uint TILE_C8 = TILE_C / 8;
     const uint INVOC_C8 = INVOC_C / 8;
-    const uint CH8 = CH / 8;
     const uint IN_CH8 = IN_CH / 8;
     const uint OUT_CH8 = OUT_CH / 8;
     const uint IN_CH_OFFSET8 = IN_CH_OFFSET / 8;
@@ -106,7 +105,6 @@ void main() {
 
     const uint TILE_C8 = TILE_C / 8;
     const uint INVOC_C8 = INVOC_C / 8;
-    const uint CH8 = CH / 8;
     const uint IN_CH8 = IN_CH / 8;
     const uint OUT_CH8 = OUT_CH / 8;
     const uint IN_CH_OFFSET8 = IN_CH_OFFSET / 8;

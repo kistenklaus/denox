@@ -75,12 +75,12 @@ CompilationResult GlslCompilerInstance::compile() {
   if (!m_shader->parse(&buildInResource, 450, false, messages)) {
     return CompilationError{
         CompilationStage::GlslangParse,
-        fmt::format("[glslang-parse]: \n{}", m_shader->getInfoLog())};
+        fmt::format("[glslang-parse]: {}\n{}", m_sourcePath.str(), m_shader->getInfoLog())};
   }
   {
     const char *w1 = m_shader->getInfoLog();
     if (w1 && *w1) { // <- check if empty string.
-      DENOX_WARN("[glslang-parse] {}", w1);
+      DENOX_WARN("[glslang-parse]: {}\n{}", m_sourcePath.str(), w1);
     }
   }
 
@@ -93,7 +93,7 @@ CompilationResult GlslCompilerInstance::compile() {
   {
     const char *w1 = program.getInfoLog();
     if (w1 && *w1) {
-      DENOX_WARN("[glslang-link]: {}", w1);
+      DENOX_WARN("[glslang-link]: {}\n{}", m_sourcePath.str(), w1);
     }
   }
 
@@ -140,7 +140,7 @@ CompilationResult GlslCompilerInstance::compile() {
   glslang::GlslangToSpv(*intermediate, spirv, &logger, &spvOptions);
   memory::string glslangSpvLog = logger.getAllMessages();
   if (!glslangSpvLog.empty()) {
-    DENOX_WARN("[glslang-spirv] {}", glslangSpvLog);
+    DENOX_WARN("[glslang-spirv]: {}\n{}", m_sourcePath.str(), glslangSpvLog);
   }
 
   //  =============SPIRV-TOOLS-VALIDATION==============
@@ -277,7 +277,7 @@ CompilationResult GlslCompilerInstance::compile() {
   }
 
   if (!spvLog.empty()) {
-    DENOX_WARN("[spv-val]: {}", spvLog);
+    DENOX_WARN("[spv-val]: {}\n{}", m_sourcePath.str(), spvLog);
   }
   spvLog.clear();
 
