@@ -1,5 +1,6 @@
 #pragma once
 
+#include "algorithm/hash_combine.hpp"
 #include "io/fs/Path.hpp"
 #include "memory/container/string.hpp"
 #include "memory/container/string_view.hpp"
@@ -55,7 +56,8 @@ public:
 
   std::size_t hashPreamble() const {
     std::size_t preambleHash = std::hash<memory::string>{}(m_preamble);
-    return preambleHash;
+    std::size_t sourcePathHash = std::hash<memory::string>{}(m_sourcePath.str());
+    return algorithm::hash_combine(preambleHash, sourcePathHash);
   }
 
 private:
