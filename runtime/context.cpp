@@ -369,8 +369,11 @@ Context::Context(const char *deviceName)
         }
         if (std::strcmp(ext.extensionName, "VK_KHR_buffer_device_address") ==
             0) {
-          extentions.push_back("VK_KHR_buffer_device_address");
-          bufferDeviceAddress = true;
+          // NOTE: Maybe in some day in the future it would be nice to play around with this
+          // because it can probably avoid the overhead of switching pipeline layouts
+          // between dispatches as well as improve descriptor update perf.
+          // extentions.push_back("VK_KHR_buffer_device_address");
+          // bufferDeviceAddress = true;
         }
         if (std::strcmp(ext.extensionName, "VK_EXT_memory_priority") == 0) {
           extentions.push_back("VK_EXT_memory_priority");
@@ -438,7 +441,8 @@ Context::Context(const char *deviceName)
       vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT;
     }
     if (amdDeviceCoherentMemory) {
-      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_AMD_DEVICE_COHERENT_MEMORY_BIT;
+      vmaCreateInfo.flags |=
+          VMA_ALLOCATOR_CREATE_AMD_DEVICE_COHERENT_MEMORY_BIT;
     }
     if (externalMemoryWin32) {
       vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_EXTERNAL_MEMORY_WIN32_BIT;
@@ -454,6 +458,20 @@ Context::Context(const char *deviceName)
       throw std::runtime_error("Failed to create vulkan memory allocator");
     }
   }
+
+  // VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+  // bufferInfo.size = 65536;
+  // bufferInfo.usage =
+  //     VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+  // VmaAllocationCreateInfo allocInfo = {};
+  // allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+  //
+  // VkBuffer buffer;
+  // VmaAllocation allocation;
+  // vmaCreateBuffer(m_vma, &bufferInfo, &allocInfo, &buffer, &allocation,
+  //                 nullptr);
+  //
+  // vmaDestroyBuffer(m_vma, buffer, allocation);
 }
 
 Context::~Context() {
