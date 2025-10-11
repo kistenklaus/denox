@@ -211,7 +211,7 @@ add_library(denox_runtime EXCLUDE_FROM_ALL
   runtime/api.cpp
   runtime/context.cpp
   runtime/model.cpp
-  runtime/runtime.cpp
+  runtime/vma_impl.cpp
 )
 
 target_include_directories(denox_runtime PUBLIC

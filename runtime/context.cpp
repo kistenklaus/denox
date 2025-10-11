@@ -1,4 +1,5 @@
 #include "context.hpp"
+#include "vk_mem_alloc.h"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -7,6 +8,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+#include <vma.hpp>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
@@ -95,77 +97,6 @@ static bool checkLayerSupport(const char *layerName) {
              }) != layers.end();
 }
 
-static std::pair<VkInstance, VkDebugUtilsMessengerEXT> createInstance() {
-  VkApplicationInfo appInfo;
-  appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  appInfo.pNext = nullptr;
-#ifdef VK_API_VERSION_1_4
-  appInfo.apiVersion = VK_API_VERSION_1_4;
-#elif defined(VK_API_VERSION_1_3)
-  appInfo.apiVersion = VK_API_VERSION_1_3;
-#else
-  appInfo.apiVersion = VK_API_VERSION_1_1;
-#endif
-  appInfo.applicationVersion = DENOX_VERSION;
-  appInfo.pApplicationName = "denox-runtime";
-  appInfo.engineVersion = DENOX_VERSION;
-  appInfo.pEngineName = "denox";
-  VkInstanceCreateInfo createInfo;
-  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  createInfo.pNext = nullptr;
-  createInfo.pApplicationInfo = &appInfo;
-  createInfo.flags = 0;
-
-  std::vector<const char *> extentions;
-  std::vector<const char *> layers;
-#ifdef __APPLE__
-  extentions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-  createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-#endif
-  const bool validationLayerSupported =
-      checkLayerSupport("VK_LAYER_KHRONOS_validation");
-  if (validationLayerSupported) {
-    layers.push_back("VK_LAYER_KHRONOS_validation");
-  }
-  VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo{};
-  if (validationLayerSupported) {
-    extentions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    debugUtilsMessengerCreateInfo.sType =
-        VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    debugUtilsMessengerCreateInfo.pNext = nullptr;
-    debugUtilsMessengerCreateInfo.messageSeverity =
-        // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-        // VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    debugUtilsMessengerCreateInfo.messageType =
-        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
-    debugUtilsMessengerCreateInfo.pUserData = nullptr; // Optional
-    createInfo.pNext = &debugUtilsMessengerCreateInfo;
-  }
-
-  createInfo.ppEnabledExtensionNames = extentions.data();
-  createInfo.enabledExtensionCount = extentions.size();
-  createInfo.ppEnabledLayerNames = layers.data();
-  createInfo.enabledLayerCount = layers.size();
-  VkInstance instance;
-  VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
-  if (result != VK_SUCCESS) {
-    throw std::runtime_error("Failed to create vulkan instance.");
-  }
-
-  VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
-  if (validationLayerSupported) {
-    CreateDebugUtilsMessengerEXT(instance, &debugUtilsMessengerCreateInfo,
-                                 nullptr, &debugMessenger);
-  }
-
-  return {instance, debugMessenger};
-}
-
 // ASCII lowercase
 static std::string to_lower(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(),
@@ -196,65 +127,6 @@ static bool glob_match_ci(std::string pat, std::string text) {
   while (p < pat.size() && pat[p] == '*')
     ++p;
   return p == pat.size();
-}
-
-static VkPhysicalDevice selectPhysicalDevice(VkInstance instance,
-                                             const char *deviceName) {
-
-  std::uint32_t deviceCount;
-  vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-  std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
-  vkEnumeratePhysicalDevices(instance, &deviceCount, physicalDevices.data());
-
-  if (physicalDevices.empty()) {
-    throw std::runtime_error(
-        "Failed to select physical device: No Vulkan device found.");
-  }
-
-  if (deviceName == nullptr) {
-    for (VkPhysicalDevice d : physicalDevices) {
-      VkPhysicalDeviceProperties props;
-      vkGetPhysicalDeviceProperties(d, &props);
-      if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-        return d;
-      }
-    }
-    return physicalDevices[0];
-  }
-
-  std::string devicePattern(deviceName);
-
-  std::vector<VkPhysicalDevice> matches;
-  for (VkPhysicalDevice d : physicalDevices) {
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(d, &props);
-    if (glob_match_ci(devicePattern, props.deviceName)) {
-      matches.push_back(d);
-    }
-  }
-
-  if (matches.empty()) {
-    throw std::runtime_error(
-        fmt::format("Failed to select physical device: pattern \"{}\" did not "
-                    "match any device.",
-                    devicePattern));
-  }
-
-  if (matches.size() > 1) {
-    std::string list;
-    for (VkPhysicalDevice d : matches) {
-      VkPhysicalDeviceProperties props;
-      vkGetPhysicalDeviceProperties(d, &props);
-      list += std::string(props.deviceName) + "; ";
-    }
-    throw std::runtime_error(
-        fmt::format("Failed to select physical device: pattern \"{}\" is "
-                    "ambiguous, matches multiple devices: {}",
-                    devicePattern, list));
-  }
-
-  assert(matches.size() == 1);
-  return matches.front();
 }
 
 struct ComputeQueueSelection {
@@ -303,65 +175,292 @@ pick_best_compute_queue_family(VkPhysicalDevice phys) {
   return {bestIdx};
 }
 
-static std::tuple<VkDevice, std::uint32_t, VkQueue>
-createDevice(VkInstance instance, VkPhysicalDevice physicalDevice,
-             bool validation) {
-  ComputeQueueSelection sel = pick_best_compute_queue_family(physicalDevice);
-  VkDeviceQueueCreateInfo queueCreateInfo;
-  queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-  queueCreateInfo.pNext = nullptr;
-  queueCreateInfo.flags = 0;
-  float queuePriority = 1.0f;
-  queueCreateInfo.pQueuePriorities = &queuePriority;
-  queueCreateInfo.queueCount = 1;
-  queueCreateInfo.queueFamilyIndex = sel.family;
-
-  VkPhysicalDeviceFeatures features;
-  std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
-
-  std::vector<const char *> layers;
-  std::vector<const char *> extentions;
-#ifdef __APPLE__
-  extentions.push_back("VK_KHR_portability_subset");
-#endif
-
-  VkDeviceCreateInfo createInfo;
-  createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  createInfo.pNext = nullptr;
-  createInfo.flags = 0;
-  createInfo.pQueueCreateInfos = &queueCreateInfo;
-  createInfo.queueCreateInfoCount = 1;
-  createInfo.ppEnabledExtensionNames = extentions.data();
-  createInfo.enabledExtensionCount = extentions.size();
-  createInfo.ppEnabledLayerNames = layers.data();
-  createInfo.enabledLayerCount = layers.size();
-  createInfo.pEnabledFeatures = &features;
-  VkDevice device;
-  VkResult result =
-      vkCreateDevice(physicalDevice, &createInfo, nullptr, &device);
-  if (result != VK_SUCCESS) {
-    throw std::runtime_error("Failed to create logical device");
-  }
-  VkQueue queue;
-  vkGetDeviceQueue(device, sel.family, 0, &queue);
-  return {device, sel.family, queue};
-}
-
 Context::Context(const char *deviceName)
     : m_instance(VK_NULL_HANDLE), m_device(VK_NULL_HANDLE),
       m_physicalDevice(VK_NULL_HANDLE), m_queue(VK_NULL_HANDLE) {
-  auto [instance, debugMessenger] = createInstance();
-  m_instance = instance;
-  m_debugMessenger = debugMessenger;
-  m_physicalDevice = selectPhysicalDevice(m_instance, deviceName);
-  auto [device, queueFamily, queue] = createDevice(m_instance, m_physicalDevice,
-                                      m_debugMessenger != VK_NULL_HANDLE);
-  m_device = device;
-  m_queueFamily = queueFamily;
-  m_queue = queue;
+
+  std::uint32_t vulkanApiVersion;
+  { // Create instance.
+    VkApplicationInfo appInfo;
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pNext = nullptr;
+#ifdef VK_API_VERSION_1_4
+    appInfo.apiVersion = VK_API_VERSION_1_4;
+#elif defined(VK_API_VERSION_1_3)
+    appInfo.apiVersion = VK_API_VERSION_1_3;
+#else
+    appInfo.apiVersion = VK_API_VERSION_1_1;
+#endif
+    vulkanApiVersion = appInfo.apiVersion;
+    appInfo.applicationVersion = DENOX_VERSION;
+    appInfo.pApplicationName = "denox-runtime";
+    appInfo.engineVersion = DENOX_VERSION;
+    appInfo.pEngineName = "denox";
+    VkInstanceCreateInfo createInfo;
+    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+    createInfo.pApplicationInfo = &appInfo;
+    createInfo.flags = 0;
+
+    std::vector<const char *> extentions;
+    std::vector<const char *> layers;
+#ifdef __APPLE__
+    extentions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
+    const bool validationLayerSupported =
+        checkLayerSupport("VK_LAYER_KHRONOS_validation");
+    if (validationLayerSupported) {
+      layers.push_back("VK_LAYER_KHRONOS_validation");
+    }
+    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo{};
+    if (validationLayerSupported) {
+      extentions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+      debugUtilsMessengerCreateInfo.sType =
+          VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+      debugUtilsMessengerCreateInfo.pNext = nullptr;
+      debugUtilsMessengerCreateInfo.messageSeverity =
+          // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+          // VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+          VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+      debugUtilsMessengerCreateInfo.messageType =
+          VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+          VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+          VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+      debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
+      debugUtilsMessengerCreateInfo.pUserData = nullptr; // Optional
+      createInfo.pNext = &debugUtilsMessengerCreateInfo;
+    }
+
+    createInfo.ppEnabledExtensionNames = extentions.data();
+    createInfo.enabledExtensionCount = extentions.size();
+    createInfo.ppEnabledLayerNames = layers.data();
+    createInfo.enabledLayerCount = layers.size();
+    VkResult result = vkCreateInstance(&createInfo, nullptr, &m_instance);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create vulkan instance.");
+    }
+
+    if (validationLayerSupported) {
+      CreateDebugUtilsMessengerEXT(m_instance, &debugUtilsMessengerCreateInfo,
+                                   nullptr, &m_debugMessenger);
+    }
+  }
+  { // Select physical device.
+    do {
+      std::uint32_t deviceCount;
+      vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
+      std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+      vkEnumeratePhysicalDevices(m_instance, &deviceCount,
+                                 physicalDevices.data());
+
+      if (physicalDevices.empty()) {
+        throw std::runtime_error(
+            "Failed to select physical device: No Vulkan device found.");
+      }
+
+      if (deviceName == nullptr) {
+        for (VkPhysicalDevice d : physicalDevices) {
+          VkPhysicalDeviceProperties props;
+          vkGetPhysicalDeviceProperties(d, &props);
+          if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            m_physicalDevice = d;
+            break;
+          }
+        }
+        m_physicalDevice = physicalDevices[0];
+        break;
+      }
+
+      std::string devicePattern(deviceName);
+
+      std::vector<VkPhysicalDevice> matches;
+      for (VkPhysicalDevice d : physicalDevices) {
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(d, &props);
+        if (glob_match_ci(devicePattern, props.deviceName)) {
+          matches.push_back(d);
+        }
+      }
+
+      if (matches.empty()) {
+        throw std::runtime_error(fmt::format(
+            "Failed to select physical device: pattern \"{}\" did not "
+            "match any device.",
+            devicePattern));
+      }
+
+      if (matches.size() > 1) {
+        std::string list;
+        for (VkPhysicalDevice d : matches) {
+          VkPhysicalDeviceProperties props;
+          vkGetPhysicalDeviceProperties(d, &props);
+          list += std::string(props.deviceName) + "; ";
+        }
+        throw std::runtime_error(
+            fmt::format("Failed to select physical device: pattern \"{}\" is "
+                        "ambiguous, matches multiple devices: {}",
+                        devicePattern, list));
+      }
+      assert(matches.size() == 1);
+      m_physicalDevice = matches.front();
+    } while (false);
+  }
+  bool dedicatedAllocation = false;
+  bool bindMemory2 = false;
+  bool maintenance4 = false;
+  bool maintenance5 = false;
+  bool memoryBudget = false;
+  bool bufferDeviceAddress = false;
+  bool memoryPriority = false;
+  bool amdDeviceCoherentMemory = false;
+  bool externalMemoryWin32 = false;
+  std::uint32_t queueFamily;
+  { // Create logical device and compute queue.
+    ComputeQueueSelection sel =
+        pick_best_compute_queue_family(m_physicalDevice);
+    queueFamily = sel.family;
+    VkDeviceQueueCreateInfo queueCreateInfo;
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.pNext = nullptr;
+    queueCreateInfo.flags = 0;
+    float queuePriority = 1.0f;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.queueFamilyIndex = sel.family;
+
+    VkPhysicalDeviceFeatures features;
+    std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
+
+    std::vector<const char *> layers;
+    std::vector<const char *> extentions;
+#ifdef __APPLE__
+    extentions.push_back("VK_KHR_portability_subset");
+#endif
+    { // Query extention support.
+      std::uint32_t ecount = 0;
+      vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+                                           nullptr);
+      std::vector<VkExtensionProperties> supported(ecount);
+      vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+                                           supported.data());
+      for (const VkExtensionProperties &ext : supported) {
+        if (std::strcmp(ext.extensionName, "VK_KHR_dedicated_allocation") ==
+            0) {
+          extentions.push_back("VK_KHR_dedicated_allocation");
+          dedicatedAllocation = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_KHR_bind_memory2") == 0) {
+          extentions.push_back("VK_KHR_bind_memory2");
+          bindMemory2 = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_KHR_maintenance4") == 0) {
+          extentions.push_back("VK_KHR_maintenance4");
+          maintenance4 = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_KHR_maintenance5") == 0) {
+          extentions.push_back("VK_KHR_maintenance5");
+          maintenance5 = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_EXT_memory_budget") == 0) {
+          extentions.push_back("VK_EXT_memory_budget");
+          memoryBudget = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_KHR_buffer_device_address") ==
+            0) {
+          extentions.push_back("VK_KHR_buffer_device_address");
+          bufferDeviceAddress = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_EXT_memory_priority") == 0) {
+          extentions.push_back("VK_EXT_memory_priority");
+          memoryPriority = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_AMD_device_coherent_memory") ==
+            0) {
+          extentions.push_back("VK_AMD_device_coherent_memory");
+          amdDeviceCoherentMemory = true;
+        }
+        if (std::strcmp(ext.extensionName, "VK_KHR_external_memory_win32") ==
+            0) {
+          extentions.push_back("VK_KHR_external_memory_win32");
+          externalMemoryWin32 = true;
+        }
+      }
+    }
+
+    VkDeviceCreateInfo createInfo;
+    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+    createInfo.flags = 0;
+    createInfo.pQueueCreateInfos = &queueCreateInfo;
+    createInfo.queueCreateInfoCount = 1;
+    createInfo.ppEnabledExtensionNames = extentions.data();
+    createInfo.enabledExtensionCount = extentions.size();
+    createInfo.ppEnabledLayerNames = layers.data();
+    createInfo.enabledLayerCount = layers.size();
+    createInfo.pEnabledFeatures = &features;
+    VkResult result =
+        vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create logical device");
+    }
+    vkGetDeviceQueue(m_device, sel.family, 0, &m_queue);
+  }
+  { // Setup vma.
+    VmaVulkanFunctions vulkanFunctions;
+    std::memset(&vulkanFunctions, 0, sizeof(VmaVulkanFunctions));
+    vulkanFunctions.vkGetInstanceProcAddr = &vkGetInstanceProcAddr;
+    vulkanFunctions.vkGetDeviceProcAddr = &vkGetDeviceProcAddr;
+
+    VmaAllocatorCreateInfo vmaCreateInfo;
+    std::memset(&vmaCreateInfo, 0, sizeof(VmaAllocatorCreateInfo));
+    vmaCreateInfo.flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT;
+    if (dedicatedAllocation) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT;
+    }
+    if (bindMemory2) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
+    }
+    if (maintenance4) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE4_BIT;
+    }
+    if (maintenance5) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT;
+    }
+    if (memoryBudget) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
+    }
+    if (bufferDeviceAddress) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    }
+    if (memoryPriority) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT;
+    }
+    if (amdDeviceCoherentMemory) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_AMD_DEVICE_COHERENT_MEMORY_BIT;
+    }
+    if (externalMemoryWin32) {
+      vmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_EXTERNAL_MEMORY_WIN32_BIT;
+    }
+    vmaCreateInfo.vulkanApiVersion = vulkanApiVersion;
+    vmaCreateInfo.physicalDevice = m_physicalDevice;
+    vmaCreateInfo.device = m_device;
+    vmaCreateInfo.instance = m_instance;
+    vmaCreateInfo.pVulkanFunctions = &vulkanFunctions;
+
+    VkResult result = vmaCreateAllocator(&vmaCreateInfo, &m_vma);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create vulkan memory allocator");
+    }
+  }
 }
 
 Context::~Context() {
+  if (m_vma != VK_NULL_HANDLE) {
+    vmaDestroyAllocator(m_vma);
+    m_vma = VK_NULL_HANDLE;
+  }
 
   if (m_device != VK_NULL_HANDLE) {
     vkDestroyDevice(m_device, nullptr);

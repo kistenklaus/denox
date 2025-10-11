@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <vulkan/vulkan.h>
+#include <vma.hpp>
 
 namespace denox::runtime {
 
@@ -20,6 +21,7 @@ private:
   VkPhysicalDevice m_physicalDevice;
   std::uint32_t m_queueFamily;
   VkQueue m_queue;
+  VmaAllocator m_vma;
 };
 
 } // namespace denox::runtime
