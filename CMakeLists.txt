@@ -33,6 +33,7 @@ include(cmake/onnx.cmake)
 include(cmake/generator.cmake)
 include(cmake/flatbuffers.cmake)
 include(cmake/dnx.cmake)
+include(cmake/vma.cmake)
 
 include(cmake/warnings.cmake)
 
@@ -231,6 +232,7 @@ target_link_libraries(denox_runtime
     denox::fmt
     denox::vulkan
     denox::dnx
+    denox::vma
 )
     
   
