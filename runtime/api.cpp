@@ -58,14 +58,17 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
         descriptorSetLayouts[b] = ctx->createDescriptorSetLayout(bindings);
         model->descriptorSetLayouts.push_back(descriptorSetLayouts[b]);
       }
-      std::uint32_t pushConstantSize = static_cast<std::uint32_t>(dispatch->push_constant()->size());
-      VkPipelineLayout layout = ctx->createPipelineLayout(descriptorSetLayouts, pushConstantSize);
+      std::uint32_t pushConstantSize =
+          static_cast<std::uint32_t>(dispatch->push_constant()->size());
+      VkPipelineLayout layout =
+          ctx->createPipelineLayout(descriptorSetLayouts, pushConstantSize);
       model->pipelineLayouts.push_back(layout);
 
       std::span<const std::uint32_t> binary{dispatch->spirv_src()->data(),
                                             dispatch->spirv_src()->size()};
       const char *entry_point = dispatch->entry_point()->c_str();
-      VkPipeline pipeline = ctx->createComputePipeline(layout, binary, entry_point);
+      VkPipeline pipeline =
+          ctx->createComputePipeline(layout, binary, entry_point);
       model->pipelines[d] = pipeline;
       break;
     }
@@ -75,6 +78,13 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
       throw std::runtime_error("Unreachable switch case statment.");
     }
   }
+  VkCommandPool cmdPool = ctx->createCommandPool();
+
+  VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
+
+  ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
+
+  ctx->destroyCommandPool(cmdPool);
 
   *out_model = model;
 

@@ -543,4 +543,215 @@ Context::~Context() {
   }
 }
 
+Buffer Context::createBuffer(std::size_t size, VkBufferUsageFlags usage,
+                             VmaAllocationCreateFlags flags) {
+  VkBufferCreateInfo bufferInfo;
+  std::memset(&bufferInfo, 0, sizeof(VkBufferCreateInfo));
+  bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferInfo.size = size;
+  bufferInfo.usage = usage;
+
+  VmaAllocationCreateInfo allocInfo = {};
+  allocInfo.flags = flags;
+  allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+  Buffer buffer;
+  VkResult result =
+      vmaCreateBuffer(m_vma, &bufferInfo, &allocInfo, &buffer.buffer,
+                      &buffer.allocation, nullptr);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create buffer.");
+  }
+  return buffer;
+}
+void Context::destroyBuffer(Buffer buffer) {
+  assert(buffer.buffer != VK_NULL_HANDLE);
+  assert(buffer.allocation != VK_NULL_HANDLE);
+  vmaDestroyBuffer(m_vma, buffer.buffer, buffer.allocation);
+}
+VkDescriptorSetLayout Context::createDescriptorSetLayout(
+    std::span<const VkDescriptorSetLayoutBinding> bindings) {
+  VkDescriptorSetLayoutCreateInfo layoutInfo;
+  std::memset(&layoutInfo, 0, sizeof(VkDescriptorSetLayoutCreateInfo));
+  layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  layoutInfo.pBindings = bindings.data();
+  layoutInfo.bindingCount = bindings.size();
+
+  VkDescriptorSetLayout layout;
+  {
+    VkResult result =
+        vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &layout);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create descriptor set layout");
+    }
+  }
+  return layout;
+}
+void Context::destroyDescriptorSetLayout(VkDescriptorSetLayout layout) {
+  assert(layout != VK_NULL_HANDLE);
+  vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
+}
+VkPipelineLayout Context::createPipelineLayout(
+    std::span<const VkDescriptorSetLayout> descriptorLayouts,
+    std::uint32_t pushConstantRange) {
+  VkPipelineLayoutCreateInfo layoutInfo;
+  std::memset(&layoutInfo, 0, sizeof(VkPipelineLayoutCreateInfo));
+  layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  layoutInfo.setLayoutCount = descriptorLayouts.size();
+  layoutInfo.pSetLayouts = descriptorLayouts.data();
+  VkPushConstantRange pushConstant;
+  pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  pushConstant.size = pushConstantRange;
+  pushConstant.offset = 0;
+  layoutInfo.pPushConstantRanges = &pushConstant;
+  layoutInfo.pushConstantRangeCount = 1;
+
+  VkPipelineLayout layout;
+  {
+    VkResult result =
+        vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &layout);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create pipeline layout.");
+    }
+  }
+  return layout;
+}
+void Context::destroyPipelineLayout(VkPipelineLayout layout) {
+  assert(layout != VK_NULL_HANDLE);
+  vkDestroyPipelineLayout(m_device, layout, nullptr);
+}
+VkPipeline Context::createComputePipeline(VkPipelineLayout layout,
+                                          std::span<const std::uint32_t> binary,
+                                          const char *entry) {
+  assert(layout != nullptr);
+  assert(!binary.empty());
+  assert(entry != nullptr);
+  VkShaderModule module;
+  {
+    VkShaderModuleCreateInfo shaderInfo;
+    std::memset(&shaderInfo, 0, sizeof(VkShaderModuleCreateInfo));
+    shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shaderInfo.pCode = binary.data();
+    shaderInfo.codeSize = binary.size() * sizeof(std::uint32_t);
+    VkResult result =
+        vkCreateShaderModule(m_device, &shaderInfo, nullptr, &module);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create shader module.");
+    }
+  }
+
+  VkComputePipelineCreateInfo pipelineInfo;
+  std::memset(&pipelineInfo, 0, sizeof(VkComputePipelineCreateInfo));
+  pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+
+  pipelineInfo.stage.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+  pipelineInfo.stage.module = module;
+  pipelineInfo.stage.pName = entry;
+
+  pipelineInfo.layout = layout;
+
+  VkPipeline pipeline;
+  {
+    VkResult result = vkCreateComputePipelines(
+        m_device, nullptr, 1, &pipelineInfo, nullptr, &pipeline);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create compute pipeline.");
+    }
+  }
+  vkDestroyShaderModule(m_device, module, nullptr);
+  return pipeline;
+}
+void Context::destroyPipeline(VkPipeline pipeline) {
+  assert(pipeline != VK_NULL_HANDLE);
+  vkDestroyPipeline(m_device, pipeline, nullptr);
+}
+VkCommandPool Context::createCommandPool() {
+  VkCommandPoolCreateInfo poolInfo;
+  std::memset(&poolInfo, 0, sizeof(VkCommandPoolCreateInfo));
+  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+  poolInfo.queueFamilyIndex = m_queueFamily;
+
+  VkCommandPool pool;
+  {
+    VkResult result = vkCreateCommandPool(m_device, &poolInfo, nullptr, &pool);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create command pool.");
+    }
+  }
+  return pool;
+}
+void Context::destroyCommandPool(VkCommandPool cmdPool) {
+  vkDestroyCommandPool(m_device, cmdPool, nullptr);
+}
+VkCommandBuffer Context::allocCommandBuffer(VkCommandPool cmdPool) {
+  VkCommandBufferAllocateInfo allocInfo;
+  std::memset(&allocInfo, 0, sizeof(VkCommandBufferAllocateInfo));
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.commandPool = cmdPool;
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandBufferCount = 1;
+  VkCommandBuffer cmd;
+  {
+    VkResult result = vkAllocateCommandBuffers(m_device, &allocInfo, &cmd);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to allocate command buffer.");
+    }
+  }
+  return cmd;
+}
+void Context::freeCommandBuffer(VkCommandPool cmdPool, VkCommandBuffer cmd) {
+  vkFreeCommandBuffers(m_device, cmdPool, 1, &cmd);
+}
+void Context::beginCommandBuffer(VkCommandBuffer cmd) {
+  VkCommandBufferBeginInfo beginInfo;
+  std::memset(&beginInfo, 0, sizeof(VkCommandBufferBeginInfo));
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  {
+    VkResult result = vkBeginCommandBuffer(cmd, &beginInfo);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to begin command buffer.");
+    }
+  }
+}
+void Context::endCommandBuffer(VkCommandBuffer cmd) { vkEndCommandBuffer(cmd); }
+void Context::submit(VkCommandBuffer cmd) {
+  VkSubmitInfo submitInfo;
+  std::memset(&submitInfo, 0, sizeof(VkSubmitInfo));
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &cmd;
+  submitInfo.pSignalSemaphores = nullptr;
+  submitInfo.signalSemaphoreCount = 0;
+  submitInfo.pWaitSemaphores = nullptr;
+  submitInfo.waitSemaphoreCount = 0;
+  submitInfo.pWaitDstStageMask = nullptr;
+
+  {
+    VkResult result = vkQueueSubmit(m_queue, 1, &submitInfo, nullptr);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to submit to queue.");
+    }
+  }
+}
+void Context::waitIdle() {
+  VkResult result = vkQueueWaitIdle(m_queue);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to wait for queue idle.");
+  }
+}
+VkCommandBuffer Context::allocBeginCommandBuffer(VkCommandPool cmdPool) {
+  VkCommandBuffer cmd = allocCommandBuffer(cmdPool);
+  beginCommandBuffer(cmd);
+  return cmd;
+}
+void Context::endSubmitWaitCommandBuffer(VkCommandPool cmdPool,
+                                         VkCommandBuffer cmd) {
+  endCommandBuffer(cmd);
+  submit(cmd);
+  waitIdle();
+  freeCommandBuffer(cmdPool, cmd);
+}
 } // namespace denox::runtime
