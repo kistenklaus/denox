@@ -13,6 +13,7 @@
 #include "shaders/activation/BasicActivationShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/conv/DirectConvShader.hpp"
+#include "shaders/conv/DirectConvShaderCM.hpp"
 #include "shaders/copy/CopyTransformShader.hpp"
 #include "shaders/pad/MemoryPadShader.hpp"
 #include "shaders/pool/BasicPoolShader.hpp"
@@ -38,6 +39,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
   GlslCompiler glslCompiler(options);
 
+  shaders::DirectConvShaderCM directConvCM{&glslCompiler, options};
   shaders::DirectConvShader directConv{&glslCompiler, options};
   shaders::BasicPoolShader basicPool{&glslCompiler};
   shaders::BasicUpsampleShader basicUpsample{&glslCompiler};
@@ -47,6 +49,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   shaders::CopyTransformShader copyTransform{&glslCompiler, options};
 
   const IShader *shaders[]{
+      &directConvCM,    //
       &directConv,      //
       &basicPool,       //
       &basicUpsample,   //

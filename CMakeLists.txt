@@ -149,6 +149,7 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/model/Model.cpp
 
   compiler/shaders/activation/BasicActivationShader.cpp
+  compiler/shaders/conv/DirectConvShaderCM.cpp
   compiler/shaders/conv/DirectConvShader.cpp
   compiler/shaders/copy/CopyTransformShader.cpp
   compiler/shaders/pad/MemoryPadShader.cpp
