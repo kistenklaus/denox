@@ -307,6 +307,68 @@ Context::Context(const char *deviceName)
       m_physicalDevice = matches.front();
     } while (false);
   }
+
+  VkPhysicalDeviceFeatures features;
+  {
+    std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
+    vkGetPhysicalDeviceFeatures(m_physicalDevice, &features);
+  }
+
+  void *pNextDevice = nullptr;
+#ifdef VK_API_VERSION_1_1
+  VkPhysicalDeviceVulkan11Features features11;
+  {
+    std::memset(&features11, 0, sizeof(VkPhysicalDeviceVulkan11Features));
+    features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    VkPhysicalDeviceFeatures2 features2;
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &features11;
+    vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+    features11.pNext = pNextDevice;
+    pNextDevice = &features11;
+  }
+#endif
+#ifdef VK_API_VERSION_1_2
+  VkPhysicalDeviceVulkan12Features features12;
+  {
+    std::memset(&features12, 0, sizeof(VkPhysicalDeviceVulkan12Features));
+    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    VkPhysicalDeviceFeatures2 features2;
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &features12;
+    vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+    features12.pNext = pNextDevice;
+    pNextDevice = &features12;
+  }
+#endif
+#ifdef VK_API_VERSION_1_3
+  VkPhysicalDeviceVulkan13Features features13;
+  {
+    std::memset(&features13, 0, sizeof(VkPhysicalDeviceVulkan13Features));
+    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    VkPhysicalDeviceFeatures2 features2;
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &features13;
+    vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+    features13.pNext = pNextDevice;
+    pNextDevice = &features13;
+  }
+#endif
+#ifdef VK_API_VERSION_1_4
+  VkPhysicalDeviceVulkan14Features features14;
+  {
+    std::memset(&features14, 0, sizeof(VkPhysicalDeviceVulkan14Features));
+    features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
+    VkPhysicalDeviceFeatures2 features2;
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &features14;
+    vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+    features14.pNext = pNextDevice;
+    pNextDevice = &features14;
+  }
+#endif
+
+
   bool dedicatedAllocation = false;
   bool bindMemory2 = false;
   bool maintenance4 = false;
@@ -329,9 +391,6 @@ Context::Context(const char *deviceName)
     queueCreateInfo.pQueuePriorities = &queuePriority;
     queueCreateInfo.queueCount = 1;
     queueCreateInfo.queueFamilyIndex = sel.family;
-
-    VkPhysicalDeviceFeatures features;
-    std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
 
     std::vector<const char *> layers;
     std::vector<const char *> extentions;
@@ -369,9 +428,10 @@ Context::Context(const char *deviceName)
         }
         if (std::strcmp(ext.extensionName, "VK_KHR_buffer_device_address") ==
             0) {
-          // NOTE: Maybe in some day in the future it would be nice to play around with this
-          // because it can probably avoid the overhead of switching pipeline layouts
-          // between dispatches as well as improve descriptor update perf.
+          // NOTE: Maybe in some day in the future it would be nice to play
+          // around with this because it can probably avoid the overhead of
+          // switching pipeline layouts between dispatches as well as improve
+          // descriptor update perf.
           // extentions.push_back("VK_KHR_buffer_device_address");
           // bufferDeviceAddress = true;
         }
@@ -394,7 +454,7 @@ Context::Context(const char *deviceName)
 
     VkDeviceCreateInfo createInfo;
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.pNext = nullptr;
+    createInfo.pNext = pNextDevice;
     createInfo.flags = 0;
     createInfo.pQueueCreateInfos = &queueCreateInfo;
     createInfo.queueCreateInfoCount = 1;
@@ -458,20 +518,6 @@ Context::Context(const char *deviceName)
       throw std::runtime_error("Failed to create vulkan memory allocator");
     }
   }
-
-  // VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-  // bufferInfo.size = 65536;
-  // bufferInfo.usage =
-  //     VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-  // VmaAllocationCreateInfo allocInfo = {};
-  // allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-  //
-  // VkBuffer buffer;
-  // VmaAllocation allocation;
-  // vmaCreateBuffer(m_vma, &bufferInfo, &allocInfo, &buffer, &allocation,
-  //                 nullptr);
-  //
-  // vmaDestroyBuffer(m_vma, buffer, allocation);
 }
 
 Context::~Context() {
