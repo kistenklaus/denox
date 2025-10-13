@@ -312,6 +312,7 @@ Context::Context(const char *deviceName)
   {
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
     vkGetPhysicalDeviceFeatures(m_physicalDevice, &features);
+    features.robustBufferAccess = VK_FALSE;
   }
 
   void *pNextDevice = nullptr;
