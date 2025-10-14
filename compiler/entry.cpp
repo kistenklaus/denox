@@ -66,23 +66,46 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   OpModel opModel = compiler::dce(specModel);
 
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
+  for (std::size_t t = 0; t < implModel.tensors.size(); ++t) {
+    fmt::println("Tensor: {}", t);
+    const auto &s = implModel.tensors[t].byteSize;
+    if (s.isSymbolic()) {
+      fmt::println("  ->size: [{}]", s.sym());
+    } else {
+      fmt::println("  ->size: {}", s.constant());
+    }
+  }
+  for (const auto &constrain : implModel.memoryImplicitConcatConstrains) {
+    fmt::println("MemoryConstrain: concat({}, {}) = {}", constrain.src0.index,
+                 constrain.src1.index, constrain.dst.index);
+  }
 
   CompModel compModel = compiler::placement(implModel);
-  // for (std::size_t t = 0; t < compModel.tensors.size(); ++t) {
-  //   fmt::println("\nTensor: {}", t);
-  //   fmt::println("->Buffer: {}", compModel.tensors[t].buffer);
-  //   const auto& buffer = compModel.buffers[t];
-  //   if (buffer.size.isSymbolic()) {
-  //     fmt::println("  -> size: [{}]", buffer.size.sym());
-  //   } else {
-  //     fmt::println("  -> size: {}", buffer.size.constant());
-  //   }
-  // }
+  fmt::println("{:=^100}", "PLACEMENT");
+  for (std::size_t t = 0; t < compModel.tensors.size(); ++t) {
+    fmt::println("Tensor: {}", t);
+    fmt::println("  ->Buffer: {}", compModel.tensors[t].buffer);
+    const auto &buffer = compModel.buffers[t];
+    if (buffer.size.isSymbolic()) {
+      fmt::println("    -> size: [{}]", buffer.size.sym());
+    } else {
+      fmt::println("    -> size: {}", buffer.size.constant());
+    }
+  }
+  for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
+    fmt::println("Dispatch: {}", d);
+    const auto& dispatch = compModel.dispatches[d];
+    for (const auto& set : dispatch.setBindings) {
+      for (const auto& binding: set.bindings) {
+        fmt::println("  -> set={}, binding={} : {}", set.set, binding.binding, binding.tensor);
+      }
+    }
+  }
+  throw std::runtime_error("Working progress.");
 
   SymTable symTable = compiler::sym_table(model, options);
 
   auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel, symTable);
-
 
   auto dnx = dnx::serialize(compModel, symIR, symTable);
 
