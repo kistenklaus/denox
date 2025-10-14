@@ -12,7 +12,12 @@ struct Model {
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
   std::vector<VkPipelineLayout> pipelineLayouts;
   std::vector<VkPipeline> pipelines;
-  // std::vector<Buffer> buffers;
+  std::vector<Buffer> initalizedBuffers; // <- some buffers might not be
+};
+
+struct ModelInstance {
+  std::vector<std::int64_t> vars;
+  std::vector<Buffer> buffers;
 };
 
 } // namespace denox::runtime

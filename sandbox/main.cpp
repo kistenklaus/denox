@@ -22,6 +22,19 @@ int main() {
     throw std::runtime_error("Failed to create runtime model");
   }
 
+  denox::DynamicExtent extents[2];
+  extents[0].name = "H";
+  extents[0].value = 1080;
+  extents[1].name = "W";
+  extents[1].value = 1920;
+  denox::RuntimeModelInstance instance;
+  if (denox::create_runtime_model_instance(context, model, 2, extents, &instance)) {
+    throw std::runtime_error("Failed to create runtime model instance.");
+  }
+
+  denox::destroy_runtime_model_instance(context, instance);
+
+
   denox::destroy_runtime_model(context, model);
 
   denox::destroy_runtime_context(context);

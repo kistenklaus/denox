@@ -2,8 +2,11 @@
 #include "denox/runtime.hpp"
 #include "dnx.h"
 #include "model.hpp"
+#include "vma.hpp"
+#include <algorithm>
 #include <fmt/printf.h>
 #include <stdexcept>
+#include <type_traits>
 #include <vulkan/vulkan_core.h>
 
 namespace denox {
@@ -78,16 +81,95 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
       throw std::runtime_error("Unreachable switch case statment.");
     }
   }
+
   VkCommandPool cmdPool = ctx->createCommandPool();
+  std::vector<runtime::Buffer> stagingBuffers;
+  model->initalizedBuffers.reserve(model->dnx->initializers()->size());
+  {
+    VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
 
-  VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
+    for (std::size_t b = 0; b < model->dnx->initializers()->size(); ++b) {
+      const dnx::BufferInitializer &bufferInitializers =
+          *model->dnx->initializers()->Get(b);
+      const dnx::Buffer &bufferInfo =
+          *model->dnx->buffers()->Get(bufferInitializers.buffer());
+      unsigned int alignment = bufferInfo.alignment();
+      const dnx::ScalarLiteral *literal = bufferInfo.size_as_literal();
+      assert(literal != nullptr); // <- buffer size of initalized buffers, must
+                                  // not be symbolic.
+      std::size_t size;
+      switch (literal->dtype()) {
+      case dnx::ScalarType_I16: {
+        std::int16_t x;
+        std::memcpy(&x, literal->bytes(), sizeof(std::int16_t));
+        size = static_cast<std::size_t>(x);
+        break;
+      }
+      case dnx::ScalarType_U16: {
+        std::uint16_t x;
+        std::memcpy(&x, literal->bytes(), sizeof(std::uint16_t));
+        size = static_cast<std::size_t>(x);
+        break;
+      }
+      case dnx::ScalarType_I32: {
+        std::int32_t x;
+        std::memcpy(&x, literal->bytes(), sizeof(std::int32_t));
+        size = static_cast<std::size_t>(x);
+        break;
+      }
+      case dnx::ScalarType_U32: {
+        std::uint32_t x;
+        std::memcpy(&x, literal->bytes(), sizeof(std::uint32_t));
+        size = static_cast<std::size_t>(x);
+        break;
+      }
+      case dnx::ScalarType_I64: {
+        std::int64_t x;
+        std::memcpy(&x, literal->bytes(), sizeof(std::int64_t));
+        size = static_cast<std::size_t>(x);
+        break;
+      }
+      case dnx::ScalarType_U64: {
+        std::uint64_t x;
+        std::memcpy(&x, literal->bytes()->data(), sizeof(std::uint64_t));
+        size = static_cast<std::size_t>(x);
+        break;
+      }
+      case dnx::ScalarType_F16:
+      case dnx::ScalarType_F32:
+      case dnx::ScalarType_F64:
+        throw std::runtime_error("Invalid size dtype.");
+      default:
+        throw std::runtime_error("Unexpected size dtype.");
+      }
 
-  ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
+      runtime::Buffer stage = ctx->createBuffer(
+          size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
+      ctx->copy(stage, bufferInitializers.data()->data(), size);
+
+      runtime::Buffer local =
+          ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+      ctx->cmdMemoryBarrier(cmd, stage, VK_PIPELINE_STAGE_HOST_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            VK_ACCESS_HOST_WRITE_BIT,
+                            VK_ACCESS_TRANSFER_READ_BIT);
+
+      ctx->cmdCopy(cmd, local, stage, size);
+
+      model->initalizedBuffers.push_back(local);
+      stagingBuffers.push_back(stage);
+    }
+    ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
+  }
+  for (const auto &buffer : stagingBuffers) {
+    ctx->destroyBuffer(buffer);
+  }
+  stagingBuffers.clear();
   ctx->destroyCommandPool(cmdPool);
-
   *out_model = model;
-
   return 0;
 }
 
@@ -105,44 +187,201 @@ void destroy_runtime_model(RuntimeContext context, RuntimeModel model) {
   for (VkPipeline pipeline : m->pipelines) {
     ctx->destroyPipeline(pipeline);
   }
+  for (const auto &buffer : m->initalizedBuffers) {
+    ctx->destroyBuffer(buffer);
+  }
 }
 
-int create_input_buffers(RuntimeModel model, int intputCount, Extent *extents,
-                         RuntimeBuffer **inputs) {
-  return -1;
+int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
+                                  int dynamicExtentCount,
+                                  DynamicExtent *dynamicExtents,
+                                  RuntimeModelInstance *instance) {
+  assert(context != nullptr);
+  assert(model != nullptr);
+  const auto m = reinterpret_cast<runtime::Model *>(model);
+  auto ctx = reinterpret_cast<runtime::Context *>(context);
+
+  auto mi = new runtime::ModelInstance();
+  {
+    const dnx::SymIR *ir = m->dnx->sym_ir();
+    std::size_t dpsize = static_cast<std::size_t>(ir->var_count()) +
+                         static_cast<std::size_t>(ir->ops()->size());
+    mi->vars.resize(dpsize);
+    for (std::size_t i = 0; i < dynamicExtentCount; ++i) {
+      const DynamicExtent &extent = dynamicExtents[i];
+      auto it = std::find_if(
+          m->dnx->value_names()->begin(), m->dnx->value_names()->end(),
+          [&extent](const dnx::ValueName *valueName) {
+            return std::strcmp(valueName->name()->c_str(), extent.name) == 0;
+          });
+      if (it == m->dnx->value_names()->end()) {
+        throw std::runtime_error(
+            fmt::format("Dynamic extent {} does not exist.", extent.name));
+      }
+      const dnx::ValueName *valueName = *it;
+      if (valueName->value_type() == dnx::ScalarSource_literal) {
+        throw std::runtime_error(
+            fmt::format("Dynamic extent {} is not dynamic.", extent.name));
+      }
+      const dnx::SymRef *symRef = valueName->value_as_symbolic();
+      if (symRef->sid() >= ir->var_count()) {
+        throw std::runtime_error(fmt::format(
+            "Dynamic extent {} is not a dynamic variable.", extent.name));
+      }
+      std::uint32_t sid = symRef->sid();
+      mi->vars[sid] = static_cast<std::int64_t>(extent.value);
+    }
+    for (std::uint64_t pc = 0; pc < ir->ops()->size(); ++pc) {
+      std::uint64_t rx = pc + ir->var_count();
+      const dnx::SymIROp *op = ir->ops()->Get(pc);
+      std::int64_t lhs;
+      if (op->opcode() & dnx::SymIROpCode_LHSC) {
+        lhs = op->lhs();
+      } else {
+        lhs = mi->vars[static_cast<std::uint64_t>(op->lhs())];
+      }
+      std::int64_t rhs;
+      if (op->opcode() & dnx::SymIROpCode_RHSC) {
+        rhs = op->rhs();
+      } else {
+        rhs = mi->vars[static_cast<std::uint64_t>(op->rhs())];
+      }
+      std::underlying_type_t<dnx::SymIROpCode> opcode =
+          op->opcode() & ~(dnx::SymIROpCode_LHSC | dnx::SymIROpCode_RHSC);
+
+      switch (opcode) {
+      case dnx::SymIROpCode_NOP:
+        break;
+      case dnx::SymIROpCode_ADD:
+        mi->vars[rx] = lhs + rhs;
+        break;
+      case dnx::SymIROpCode_SUB:
+        mi->vars[rx] = lhs - rhs;
+        break;
+      case dnx::SymIROpCode_MUL:
+        mi->vars[rx] = lhs * rhs;
+        break;
+      case dnx::SymIROpCode_DIV:
+        mi->vars[rx] = lhs / rhs;
+        break;
+      case dnx::SymIROpCode_MOD:
+        mi->vars[rx] = (lhs % rhs);
+        if (mi->vars[rx] < 0) {
+          mi->vars[rx] += rhs;
+        }
+        break;
+      case dnx::SymIROpCode_MIN:
+        mi->vars[rx] = std::min(lhs, rhs);
+        break;
+      case dnx::SymIROpCode_MAX:
+        mi->vars[rx] = std::max(lhs, rhs);
+        break;
+      default:
+        throw std::runtime_error("Invalid sym instruction.");
+      }
+    }
+  }
+
+  {
+    mi->buffers.resize(m->dnx->buffers()->size(),
+                       runtime::Buffer{
+                           .buffer = VK_NULL_HANDLE,
+                           .allocation = VK_NULL_HANDLE,
+                       });
+    // Setup initalizers.
+    for (std::size_t i = 0; i < m->dnx->initializers()->size(); ++i) {
+      const dnx::BufferInitializer *init = m->dnx->initializers()->Get(i);
+      mi->buffers[init->buffer()] = m->initalizedBuffers[i];
+    }
+
+    for (std::size_t b = 0; b < m->dnx->buffers()->size(); ++b) {
+      if (mi->buffers[b].buffer != VK_NULL_HANDLE) {
+        continue;
+      }
+      const dnx::Buffer *buffer = m->dnx->buffers()->Get(b);
+      std::size_t size;
+      switch (buffer->size_type()) {
+      case dnx::ScalarSource_NONE:
+        throw std::runtime_error("Invalid scalar source type.");
+      case dnx::ScalarSource_literal: {
+        const dnx::ScalarLiteral *literal = buffer->size_as_literal();
+        switch (literal->dtype()) {
+        case dnx::ScalarType_I16: {
+          std::int16_t v;
+          std::memcpy(&v, literal->bytes()->data(), sizeof(std::int16_t));
+          size = v;
+          break;
+        }
+        case dnx::ScalarType_U16: {
+          std::uint16_t v;
+          std::memcpy(&v, literal->bytes()->data(), sizeof(std::uint16_t));
+          size = v;
+          break;
+        }
+        case dnx::ScalarType_I32: {
+          std::int32_t v;
+          std::memcpy(&v, literal->bytes()->data(), sizeof(std::int32_t));
+          size = v;
+          break;
+        }
+        case dnx::ScalarType_U32: {
+          std::uint32_t v;
+          std::memcpy(&v, literal->bytes()->data(), sizeof(std::uint32_t));
+          size = v;
+          break;
+        }
+        case dnx::ScalarType_I64: {
+          std::int64_t v;
+          std::memcpy(&v, literal->bytes()->data(), sizeof(std::int64_t));
+          size = v;
+          break;
+        }
+        case dnx::ScalarType_U64: {
+          std::uint64_t v;
+          std::memcpy(&v, literal->bytes()->data(), sizeof(std::uint64_t));
+          size = v;
+          break;
+        }
+        case dnx::ScalarType_F16:
+        case dnx::ScalarType_F32:
+        case dnx::ScalarType_F64:
+          throw std::runtime_error("Invalid buffer size, must be a integral.");
+        }
+        break;
+      }
+      case dnx::ScalarSource_symbolic: {
+        const dnx::SymRef *symRef = buffer->size_as_symbolic();
+        size = mi->vars[symRef->sid()];
+        break;
+      }
+      }
+
+      VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+      bool isInput = false;
+      for (const auto& in : *m->dnx->inputs()) {
+        std::uint32_t tid = in->tensor();
+        const dnx::Tensor* tensor = m->dnx->tensors()->Get(tid);
+        std::uint32_t bid = tensor->buffer();
+        fmt::println("bid: {}, b {}", bid, b);
+        if (bid == b) {
+          isInput = true;
+          break;
+        }
+      }
+      // if (isInput) {
+      //   fmt::println("in {}", b);
+      // } else {
+      //   fmt::println("not-in {}", b);
+      // }
+
+      runtime::Buffer runtimeBuffer = ctx->createBuffer(size, usage);
+    }
+  }
+
+  return 0;
 }
 
-int create_output_buffers(RuntimeModel model, RuntimeBuffer *inputs,
-                          int outputCount, RuntimeBuffer **outputs) {
-  return -1;
-}
-
-void destroy_buffers(RuntimeModel model, int count, RuntimeBuffer *buffers) {}
-
-int eval(RuntimeModel model, denox::RuntimeBuffer *inputs,
-         RuntimeBuffer *outputs) {
-  return -1;
-}
-
-size_t get_buffer_size(RuntimeModel model, RuntimeBuffer buffer) { return -1; }
-
-Extent get_buffer_extent(RuntimeModel model, RuntimeBuffer buffer) {
-  Extent extent;
-  return extent;
-}
-
-Dtype get_buffer_dtype(RuntimeModel model, RuntimeBuffer buffer) {
-  Dtype dtype;
-  return dtype;
-}
-
-Layout get_buffer_layout(RuntimeModel model, RuntimeBuffer buffer) {
-  Layout layout;
-  return layout;
-}
-
-void *map_buffer(RuntimeModel model, RuntimeBuffer buffer) { return nullptr; }
-
-void unmap_buffer(RuntimeModel model, RuntimeBuffer buffer) {}
+void destroy_runtime_model_instance(RuntimeContext context,
+                                    RuntimeModelInstance instance) {}
 
 } // namespace denox

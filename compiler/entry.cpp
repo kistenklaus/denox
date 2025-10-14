@@ -68,6 +68,16 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
   CompModel compModel = compiler::placement(implModel);
+  // for (std::size_t t = 0; t < compModel.tensors.size(); ++t) {
+  //   fmt::println("\nTensor: {}", t);
+  //   fmt::println("->Buffer: {}", compModel.tensors[t].buffer);
+  //   const auto& buffer = compModel.buffers[t];
+  //   if (buffer.size.isSymbolic()) {
+  //     fmt::println("  -> size: [{}]", buffer.size.sym());
+  //   } else {
+  //     fmt::println("  -> size: {}", buffer.size.constant());
+  //   }
+  // }
 
   SymTable symTable = compiler::sym_table(model, options);
 

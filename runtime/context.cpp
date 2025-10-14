@@ -369,7 +369,6 @@ Context::Context(const char *deviceName)
   }
 #endif
 
-
   bool dedicatedAllocation = false;
   bool bindMemory2 = false;
   bool maintenance4 = false;
@@ -551,7 +550,8 @@ Buffer Context::createBuffer(std::size_t size, VkBufferUsageFlags usage,
   bufferInfo.size = size;
   bufferInfo.usage = usage;
 
-  VmaAllocationCreateInfo allocInfo = {};
+  VmaAllocationCreateInfo allocInfo;
+  std::memset(&allocInfo, 0, sizeof(VmaAllocationCreateInfo));
   allocInfo.flags = flags;
   allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 

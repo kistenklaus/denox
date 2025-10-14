@@ -111,12 +111,8 @@ struct SymIROp  {
   rhs:int64;
 }
 
-table SymVar {
-  name:string;
-}
-
 table SymIR {
-  vars:[SymVar];
+  var_count:uint16;
   ops:[SymIROp];
 }
 

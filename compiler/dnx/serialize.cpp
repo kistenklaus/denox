@@ -53,7 +53,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   buffers.reserve(compModel.buffers.size());
   for (std::size_t b = 0; b < compModel.buffers.size(); ++b) {
     const auto &buffer = compModel.buffers[b];
-    ScalarSource size_type;
+    ScalarSource size_type = ScalarSource_NONE;
     flatbuffers::Offset<void> size;
     if (buffer.size.isSymbolic()) {
       size_type = ScalarSource_symbolic;
@@ -62,10 +62,8 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
       size = symRef.Union();
     } else {
       size_type = ScalarSource_literal;
-      memory::vector<std::uint8_t> literalBytes(sizeof(std::uint64_t));
       std::uint64_t v = static_cast<std::uint64_t>(buffer.size.constant());
-      std::memcpy(literalBytes.data(), &v, sizeof(std::uint64_t));
-      auto literalBytesVec = fbb.CreateVector(literalBytes);
+      auto literalBytesVec = fbb.CreateVector(reinterpret_cast<const std::uint8_t*>(&v), sizeof(std::uint64_t));
       auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
       size = literal.Union();
     }
@@ -215,34 +213,6 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   auto dispatchesVec = fbb.CreateVector(dispatches);
   auto dispatchTypesVec = fbb.CreateVector(dispatchTypes);
 
-  memory::vector<flatbuffers::Offset<SymVar>> vars(symIR.varCount);
-  memory::dynamic_bitset check(symIR.varCount, false);
-  [[maybe_unused]] std::size_t checkCount = 0;
-  for (std::size_t i = 0; i < compModel.inputs.size(); ++i) {
-    const auto &input = compModel.inputs[i];
-    if (input.extent.x.isSymbolic()) {
-      auto name = fbb.CreateString(fmt::format("in{}.width", (i + 1)));
-      auto symVar = CreateSymVar(fbb, name);
-      compiler::Sym::symbol x = input.extent.x.symbol();
-      assert(x < symIR.varCount);
-      assert(!check[x]);
-      vars[x] = symVar;
-      check[x] = true;
-      checkCount += 1;
-    }
-    if (input.extent.y.isSymbolic()) {
-      auto name = fbb.CreateString(fmt::format("in{}.height", (i + 1)));
-      auto symVar = CreateSymVar(fbb, name);
-      compiler::Sym::symbol x = input.extent.y.symbol();
-      assert(x < symIR.varCount);
-      assert(!check[x]);
-      vars[x] = symVar;
-      check[x] = true;
-      checkCount += 1;
-    }
-  }
-  assert(checkCount == symIR.varCount);
-  auto varsVec = fbb.CreateVector(vars);
   memory::vector<dnx::SymIROp> irops;
   irops.reserve(symIR.ops.size());
   for (std::size_t o = 0; o < symIR.ops.size(); ++o) {
@@ -318,7 +288,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   auto iropsVec = fbb.CreateVectorOfStructs(irops.data(), irops.size());
 
   SymIRBuilder symIRBuilder(fbb);
-  symIRBuilder.add_vars(varsVec);
+  symIRBuilder.add_var_count(static_cast<std::uint16_t>(symIR.varCount));
   symIRBuilder.add_ops(iropsVec);
   auto sym_ir = symIRBuilder.Finish();
 
@@ -506,7 +476,6 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   flatbuffers::DetachedBuffer detachedBuffer = fbb.Release();
   flatbuffers::Verifier v(detachedBuffer.data(), detachedBuffer.size());
   if (!VerifyModelBuffer(v)) {
-    fmt::println("FUCKED-MODEL");
     compiler::diag::invalid_state();
   }
   return detachedBuffer;
