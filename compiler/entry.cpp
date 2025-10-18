@@ -67,78 +67,11 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
 
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
-  // auto eval = implModel.symGraph.eval(symSpec);
-  // for (std::size_t t = 0; t < implModel.tensors.size(); ++t) {
-  //   fmt::println("Tensor: {}", t);
-  //   const auto& tensor = implModel.tensors[t];
-  //   auto s = eval[tensor.byteSize];
-  //   fmt::println(" -> size: {}", *s);
-  // }
-  //
-
   CompModel compModel = compiler::placement(implModel);
 
   SymTable symTable = compiler::sym_table(model, options);
 
-  compModel.symGraph.debugDump();
-
-  for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
-    const auto &dispatch = compModel.dispatches[d];
-    fmt::println("Dispatch: {}", d);
-    for (const auto &set : dispatch.setBindings) {
-      for (const auto &binding : set.bindings) {
-        const auto &tensor = compModel.tensors[binding.tensor];
-        const auto &buffer = compModel.buffers[tensor.buffer];
-        // const auto s = *eval[buffer.size];
-        if (buffer.size.isSymbolic()) {
-          fmt::println(
-              " -> set:{}, binding:{} => tensor:{}, buffer:{} => size: [{}]",
-              set.set, binding.binding, binding.tensor, tensor.buffer,
-              buffer.size.sym());
-        } else {
-          fmt::println(
-              " -> set:{}, binding:{} => tensor:{}, buffer:{} => size: {}",
-              set.set, binding.binding, binding.tensor, tensor.buffer,
-              buffer.size.constant());
-        }
-      }
-    }
-  }
-
   auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel, symTable);
-
-  std::vector<SymSpec> symSpec;
-  symSpec.emplace_back(implModel.inputs[0].extent.x.symbol(), 1920);
-  symSpec.emplace_back(implModel.inputs[0].extent.y.symbol(), 1080);
-  const auto eval = compModel.symGraph.eval(symSpec);
-
-  for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
-    const auto &dispatch = compModel.dispatches[d];
-    fmt::println("Dispatch: {}", d);
-    for (const auto &set : dispatch.setBindings) {
-      for (const auto &binding : set.bindings) {
-        const auto &tensor = compModel.tensors[binding.tensor];
-        const auto &buffer = compModel.buffers[tensor.buffer];
-        const auto s = *eval[buffer.size];
-        fmt::println(
-            " -> set:{}, binding:{} => tensor:{}, buffer:{} => size: {}",
-            set.set, binding.binding, binding.tensor, tensor.buffer, s);
-        // if (buffer.size.isSymbolic()) {
-        //   fmt::println(
-        //       " -> set:{}, binding:{} => tensor:{}, buffer:{} => size: [{}]",
-        //       set.set, binding.binding, binding.tensor, tensor.buffer,
-        //       buffer.size.sym());
-        // } else {
-        //   fmt::println(
-        //       " -> set:{}, binding:{} => tensor:{}, buffer:{} => size: {}",
-        //       set.set, binding.binding, binding.tensor, tensor.buffer,
-        //       buffer.size.constant());
-        // }
-      }
-    }
-  }
-
-  throw std::runtime_error("Work in progress");
 
   auto dnx = dnx::serialize(compModel, symIR, symTable);
 
