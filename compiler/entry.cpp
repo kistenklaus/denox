@@ -84,8 +84,12 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   fmt::println("{:=^100}", "PLACEMENT");
   for (std::size_t t = 0; t < compModel.tensors.size(); ++t) {
     fmt::println("Tensor: {}", t);
-    fmt::println("  ->Buffer: {}", compModel.tensors[t].buffer);
-    const auto &buffer = compModel.buffers[t];
+    auto b = compModel.tensors[t].buffer;
+    fmt::println("  ->Buffer: {}", b);
+    if (b >= compModel.buffers.size()) {
+      continue;
+    }
+    const auto &buffer = compModel.buffers[b];
     if (buffer.size.isSymbolic()) {
       fmt::println("    -> size: [{}]", buffer.size.sym());
     } else {

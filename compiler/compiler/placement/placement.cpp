@@ -131,9 +131,10 @@ CompModel placement(const ImplModel &model) {
     unionFind[i] = i;
   }
   auto find = [&](std::uint64_t x) {
+    std::uint64_t n = x;
     do {
       x = n;
-      std::uint64_t n = unionFind[x];
+      n = unionFind[x];
     } while (x != n);
     return x;
   };
@@ -146,9 +147,13 @@ CompModel placement(const ImplModel &model) {
       diag::not_implemented();
     }
 
-    const std::uint64_t x0 = find(indexMapping[t0]);
-    const std::uint64_t x1 = find(indexMapping[t1]);
-    const std::uint64_t x2 = find(indexMapping[t2]);
+    const std::uint64_t i0 = indexMapping[t0];
+    const std::uint64_t i1 = indexMapping[t1];
+    const std::uint64_t i2 = indexMapping[t2];
+
+    const std::uint64_t x0 = find(i0);
+    const std::uint64_t x1 = find(i1);
+    const std::uint64_t x2 = find(i2);
 
     unionFind[x0] = x0;
     unionFind[x1] = x0;
@@ -303,7 +308,7 @@ CompModel placement(const ImplModel &model) {
       // at this point we do not have.
       assert(block.constrains.empty());
       const std::uint64_t viewId = compModel.tensors.size();
-      tensorIdToViewMap[viewId] = tensorId;
+      tensorIdToViewMap[tensorId] = viewId;
       TensorView view{
           .buffer = bufferIndex,
           .offset = Sym::Const(0),
@@ -340,7 +345,7 @@ CompModel placement(const ImplModel &model) {
         diag::invalid_state(); // <- Binding Collision.
       }
       std::uint64_t viewId = tensorIdToViewMap[binding.tensorId.index];
-      DescriptorBinding descriptorBinding;
+      DescriptorBinding descriptorBinding{};
       descriptorBinding.binding = binding.binding;
       descriptorBinding.access = binding.accessFlag;
       descriptorBinding.tensor = viewId;
