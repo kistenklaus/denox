@@ -202,6 +202,7 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
   auto ctx = reinterpret_cast<runtime::Context *>(context);
 
   auto mi = new runtime::ModelInstance();
+  mi->model = m;
   { // Evaluate all symbolic expressions.
     const dnx::SymIR *ir = m->dnx->sym_ir();
     std::size_t dpsize = static_cast<std::size_t>(ir->var_count()) +
@@ -229,7 +230,6 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
             "Dynamic extent {} is not a dynamic variable.", extent.name));
       }
       std::uint32_t sid = symRef->sid();
-      fmt::println("SID = {}, name: {} <= {}", sid, extent.name, extent.value);
       mi->vars[sid] = static_cast<std::int64_t>(extent.value);
     }
     for (std::uint64_t pc = 0; pc < ir->ops()->size(); ++pc) {
@@ -297,6 +297,10 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
     }
 
     for (std::size_t b = 0; b < m->dnx->buffers()->size(); ++b) {
+      if (mi->buffers[b].buffer != VK_NULL_HANDLE) {
+        // skip initalized buffers.
+        continue;
+      }
       const dnx::Buffer *buffer = m->dnx->buffers()->Get(b);
       std::size_t size;
       switch (buffer->size_type()) {
@@ -360,11 +364,27 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
         break;
       }
       }
-      if (mi->buffers[b].buffer != VK_NULL_HANDLE) {
-        fmt::println("b: {} => size = {} (param)", b, size);
-      } else {
-        fmt::println("b: {} => size = {}", b, size);
+      // See if the buffer is a input / output buffer.
+      VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+      for (std::size_t i = 0; i < m->dnx->inputs()->size(); ++i) {
+        const dnx::Input *input = m->dnx->inputs()->Get(i);
+        const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
+        if (tensor->buffer() == b) {
+          usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+          break;
+        }
       }
+      for (std::size_t o = 0; o < m->dnx->outputs()->size(); ++o) {
+        const dnx::Output *output = m->dnx->outputs()->Get(o);
+        const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
+        if (tensor->buffer() == b) {
+          usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+          break;
+        }
+      }
+      mi->buffers[b] =
+          ctx->createBuffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+      mi->ownedBuffers[b] = true;
     }
   }
 
@@ -383,5 +403,28 @@ void destroy_runtime_model_instance(RuntimeContext context,
   }
   delete mi;
 }
+
+EvalResult eval_runtime_model_instance(RuntimeContext context,
+                                       RuntimeModelInstance instance,
+                                       int inputCount, void **inputs) {
+  auto ctx = reinterpret_cast<runtime::Context *>(context);
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+
+  EvalResult result;
+  result.outputCount = m->dnx->outputs()->size();
+  for (std::size_t o = 0; o < m->dnx->outputs()->size(); ++o) {
+    const dnx::Output *output = m->dnx->outputs()->Get(o);
+    const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
+  }
+
+  VkCommandPool cmdPool = ctx->createCommandPool();
+
+  ctx->destroyCommandPool(cmdPool);
+
+  return result;
+}
+
+void destroy_eval_result(EvalResult result) {}
 
 } // namespace denox

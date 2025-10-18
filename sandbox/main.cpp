@@ -17,7 +17,8 @@ int main() {
                                       std::istreambuf_iterator<char>());
 
   denox::RuntimeModel model;
-  if (denox::create_runtime_model(context, static_cast<const void *>(dnxBinary.data()),
+  if (denox::create_runtime_model(context,
+                                  static_cast<const void *>(dnxBinary.data()),
                                   dnxBinary.size(), &model) < 0) {
     throw std::runtime_error("Failed to create runtime model");
   }
@@ -28,12 +29,20 @@ int main() {
   extents[1].name = "W";
   extents[1].value = 1920;
   denox::RuntimeModelInstance instance;
-  if (denox::create_runtime_model_instance(context, model, 2, extents, &instance)) {
+  if (denox::create_runtime_model_instance(context, model, 2, extents,
+                                           &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
 
-  denox::destroy_runtime_model_instance(context, instance);
+  std::vector<std::uint16_t> input(1080 * 1920 * 3);
+  void *pinput = input.data();
 
+  denox::EvalResult result =
+      denox::eval_runtime_model_instance(context, instance, 1, &pinput);
+
+  denox::destroy_eval_result(result);
+
+  denox::destroy_runtime_model_instance(context, instance);
 
   denox::destroy_runtime_model(context, model);
 

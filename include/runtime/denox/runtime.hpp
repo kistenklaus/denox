@@ -11,6 +11,11 @@ struct DynamicExtent {
   const char *name;
 };
 
+struct EvalResult {
+  int outputCount;
+  void** outputs;
+};
+
 typedef void *RuntimeContext;
 typedef void *RuntimeModel;
 typedef void *RuntimeModelInstance;
@@ -31,5 +36,11 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
 
 void destroy_runtime_model_instance(RuntimeContext context,
                                     RuntimeModelInstance instance);
+
+EvalResult eval_runtime_model_instance(RuntimeContext context,
+                                       RuntimeModelInstance instance,
+                                       int inputCount, void **inputs);
+
+void destroy_eval_result(EvalResult result);
 
 } // namespace denox

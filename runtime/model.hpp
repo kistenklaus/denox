@@ -16,6 +16,7 @@ struct Model {
 };
 
 struct ModelInstance {
+  Model* model;
   std::vector<std::int64_t> vars;
   std::vector<Buffer> buffers;
   std::vector<bool> ownedBuffers;
