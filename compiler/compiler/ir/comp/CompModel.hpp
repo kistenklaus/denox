@@ -8,7 +8,6 @@
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "symbolic/Sym.hpp"
-#include "symbolic/sym_vec2.hpp"
 #include <cstdint>
 
 namespace denox::compiler {
@@ -45,7 +44,6 @@ struct Dispatch {
   memory::vector<DescriptorSetBinding> setBindings;
   memory::vector<PushConstant> pushConstants;
 };
-
 
 struct CompModel {
   SymGraph symGraph;

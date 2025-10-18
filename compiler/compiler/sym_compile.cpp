@@ -8,6 +8,28 @@ namespace denox::compiler {
 std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
                                                       SymTable &symTable) {
 
+  // model.symGraph.debugDump();
+
+  // resolve all symbols.
+  for (auto &[sym, name] : symTable.symbolNames) {
+    sym = model.symGraph.resolve(sym);
+  }
+  for (auto &buffer : model.buffers) {
+    buffer.size = model.symGraph.resolve(buffer.size);
+  }
+
+  for (auto &tensor : model.tensors) {
+    tensor.offset = model.symGraph.resolve(tensor.offset);
+  }
+  for (auto &input : model.inputs) {
+    input.extent.x = sym(model.symGraph.resolve(input.extent.x.asSym()));
+    input.extent.y = sym(model.symGraph.resolve(input.extent.y.asSym()));
+  }
+
+  for (auto &output : model.outputs) {
+    output.extent.x = sym(model.symGraph.resolve(output.extent.x.asSym()));
+    output.extent.y = sym(model.symGraph.resolve(output.extent.y.asSym()));
+  }
 
   memory::vector<Sym::symbol> symbols;
   memory::dynamic_bitset symbolAdded(model.symGraph.symbolCount(), false);
@@ -73,14 +95,11 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
     }
   }
 
-
   const auto [symIR, remap] = model.symGraph.compile(symbols);
-
 
   for (auto &[sym, name] : symTable.symbolNames) {
     sym = remap[sym];
   }
-
 
   for (auto &dispatch : model.dispatches) {
     for (auto &pushConstant : dispatch.pushConstants) {
@@ -110,7 +129,6 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
     }
   }
 
-
   for (auto &buffer : model.buffers) {
     buffer.size = remap[buffer.size];
   }
@@ -134,7 +152,6 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
       symCount += 1;
     }
   }
-
 
   return std::make_pair(symIR, symCount);
 }

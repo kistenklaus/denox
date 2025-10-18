@@ -22,7 +22,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
                                               memory::nullopt);
 
   struct SymValue {
-    // if null this means this is generated custom value.
+    // if null this means this is intermediate unmapped value.
     memory::optional<Sym::symbol> original;
   };
 
@@ -64,7 +64,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
   std::map<std::pair<Sym::symbol, Sym::symbol>, memory::NodeId> maxCache;
 
   for (Sym::symbol s = 0; s < m_expressions.size(); ++s) {
-    const auto &expr = m_expressions[s];
+    const auto expr = m_expressions[s];
 
     bool isAffine = expr.expr != ExprType::Identity &&
                     expr.expr != ExprType::NonAffine &&
@@ -242,11 +242,9 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             weight_type weight = DIV_SS_WEIGHT;
             assert(lhs.isSymbolic());
             assert(rhs.isSymbolic());
-            memory::NodeId lhs = symbolToNodeMap[expr.lhs.sym()];
-            memory::NodeId rhs = symbolToNodeMap[expr.rhs.sym()];
-            assert(lhs);
-            assert(rhs);
-            adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, weight);
+            memory::NodeId src0 = symbolToNodeMap[lhs.sym()];
+            memory::NodeId src1 = symbolToNodeMap[rhs.sym()];
+            adjSupergraph.addEdge(src0, src1, sid, SymOp{opcode}, weight);
           }
           break;
         }
@@ -274,7 +272,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             weight_type weight = MOD_SC_WEIGHT;
             assert(rhs.constant() != 0);
             assert(lhs.isSymbolic());
-            memory::NodeId lid = symbolToNodeMap[expr.lhs.sym()];
+            memory::NodeId lid = symbolToNodeMap[lhs.sym()];
             assert(lid);
             adjSupergraph.addEdge(lid, sid, SymOp{opcode, constant}, weight);
           } else {
@@ -282,11 +280,11 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
             weight_type weight = MOD_SS_WEIGHT;
             assert(lhs.isSymbolic());
             assert(rhs.isSymbolic());
-            memory::NodeId lhs = symbolToNodeMap[expr.lhs.sym()];
-            memory::NodeId rhs = symbolToNodeMap[expr.rhs.sym()];
-            assert(lhs);
-            assert(rhs);
-            adjSupergraph.addEdge(lhs, rhs, sid, SymOp{opcode}, weight);
+            memory::NodeId src0 = symbolToNodeMap[lhs.sym()];
+            memory::NodeId src1 = symbolToNodeMap[rhs.sym()];
+            assert(src0);
+            assert(src1);
+            adjSupergraph.addEdge(src0, src1, sid, SymOp{opcode}, weight);
           }
           break;
         }
@@ -653,6 +651,10 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
 
   ir.ops.reserve(hyperpath.size());
   memory::vector<std::int64_t> nodeIdToIR(supergraph.nodeCount());
+  for (std::int64_t i = 0; i < static_cast<std::int64_t>(vars.size()); ++i) {
+    nodeIdToIR[static_cast<std::size_t>(i)] = i;
+  }
+
   for (std::size_t i = 0; i < hyperpath.size(); ++i) {
     memory::EdgeId eid{hyperpath[i]};
     auto op = supergraph.get(eid);

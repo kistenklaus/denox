@@ -301,6 +301,7 @@ if (BUILD_TESTING)
     test/compiler/symbolic/modsolve.cpp
     test/compiler/symbolic/nonaffine.cpp
     test/compiler/symbolic/unsolvable.cpp
+    test/compiler/symbolic/compile.cpp
   )
 
 

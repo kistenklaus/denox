@@ -260,8 +260,8 @@ CompModel placement(const ImplModel &model) {
     } else {
       // infer size.
       size = Sym::Const(0);
-      for (std::size_t t = 0; t < block.tensorIds.size(); ++t) {
-        const auto &tensor = model.tensors[t];
+      for (std::uint64_t tid : block.tensorIds) {
+        const auto &tensor = model.tensors[tid];
         size = symGraph.add(size, tensor.byteSize);
       }
     }

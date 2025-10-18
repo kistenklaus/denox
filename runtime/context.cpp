@@ -76,6 +76,20 @@ VkResult CreateDebugUtilsMessengerEXT(
   }
 }
 
+VkResult GetPhysicalDeviceCooperativeMatrixPropertiesKHR(
+    VkInstance instance, VkPhysicalDevice physicalDevice, std::uint32_t *count,
+    VkCooperativeMatrixPropertiesKHR *properties) {
+
+  auto func = (PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR)
+      vkGetInstanceProcAddr(
+          instance, "vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR");
+  if (func != nullptr) {
+    return func(physicalDevice, count, properties);
+  } else {
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+  }
+}
+
 void DestroyDebugUtilsMessengerEXT(VkInstance instance,
                                    VkDebugUtilsMessengerEXT debugMessenger,
                                    const VkAllocationCallbacks *pAllocator) {
@@ -315,6 +329,9 @@ Context::Context(const char *deviceName)
     features.robustBufferAccess = VK_FALSE;
   }
 
+  std::vector<const char *> layers;
+  std::vector<const char *> extentions;
+
   void *pNextDevice = nullptr;
 #ifdef VK_API_VERSION_1_1
   VkPhysicalDeviceVulkan11Features features11;
@@ -368,6 +385,24 @@ Context::Context(const char *deviceName)
     pNextDevice = &features14;
   }
 #endif
+#ifdef VK_KHR_cooperative_matrix
+  VkPhysicalDeviceCooperativeMatrixFeaturesKHR coopmatFeatures;
+  {
+    std::memset(&coopmatFeatures, 0,
+                sizeof(VkPhysicalDeviceCooperativeMatrixFeaturesKHR));
+    coopmatFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR;
+    VkPhysicalDeviceFeatures2 features2;
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &coopmatFeatures;
+    vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+    if (coopmatFeatures.cooperativeMatrix == VK_TRUE) {
+      extentions.push_back("VK_KHR_cooperative_matrix");
+      coopmatFeatures.pNext = pNextDevice;
+      pNextDevice = &coopmatFeatures;
+    }
+  }
+#endif
 
   bool dedicatedAllocation = false;
   bool bindMemory2 = false;
@@ -378,11 +413,10 @@ Context::Context(const char *deviceName)
   bool memoryPriority = false;
   bool amdDeviceCoherentMemory = false;
   bool externalMemoryWin32 = false;
-  std::uint32_t queueFamily;
   { // Create logical device and compute queue.
     ComputeQueueSelection sel =
         pick_best_compute_queue_family(m_physicalDevice);
-    queueFamily = sel.family;
+    m_queueFamily = sel.family;
     VkDeviceQueueCreateInfo queueCreateInfo;
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreateInfo.pNext = nullptr;
@@ -392,8 +426,6 @@ Context::Context(const char *deviceName)
     queueCreateInfo.queueCount = 1;
     queueCreateInfo.queueFamilyIndex = sel.family;
 
-    std::vector<const char *> layers;
-    std::vector<const char *> extentions;
 #ifdef __APPLE__
     extentions.push_back("VK_KHR_portability_subset");
 #endif

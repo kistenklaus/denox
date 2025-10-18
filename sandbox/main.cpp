@@ -8,7 +8,7 @@
 int main() {
 
   denox::RuntimeContext context;
-  if (denox::create_runtime_context(nullptr, &context) < 0) {
+  if (denox::create_runtime_context("*RTX*", &context) < 0) {
     throw std::runtime_error("Failed to create context.");
   }
 

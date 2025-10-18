@@ -86,7 +86,6 @@ SymGraphEval SymGraph::eval(memory::span<const SymSpec> symSpecs) const {
         for (const auto &v : symbols) {
           if (const auto opt = resolve(v)) {
             min = std::min(min, *opt);
-            min *= *opt;
           } else {
             succ = false;
             break;
@@ -104,8 +103,7 @@ SymGraphEval SymGraph::eval(memory::span<const SymSpec> symSpecs) const {
         bool succ = true;
         for (const auto &v : symbols) {
           if (const auto opt = resolve(v)) {
-            max = std::min(max, *opt);
-            max *= *opt;
+            max = std::max(max, *opt);
           } else {
             succ = false;
             break;
