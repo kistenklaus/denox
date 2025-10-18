@@ -1,4 +1,7 @@
 #include "denox/runtime.hpp"
+#include "f16.hpp"
+#include <cassert>
+#include <fmt/base.h>
 #include <fmt/printf.h>
 #include <fstream>
 #include <iterator>
@@ -23,24 +26,48 @@ int main() {
     throw std::runtime_error("Failed to create runtime model");
   }
 
+  assert(denox::get_runtime_model_input_count(model) == 1);
+  assert(denox::get_runtime_model_output_count(model) == 1);
   denox::DynamicExtent extents[2];
-  extents[0].name = "H";
-  extents[0].value = 1080;
-  extents[1].name = "W";
-  extents[1].value = 1920;
+  std::size_t inW = 16;
+  std::size_t inH = 8;
+  extents[0].name = "W";
+  extents[0].value = inW;
+  extents[1].name = "H";
+  extents[1].value = inH;
   denox::RuntimeModelInstance instance;
   if (denox::create_runtime_model_instance(context, model, 2, extents,
                                            &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
+  std::size_t inCh;
+  std::size_t checkInW;
+  std::size_t checkInH;
+  denox::get_runtime_model_instance_input_shape(instance, 0, &checkInW,
+                                                &checkInH, &inCh);
+  assert(checkInW == inW);
+  assert(checkInH == inH);
 
-  std::vector<std::uint16_t> input(1080 * 1920 * 3);
-  void *pinput = input.data();
+  std::vector<f16> input(inW * inH * inCh * sizeof(f16));
+  void *pinputs = input.data();
 
-  denox::EvalResult result;
-  denox::eval_runtime_model_instance(context, instance, 1, &pinput, &result);
+  std::size_t outW;
+  std::size_t outH;
+  std::size_t outCh;
+  denox::get_runtime_model_instance_output_shape(instance, 0, &outW, &outH,
+                                                 &outCh);
 
-  denox::destroy_eval_result(result);
+  std::vector<f16> output(outW * outH * outCh);
+  std::size_t expectedOutSize;
+  denox::get_runtime_model_instance_output_byte_size(instance, 0, &expectedOutSize);
+
+  fmt::println("expected: {}", expectedOutSize);
+  fmt::println("got: {}", output.size() * sizeof(f16));
+
+  assert(output.size() * sizeof(decltype(output)::value_type) == expectedOutSize);
+  void *poutputs = output.data();
+
+  denox::eval_runtime_model_instance(context, instance, &pinputs, &poutputs);
 
   denox::destroy_runtime_model_instance(context, instance);
 

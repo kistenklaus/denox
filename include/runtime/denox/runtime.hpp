@@ -38,9 +38,25 @@ void destroy_runtime_model_instance(RuntimeContext context,
                                     RuntimeModelInstance instance);
 
 int eval_runtime_model_instance(RuntimeContext context,
-                                 RuntimeModelInstance instance, int inputCount,
-                                 void **inputs, EvalResult *result);
+                                RuntimeModelInstance instance, 
+                                void **inputs, void** outputs);
 
-void destroy_eval_result(EvalResult result);
+int get_runtime_model_input_count(RuntimeModel model);
+
+int get_runtime_model_output_count(RuntimeModel model);
+
+void get_runtime_model_instance_input_shape(RuntimeModelInstance instance,
+                                            int input, size_t *width,
+                                            size_t *height, size_t *channels);
+
+void get_runtime_model_instance_input_byte_size(RuntimeModelInstance instance,
+                                                int input, size_t *byteSize);
+
+void get_runtime_model_instance_output_shape(RuntimeModelInstance instance,
+                                             int output, size_t *width,
+                                             size_t *height, size_t *channels);
+
+void get_runtime_model_instance_output_byte_size(RuntimeModelInstance instance,
+                                                 int coutput, size_t *byteSize);
 
 } // namespace denox

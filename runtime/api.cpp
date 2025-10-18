@@ -4,7 +4,6 @@
 #include "model.hpp"
 #include "vma.hpp"
 #include <algorithm>
-#include <fmt/base.h>
 #include <fmt/printf.h>
 #include <stdexcept>
 #include <type_traits>
@@ -59,6 +58,20 @@ std::uint64_t parseUnsignedScalarLiteral(const dnx::ScalarLiteral *literal) {
     throw std::runtime_error("Unexpected size dtype.");
   }
   return value;
+}
+
+static uint64_t evalUnsignedScalarSource(runtime::ModelInstance *mi,
+                                         dnx::ScalarSource type,
+                                         const void *scalarSource) {
+  switch (type) {
+  case dnx::ScalarSource_NONE:
+    throw std::runtime_error("invalid state.");
+  case dnx::ScalarSource_literal:
+    return parseUnsignedScalarLiteral(
+        static_cast<const dnx::ScalarLiteral *>(scalarSource));
+  case dnx::ScalarSource_symbolic:
+    return mi->vars[static_cast<const dnx::SymRef *>(scalarSource)->sid()];
+  }
 }
 
 int create_runtime_context(const char *deviceName, RuntimeContext *context) {
@@ -150,7 +163,7 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
           size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
-      ctx->copy(stage, bufferInitializers.data()->data(), size);
+      ctx->copy(stage.allocation, bufferInitializers.data()->data(), size);
 
       runtime::Buffer local =
           ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
@@ -304,24 +317,8 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
         continue;
       }
       const dnx::Buffer *buffer = m->dnx->buffers()->Get(b);
-      std::size_t size;
-      switch (buffer->size_type()) {
-      case dnx::ScalarSource_NONE:
-        throw std::runtime_error("unreachable");
-      case dnx::ScalarSource_literal: {
-        const dnx::ScalarLiteral *literal = buffer->size_as_literal();
-        size = parseUnsignedScalarLiteral(literal);
-        break;
-      }
-      case dnx::ScalarSource_symbolic: {
-        const dnx::SymRef *symRef = buffer->size_as_symbolic();
-        std::uint32_t sid = symRef->sid();
-        std::int64_t v = mi->vars[sid];
-        assert(v >= 0);
-        size = static_cast<std::size_t>(v);
-        break;
-      }
-      }
+      std::size_t size =
+          evalUnsignedScalarSource(mi, buffer->size_type(), buffer->size());
       // See if the buffer is a input / output buffer.
       VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
       for (std::size_t i = 0; i < m->dnx->inputs()->size(); ++i) {
@@ -362,36 +359,24 @@ void destroy_runtime_model_instance(RuntimeContext context,
 }
 
 int eval_runtime_model_instance(RuntimeContext context,
-                                RuntimeModelInstance instance, int inputCount,
-                                void **inputs, EvalResult *result) {
+                                RuntimeModelInstance instance, void **inputs,
+                                void **outputs) {
   auto ctx = reinterpret_cast<runtime::Context *>(context);
   auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
   auto m = mi->model;
 
-  assert(inputCount == m->dnx->inputs()->size());
-
   // 1. Allocate output.
   std::size_t outputCount = m->dnx->outputs()->size();
-  result->outputCount = outputCount;
-  result->outputs = new void *[outputCount];
+  std::size_t inputCount = m->dnx->inputs()->size();
 
   runtime::Buffer *outputStages = new runtime::Buffer[outputCount];
+  std::size_t *outputSizes = new std::size_t[outputCount];
   for (std::size_t o = 0; o < m->dnx->outputs()->size(); ++o) {
     const dnx::Output *output = m->dnx->outputs()->Get(o);
     const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
-    std::uint64_t size;
-    switch (tensor->size_type()) {
-    case dnx::ScalarSource_NONE:
-      throw std::runtime_error("invalid state");
-    case dnx::ScalarSource_literal:
-      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
-      break;
-    case dnx::ScalarSource_symbolic:
-      const dnx::SymRef *ref = tensor->size_as_symbolic();
-      size = mi->vars[static_cast<std::size_t>(ref->sid())];
-      break;
-    }
-    result->outputs[o] = malloc(size);
+    std::uint64_t size =
+        evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
+    outputSizes[o] = size;
     outputStages[o] =
         ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
@@ -401,22 +386,12 @@ int eval_runtime_model_instance(RuntimeContext context,
   for (std::size_t i = 0; i < static_cast<std::size_t>(inputCount); ++i) {
     const dnx::Input *input = m->dnx->inputs()->Get(i);
     const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
-    std::uint64_t size;
-    switch (tensor->size_type()) {
-    case dnx::ScalarSource_NONE:
-      throw std::runtime_error("invalid state");
-    case dnx::ScalarSource_literal:
-      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
-      break;
-    case dnx::ScalarSource_symbolic:
-      const dnx::SymRef *ref = tensor->size_as_symbolic();
-      size = mi->vars[ref->sid()];
-      break;
-    }
+    std::uint64_t size =
+        evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
     inputStages[i] = ctx->createBuffer(
         size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
-    ctx->copy(inputStages[i], inputs[i], size);
+    ctx->copy(inputStages[i].allocation, inputs[i], size);
   }
 
   VkCommandPool cmdPool = ctx->createCommandPool();
@@ -426,30 +401,10 @@ int eval_runtime_model_instance(RuntimeContext context,
   for (std::size_t i = 0; i < m->dnx->inputs()->size(); ++i) {
     const dnx::Input *input = m->dnx->inputs()->Get(i);
     const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
-    std::size_t size;
-    switch (tensor->size_type()) {
-    case dnx::ScalarSource_NONE:
-      throw std::runtime_error("invalid state");
-    case dnx::ScalarSource_literal:
-      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
-      break;
-    case dnx::ScalarSource_symbolic:
-      const dnx::SymRef *ref = tensor->size_as_symbolic();
-      size = mi->vars[ref->sid()];
-      break;
-    }
-    std::size_t offset;
-    switch (tensor->offset_type()) {
-    case dnx::ScalarSource_NONE:
-      throw std::runtime_error("invalid state");
-    case dnx::ScalarSource_literal:
-      offset = parseUnsignedScalarLiteral(tensor->offset_as_literal());
-      break;
-    case dnx::ScalarSource_symbolic:
-      const dnx::SymRef *ref = tensor->offset_as_symbolic();
-      offset = mi->vars[ref->sid()];
-      break;
-    }
+    std::size_t size =
+        evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
+    std::size_t offset =
+        evalUnsignedScalarSource(mi, tensor->offset_type(), tensor->offset());
     ctx->cmdCopy(cmd, mi->buffers[tensor->buffer()], inputStages[i], size,
                  offset, 0);
   }
@@ -466,30 +421,10 @@ int eval_runtime_model_instance(RuntimeContext context,
   for (std::size_t o = 0; o < m->dnx->outputs()->size(); ++o) {
     const dnx::Output *output = m->dnx->outputs()->Get(o);
     const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
-    std::size_t size;
-    switch (tensor->size_type()) {
-    case dnx::ScalarSource_NONE:
-      throw std::runtime_error("invalid state");
-    case dnx::ScalarSource_literal:
-      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
-      break;
-    case dnx::ScalarSource_symbolic:
-      const dnx::SymRef *ref = tensor->size_as_symbolic();
-      size = mi->vars[ref->sid()];
-      break;
-    }
-    std::size_t offset;
-    switch (tensor->offset_type()) {
-    case dnx::ScalarSource_NONE:
-      throw std::runtime_error("invalid state");
-    case dnx::ScalarSource_literal:
-      offset = parseUnsignedScalarLiteral(tensor->offset_as_literal());
-      break;
-    case dnx::ScalarSource_symbolic:
-      const dnx::SymRef *ref = tensor->offset_as_symbolic();
-      offset = mi->vars[ref->sid()];
-      break;
-    }
+    std::size_t size =
+        evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
+    std::size_t offset =
+        evalUnsignedScalarSource(mi, tensor->offset_type(), tensor->offset());
     // Wait for transfer to be done.
     ctx->cmdCopy(cmd, outputStages[o], mi->buffers[tensor->buffer()], size, 0,
                  offset);
@@ -507,18 +442,89 @@ int eval_runtime_model_instance(RuntimeContext context,
   delete[] inputStages;
 
   for (std::size_t o = 0; o < outputCount; ++o) {
+    ctx->copy(outputs[o], outputStages[o].allocation, outputSizes[o]);
     ctx->destroyBuffer(outputStages[o]);
   }
   delete[] outputStages;
+  delete[] outputSizes;
 
   return 0;
 }
 
-void destroy_eval_result(EvalResult result) {
-  for (std::size_t o = 0; o < result.outputCount; ++o) {
-    free(result.outputs[o]);
+int get_runtime_model_input_count(RuntimeModel model) {
+  auto m = reinterpret_cast<runtime::Model *>(model);
+  return m->dnx->inputs()->size();
+}
+
+int get_runtime_model_output_count(RuntimeModel model) {
+  auto m = reinterpret_cast<runtime::Model *>(model);
+  return m->dnx->outputs()->size();
+}
+
+void get_runtime_model_instance_input_shape(RuntimeModelInstance instance,
+                                            int input_index, size_t *width,
+                                            size_t *height, size_t *channels) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+  const dnx::Input *input = m->dnx->inputs()->Get(input_index);
+  if (width != nullptr) {
+    *width = evalUnsignedScalarSource(mi, input->width_type(), input->width());
   }
-  delete[] result.outputs;
+
+  if (height != nullptr) {
+    *height =
+        evalUnsignedScalarSource(mi, input->height_type(), input->height());
+  }
+
+  if (channels != nullptr) {
+    *channels =
+        evalUnsignedScalarSource(mi, input->channels_type(), input->channels());
+  }
+}
+
+void get_runtime_model_instance_output_shape(RuntimeModelInstance instance,
+                                             int output_index, size_t *width,
+                                             size_t *height, size_t *channels) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+
+  const dnx::Output *output = m->dnx->outputs()->Get(output_index);
+  if (width != nullptr) {
+    *width =
+        evalUnsignedScalarSource(mi, output->width_type(), output->width());
+  }
+
+  if (height != nullptr) {
+    *height =
+        evalUnsignedScalarSource(mi, output->height_type(), output->height());
+  }
+
+  if (channels != nullptr) {
+    *channels = evalUnsignedScalarSource(mi, output->channels_type(),
+                                         output->channels());
+  }
+}
+
+void get_runtime_model_instance_input_byte_size(RuntimeModelInstance instance,
+                                                int input_index,
+                                                size_t *byteSize) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+
+  const dnx::Input *input = m->dnx->inputs()->Get(input_index);
+  const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
+  *byteSize = evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
+}
+
+void get_runtime_model_instance_output_byte_size(RuntimeModelInstance instance,
+                                                 int output_index,
+                                                 size_t *byteSize) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+
+  const dnx::Output *output = m->dnx->outputs()->Get(output_index);
+  const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
+  *byteSize = evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
 }
 
 } // namespace denox

@@ -58,11 +58,18 @@ public:
   VkCommandBuffer allocBeginCommandBuffer(VkCommandPool cmdPool);
   void endSubmitWaitCommandBuffer(VkCommandPool cmdPool, VkCommandBuffer cmd);
 
-  void copy(Buffer dst, const void *src, std::size_t size) {
-    VkResult result =
-        vmaCopyMemoryToAllocation(m_vma, src, dst.allocation, 0, size);
+  void copy(VmaAllocation dst, const void *src, std::size_t size) {
+    VkResult result = vmaCopyMemoryToAllocation(m_vma, src, dst, 0, size);
     if (result != VK_SUCCESS) {
       throw std::runtime_error("Failed to copy memory to allocation.");
+    }
+  }
+
+  void copy(void *dst, VmaAllocation src, std::size_t size) {
+    VkResult result =
+        vmaCopyAllocationToMemory(m_vma, src, 0, dst, size);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to copy memory from allocation.");
     }
   }
 
