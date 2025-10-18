@@ -12,11 +12,11 @@
 namespace denox::compiler::shaders {
 
 DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
-                                   const Options &options)
+                                       const Options &options)
     : m_compiler(compiler),
       m_enableConvReluFusion(options.fusionRules.enableConvReluFusion),
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize) {
-          
+
   if (m_subgroupSize == 0) {
     return;
   }
@@ -277,6 +277,7 @@ void DirectConvShaderCM::implement(
                                    memory::BiasTensorConstView(conv->B.get())};
     biasTensorId = impl.createParameter(biasWeights);
   }
+
   dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
   dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
   dispatch.addBinding(0, 2, AccessFlag::ReadOnly, weightTensorId);

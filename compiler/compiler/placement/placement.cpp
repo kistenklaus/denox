@@ -1,6 +1,5 @@
 #include "compiler/placement/placement.hpp"
 #include "algorithm/align_up.hpp"
-#include "compiler/ir/ConstModel.hpp"
 #include "compiler/ir/impl/MemoryConstrain.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
@@ -15,8 +14,6 @@
 #include <limits>
 
 namespace denox::compiler {
-
-
 
 // NOTE: must not be the same as alignof(std::uint32_t)
 // some architectures are weird.
@@ -134,10 +131,9 @@ CompModel placement(const ImplModel &model) {
     unionFind[i] = i;
   }
   auto find = [&](std::uint64_t x) {
-    std::uint64_t n = x;
     do {
       x = n;
-      n = unionFind[x];
+      std::uint64_t n = unionFind[x];
     } while (x != n);
     return x;
   };
