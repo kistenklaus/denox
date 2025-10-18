@@ -20,6 +20,7 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
 
   for (auto &tensor : model.tensors) {
     tensor.offset = model.symGraph.resolve(tensor.offset);
+    tensor.size = model.symGraph.resolve(tensor.size);
   }
   for (auto &input : model.inputs) {
     input.extent.x = sym(model.symGraph.resolve(input.extent.x.asSym()));
@@ -66,6 +67,10 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
     if (tensor.offset.isSymbolic() && !symbolAdded[tensor.offset.sym()]) {
       symbols.push_back(tensor.offset.sym());
       symbolAdded[tensor.offset.sym()] = true;
+    }
+    if (tensor.size.isSymbolic() && !symbolAdded[tensor.size.sym()]) {
+      symbols.push_back(tensor.size.sym());
+      symbolAdded[tensor.size.sym()] = true;
     }
   }
 
@@ -134,6 +139,7 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
   }
   for (auto &tensor : model.tensors) {
     tensor.offset = remap[tensor.offset];
+    tensor.size = remap[tensor.size];
   }
 
   for (auto &input : model.inputs) {

@@ -4,12 +4,62 @@
 #include "model.hpp"
 #include "vma.hpp"
 #include <algorithm>
+#include <fmt/base.h>
 #include <fmt/printf.h>
 #include <stdexcept>
 #include <type_traits>
 #include <vulkan/vulkan_core.h>
 
 namespace denox {
+
+std::uint64_t parseUnsignedScalarLiteral(const dnx::ScalarLiteral *literal) {
+  std::uint64_t value;
+  switch (literal->dtype()) {
+  case dnx::ScalarType_I16: {
+    std::int16_t x;
+    std::memcpy(&x, literal->bytes(), sizeof(std::int16_t));
+    value = static_cast<std::size_t>(x);
+    break;
+  }
+  case dnx::ScalarType_U16: {
+    std::uint16_t x;
+    std::memcpy(&x, literal->bytes(), sizeof(std::uint16_t));
+    value = static_cast<std::size_t>(x);
+    break;
+  }
+  case dnx::ScalarType_I32: {
+    std::int32_t x;
+    std::memcpy(&x, literal->bytes(), sizeof(std::int32_t));
+    value = static_cast<std::size_t>(x);
+    break;
+  }
+  case dnx::ScalarType_U32: {
+    std::uint32_t x;
+    std::memcpy(&x, literal->bytes(), sizeof(std::uint32_t));
+    value = static_cast<std::size_t>(x);
+    break;
+  }
+  case dnx::ScalarType_I64: {
+    std::int64_t x;
+    std::memcpy(&x, literal->bytes(), sizeof(std::int64_t));
+    value = static_cast<std::size_t>(x);
+    break;
+  }
+  case dnx::ScalarType_U64: {
+    std::uint64_t x;
+    std::memcpy(&x, literal->bytes()->data(), sizeof(std::uint64_t));
+    value = static_cast<std::size_t>(x);
+    break;
+  }
+  case dnx::ScalarType_F16:
+  case dnx::ScalarType_F32:
+  case dnx::ScalarType_F64:
+    throw std::runtime_error("Invalid size dtype.");
+  default:
+    throw std::runtime_error("Unexpected size dtype.");
+  }
+  return value;
+}
 
 int create_runtime_context(const char *deviceName, RuntimeContext *context) {
   auto *ctx = new runtime::Context(deviceName);
@@ -95,54 +145,7 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
           *model->dnx->buffers()->Get(bufferInitializers.buffer());
       unsigned int alignment = bufferInfo.alignment();
       const dnx::ScalarLiteral *literal = bufferInfo.size_as_literal();
-      assert(literal != nullptr); // <- buffer size of initalized buffers, must
-                                  // not be symbolic.
-      std::size_t size;
-      switch (literal->dtype()) {
-      case dnx::ScalarType_I16: {
-        std::int16_t x;
-        std::memcpy(&x, literal->bytes(), sizeof(std::int16_t));
-        size = static_cast<std::size_t>(x);
-        break;
-      }
-      case dnx::ScalarType_U16: {
-        std::uint16_t x;
-        std::memcpy(&x, literal->bytes(), sizeof(std::uint16_t));
-        size = static_cast<std::size_t>(x);
-        break;
-      }
-      case dnx::ScalarType_I32: {
-        std::int32_t x;
-        std::memcpy(&x, literal->bytes(), sizeof(std::int32_t));
-        size = static_cast<std::size_t>(x);
-        break;
-      }
-      case dnx::ScalarType_U32: {
-        std::uint32_t x;
-        std::memcpy(&x, literal->bytes(), sizeof(std::uint32_t));
-        size = static_cast<std::size_t>(x);
-        break;
-      }
-      case dnx::ScalarType_I64: {
-        std::int64_t x;
-        std::memcpy(&x, literal->bytes(), sizeof(std::int64_t));
-        size = static_cast<std::size_t>(x);
-        break;
-      }
-      case dnx::ScalarType_U64: {
-        std::uint64_t x;
-        std::memcpy(&x, literal->bytes()->data(), sizeof(std::uint64_t));
-        size = static_cast<std::size_t>(x);
-        break;
-      }
-      case dnx::ScalarType_F16:
-      case dnx::ScalarType_F32:
-      case dnx::ScalarType_F64:
-        throw std::runtime_error("Invalid size dtype.");
-      default:
-        throw std::runtime_error("Unexpected size dtype.");
-      }
-
+      std::uint64_t size = parseUnsignedScalarLiteral(literal);
       runtime::Buffer stage = ctx->createBuffer(
           size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
@@ -152,10 +155,9 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
       runtime::Buffer local =
           ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-      ctx->cmdMemoryBarrier(cmd, stage, VK_PIPELINE_STAGE_HOST_BIT,
-                            VK_PIPELINE_STAGE_TRANSFER_BIT,
-                            VK_ACCESS_HOST_WRITE_BIT,
-                            VK_ACCESS_TRANSFER_READ_BIT);
+      ctx->cmdMemoryBarrier(
+          cmd, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+          VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
 
       ctx->cmdCopy(cmd, local, stage, size);
 
@@ -308,51 +310,7 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
         throw std::runtime_error("unreachable");
       case dnx::ScalarSource_literal: {
         const dnx::ScalarLiteral *literal = buffer->size_as_literal();
-        switch (literal->dtype()) {
-        case dnx::ScalarType_I16: {
-          std::int16_t v;
-          std::memcpy(&v, literal->bytes()->data(), sizeof(std::int16_t));
-          assert(v >= 0);
-          size = static_cast<std::size_t>(v);
-          break;
-        }
-        case dnx::ScalarType_U16: {
-          std::uint16_t v;
-          std::memcpy(&v, literal->bytes()->data(), sizeof(std::uint16_t));
-          size = static_cast<std::size_t>(v);
-          break;
-        }
-        case dnx::ScalarType_I32: {
-          std::int32_t v;
-          std::memcpy(&v, literal->bytes()->data(), sizeof(std::int32_t));
-          assert(v >= 0);
-          size = static_cast<std::size_t>(v);
-          break;
-        }
-        case dnx::ScalarType_U32: {
-          std::uint32_t v;
-          std::memcpy(&v, literal->bytes()->data(), sizeof(std::uint32_t));
-          size = static_cast<std::size_t>(v);
-          break;
-        }
-        case dnx::ScalarType_I64: {
-          std::int64_t v;
-          std::memcpy(&v, literal->bytes()->data(), sizeof(std::int64_t));
-          assert(v >= 0);
-          size = static_cast<std::size_t>(v);
-          break;
-        }
-        case dnx::ScalarType_U64: {
-          std::uint64_t v;
-          std::memcpy(&v, literal->bytes()->data(), sizeof(std::uint64_t));
-          size = static_cast<std::size_t>(v);
-          break;
-        }
-        case dnx::ScalarType_F16:
-        case dnx::ScalarType_F32:
-        case dnx::ScalarType_F64:
-          throw std::runtime_error("Size of a buffer must be a integral.");
-        }
+        size = parseUnsignedScalarLiteral(literal);
         break;
       }
       case dnx::ScalarSource_symbolic: {
@@ -382,8 +340,7 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
           break;
         }
       }
-      mi->buffers[b] =
-          ctx->createBuffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+      mi->buffers[b] = ctx->createBuffer(size, usage);
       mi->ownedBuffers[b] = true;
     }
   }
@@ -404,27 +361,164 @@ void destroy_runtime_model_instance(RuntimeContext context,
   delete mi;
 }
 
-EvalResult eval_runtime_model_instance(RuntimeContext context,
-                                       RuntimeModelInstance instance,
-                                       int inputCount, void **inputs) {
+int eval_runtime_model_instance(RuntimeContext context,
+                                RuntimeModelInstance instance, int inputCount,
+                                void **inputs, EvalResult *result) {
   auto ctx = reinterpret_cast<runtime::Context *>(context);
   auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
   auto m = mi->model;
 
-  EvalResult result;
-  result.outputCount = m->dnx->outputs()->size();
+  assert(inputCount == m->dnx->inputs()->size());
+
+  // 1. Allocate output.
+  std::size_t outputCount = m->dnx->outputs()->size();
+  result->outputCount = outputCount;
+  result->outputs = new void *[outputCount];
+
+  runtime::Buffer *outputStages = new runtime::Buffer[outputCount];
   for (std::size_t o = 0; o < m->dnx->outputs()->size(); ++o) {
     const dnx::Output *output = m->dnx->outputs()->Get(o);
     const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
+    std::uint64_t size;
+    switch (tensor->size_type()) {
+    case dnx::ScalarSource_NONE:
+      throw std::runtime_error("invalid state");
+    case dnx::ScalarSource_literal:
+      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
+      break;
+    case dnx::ScalarSource_symbolic:
+      const dnx::SymRef *ref = tensor->size_as_symbolic();
+      size = mi->vars[static_cast<std::size_t>(ref->sid())];
+      break;
+    }
+    result->outputs[o] = malloc(size);
+    outputStages[o] =
+        ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                          VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+  }
+
+  runtime::Buffer *inputStages = new runtime::Buffer[inputCount];
+  for (std::size_t i = 0; i < static_cast<std::size_t>(inputCount); ++i) {
+    const dnx::Input *input = m->dnx->inputs()->Get(i);
+    const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
+    std::uint64_t size;
+    switch (tensor->size_type()) {
+    case dnx::ScalarSource_NONE:
+      throw std::runtime_error("invalid state");
+    case dnx::ScalarSource_literal:
+      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
+      break;
+    case dnx::ScalarSource_symbolic:
+      const dnx::SymRef *ref = tensor->size_as_symbolic();
+      size = mi->vars[ref->sid()];
+      break;
+    }
+    inputStages[i] = ctx->createBuffer(
+        size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+    ctx->copy(inputStages[i], inputs[i], size);
   }
 
   VkCommandPool cmdPool = ctx->createCommandPool();
+  VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
 
+  // upload input.
+  for (std::size_t i = 0; i < m->dnx->inputs()->size(); ++i) {
+    const dnx::Input *input = m->dnx->inputs()->Get(i);
+    const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
+    std::size_t size;
+    switch (tensor->size_type()) {
+    case dnx::ScalarSource_NONE:
+      throw std::runtime_error("invalid state");
+    case dnx::ScalarSource_literal:
+      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
+      break;
+    case dnx::ScalarSource_symbolic:
+      const dnx::SymRef *ref = tensor->size_as_symbolic();
+      size = mi->vars[ref->sid()];
+      break;
+    }
+    std::size_t offset;
+    switch (tensor->offset_type()) {
+    case dnx::ScalarSource_NONE:
+      throw std::runtime_error("invalid state");
+    case dnx::ScalarSource_literal:
+      offset = parseUnsignedScalarLiteral(tensor->offset_as_literal());
+      break;
+    case dnx::ScalarSource_symbolic:
+      const dnx::SymRef *ref = tensor->offset_as_symbolic();
+      offset = mi->vars[ref->sid()];
+      break;
+    }
+    ctx->cmdCopy(cmd, mi->buffers[tensor->buffer()], inputStages[i], size,
+                 offset, 0);
+  }
+  // Wait for transfer to be done.
+  ctx->cmdMemoryBarrier(
+      cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+      VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+  // Wait for compute to be done.
+  ctx->cmdMemoryBarrier(
+      cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+  // download output.
+  for (std::size_t o = 0; o < m->dnx->outputs()->size(); ++o) {
+    const dnx::Output *output = m->dnx->outputs()->Get(o);
+    const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
+    std::size_t size;
+    switch (tensor->size_type()) {
+    case dnx::ScalarSource_NONE:
+      throw std::runtime_error("invalid state");
+    case dnx::ScalarSource_literal:
+      size = parseUnsignedScalarLiteral(tensor->size_as_literal());
+      break;
+    case dnx::ScalarSource_symbolic:
+      const dnx::SymRef *ref = tensor->size_as_symbolic();
+      size = mi->vars[ref->sid()];
+      break;
+    }
+    std::size_t offset;
+    switch (tensor->offset_type()) {
+    case dnx::ScalarSource_NONE:
+      throw std::runtime_error("invalid state");
+    case dnx::ScalarSource_literal:
+      offset = parseUnsignedScalarLiteral(tensor->offset_as_literal());
+      break;
+    case dnx::ScalarSource_symbolic:
+      const dnx::SymRef *ref = tensor->offset_as_symbolic();
+      offset = mi->vars[ref->sid()];
+      break;
+    }
+    // Wait for transfer to be done.
+    ctx->cmdCopy(cmd, outputStages[o], mi->buffers[tensor->buffer()], size, 0,
+                 offset);
+  }
+  ctx->cmdMemoryBarrier(
+      cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+
+  ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
   ctx->destroyCommandPool(cmdPool);
 
-  return result;
+  for (std::size_t i = 0; i < inputCount; ++i) {
+    ctx->destroyBuffer(inputStages[i]);
+  }
+  delete[] inputStages;
+
+  for (std::size_t o = 0; o < outputCount; ++o) {
+    ctx->destroyBuffer(outputStages[o]);
+  }
+  delete[] outputStages;
+
+  return 0;
 }
 
-void destroy_eval_result(EvalResult result) {}
+void destroy_eval_result(EvalResult result) {
+  for (std::size_t o = 0; o < result.outputCount; ++o) {
+    free(result.outputs[o]);
+  }
+  delete[] result.outputs;
+}
 
 } // namespace denox

@@ -66,16 +66,16 @@ public:
     }
   }
 
-  void cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src, std::size_t size) {
+  void cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src, std::size_t size,
+               std::size_t dstOffset = 0, std::size_t srcOffset = 0) {
     VkBufferCopy copy;
     copy.size = size;
-    copy.srcOffset = 0;
-    copy.dstOffset = 0;
+    copy.srcOffset = srcOffset;
+    copy.dstOffset = dstOffset;
     vkCmdCopyBuffer(cmd, src.buffer, dst.buffer, 1, &copy);
   }
 
-  void cmdMemoryBarrier(VkCommandBuffer cmd, Buffer buffer,
-                        VkPipelineStageFlags srcStage,
+  void cmdMemoryBarrier(VkCommandBuffer cmd, VkPipelineStageFlags srcStage,
                         VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
                         VkAccessFlags dstAccess) {
     VkMemoryBarrier memoryBarrier;
@@ -86,6 +86,26 @@ public:
 
     vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 1, &memoryBarrier, 0,
                          nullptr, 0, nullptr);
+  }
+
+  void cmdBufferBarrier(VkCommandBuffer cmd, Buffer buffer,
+                        VkPipelineStageFlags srcStage,
+                        VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
+                        VkAccessFlags dstAccess, VkDeviceSize offset = 0,
+                        VkDeviceSize size = VK_WHOLE_SIZE) {
+    VkBufferMemoryBarrier bufferBarrier;
+    bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    bufferBarrier.pNext = nullptr;
+    bufferBarrier.srcAccessMask = srcAccess;
+    bufferBarrier.dstAccessMask = dstAccess;
+    bufferBarrier.srcQueueFamilyIndex = m_queueFamily;
+    bufferBarrier.dstQueueFamilyIndex = m_queueFamily;
+    bufferBarrier.buffer = buffer.buffer;
+    bufferBarrier.offset = offset;
+    bufferBarrier.size = size;
+
+    vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 1,
+                         &bufferBarrier, 0, nullptr);
   }
 
 private:

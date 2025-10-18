@@ -37,8 +37,8 @@ int main() {
   std::vector<std::uint16_t> input(1080 * 1920 * 3);
   void *pinput = input.data();
 
-  denox::EvalResult result =
-      denox::eval_runtime_model_instance(context, instance, 1, &pinput);
+  denox::EvalResult result;
+  denox::eval_runtime_model_instance(context, instance, 1, &pinput, &result);
 
   denox::destroy_eval_result(result);
 

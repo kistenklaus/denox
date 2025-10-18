@@ -13,7 +13,7 @@ struct DynamicExtent {
 
 struct EvalResult {
   int outputCount;
-  void** outputs;
+  void **outputs;
 };
 
 typedef void *RuntimeContext;
@@ -37,9 +37,9 @@ int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
 void destroy_runtime_model_instance(RuntimeContext context,
                                     RuntimeModelInstance instance);
 
-EvalResult eval_runtime_model_instance(RuntimeContext context,
-                                       RuntimeModelInstance instance,
-                                       int inputCount, void **inputs);
+int eval_runtime_model_instance(RuntimeContext context,
+                                 RuntimeModelInstance instance, int inputCount,
+                                 void **inputs, EvalResult *result);
 
 void destroy_eval_result(EvalResult result);
 

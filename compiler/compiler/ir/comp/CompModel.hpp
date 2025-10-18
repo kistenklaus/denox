@@ -15,6 +15,7 @@ namespace denox::compiler {
 struct TensorView {
   std::uint64_t buffer;
   Sym offset;
+  Sym size;
 };
 
 struct Buffer {

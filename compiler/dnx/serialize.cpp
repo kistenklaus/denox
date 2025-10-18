@@ -41,10 +41,27 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
       auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
       offset = literal.Union();
     }
+
+    ScalarSource size_type;
+    flatbuffers::Offset<void> size;
+    if (tensor.size.isSymbolic()) {
+      size_type = ScalarSource_symbolic;
+      auto symRef = CreateSymRef(fbb, static_cast<std::uint32_t>(tensor.size.sym()));
+      size = symRef.Union();
+    } else {
+      size_type = ScalarSource_literal;
+      std::uint64_t v = static_cast<std::uint64_t>(tensor.size.constant());
+      auto literalBytesVec = fbb.CreateVector(reinterpret_cast<std::uint8_t*>(&v), sizeof(std::uint64_t));
+      auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
+      size = literal.Union();
+    }
+
     TensorBuilder tensorBuilder(fbb);
     tensorBuilder.add_offset_type(offset_type);
     tensorBuilder.add_offset(offset);
     tensorBuilder.add_buffer(static_cast<std::uint32_t>(tensor.buffer));
+    tensorBuilder.add_size_type(size_type);
+    tensorBuilder.add_size(size);
     tensors.push_back(tensorBuilder.Finish());
   }
   auto tensorsVec = fbb.CreateVector(tensors);
@@ -366,6 +383,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     builder.add_width(width);
     builder.add_height_type(height_type);
     builder.add_height(height);
+    builder.add_tensor(static_cast<std::uint32_t>(input.tensor.index));
 
     inputs.push_back(builder.Finish());
   }
@@ -428,6 +446,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     builder.add_width(width);
     builder.add_height_type(height_type);
     builder.add_height(height);
+    builder.add_tensor(static_cast<std::uint32_t>(output.tensor.index));
 
     outputs.push_back(builder.Finish());
   }

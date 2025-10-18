@@ -96,6 +96,7 @@ CompModel placement(const ImplModel &model) {
     TensorView view{
         .buffer = bufferIndex,
         .offset = Sym::Const(0),
+        .size = tensor.byteSize,
     };
     const std::uint64_t viewId = compModel.tensors.size();
     compModel.tensors.push_back(view);
@@ -288,11 +289,13 @@ CompModel placement(const ImplModel &model) {
       if (placed[constrain.tensorId]) {
         diag::unreachable();
       }
+      const auto &tensor = model.tensors[constrain.tensorId];
       std::uint64_t viewId = compModel.tensors.size();
       tensorIdToViewMap[constrain.tensorId] = viewId;
       TensorView view{
           .buffer = bufferIndex,
           .offset = constrain.offset,
+          .size = tensor.byteSize,
       };
       compModel.tensors.push_back(view);
       placed[constrain.tensorId] = true;
@@ -301,6 +304,7 @@ CompModel placement(const ImplModel &model) {
       if (placed[tensorId]) {
         continue;
       }
+      const auto& tensor = model.tensors[tensorId];
       // NOTE: Not build for this!
       // Only handles the trivial case!
       // We could do more complex stuff here, but i think
@@ -312,6 +316,7 @@ CompModel placement(const ImplModel &model) {
       TensorView view{
           .buffer = bufferIndex,
           .offset = Sym::Const(0),
+          .size = tensor.byteSize,
       };
       compModel.tensors.push_back(view);
       placed[tensorId] = true;

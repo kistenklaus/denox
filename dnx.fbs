@@ -90,6 +90,7 @@ table TensorInfo {
 table Tensor {
   buffer:uint;
   offset:ScalarSource;
+  size:ScalarSource;
 }
 
 enum SymIROpCode:uint16 {
