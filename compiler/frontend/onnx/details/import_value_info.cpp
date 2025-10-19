@@ -9,7 +9,6 @@
 #include "symbolic/SymGraph.hpp"
 
 #include <exception>
-#include <fmt/base.h>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {

@@ -1,7 +1,6 @@
 #include "denox/runtime.hpp"
 #include "f16.hpp"
 #include <cassert>
-#include <fmt/base.h>
 #include <fmt/printf.h>
 #include <fstream>
 #include <iterator>
