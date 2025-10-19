@@ -221,11 +221,35 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
 
     auto pushConstant = pushConstantBuilder.Finish();
 
+    std::array<ScalarSource, 3> workgroupCounts_type;
+    std::array<flatbuffers::Offset<void>, 3> workgroupCounts;
+    for (std::size_t i = 0; i < 3; ++i) {
+      compiler::Sym count = dispatch.workgroupCount[i];
+      if (count.isSymbolic()) {
+        workgroupCounts_type[i] = ScalarSource_symbolic;
+        auto symRef =
+            CreateSymRef(fbb, static_cast<std::uint32_t>(count.sym()));
+        workgroupCounts[i] = symRef.Union();
+      } else {
+        workgroupCounts_type[i] = ScalarSource_literal;
+        std::uint32_t v = static_cast<std::uint32_t>(count.constant());
+        auto vbytes = fbb.CreateVector(reinterpret_cast<const std::uint8_t*>(&v), sizeof(std::uint32_t));
+        auto literal = CreateScalarLiteral(fbb, ScalarType_U32, vbytes);
+        workgroupCounts[i] = literal.Union();
+      }
+    }
+
     ComputeDispatchBuilder computeDispatchBuilder(fbb);
     computeDispatchBuilder.add_spirv_src(srcVec);
     computeDispatchBuilder.add_entry_point(entryPointStr);
     computeDispatchBuilder.add_bindings(setBindingsVec);
     computeDispatchBuilder.add_push_constant(pushConstant);
+    computeDispatchBuilder.add_workgroupCountX_type(workgroupCounts_type[0]);
+    computeDispatchBuilder.add_workgroupCountX(workgroupCounts[0]);
+    computeDispatchBuilder.add_workgroupCountY_type(workgroupCounts_type[1]);
+    computeDispatchBuilder.add_workgroupCountY(workgroupCounts[1]);
+    computeDispatchBuilder.add_workgroupCountZ_type(workgroupCounts_type[2]);
+    computeDispatchBuilder.add_workgroupCountZ(workgroupCounts[2]);
 
     dispatches.push_back(computeDispatchBuilder.Finish().Union());
     dispatchTypes.push_back(Dispatch_ComputeDispatch);

@@ -65,6 +65,9 @@ table ComputeDispatchInfo {
 
 table ComputeDispatch {
   spirv_src:[uint32];
+  workgroupCountX:ScalarSource;
+  workgroupCountY:ScalarSource;
+  workgroupCountZ:ScalarSource;
   entry_point:string;
   bindings:[DescriptorSetBinding];
   push_constant: PushConstant; 

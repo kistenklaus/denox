@@ -305,7 +305,7 @@ CompModel placement(const ImplModel &model) {
       if (placed[tensorId]) {
         continue;
       }
-      const auto& tensor = model.tensors[tensorId];
+      const auto &tensor = model.tensors[tensorId];
       // NOTE: Not build for this!
       // Only handles the trivial case!
       // We could do more complex stuff here, but i think
