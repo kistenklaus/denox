@@ -64,10 +64,10 @@ table ComputeDispatchInfo {
 }
 
 table ComputeDispatch {
-  spirv_src:[uint32];
-  workgroupCountX:ScalarSource;
-  workgroupCountY:ScalarSource;
-  workgroupCountZ:ScalarSource;
+  binary_id:uint32;
+  workgroup_count_x:ScalarSource;
+  workgroup_count_y:ScalarSource;
+  workgroup_count_z:ScalarSource;
   entry_point:string;
   bindings:[DescriptorSetBinding];
   push_constant: PushConstant; 
@@ -160,6 +160,10 @@ table ValueName {
   value: ScalarSource;
 }
 
+table ShaderBinary {
+  spirv:[uint32];
+}
+
 table Model {
   version: Version;
   info:ModelInfo; // optional.
@@ -167,6 +171,7 @@ table Model {
   tensors:[Tensor];
   buffers:[Buffer];
   dispatches:[Dispatch];
+  shader_binaries:[ShaderBinary];
   sym_ir:SymIR;
   initializers:[BufferInitializer];
   inputs:[Input];

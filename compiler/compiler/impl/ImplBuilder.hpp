@@ -5,12 +5,14 @@
 #include "compiler/ir/impl/ImplModel.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
+#include "memory/container/hashmap.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/tensor/FilterTensor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
 #include "shaders/compiler/ShaderBinary.hpp"
+#include <fmt/base.h>
 #include <stdexcept>
 namespace denox::compiler {
 
@@ -96,15 +98,9 @@ public:
     return createParameter({bytes.begin(), bytes.end()}, minAlignment);
   }
 
-  [[deprecated]] ComputeDispatchBuilder dispatch(ShaderBinary binary) {
-    auto builder = ComputeDispatchBuilder(m_impl->dispatches.size(), this);
-    m_impl->dispatches.push_back({});
-    m_impl->dispatches.back().binary = std::move(binary);
-    return builder;
-  }
-
   ComputeDispatchBuilder registerDispatch(GlslCompilerInstance shader, Sym wgX,
-                                          Sym wgY = Sym::Const(1), Sym wgZ = Sym::Const(1)) {
+                                          Sym wgY = Sym::Const(1),
+                                          Sym wgZ = Sym::Const(1)) {
     std::size_t index = m_impl->dispatches.size();
     auto builder = ComputeDispatchBuilder(index, this);
     m_impl->dispatches.emplace_back();
@@ -137,18 +133,37 @@ public:
   }
 
   void compileAll(bool logging) {
-    std::size_t n = m_compilationUnits.size();
-    for (std::size_t c = 0; c < n; ++c) {
-      auto &unit = m_compilationUnits[c];
+
+    memory::hash_map<std::string,
+                     std::pair<std::uint32_t, GlslCompilerInstance>>
+        binaryCache;
+    for (auto &unit : m_compilationUnits) {
+      std::string key = unit.instance.key();
+      auto it = binaryCache.find(key);
+      if (it != binaryCache.end()) {
+        std::uint32_t binaryId = it->second.first;
+        m_impl->dispatches[unit.dispatchIndex].binaryId = binaryId;
+      } else {
+        std::uint32_t binaryId =
+            static_cast<std::uint32_t>(m_impl->shaderBinaries.size());
+        m_impl->shaderBinaries.emplace_back();
+        binaryCache.emplace_hint(it, key,
+                            std::make_pair(binaryId, std::move(unit.instance)));
+      }
+    }
+    std::size_t n = binaryCache.size();
+    std::size_t c = 0;
+    for (auto& [_, value] : binaryCache) {
+      auto& [binaryId, instance] = value;
       if (logging) {
         std::size_t percentage = ((c + 1) * 100 + n - 1) / n;
         fmt::println("[{:>3}%] \x1B[32m\x1B[1mBuilding SPIRV object\x1B[0m "
                      "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
-                     percentage, unit.instance.getSourcePath().str(),
-                     unit.instance.hashPreamble());
+                     percentage, instance.getSourcePath().str(),
+                     instance.hashPreamble());
       }
-      ShaderBinary binary = *unit.instance.compile();
-      m_impl->dispatches[unit.dispatchIndex].binary = std::move(binary);
+      m_impl->shaderBinaries[binaryId] = *instance.compile();
+      ++c;
     }
   }
 

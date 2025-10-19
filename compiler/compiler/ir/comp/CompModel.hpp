@@ -7,6 +7,7 @@
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
+#include "shaders/compiler/ShaderBinary.hpp"
 #include "symbolic/Sym.hpp"
 #include <cstdint>
 
@@ -21,7 +22,7 @@ struct TensorView {
 struct Buffer {
   Sym size;
   unsigned int alignment;
-  memory::optional<std::uint64_t> initalizer;
+  memory::optional<std::vector<std::byte>> initalizer;
 };
 
 struct ShaderSourceView {
@@ -41,7 +42,7 @@ struct DescriptorSetBinding {
 };
 
 struct Dispatch {
-  ShaderSourceView src;
+  std::uint32_t binaryId;
   std::array<Sym, 3> workgroupCount;
   memory::vector<DescriptorSetBinding> setBindings;
   memory::vector<PushConstant> pushConstants;
@@ -54,9 +55,8 @@ struct CompModel {
   memory::vector<memory::optional<TensorMeta>> tensorInfo;
 
   memory::vector<Dispatch> dispatches;
+  memory::vector<ShaderBinary> shaderBinaries;
   memory::vector<Buffer> buffers;
-
-  memory::vector<std::byte> roData;
 
   memory::vector<InputDesc> inputs;
   memory::vector<OutputDesc> outputs;

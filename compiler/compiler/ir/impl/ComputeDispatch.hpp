@@ -17,7 +17,7 @@ struct ComputeDispatchMeta {
 
 struct ComputeDispatch {
   std::array<Sym, 3> workgroupCount;
-  ShaderBinary binary;
+  std::uint32_t binaryId;
   memory::vector<TensorBinding> bindings;
   memory::vector<PushConstant> pushConstants;
   std::unique_ptr<ComputeDispatchMeta> meta;

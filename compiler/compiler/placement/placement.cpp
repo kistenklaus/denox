@@ -1,5 +1,4 @@
 #include "compiler/placement/placement.hpp"
-#include "algorithm/align_up.hpp"
 #include "compiler/ir/impl/MemoryConstrain.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
@@ -15,49 +14,21 @@
 
 namespace denox::compiler {
 
-// NOTE: must not be the same as alignof(std::uint32_t)
-// some architectures are weird.
-static constexpr std::size_t RO_SHADER_SRC_ALIGNMENT = 4;
-static constexpr std::size_t RO_PARAM_ALIGNMENT = 8;
-
 CompModel placement(const ImplModel &model) {
   CompModel compModel;
   compModel.symGraph = model.symGraph;
   SymGraph &symGraph = compModel.symGraph;
 
-  // Precompute roSize.
-  std::size_t roSize = 0;
-  for (const auto &dispatch : model.dispatches) {
-    roSize = algorithm::align_up(roSize, RO_SHADER_SRC_ALIGNMENT);
-    roSize += dispatch.binary.spv.size() * sizeof(std::uint32_t);
-  }
-  for (const auto &param : model.parameters) {
-    roSize = algorithm::align_up(roSize, RO_PARAM_ALIGNMENT);
-    roSize += param.data.size();
-  }
-  compModel.roData.resize(roSize, std::byte('\0'));
-  // Write shader source to roData
-  std::size_t roOffset = 0;
+  compModel.shaderBinaries = compModel.shaderBinaries;
+
   for (const auto &computeDispatch : model.dispatches) {
-    roOffset = algorithm::align_up(roOffset, RO_SHADER_SRC_ALIGNMENT);
-
-    std::memcpy(compModel.roData.data() + roOffset,
-                computeDispatch.binary.spv.data(),
-                computeDispatch.binary.spv.size() * sizeof(std::uint32_t));
-
-    ShaderSourceView src{
-        .offset = roOffset,
-        .size = computeDispatch.binary.spv.size() * sizeof(std::uint32_t),
-    };
     Dispatch dispatch{
-        .src = src,
+        .binaryId = computeDispatch.binaryId,
         .workgroupCount = computeDispatch.workgroupCount,
         .setBindings = {}, // <- handeled after tensor placement.
         .pushConstants = computeDispatch.pushConstants,
     };
     compModel.dispatches.push_back(std::move(dispatch));
-
-    roOffset += computeDispatch.binary.spv.size() * sizeof(std::uint32_t);
   }
 
   static constexpr std::uint64_t u64sential =
@@ -112,17 +83,11 @@ CompModel placement(const ImplModel &model) {
 
   // Create initalizers for parameters.
   for (const auto &param : model.parameters) {
-    roOffset = algorithm::align_up(roOffset, RO_PARAM_ALIGNMENT);
-    std::memcpy(compModel.roData.data() + roOffset, param.data.data(),
-                param.data.size());
-    std::uint64_t offset = roOffset;
-    roOffset += param.data.size();
-
     const std::uint64_t tensorId = param.tensorId.index;
     const std::uint64_t viewId = tensorIdToViewMap[tensorId];
     const TensorView &view = compModel.tensors[viewId];
     Buffer &buffer = compModel.buffers[view.buffer];
-    buffer.initalizer = offset;
+    buffer.initalizer = param.data;
   }
 
   // Create views for runtime tensors.

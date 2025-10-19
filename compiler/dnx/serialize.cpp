@@ -5,7 +5,6 @@
 #include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
 #include "dnx.h"
-#include "memory/container/dynamic_bitset.hpp"
 #include "memory/container/vector.hpp"
 
 namespace denox::dnx {
@@ -95,6 +94,15 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   }
   auto buffersVec = fbb.CreateVector(buffers);
 
+  memory::vector<flatbuffers::Offset<dnx::ShaderBinary>> binaries;
+  binaries.reserve(compModel.shaderBinaries.size());
+  for (const auto &shaderBinary : compModel.shaderBinaries) {
+    auto spvVec = fbb.CreateVector(shaderBinary.spv);
+    binaries.push_back(CreateShaderBinary(fbb, spvVec));
+  }
+
+  auto shaderBinariesVec = fbb.CreateVector(binaries);
+
   memory::vector<flatbuffers::Offset<void>> dispatches;
   memory::vector<std::uint8_t> dispatchTypes;
   dispatches.reserve(compModel.dispatches.size());
@@ -102,10 +110,10 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
     const auto &dispatch = compModel.dispatches[d];
 
-    auto srcVec =
-        fbb.CreateVector(reinterpret_cast<const std::uint32_t *>(
-                             compModel.roData.data() + dispatch.src.offset),
-                         dispatch.src.size / sizeof(std::uint32_t));
+    // auto srcVec =
+    //     fbb.CreateVector(reinterpret_cast<const std::uint32_t *>(
+    //                          compModel.roData.data() + dispatch.src.offset),
+    //                      dispatch.src.size / sizeof(std::uint32_t));
     auto entryPointStr = fbb.CreateString("main");
 
     memory::vector<flatbuffers::Offset<DescriptorSetBinding>> setBindings;
@@ -233,23 +241,24 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
       } else {
         workgroupCounts_type[i] = ScalarSource_literal;
         std::uint32_t v = static_cast<std::uint32_t>(count.constant());
-        auto vbytes = fbb.CreateVector(reinterpret_cast<const std::uint8_t*>(&v), sizeof(std::uint32_t));
+        auto vbytes = fbb.CreateVector(
+            reinterpret_cast<const std::uint8_t *>(&v), sizeof(std::uint32_t));
         auto literal = CreateScalarLiteral(fbb, ScalarType_U32, vbytes);
         workgroupCounts[i] = literal.Union();
       }
     }
 
     ComputeDispatchBuilder computeDispatchBuilder(fbb);
-    computeDispatchBuilder.add_spirv_src(srcVec);
+    computeDispatchBuilder.add_binary_id(dispatch.binaryId);
     computeDispatchBuilder.add_entry_point(entryPointStr);
     computeDispatchBuilder.add_bindings(setBindingsVec);
     computeDispatchBuilder.add_push_constant(pushConstant);
-    computeDispatchBuilder.add_workgroupCountX_type(workgroupCounts_type[0]);
-    computeDispatchBuilder.add_workgroupCountX(workgroupCounts[0]);
-    computeDispatchBuilder.add_workgroupCountY_type(workgroupCounts_type[1]);
-    computeDispatchBuilder.add_workgroupCountY(workgroupCounts[1]);
-    computeDispatchBuilder.add_workgroupCountZ_type(workgroupCounts_type[2]);
-    computeDispatchBuilder.add_workgroupCountZ(workgroupCounts[2]);
+    computeDispatchBuilder.add_workgroup_count_x_type(workgroupCounts_type[0]);
+    computeDispatchBuilder.add_workgroup_count_x(workgroupCounts[0]);
+    computeDispatchBuilder.add_workgroup_count_y_type(workgroupCounts_type[1]);
+    computeDispatchBuilder.add_workgroup_count_y(workgroupCounts[1]);
+    computeDispatchBuilder.add_workgroup_count_z_type(workgroupCounts_type[2]);
+    computeDispatchBuilder.add_workgroup_count_z(workgroupCounts[2]);
 
     dispatches.push_back(computeDispatchBuilder.Finish().Union());
     dispatchTypes.push_back(Dispatch_ComputeDispatch);
@@ -342,11 +351,9 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     if (!buffer.initalizer.has_value()) {
       continue;
     }
-    assert(buffer.size.isConstant());
     auto data = fbb.CreateVector(
-        reinterpret_cast<const std::uint8_t *>(compModel.roData.data() +
-                                               buffer.initalizer.value()),
-        static_cast<std::size_t>(buffer.size.constant()));
+        reinterpret_cast<const std::uint8_t *>(buffer.initalizer->data()),
+        static_cast<std::size_t>(buffer.initalizer->size()));
 
     auto bufferInitializer =
         CreateBufferInitializer(fbb, static_cast<std::uint32_t>(b), data);
@@ -510,6 +517,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   mb.add_buffers(buffersVec);
   mb.add_dispatches_type(dispatchTypesVec);
   mb.add_dispatches(dispatchesVec);
+  mb.add_shader_binaries(shaderBinariesVec);
   mb.add_sym_ir(sym_ir);
   mb.add_initializers(initializersVec);
   mb.add_inputs(inputsVec);

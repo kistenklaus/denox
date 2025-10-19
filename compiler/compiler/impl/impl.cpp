@@ -232,7 +232,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
       fmt::println("\x1B[34m\x1B[1m{}\x1B[0m: (\x1B[4m{}\x1B[0m)", dispatchName,
                    sourcePath);
       fmt::print("\u2022 Binary-Size: {}B\n",
-                 dispatch.binary.spv.size() * sizeof(std::uint32_t));
+                 implModel.shaderBinaries[dispatch.binaryId].spv.size() * sizeof(std::uint32_t));
       fmt::print("\u2022 TensorBindings: [");
       bool first = true;
       for (const auto &binding : dispatch.bindings) {

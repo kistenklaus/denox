@@ -56,8 +56,15 @@ public:
 
   std::size_t hashPreamble() const {
     std::size_t preambleHash = std::hash<memory::string>{}(m_preamble);
-    std::size_t sourcePathHash = std::hash<memory::string>{}(m_sourcePath.str());
+    std::size_t sourcePathHash =
+        std::hash<memory::string>{}(m_sourcePath.str());
     return algorithm::hash_combine(preambleHash, sourcePathHash);
+  }
+
+  std::string_view getPreamble() const { return m_preamble; }
+
+  std::string key() const {
+    return fmt::format("{}$&%;{}", m_sourcePath.str(), m_preamble);
   }
 
 private:

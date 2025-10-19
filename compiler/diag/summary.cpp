@@ -61,7 +61,7 @@ void print_summary(const Model &model, const ImplModel &implModel,
 
   std::size_t spirvByteSize = 0;
   for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
-    spirvByteSize += compModel.dispatches[d].src.size;
+    spirvByteSize += compModel.shaderBinaries[compModel.dispatches[d].binaryId].spv.size();
   }
   if (spirvByteSize > 1000000) {
     fmt::println("\u2022 {:<20} : {:.1f}MB", "SPIRV-ByteSize",

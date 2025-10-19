@@ -15,6 +15,7 @@ struct ImplModel {
   SymGraph symGraph;
   memory::vector<TensorStorageRequirements> tensors;
   memory::vector<ComputeDispatch> dispatches;
+  memory::vector<ShaderBinary> shaderBinaries;
 
   memory::vector<MemoryImplicitConcatConstrain> memoryImplicitConcatConstrains;
   memory::vector<Parameter> parameters;
