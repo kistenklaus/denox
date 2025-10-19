@@ -92,7 +92,7 @@ void failed_to_realize(const OpModel &opModel,
             "with: padding=({},{}), stride=({},{}), bias={}, atype={}",
             conv->padding.x, conv->padding.y, conv->stride.x, conv->stride.y,
             conv->B != nullptr,
-            conv->atype.has_value() ? "none" : conv->atype->to_string());
+            conv->atype.has_value() ?  conv->atype->to_string() : "none");
         break;
       }
       case ComputeOpTag::Activation:
