@@ -19,7 +19,7 @@ CompModel placement(const ImplModel &model) {
   compModel.symGraph = model.symGraph;
   SymGraph &symGraph = compModel.symGraph;
 
-  compModel.shaderBinaries = compModel.shaderBinaries;
+  compModel.shaderBinaries = model.shaderBinaries;
 
   for (const auto &computeDispatch : model.dispatches) {
     Dispatch dispatch{
