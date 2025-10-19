@@ -8,5 +8,7 @@ namespace denox::dnx {
 
 flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
                                       const compiler::SymIR &symIR,
-                                      const compiler::SymTable &symTable);
+                                      const compiler::SymTable &symTable,
+                                      const std::string& inputName,
+                                      const std::string& outputName);
 }

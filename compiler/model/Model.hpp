@@ -32,7 +32,7 @@ public:
             *o.m_controlBlock)) {}
 
   Tensor
-  input(unsigned int channels,
+  input(unsigned int channels, const std::string &name,
         memory::optional<memory::ActivationLayout> layout = memory::nullopt,
         memory::optional<memory::Dtype> type = memory::nullopt,
         memory::optional<Sym> W = memory::nullopt,
@@ -62,7 +62,8 @@ public:
   Tensor slice(const Tensor &src0, Sym left, Sym right, Sym top,
                Sym bottom) const;
 
-  void output(const Tensor &src, NamedExtent extentNames = {}) const;
+  void output(const Tensor &src, const std::string &name,
+              NamedExtent extentNames = {}) const;
 
   const memory::AdjGraph<ComputeTensor, ComputeOp> &graph() const {
     return m_controlBlock->hypergraph;
@@ -79,6 +80,13 @@ public:
 
   const NamedExtent &getOutputExtentNames() const {
     return m_controlBlock->outputExtentNames;
+  }
+
+  const std::string& getInputName() const {
+    return m_controlBlock->inputName;
+  }
+  const std::string& getOutputName() const  {
+    return m_controlBlock->outputName;
   }
 
   memory::string to_string() const;

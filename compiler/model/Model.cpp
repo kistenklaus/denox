@@ -7,6 +7,7 @@
 namespace denox::compiler {
 
 Tensor Model::input(unsigned int channels,
+    const std::string& name,
                     memory::optional<memory::ActivationLayout> layout,
                     memory::optional<memory::Dtype> type,
                     memory::optional<Sym> W, memory::optional<Sym> H,
@@ -30,6 +31,7 @@ Tensor Model::input(unsigned int channels,
       m_controlBlock->hypergraph.emplaceNode(extent, channels, layout, type);
   m_controlBlock->input = id;
   m_controlBlock->inputExtentNames = dynamicExtent;
+  m_controlBlock->inputName = name;
   return Tensor{id, m_controlBlock.get()};
 }
 
@@ -261,10 +263,12 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
   return Tensor{dstId, m_controlBlock.get()};
 }
 
-void Model::output(const Tensor &src, NamedExtent extentNames) const {
-  assert(m_controlBlock->output == details::model::ModelControlBlock::NullNode);
+void Model::output(const Tensor &src, const std::string& name, NamedExtent extentNames) const {
+  // Currently we only support a single input / output.
+  assert(m_controlBlock->output == details::model::ModelControlBlock::NullNode); 
   m_controlBlock->outputExtentNames = extentNames;
   m_controlBlock->output = src.m_nodeId;
+  m_controlBlock->outputName = name;
 }
 
 Tensor Model::getInput() const {

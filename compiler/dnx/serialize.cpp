@@ -11,7 +11,9 @@ namespace denox::dnx {
 
 flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
                                       const compiler::SymIR &symIR,
-                                      const compiler::SymTable &symTable) {
+                                      const compiler::SymTable &symTable,
+                                      const std::string &inputName,
+                                      const std::string &outputName) {
   flatbuffers::FlatBufferBuilder fbb(1 << 16);
 
   // TODO: add_info.
@@ -410,6 +412,8 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
                    .Union();
     }
 
+    auto nameStr = fbb.CreateString(inputName);
+
     InputBuilder builder(fbb);
     builder.add_channels_type(channels_type);
     builder.add_channels(channels);
@@ -418,6 +422,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     builder.add_height_type(height_type);
     builder.add_height(height);
     builder.add_tensor(static_cast<std::uint32_t>(input.tensor.index));
+    builder.add_name(nameStr);
 
     inputs.push_back(builder.Finish());
   }
@@ -472,6 +477,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
                                     sizeof(std::uint32_t)))
                    .Union();
     }
+    auto nameStr = fbb.CreateString(outputName);
 
     OutputBuilder builder(fbb);
     builder.add_channels_type(channels_type);
@@ -481,6 +487,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     builder.add_height_type(height_type);
     builder.add_height(height);
     builder.add_tensor(static_cast<std::uint32_t>(output.tensor.index));
+    builder.add_name(nameStr);
 
     outputs.push_back(builder.Finish());
   }

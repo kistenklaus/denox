@@ -18,6 +18,9 @@ struct ModelControlBlock {
   NamedExtent inputExtentNames;
   NamedExtent outputExtentNames;
 
+  std::string inputName;
+  std::string outputName;
+
   memory::NodeId input;
   memory::NodeId output;
 

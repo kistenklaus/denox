@@ -9,6 +9,7 @@
 #include "symbolic/SymGraph.hpp"
 
 #include <exception>
+#include <fmt/base.h>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
@@ -104,7 +105,6 @@ void import_value_info(ImportState &state,
           "vkcnn: tensor {} has unknown shape (dynamic rank unsupported)",
           name));
     }
-
     compiler::NamedExtent dynamicExtent;
     // TensorShape::parse
     const auto &shp = ttype.shape();
@@ -171,7 +171,7 @@ void import_value_info(ImportState &state,
             }
             if (options.inputShape.channels.name.has_value()) {
               dynamicExtent.channels = options.inputShape.channels.name.value();
-            } 
+            }
           }
           if (ri == 2) {
             if (options.inputShape.height.value.has_value()) {
@@ -181,7 +181,7 @@ void import_value_info(ImportState &state,
             }
             if (options.inputShape.height.name.has_value()) {
               dynamicExtent.height = options.inputShape.height.name.value();
-            } 
+            }
           }
           if (ri == 3) {
             if (options.inputShape.width.value.has_value()) {
@@ -191,7 +191,7 @@ void import_value_info(ImportState &state,
             }
             if (options.inputShape.width.name.has_value()) {
               dynamicExtent.width = options.inputShape.width.name.value();
-            } 
+            }
           }
         }
         dims.emplace_back(g, s);
@@ -244,10 +244,10 @@ void import_value_info(ImportState &state,
       dtype = *options.inputType;
     } else if (hint.has_value()) {
       dtype = *hint;
-    } 
+    }
 
-    compiler::Tensor rt =
-        state.output.input(C, memory::nullopt, dtype, Ws, Hs, dynamicExtent);
+    compiler::Tensor rt = state.output.input(C, name, memory::nullopt, dtype,
+                                             Ws, Hs, dynamicExtent);
 
     DeviceTensor dev(r, std::move(rt));
     state.tensors.emplace(name, Tensor::Device(std::move(dev)));
@@ -323,19 +323,22 @@ void import_value_info(ImportState &state,
       std::size_t rd = (orank == 4) ? d : (d + 1);
       if (rd == 1) {
         extent.channels = options.outputShape.channels.name;
-        if (dim.has_dim_value() && options.outputShape.channels.value.has_value() && 
+        if (dim.has_dim_value() &&
+            options.outputShape.channels.value.has_value() &&
             options.outputShape.channels.value.value() != dim.dim_value()) {
           compiler::diag::invalid_argument();
         }
       } else if (rd == 2) {
         extent.height = options.outputShape.height.name;
-        if (dim.has_dim_value() && options.outputShape.height.value.has_value() && 
+        if (dim.has_dim_value() &&
+            options.outputShape.height.value.has_value() &&
             options.outputShape.height.value.value() != dim.dim_value()) {
           compiler::diag::invalid_argument();
         }
       } else if (rd == 3) {
         extent.width = options.outputShape.width.name;
-        if (dim.has_dim_value() && options.outputShape.width.value.has_value() && 
+        if (dim.has_dim_value() &&
+            options.outputShape.width.value.has_value() &&
             options.outputShape.width.value.value() != dim.dim_value()) {
           compiler::diag::invalid_argument();
         }
@@ -344,7 +347,7 @@ void import_value_info(ImportState &state,
   }
 
   // Finalize output in backend
-  state.output.output(dev.handle(), extent);
+  state.output.output(dev.handle(), name, extent);
 }
 
 } // namespace denox::onnx::details

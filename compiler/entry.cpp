@@ -73,7 +73,7 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
 
   auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel, symTable);
 
-  auto dnx = dnx::serialize(compModel, symIR, symTable);
+  auto dnx = dnx::serialize(compModel, symIR, symTable, model.getInputName(), model.getOutputName());
 
   if (options.summarize) {
     diag::print_summary(model, implModel, compModel, symIR, symCount, dnx);
