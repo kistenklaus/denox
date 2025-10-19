@@ -46,12 +46,14 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     flatbuffers::Offset<void> size;
     if (tensor.size.isSymbolic()) {
       size_type = ScalarSource_symbolic;
-      auto symRef = CreateSymRef(fbb, static_cast<std::uint32_t>(tensor.size.sym()));
+      auto symRef =
+          CreateSymRef(fbb, static_cast<std::uint32_t>(tensor.size.sym()));
       size = symRef.Union();
     } else {
       size_type = ScalarSource_literal;
       std::uint64_t v = static_cast<std::uint64_t>(tensor.size.constant());
-      auto literalBytesVec = fbb.CreateVector(reinterpret_cast<std::uint8_t*>(&v), sizeof(std::uint64_t));
+      auto literalBytesVec = fbb.CreateVector(
+          reinterpret_cast<std::uint8_t *>(&v), sizeof(std::uint64_t));
       auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
       size = literal.Union();
     }
@@ -80,7 +82,8 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     } else {
       size_type = ScalarSource_literal;
       std::uint64_t v = static_cast<std::uint64_t>(buffer.size.constant());
-      auto literalBytesVec = fbb.CreateVector(reinterpret_cast<const std::uint8_t*>(&v), sizeof(std::uint64_t));
+      auto literalBytesVec = fbb.CreateVector(
+          reinterpret_cast<const std::uint8_t *>(&v), sizeof(std::uint64_t));
       auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
       size = literal.Union();
     }

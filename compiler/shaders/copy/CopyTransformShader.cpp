@@ -176,7 +176,8 @@ float denox::compiler::shaders::CopyTransformShader::speedup(
 void denox::compiler::shaders::CopyTransformShader::implement(
     Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int patternEnc,
-    const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match) const {
+    const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+    SymGraph &symGraph) const {
   unsigned int pattern = patternEnc & PATTERN_MASK;
   unsigned int mode = patternEnc & CONCAT_MODE_MASK;
   const auto &patternHandles = m_patternHandles[pattern];
@@ -199,6 +200,12 @@ void denox::compiler::shaders::CopyTransformShader::implement(
   }
   case EXPLICIT_CONCAT_MODE: {
     {
+      std::uint32_t invocC;
+      std::uint32_t invocW;
+      std::uint32_t invocH;
+      std::uint32_t wgC;
+      std::uint32_t wgW;
+      std::uint32_t wgH;
 
       auto shader = m_compiler->read(m_srcPath);
       shader.define("IN_CH_OFFSET", 0);
@@ -216,19 +223,19 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("OUT_LAYOUT_HWC");
 
         if (src0.channels >= 16) {
-          shader.define("INVOC_C", 2);
-          shader.define("INVOC_W", 2);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 8);
-          shader.define("WG_W", 32);
-          shader.define("WG_H", 1);
+          invocC = 2;
+          invocW = 2;
+          invocH = 1;
+          wgC = 8;
+          wgW = 32;
+          wgH = 1;
         } else {
-          shader.define("INVOC_C", 1);
-          shader.define("INVOC_W", 4);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", src0.channels);
-          shader.define("WG_W", 32);
-          shader.define("WG_H", 1);
+          invocC = 1;
+          invocW = 4;
+          invocH = 1;
+          wgC = src0.channels;
+          wgW = 32;
+          wgH = 1;
         }
       } else if (src0.layout == memory::ActivationLayout::HWC &&
                  dst.layout == memory::ActivationLayout::HWC &&
@@ -241,26 +248,26 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("OUT_LAYOUT_HWC8");
 
         if (src0.channels >= 32) {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 4);
-          shader.define("WG_W", 64);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 4;
+          wgW = 64;
+          wgH = 1;
         } else if (src0.channels >= 16) {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 2);
-          shader.define("WG_W", 128);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 2;
+          wgW = 128;
+          wgH = 1;
         } else {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 1);
-          shader.define("WG_W", 256);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 1;
+          wgW = 256;
+          wgH = 1;
         }
       } else if (src0.layout == memory::ActivationLayout::CHWC8 &&
                  dst.layout == memory::ActivationLayout::CHWC8) {
@@ -271,17 +278,34 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("IN_LAYOUT_CHWC8");
         shader.define("OUT_LAYOUT_CHWC8");
         {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 1);
-          shader.define("WG_W", 256);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 1;
+          wgW = 256;
+          wgH = 1;
         }
       } else {
         compiler::diag::unreachable();
       }
-      auto copySrc0Dispatch = impl.registerDispatch(std::move(shader));
+
+      shader.define("INVOC_C", invocC);
+      shader.define("INVOC_W", invocW);
+      shader.define("INVOC_H", invocH);
+      shader.define("WG_C", wgC);
+      shader.define("WG_W", wgW);
+      shader.define("WG_H", wgH);
+
+      std::uint32_t tileX = invocC * wgC;
+      std::uint32_t tileY = invocW * wgW;
+      std::uint32_t tileZ = invocH * wgH;
+
+      Sym workgroupCountX = symGraph.cdiv(src0.channels, tileX);
+      Sym workgroupCountY = symGraph.cdiv(src0.extent.x.asSym(), tileY);
+      Sym workgroupCountZ = symGraph.cdiv(src0.extent.y.asSym(), tileZ);
+
+      auto copySrc0Dispatch = impl.registerDispatch(
+          std::move(shader), workgroupCountX, workgroupCountY, workgroupCountZ);
       copySrc0Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src0Id);
       copySrc0Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.x));
@@ -292,6 +316,13 @@ void denox::compiler::shaders::CopyTransformShader::implement(
     {
 
       auto shader = m_compiler->read(m_srcPath);
+      std::uint32_t invocC;
+      std::uint32_t invocW;
+      std::uint32_t invocH;
+      std::uint32_t wgC;
+      std::uint32_t wgW;
+      std::uint32_t wgH;
+
       shader.define("IN_CH_OFFSET", 0);
       shader.define("IN_CH", src0.channels);
       shader.define("OUT_CH_OFFSET", src0.channels);
@@ -308,19 +339,19 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("OUT_LAYOUT_HWC");
 
         if (src0.channels >= 16) {
-          shader.define("INVOC_C", 2);
-          shader.define("INVOC_W", 2);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 8);
-          shader.define("WG_W", 32);
-          shader.define("WG_H", 1);
+          invocC = 2;
+          invocW = 2;
+          invocH = 1;
+          wgC = 8;
+          wgW = 32;
+          wgH = 1;
         } else {
-          shader.define("INVOC_C", 1);
-          shader.define("INVOC_W", 4);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", src0.channels);
-          shader.define("WG_W", 32);
-          shader.define("WG_H", 1);
+          invocC = 1;
+          invocW = 4;
+          invocH = 1;
+          wgC = src0.channels;
+          wgW = 32;
+          wgH = 1;
         }
       } else if (src0.layout == memory::ActivationLayout::HWC &&
                  dst.layout == memory::ActivationLayout::HWC &&
@@ -334,26 +365,26 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("OUT_LAYOUT_HWC8");
 
         if (src0.channels >= 32) {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 4);
-          shader.define("WG_W", 64);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 4;
+          wgW = 64;
+          wgH = 1;
         } else if (src0.channels >= 16) {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 2);
-          shader.define("WG_W", 128);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 2;
+          wgW = 128;
+          wgH = 1;
         } else {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 1);
-          shader.define("WG_W", 256);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 1;
+          wgW = 256;
+          wgH = 1;
         }
       } else if (src0.layout == memory::ActivationLayout::CHWC8 &&
                  dst.layout == memory::ActivationLayout::CHWC8) {
@@ -364,17 +395,33 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("IN_LAYOUT_CHWC8");
         shader.define("OUT_LAYOUT_CHWC8");
         {
-          shader.define("INVOC_C", 8);
-          shader.define("INVOC_W", 1);
-          shader.define("INVOC_H", 1);
-          shader.define("WG_C", 1);
-          shader.define("WG_W", 256);
-          shader.define("WG_H", 1);
+          invocC = 8;
+          invocW = 1;
+          invocH = 1;
+          wgC = 1;
+          wgW = 256;
+          wgH = 1;
         }
       } else {
         compiler::diag::unreachable();
       }
-      auto copySrc1Dispatch = impl.registerDispatch(std::move(shader));
+      shader.define("INVOC_C", invocC);
+      shader.define("INVOC_W", invocW);
+      shader.define("INVOC_H", invocH);
+      shader.define("WG_C", wgC);
+      shader.define("WG_W", wgW);
+      shader.define("WG_H", wgH);
+
+      std::uint32_t tileX = invocC * wgC;
+      std::uint32_t tileY = invocW * wgW;
+      std::uint32_t tileZ = invocH * wgH;
+
+      Sym workgroupCountX = symGraph.cdiv(src1.channels, tileX);
+      Sym workgroupCountY = symGraph.cdiv(src1.extent.x.asSym(), tileY);
+      Sym workgroupCountZ = symGraph.cdiv(src1.extent.y.asSym(), tileZ);
+
+      auto copySrc1Dispatch = impl.registerDispatch(
+          std::move(shader), workgroupCountX, workgroupCountY, workgroupCountZ);
       copySrc1Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src1Id);
       copySrc1Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.x));

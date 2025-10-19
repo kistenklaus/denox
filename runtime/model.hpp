@@ -11,6 +11,7 @@ struct Model {
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
   std::vector<VkPipelineLayout> pipelineLayouts;
   std::vector<VkPipeline> pipelines;
+
   std::vector<Buffer> initalizedBuffers; // <- some buffers might not be
 };
 

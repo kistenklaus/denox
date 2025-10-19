@@ -66,7 +66,8 @@ void BasicUpsampleShader::implement(
     Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     [[maybe_unused]] unsigned int pattern,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-        &match) const {
+        &match,
+    SymGraph &symGraph) const {
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
@@ -81,6 +82,13 @@ void BasicUpsampleShader::implement(
   auto shader = m_compiler->read(m_srcPath);
   shader.enableDenoxPreprocessor();
 
+  std::uint32_t invocC;
+  std::uint32_t invocW;
+  std::uint32_t invocH;
+  std::uint32_t wgC;
+  std::uint32_t wgW;
+  std::uint32_t wgH;
+
   if (inLayout == memory::ActivationLayout::HWC &&
       outLayout == memory::ActivationLayout::HWC &&
       (in.channels % 8 != 0 || out.channels % 8 != 0)) {
@@ -94,27 +102,27 @@ void BasicUpsampleShader::implement(
     // decent defaults:
     if (in.channels <= 24) {
       unsigned int ix = (in.channels + 4 - 1) / 4;
-      shader.define("INVOC_C", ix);
-      shader.define("INVOC_W", 1);
-      shader.define("INVOC_H", 1);
-      shader.define("WG_C", 4);
-      shader.define("WG_W", 64);
-      shader.define("WG_H", 1);
+      invocC = ix;
+      invocW = 1;
+      invocH = 1;
+      wgC = 4;
+      wgW = 64;
+      wgH = 1;
     } else if (in.channels <= 48) {
       unsigned int ix = (in.channels + 8 - 1) / 8;
-      shader.define("INVOC_C", ix);
-      shader.define("INVOC_W", 1);
-      shader.define("INVOC_H", 1);
-      shader.define("WG_C", 8);
-      shader.define("WG_W", 32);
-      shader.define("WG_H", 1);
+      invocC = ix;
+      invocW = 1;
+      invocH = 1;
+      wgC = 8;
+      wgW = 32;
+      wgH = 1;
     } else {
-      shader.define("INVOC_C", 2);
-      shader.define("INVOC_W", 2);
-      shader.define("INVOC_H", 1);
-      shader.define("WG_C", 16);
-      shader.define("WG_W", 16);
-      shader.define("WG_H", 1);
+      invocC = 2;
+      invocW = 2;
+      invocH = 1;
+      wgC = 16;
+      wgW = 16;
+      wgH = 1;
     }
   } else if (inLayout == memory::ActivationLayout::HWC &&
              outLayout == memory::ActivationLayout::HWC &&
@@ -127,26 +135,26 @@ void BasicUpsampleShader::implement(
     shader.define("OUT_LAYOUT_HWC8");
 
     if (in.channels >= 32) {
-      shader.define("INVOC_C", 8);
-      shader.define("INVOC_W", 1);
-      shader.define("INVOC_H", 1);
-      shader.define("WG_C", 4);
-      shader.define("WG_W", 64);
-      shader.define("WG_H", 1);
+      invocC = 8;
+      invocW = 1;
+      invocH = 1;
+      wgC = 4;
+      wgW = 64;
+      wgH = 1;
     } else if (in.channels >= 16) {
-      shader.define("INVOC_C", 8);
-      shader.define("INVOC_W", 1);
-      shader.define("INVOC_H", 1);
-      shader.define("WG_C", 2);
-      shader.define("WG_W", 128);
-      shader.define("WG_H", 1);
+      invocC = 8;
+      invocW = 1;
+      invocH = 1;
+      wgC = 2;
+      wgW = 128;
+      wgH = 1;
     } else {
-      shader.define("INVOC_C", 8);
-      shader.define("INVOC_W", 1);
-      shader.define("INVOC_H", 1);
-      shader.define("WG_C", 1);
-      shader.define("WG_W", 256);
-      shader.define("WG_H", 1);
+      invocC = 8;
+      invocW = 1;
+      invocH = 1;
+      wgC = 1;
+      wgW = 256;
+      wgH = 1;
     }
   } else if (inLayout == memory::ActivationLayout::CHWC8 &&
              outLayout == memory::ActivationLayout::CHWC8) {
@@ -157,21 +165,37 @@ void BasicUpsampleShader::implement(
     shader.define("IN_LAYOUT_CHWC8");
     shader.define("OUT_LAYOUT_CHWC8");
     {
-      shader.define("INVOC_C", 8);
-      shader.define("INVOC_W", 1);
-      shader.define("INVOC_H", 1);
-      shader.define("WG_C", 1);
-      shader.define("WG_W", 256);
-      shader.define("WG_H", 1);
+      invocC = 8;
+      invocW = 1;
+      invocH = 1;
+      wgC = 1;
+      wgW = 256;
+      wgH = 1;
     }
   } else {
     throw std::logic_error("Invalid state");
   }
+  shader.define("INVOC_C", invocC);
+  shader.define("INVOC_W", invocW);
+  shader.define("INVOC_H", invocH);
+  shader.define("WG_C", wgC);
+  shader.define("WG_W", wgW);
+  shader.define("WG_H", wgH);
+
   assert(in.channels == out.channels);
   shader.define("CH", in.channels);
   shader.define("SCALING_FACTOR", upsample.upsample().scalingFactor);
 
-  auto dispatch = impl.registerDispatch(std::move(shader));
+  std::uint32_t tileX = invocC * wgC;
+  std::uint32_t tileY = invocW * wgW;
+  std::uint32_t tileZ = invocH * wgH;
+
+  Sym workgroupCountX = symGraph.cdiv(in.channels, tileX);
+  Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
+  Sym workgroupCountZ = symGraph.cdiv(in.extent.y.asSym(), tileZ);
+
+  auto dispatch = impl.registerDispatch(std::move(shader),
+      workgroupCountX, workgroupCountY, workgroupCountZ);
   dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
   dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));

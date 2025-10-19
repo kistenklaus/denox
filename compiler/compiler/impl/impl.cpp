@@ -12,7 +12,6 @@
 #include "shaders/IShader.hpp"
 #include "shaders/activation/BasicActivationShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
-#include "shaders/conv/DirectConvShader.hpp"
 #include "shaders/conv/DirectConvShaderCM.hpp"
 #include "shaders/copy/CopyTransformShader.hpp"
 #include "shaders/pad/MemoryPadShader.hpp"
@@ -40,7 +39,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   GlslCompiler glslCompiler(options);
 
   shaders::DirectConvShaderCM directConvCM{&glslCompiler, options};
-  shaders::DirectConvShader directConv{&glslCompiler, options};
   shaders::BasicPoolShader basicPool{&glslCompiler};
   shaders::BasicUpsampleShader basicUpsample{&glslCompiler};
   shaders::MemoryPadShader memoryPad{&glslCompiler};
@@ -50,7 +48,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
   const IShader *shaders[]{
       &directConvCM,    //
-      &directConv,      //
       &basicPool,       //
       &basicUpsample,   //
       &memoryPad,       //
@@ -185,7 +182,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
     if (dst == model.output) {
       output = dstTensorId;
     }
-    op.shader->implement(impl, opGraph, op.pattern, op.match);
+    op.shader->implement(impl, opGraph, op.pattern, op.match, symGraph);
   }
   assert(input.index != TensorId::nullindex);
   assert(output.index != TensorId::nullindex);

@@ -51,6 +51,7 @@ CompModel placement(const ImplModel &model) {
     };
     Dispatch dispatch{
         .src = src,
+        .workgroupCount = computeDispatch.workgroupCount,
         .setBindings = {}, // <- handeled after tensor placement.
         .pushConstants = computeDispatch.pushConstants,
     };

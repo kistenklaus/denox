@@ -55,6 +55,13 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
         }
       }
     }
+    for (std::size_t i = 0; i < dispatch.workgroupCount.size(); ++i) {
+      if (dispatch.workgroupCount[i].isSymbolic() &&
+          !symbolAdded[dispatch.workgroupCount[i].sym()]) {
+        symbols.push_back(dispatch.workgroupCount[i].sym());
+        symbolAdded[dispatch.workgroupCount[i].sym()] = true;
+      }
+    }
   }
 
   for (const auto &buffer : model.buffers) {
@@ -132,6 +139,9 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
         }
       }
     }
+    dispatch.workgroupCount[0] = remap[dispatch.workgroupCount[0]];
+    dispatch.workgroupCount[1] = remap[dispatch.workgroupCount[1]];
+    dispatch.workgroupCount[2] = remap[dispatch.workgroupCount[2]];
   }
 
   for (auto &buffer : model.buffers) {

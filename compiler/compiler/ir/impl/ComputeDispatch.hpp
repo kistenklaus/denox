@@ -6,7 +6,6 @@
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "shaders/compiler/ShaderBinary.hpp"
-#include <cstdint>
 #include <memory>
 
 namespace denox::compiler {
@@ -17,6 +16,7 @@ struct ComputeDispatchMeta {
 };
 
 struct ComputeDispatch {
+  std::array<Sym, 3> workgroupCount;
   ShaderBinary binary;
   memory::vector<TensorBinding> bindings;
   memory::vector<PushConstant> pushConstants;

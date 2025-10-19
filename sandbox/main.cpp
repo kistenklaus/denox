@@ -59,15 +59,25 @@ int main() {
 
   std::vector<f16> output(outW * outH * outCh);
   std::size_t expectedOutSize;
-  denox::get_runtime_model_instance_output_byte_size(instance, 0, &expectedOutSize);
+  denox::get_runtime_model_instance_output_byte_size(instance, 0,
+                                                     &expectedOutSize);
 
-  fmt::println("expected: {}", expectedOutSize);
-  fmt::println("got: {}", output.size() * sizeof(f16));
-
-  assert(output.size() * sizeof(decltype(output)::value_type) == expectedOutSize);
+  assert(output.size() * sizeof(decltype(output)::value_type) ==
+         expectedOutSize);
   void *poutputs = output.data();
 
   denox::eval_runtime_model_instance(context, instance, &pinputs, &poutputs);
+
+  for (std::size_t c = 0; c < outCh; ++c) {
+    fmt::println("Channel: {}", c);
+    for (std::size_t h = 0; h < outH; ++h) {
+      for (std::size_t w = 0; w < outW; ++w) {
+        std::size_t index = h * (outW * outCh) + w * (outCh) + c;
+        fmt::print(" {:^7.3f} ", static_cast<float>(output[index]));
+      }
+      fmt::println("");
+    }
+  }
 
   denox::destroy_runtime_model_instance(context, instance);
 

@@ -12,43 +12,37 @@
 namespace denox {
 
 std::uint64_t parseUnsignedScalarLiteral(const dnx::ScalarLiteral *literal) {
-  std::uint64_t value;
   switch (literal->dtype()) {
   case dnx::ScalarType_I16: {
     std::int16_t x;
-    std::memcpy(&x, literal->bytes(), sizeof(std::int16_t));
-    value = static_cast<std::size_t>(x);
-    break;
+    std::memcpy(&x, literal->bytes()->data(), sizeof(std::int16_t));
+    return static_cast<std::size_t>(x);
   }
   case dnx::ScalarType_U16: {
     std::uint16_t x;
-    std::memcpy(&x, literal->bytes(), sizeof(std::uint16_t));
-    value = static_cast<std::size_t>(x);
-    break;
+    std::memcpy(&x, literal->bytes()->data(), sizeof(std::uint16_t));
+    return static_cast<std::size_t>(x);
   }
   case dnx::ScalarType_I32: {
     std::int32_t x;
-    std::memcpy(&x, literal->bytes(), sizeof(std::int32_t));
-    value = static_cast<std::size_t>(x);
+    std::memcpy(&x, literal->bytes()->data(), sizeof(std::int32_t));
+    return static_cast<std::size_t>(x);
     break;
   }
   case dnx::ScalarType_U32: {
     std::uint32_t x;
-    std::memcpy(&x, literal->bytes(), sizeof(std::uint32_t));
-    value = static_cast<std::size_t>(x);
-    break;
+    std::memcpy(&x, literal->bytes()->data(), sizeof(std::uint32_t));
+    return static_cast<std::size_t>(x);
   }
   case dnx::ScalarType_I64: {
     std::int64_t x;
-    std::memcpy(&x, literal->bytes(), sizeof(std::int64_t));
-    value = static_cast<std::size_t>(x);
-    break;
+    std::memcpy(&x, literal->bytes()->data(), sizeof(std::int64_t));
+    return static_cast<std::size_t>(x);
   }
   case dnx::ScalarType_U64: {
     std::uint64_t x;
     std::memcpy(&x, literal->bytes()->data(), sizeof(std::uint64_t));
-    value = static_cast<std::size_t>(x);
-    break;
+    return static_cast<std::size_t>(x);
   }
   case dnx::ScalarType_F16:
   case dnx::ScalarType_F32:
@@ -57,21 +51,250 @@ std::uint64_t parseUnsignedScalarLiteral(const dnx::ScalarLiteral *literal) {
   default:
     throw std::runtime_error("Unexpected size dtype.");
   }
-  return value;
 }
 
 static uint64_t evalUnsignedScalarSource(runtime::ModelInstance *mi,
                                          dnx::ScalarSource type,
                                          const void *scalarSource) {
   switch (type) {
-  case dnx::ScalarSource_NONE:
-    throw std::runtime_error("invalid state.");
   case dnx::ScalarSource_literal:
     return parseUnsignedScalarLiteral(
         static_cast<const dnx::ScalarLiteral *>(scalarSource));
   case dnx::ScalarSource_symbolic:
     return mi->vars[static_cast<const dnx::SymRef *>(scalarSource)->sid()];
+  case dnx::ScalarSource_NONE:
+  default:
+    throw std::runtime_error("invalid state.");
   }
+}
+
+static std::vector<std::byte>
+parsePushConstant(runtime::ModelInstance *mi,
+                  const dnx::PushConstant *pushConstant) {
+
+  std::vector<std::byte> buffer(pushConstant->size());
+  std::size_t offset = 0;
+  for (std::size_t f = 0; f < pushConstant->fields()->size(); ++f) {
+    const dnx::PushConstantField *field = pushConstant->fields()->Get(f);
+    assert(field->source_type() == dnx::ScalarSource_symbolic ||
+           field->source_as_literal()->dtype() == field->dtype());
+    switch (field->dtype()) {
+    case dnx::ScalarType_I16: {
+      std::int16_t v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(std::int16_t));
+        break;
+      case dnx::ScalarSource_symbolic:
+        v = mi->vars[field->source_as_symbolic()->sid()];
+        break;
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(std::int16_t));
+      break;
+    }
+    case dnx::ScalarType_U16: {
+      std::uint16_t v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(std::uint16_t));
+        break;
+      case dnx::ScalarSource_symbolic:
+        v = mi->vars[field->source_as_symbolic()->sid()];
+        break;
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(std::uint16_t));
+      break;
+    }
+    case dnx::ScalarType_I32: {
+      std::int32_t v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(std::int32_t));
+        break;
+      case dnx::ScalarSource_symbolic:
+        v = mi->vars[field->source_as_symbolic()->sid()];
+        break;
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(std::int32_t));
+      break;
+    }
+    case dnx::ScalarType_U32: {
+      std::uint32_t v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(std::uint32_t));
+        break;
+      case dnx::ScalarSource_symbolic:
+        v = mi->vars[field->source_as_symbolic()->sid()];
+        break;
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(std::uint32_t));
+      break;
+    }
+    case dnx::ScalarType_I64: {
+      std::int64_t v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(std::int64_t));
+        break;
+      case dnx::ScalarSource_symbolic:
+        v = mi->vars[field->source_as_symbolic()->sid()];
+        break;
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(std::int64_t));
+      break;
+    }
+    case dnx::ScalarType_U64: {
+      std::uint64_t v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(std::uint64_t));
+        break;
+      case dnx::ScalarSource_symbolic:
+        v = mi->vars[field->source_as_symbolic()->sid()];
+        break;
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(std::uint64_t));
+      break;
+    }
+
+    case dnx::ScalarType_F32: {
+      float v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(float));
+        break;
+      case dnx::ScalarSource_symbolic:
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(float));
+      break;
+    }
+    case dnx::ScalarType_F64: {
+      double v;
+      switch (field->source_type()) {
+      case dnx::ScalarSource_literal:
+        std::memcpy(&v, field->source_as_literal()->bytes()->data(),
+                    sizeof(double));
+        break;
+      case dnx::ScalarSource_symbolic:
+      case dnx::ScalarSource_NONE:
+      default:
+        throw std::runtime_error("invalid state");
+      }
+      std::memcpy(buffer.data() + field->offset(), &v, sizeof(double));
+      break;
+    }
+    default:
+    case dnx::ScalarType_F16: {
+      throw std::runtime_error("Not implemented");
+    }
+    }
+  }
+  return buffer;
+}
+
+int get_runtime_model_input_count(RuntimeModel model) {
+  auto m = reinterpret_cast<runtime::Model *>(model);
+  return m->dnx->inputs()->size();
+}
+
+int get_runtime_model_output_count(RuntimeModel model) {
+  auto m = reinterpret_cast<runtime::Model *>(model);
+  return m->dnx->outputs()->size();
+}
+
+void get_runtime_model_instance_input_shape(RuntimeModelInstance instance,
+                                            int input_index, size_t *width,
+                                            size_t *height, size_t *channels) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+  const dnx::Input *input = m->dnx->inputs()->Get(input_index);
+  if (width != nullptr) {
+    *width = evalUnsignedScalarSource(mi, input->width_type(), input->width());
+  }
+
+  if (height != nullptr) {
+    *height =
+        evalUnsignedScalarSource(mi, input->height_type(), input->height());
+  }
+
+  if (channels != nullptr) {
+    *channels =
+        evalUnsignedScalarSource(mi, input->channels_type(), input->channels());
+  }
+}
+
+void get_runtime_model_instance_output_shape(RuntimeModelInstance instance,
+                                             int output_index, size_t *width,
+                                             size_t *height, size_t *channels) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+
+  const dnx::Output *output = m->dnx->outputs()->Get(output_index);
+  if (width != nullptr) {
+    *width =
+        evalUnsignedScalarSource(mi, output->width_type(), output->width());
+  }
+
+  if (height != nullptr) {
+    *height =
+        evalUnsignedScalarSource(mi, output->height_type(), output->height());
+  }
+
+  if (channels != nullptr) {
+    *channels = evalUnsignedScalarSource(mi, output->channels_type(),
+                                         output->channels());
+  }
+}
+
+void get_runtime_model_instance_input_byte_size(RuntimeModelInstance instance,
+                                                int input_index,
+                                                size_t *byteSize) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+
+  const dnx::Input *input = m->dnx->inputs()->Get(input_index);
+  const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
+  *byteSize = evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
+}
+
+void get_runtime_model_instance_output_byte_size(RuntimeModelInstance instance,
+                                                 int output_index,
+                                                 size_t *byteSize) {
+  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
+  auto m = mi->model;
+
+  const dnx::Output *output = m->dnx->outputs()->Get(output_index);
+  const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
+  *byteSize = evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
 }
 
 int create_runtime_context(const char *deviceName, RuntimeContext *context) {
@@ -96,12 +319,13 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
   std::memcpy(dnxBuffer, dnx, dnxSize);
   const dnx::Model *dnxModel = dnx::GetModel(dnxBuffer);
   auto *model = new runtime::Model(dnxBuffer, dnxModel);
-
   auto ctx = reinterpret_cast<runtime::Context *>(context);
 
   model->pipelines.resize(model->dnx->dispatches()->size());
+  model->pipelineLayouts.resize(model->dnx->dispatches()->size());
   for (std::size_t d = 0; d < model->dnx->dispatches()->size(); ++d) {
-    std::uint8_t dispatchType = model->dnx->dispatches_type()->Get(d);
+    dnx::Dispatch dispatchType =
+        static_cast<dnx::Dispatch>(model->dnx->dispatches_type()->Get(d));
     switch (dispatchType) {
     case dnx::Dispatch_ComputeDispatch: {
       const dnx::ComputeDispatch *dispatch =
@@ -124,11 +348,11 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
         descriptorSetLayouts[b] = ctx->createDescriptorSetLayout(bindings);
         model->descriptorSetLayouts.push_back(descriptorSetLayouts[b]);
       }
+
       std::uint32_t pushConstantSize =
           static_cast<std::uint32_t>(dispatch->push_constant()->size());
       VkPipelineLayout layout =
           ctx->createPipelineLayout(descriptorSetLayouts, pushConstantSize);
-      model->pipelineLayouts.push_back(layout);
 
       std::span<const std::uint32_t> binary{dispatch->spirv_src()->data(),
                                             dispatch->spirv_src()->size()};
@@ -136,6 +360,7 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
       VkPipeline pipeline =
           ctx->createComputePipeline(layout, binary, entry_point);
       model->pipelines[d] = pipeline;
+      model->pipelineLayouts[d] = layout;
       break;
     }
     case dnx::Dispatch_NONE:
@@ -165,12 +390,12 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
 
       ctx->copy(stage.allocation, bufferInitializers.data()->data(), size);
 
-      runtime::Buffer local =
-          ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
       ctx->cmdMemoryBarrier(
           cmd, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
           VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+
+      runtime::Buffer local =
+          ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
       ctx->cmdCopy(cmd, local, stage, size);
 
@@ -193,9 +418,11 @@ void destroy_runtime_model(RuntimeContext context, RuntimeModel model) {
   assert(model != nullptr);
   auto ctx = reinterpret_cast<runtime::Context *>(context);
   auto m = reinterpret_cast<runtime::Model *>(model);
+
   for (VkDescriptorSetLayout layout : m->descriptorSetLayouts) {
     ctx->destroyDescriptorSetLayout(layout);
   }
+
   for (VkPipelineLayout layout : m->pipelineLayouts) {
     ctx->destroyPipelineLayout(layout);
   }
@@ -413,6 +640,39 @@ int eval_runtime_model_instance(RuntimeContext context,
       cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
       VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
+  // record all dispatches.
+  for (std::size_t d = 0; d < m->dnx->dispatches()->size(); ++d) {
+    switch (static_cast<dnx::Dispatch>(m->dnx->dispatches_type()->Get(d))) {
+    case dnx::Dispatch::Dispatch_NONE:
+      std::runtime_error("invalid state");
+      break;
+    case dnx::Dispatch_ComputeDispatch:
+      const dnx::ComputeDispatch *dispatch =
+          m->dnx->dispatches()->GetAs<dnx::ComputeDispatch>(d);
+      VkPipeline pipeline = m->pipelines[d];
+      VkPipelineLayout layout = m->pipelineLayouts[d];
+      assert(pipeline != VK_NULL_HANDLE);
+      assert(layout != VK_NULL_HANDLE);
+      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+
+      std::vector<std::byte> pushConstantBuffer =
+          parsePushConstant(mi, dispatch->push_constant());
+
+      vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                         pushConstantBuffer.size(), pushConstantBuffer.data());
+
+      // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+      //     layout, uint32_t firstSet,
+      //     uint32_t descriptorSetCount,
+      //     const VkDescriptorSet *pDescriptorSets,
+      //     uint32_t dynamicOffsetCount,
+      //     const uint32_t *pDynamicOffsets)
+
+      // vkCmdDispatch(cmd, 1, 1, 1);
+      break;
+    }
+  }
+
   // Wait for compute to be done.
   ctx->cmdMemoryBarrier(
       cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -425,10 +685,10 @@ int eval_runtime_model_instance(RuntimeContext context,
         evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
     std::size_t offset =
         evalUnsignedScalarSource(mi, tensor->offset_type(), tensor->offset());
-    // Wait for transfer to be done.
     ctx->cmdCopy(cmd, outputStages[o], mi->buffers[tensor->buffer()], size, 0,
                  offset);
   }
+  // Wait for transfer to be done.
   ctx->cmdMemoryBarrier(
       cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
       VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -449,82 +709,6 @@ int eval_runtime_model_instance(RuntimeContext context,
   delete[] outputSizes;
 
   return 0;
-}
-
-int get_runtime_model_input_count(RuntimeModel model) {
-  auto m = reinterpret_cast<runtime::Model *>(model);
-  return m->dnx->inputs()->size();
-}
-
-int get_runtime_model_output_count(RuntimeModel model) {
-  auto m = reinterpret_cast<runtime::Model *>(model);
-  return m->dnx->outputs()->size();
-}
-
-void get_runtime_model_instance_input_shape(RuntimeModelInstance instance,
-                                            int input_index, size_t *width,
-                                            size_t *height, size_t *channels) {
-  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
-  auto m = mi->model;
-  const dnx::Input *input = m->dnx->inputs()->Get(input_index);
-  if (width != nullptr) {
-    *width = evalUnsignedScalarSource(mi, input->width_type(), input->width());
-  }
-
-  if (height != nullptr) {
-    *height =
-        evalUnsignedScalarSource(mi, input->height_type(), input->height());
-  }
-
-  if (channels != nullptr) {
-    *channels =
-        evalUnsignedScalarSource(mi, input->channels_type(), input->channels());
-  }
-}
-
-void get_runtime_model_instance_output_shape(RuntimeModelInstance instance,
-                                             int output_index, size_t *width,
-                                             size_t *height, size_t *channels) {
-  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
-  auto m = mi->model;
-
-  const dnx::Output *output = m->dnx->outputs()->Get(output_index);
-  if (width != nullptr) {
-    *width =
-        evalUnsignedScalarSource(mi, output->width_type(), output->width());
-  }
-
-  if (height != nullptr) {
-    *height =
-        evalUnsignedScalarSource(mi, output->height_type(), output->height());
-  }
-
-  if (channels != nullptr) {
-    *channels = evalUnsignedScalarSource(mi, output->channels_type(),
-                                         output->channels());
-  }
-}
-
-void get_runtime_model_instance_input_byte_size(RuntimeModelInstance instance,
-                                                int input_index,
-                                                size_t *byteSize) {
-  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
-  auto m = mi->model;
-
-  const dnx::Input *input = m->dnx->inputs()->Get(input_index);
-  const dnx::Tensor *tensor = m->dnx->tensors()->Get(input->tensor());
-  *byteSize = evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
-}
-
-void get_runtime_model_instance_output_byte_size(RuntimeModelInstance instance,
-                                                 int output_index,
-                                                 size_t *byteSize) {
-  auto mi = reinterpret_cast<runtime::ModelInstance *>(instance);
-  auto m = mi->model;
-
-  const dnx::Output *output = m->dnx->outputs()->Get(output_index);
-  const dnx::Tensor *tensor = m->dnx->tensors()->Get(output->tensor());
-  *byteSize = evalUnsignedScalarSource(mi, tensor->size_type(), tensor->size());
 }
 
 } // namespace denox

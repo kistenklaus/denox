@@ -38,7 +38,7 @@ public:
                  const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
                  unsigned int patternEnc,
                  const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-                     &match) const final override;
+                     &match, SymGraph& symGraph) const final override;
 
   memory::string name(unsigned int patternEnc) const final override;
 

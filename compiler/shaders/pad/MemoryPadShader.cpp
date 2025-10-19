@@ -53,7 +53,8 @@ memory::optional<unsigned int> MemoryPadShader::acceptMatch(
 void MemoryPadShader::implement(
     Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern,
-    const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match) const {
+    const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+    SymGraph &symGraph) const {
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
@@ -113,7 +114,12 @@ void MemoryPadShader::implement(
     }
   }
 
-  auto dispatch = impl.registerDispatch(std::move(shader));
+  Sym workgroupCountX = Sym::Const(1);
+  Sym workgroupCountY = Sym::Const(1);
+  Sym workgroupCountZ = Sym::Const(1);
+
+  auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
+                                        workgroupCountY, workgroupCountZ);
   dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
   dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
 

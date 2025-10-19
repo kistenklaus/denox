@@ -61,8 +61,8 @@ public:
   implement(Impl &impl,
             const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
             unsigned int pattern,
-            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match)
-      const = 0;
+            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+            SymGraph &symGraph) const = 0;
 
   virtual memory::string name(unsigned int pattern) const = 0;
 };

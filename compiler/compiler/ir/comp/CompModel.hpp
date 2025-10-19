@@ -42,6 +42,7 @@ struct DescriptorSetBinding {
 
 struct Dispatch {
   ShaderSourceView src;
+  std::array<Sym, 3> workgroupCount;
   memory::vector<DescriptorSetBinding> setBindings;
   memory::vector<PushConstant> pushConstants;
 };

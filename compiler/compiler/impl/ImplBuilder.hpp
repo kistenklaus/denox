@@ -103,10 +103,14 @@ public:
     return builder;
   }
 
-  ComputeDispatchBuilder registerDispatch(GlslCompilerInstance shader) {
+  ComputeDispatchBuilder registerDispatch(GlslCompilerInstance shader, Sym wgX,
+                                          Sym wgY = Sym::Const(1), Sym wgZ = Sym::Const(1)) {
     std::size_t index = m_impl->dispatches.size();
     auto builder = ComputeDispatchBuilder(index, this);
-    m_impl->dispatches.push_back({});
+    m_impl->dispatches.emplace_back();
+    m_impl->dispatches.back().workgroupCount[0] = wgX;
+    m_impl->dispatches.back().workgroupCount[1] = wgY;
+    m_impl->dispatches.back().workgroupCount[2] = wgZ;
     m_compilationUnits.emplace_back(index, std::move(shader));
     return builder;
   }

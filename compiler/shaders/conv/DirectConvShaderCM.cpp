@@ -103,7 +103,8 @@ void DirectConvShaderCM::implement(
     Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     [[maybe_unused]] unsigned int pattern,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-        &match) const {
+        &match,
+    SymGraph &symGraph) const {
   const auto &patternHandles = m_patternHandles[pattern];
   memory::EdgeId convId = match[patternHandles.conv];
   memory::NodeId inId = match[patternHandles.in];
@@ -249,7 +250,16 @@ void DirectConvShaderCM::implement(
     shader.define("USE_BIAS");
   }
 
-  auto dispatch = impl.registerDispatch(std::move(shader));
+  std::uint32_t tileX = cm_n * sg_n * wg_n;
+  std::uint32_t tileY = cm_m;
+  std::uint32_t tileZ = sg_m * wg_m;
+
+  Sym workgroupCountX = symGraph.cdiv(in.channels, tileX);
+  Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
+  Sym workgroupCountZ = symGraph.cdiv(in.extent.y.asSym(), tileZ);
+
+  auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
+                                        workgroupCountY, workgroupCountZ);
   // Convert to expected layout!
   memory::FilterTensor filterWeights{
       memory::FilterDescriptor{
