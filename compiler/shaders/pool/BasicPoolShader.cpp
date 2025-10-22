@@ -94,9 +94,11 @@ void BasicPoolShader::implement(
   memory::ActivationLayout inLayout = in.layout;
   memory::ActivationLayout outLayout = out.layout;
 
+  assert(in.channels == out.channels);
+
   if (inLayout == memory::ActivationLayout::HWC &&
       outLayout == memory::ActivationLayout::HWC &&
-      (in.channels % 8 != 0 || out.channels % 8 != 0)) {
+      (in.channels % 8 != 0)) {
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
@@ -183,9 +185,9 @@ void BasicPoolShader::implement(
   shader.define("INVOC_C", invocC);
   shader.define("INVOC_W", invocW);
   shader.define("INVOC_H", invocH);
-  shader.define("WG_C", invocC);
-  shader.define("WG_W", invocW);
-  shader.define("WG_H", invocH);
+  shader.define("WG_C", wgC);
+  shader.define("WG_W", wgW);
+  shader.define("WG_H", wgH);
 
   assert(in.channels == out.channels);
   shader.define("CH", in.channels);
@@ -201,9 +203,9 @@ void BasicPoolShader::implement(
   std::uint32_t tileY = invocW * wgW;
   std::uint32_t tileZ = invocH * wgH;
 
-  Sym workgroupCountX = symGraph.cdiv(in.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
-  Sym workgroupCountZ = symGraph.cdiv(in.extent.y.asSym(), tileZ);
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
+  Sym workgroupCountY = symGraph.cdiv(out.extent.x.asSym(), tileY);
+  Sym workgroupCountZ = symGraph.cdiv(out.extent.y.asSym(), tileZ);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);

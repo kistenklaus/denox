@@ -57,7 +57,7 @@ void main() {
                     break;
                 }
                 const uint oo = oh * W2 * CH + ow * CH + c;
-                float16_t acc = uint16BitsToFloat16(uint16_t(0xFC00));
+                float16_t acc = uint16BitsToFloat16(uint16_t(0xFC00)); // -inf.
                 for (uint r = 0; r < KERNEL_Y; ++r) {
                     const uint ih = oh * KERNEL_Y + r;
                     if (ih >= H) {
@@ -75,6 +75,7 @@ void main() {
                     }
                 }
                 uint16_t v = float16BitsToUint16(acc);
+                // uint16_t v = float16BitsToUint16(float16_t(oh));
                 output_tensor_blob[oo] = v;
             }
         }

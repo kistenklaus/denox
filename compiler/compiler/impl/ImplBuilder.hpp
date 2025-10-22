@@ -11,6 +11,7 @@
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/tensor/FilterTensor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
+#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -145,6 +146,7 @@ public:
       } else {
         std::uint32_t binaryId =
             static_cast<std::uint32_t>(m_impl->shaderBinaries.size());
+        m_impl->dispatches[unit.dispatchIndex].binaryId = binaryId;
         m_impl->shaderBinaries.emplace_back();
         binaryCache.emplace_hint(it, key,
                             std::make_pair(binaryId, std::move(unit.instance)));
@@ -160,6 +162,7 @@ public:
                      "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
                      percentage, instance.getSourcePath().str(),
                      instance.hashPreamble());
+        fmt::println("preamble:\n{}", instance.getPreamble());
       }
       m_impl->shaderBinaries[binaryId] = *instance.compile();
       ++c;

@@ -6,6 +6,7 @@
 #include "diag/unreachable.hpp"
 #include "dnx.h"
 #include "memory/container/vector.hpp"
+#include <fmt/printf.h>
 
 namespace denox::dnx {
 

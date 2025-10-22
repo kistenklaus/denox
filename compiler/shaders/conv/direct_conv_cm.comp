@@ -1542,5 +1542,7 @@ void main() {
 
     // === Writeback ===
     barrier();
+
+    #pragma inline_block(activation);
     #pragma inline_block(writeback);
 }

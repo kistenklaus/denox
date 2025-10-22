@@ -69,7 +69,6 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
 
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
-
   CompModel compModel = compiler::placement(implModel);
 
   SymTable symTable = compiler::sym_table(model, options);
