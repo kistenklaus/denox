@@ -3,7 +3,6 @@
 #include "dnx.h"
 #include "model.hpp"
 #include <algorithm>
-#include <fmt/base.h>
 #include <variant>
 #include <vulkan/vulkan_core.h>
 
@@ -40,14 +39,11 @@ create_model_dispatch(runtime::Context *ctx, const dnx::Model *dnx,
   }
 
   std::uint32_t pushConstantRange = dispatch->push_constant()->size();
-  fmt::println("size = {}", dispatch->push_constant()->size());
-  fmt::println("fields = {}", dispatch->push_constant()->fields()->size());
   VkPipelineLayout pipelineLayout =
       ctx->createPipelineLayout(descriptorSetLayouts, pushConstantRange);
 
   std::uint32_t binaryId = dispatch->binary_id();
   const dnx::ShaderBinary *binary = dnx->shader_binaries()->Get(binaryId);
-  fmt::println("binaryId = {}", binaryId);
   std::span<const std::uint32_t> spirv(binary->spirv()->data(),
                                        binary->spirv()->size());
   VkPipeline pipeline = ctx->createComputePipeline(

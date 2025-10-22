@@ -95,7 +95,7 @@ public:
 
   dtype_const_reference at(unsigned int c) const {
     std::size_t linearIndex = static_cast<std::size_t>(c);
-    std::size_t offset = linearIndex * m_desc.byteSize();
+    std::size_t offset = linearIndex * m_desc.type.size();
     const std::byte *ptr = m_buffer + offset;
     return dtype_const_reference(reinterpret_cast<const void *>(ptr),
                                  m_desc.type);
@@ -134,7 +134,8 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
-    requires(!std::same_as<Alloc, denox::memory::span<std::byte>> && !std::same_as<Alloc, BiasTensorConstView>)
+    requires(!std::same_as<Alloc, denox::memory::span<std::byte>> &&
+             !std::same_as<Alloc, BiasTensorConstView>)
   explicit BiasTensor(BiasDescriptor desc, const Alloc &alloc = {})
       : m_desc(desc) {
     using allocator_traits = std::allocator_traits<Alloc>;
@@ -165,17 +166,19 @@ public:
   }
   template <typename Alloc = std::allocator<std::byte>>
     requires(!std::same_as<Alloc, denox::memory::span<std::byte>>)
-  explicit BiasTensor(BiasDescriptor desc, BiasTensorConstView view, const Alloc &alloc = {})
+  explicit BiasTensor(BiasDescriptor desc, BiasTensorConstView view,
+                      const Alloc &alloc = {})
       : m_desc(desc) {
     using allocator_traits = std::allocator_traits<Alloc>;
     Alloc allocator = alloc;
     std::size_t n = m_desc.byteSize();
     std::byte *ptr = allocator_traits::allocate(allocator, n);
-    
+
     if (shape() != view.shape()) {
       throw std::runtime_error("Invalid tensor shape! Shapes do not match!");
     }
     if (layout() == view.layout() && type() == view.type()) {
+      assert(n == view.byteSize());
       std::memcpy(ptr, view.data(), n);
     } else {
       BiasTensorView{m_desc, ptr}.assignFrom(view);
@@ -191,7 +194,8 @@ public:
   std::byte *data() { return m_storage.get(); }
 
   denox::memory::span<const std::byte> span() const {
-    return denox::memory::span<const std::byte>{m_storage.get(), m_desc.byteSize()};
+    return denox::memory::span<const std::byte>{m_storage.get(),
+                                                m_desc.byteSize()};
   }
 
   denox::memory::span<std::byte> span() {
@@ -221,4 +225,4 @@ private:
   std::unique_ptr<std::byte[], std::function<void(std::byte *)>> m_storage;
 };
 
-} // namespace denox::compiler
+} // namespace denox::memory

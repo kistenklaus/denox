@@ -16,7 +16,6 @@
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
-#include <fmt/base.h>
 
 namespace denox::compiler {
 

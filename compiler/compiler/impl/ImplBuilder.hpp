@@ -11,7 +11,6 @@
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/tensor/FilterTensor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
-#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -148,21 +147,20 @@ public:
             static_cast<std::uint32_t>(m_impl->shaderBinaries.size());
         m_impl->dispatches[unit.dispatchIndex].binaryId = binaryId;
         m_impl->shaderBinaries.emplace_back();
-        binaryCache.emplace_hint(it, key,
-                            std::make_pair(binaryId, std::move(unit.instance)));
+        binaryCache.emplace_hint(
+            it, key, std::make_pair(binaryId, std::move(unit.instance)));
       }
     }
     std::size_t n = binaryCache.size();
     std::size_t c = 0;
-    for (auto& [_, value] : binaryCache) {
-      auto& [binaryId, instance] = value;
+    for (auto &[_, value] : binaryCache) {
+      auto &[binaryId, instance] = value;
       if (logging) {
         std::size_t percentage = ((c + 1) * 100 + n - 1) / n;
         fmt::println("[{:>3}%] \x1B[32m\x1B[1mBuilding SPIRV object\x1B[0m "
                      "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
                      percentage, instance.getSourcePath().str(),
                      instance.hashPreamble());
-        fmt::println("preamble:\n{}", instance.getPreamble());
       }
       m_impl->shaderBinaries[binaryId] = *instance.compile();
       ++c;

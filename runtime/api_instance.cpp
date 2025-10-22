@@ -6,7 +6,6 @@
 #include "model.hpp"
 #include "vma.hpp"
 #include <algorithm>
-#include <fmt/base.h>
 #include <forward_list>
 #include <stdexcept>
 #include <variant>

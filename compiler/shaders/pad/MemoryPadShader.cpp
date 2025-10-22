@@ -1,6 +1,5 @@
 #include "shaders/pad/MemoryPadShader.hpp"
 #include "memory/dtype/dtype.hpp"
-#include <fmt/base.h>
 
 namespace denox::compiler::shaders {
 
