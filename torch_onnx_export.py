@@ -64,10 +64,51 @@ class Net(nn.Module):
         x = x[:, :, :H, :W]
         return x
 
+net = Net()
+with torch.no_grad():
+    net.enc0.weight.fill_(1.0)
+    net.enc0.bias.fill_(1.0)
+    net.enc1.weight.fill_(1.0)
+    net.enc1.bias.fill_(1.0)
+    net.enc2.weight.fill_(1.0)
+    net.enc2.bias.fill_(1.0)
+    net.enc3.weight.fill_(1.0)
+    net.enc3.bias.fill_(1.0)
+    net.enc4.weight.fill_(1.0)
+    net.enc4.bias.fill_(1.0)
+    net.enc5.weight.fill_(1.0)
+    net.enc5.bias.fill_(1.0)
+
+    net.dec0.weight.fill_(1.0)
+    net.dec0.bias.fill_(1.0)
+    net.dec1.weight.fill_(1.0)
+    net.dec1.bias.fill_(1.0)
+    net.dec2.weight.fill_(1.0)
+    net.dec2.bias.fill_(1.0)
+    net.dec3.weight.fill_(1.0)
+    net.dec3.bias.fill_(1.0)
+    net.dec4.weight.fill_(1.0)
+    net.dec4.bias.fill_(1.0)
+    net.dec5.weight.fill_(1.0)
+    net.dec5.bias.fill_(1.0)
+
+    net.con0.weight.fill_(1.0)
+    net.con0.bias.fill_(1.0)
+    net.con1.weight.fill_(1.0)
+    net.con1.bias.fill_(1.0)
+    net.con2.weight.fill_(1.0)
+    net.con2.bias.fill_(1.0)
+    net.con3.weight.fill_(1.0)
+    net.con3.bias.fill_(1.0)
+    net.con4.weight.fill_(1.0)
+    net.con4.bias.fill_(1.0)
+    net.con5.weight.fill_(1.0)
+    net.con5.bias.fill_(1.0)
+    pass
 
 torch.onnx.export(
-        Net().eval(), 
-        (torch.randn(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
+        net,
+        (torch.ones(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
         "net.onnx",
         dynamo=True,
         export_params=True,

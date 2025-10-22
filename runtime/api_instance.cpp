@@ -25,6 +25,9 @@ interpret_symir(const dnx::Model *dnx,
 
     const auto [scalar_type, scalar_source] =
         dnx::getScalarSourceOfValueName(dnx, dynamicExtents[i].name);
+    if (scalar_type == dnx::ScalarSource_NONE) {
+      throw std::runtime_error(fmt::format("dynamic extent \"{}\" does not exist.", dynamicExtents[i].name));
+    }
     if (scalar_type != dnx::ScalarSource_symbolic) {
       continue;
     }

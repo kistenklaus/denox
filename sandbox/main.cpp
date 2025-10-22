@@ -48,7 +48,7 @@ int main() {
   assert(checkInH == inH);
 
   std::vector<f16> input(inW * inH * inCh * sizeof(f16));
-  for (auto& x : input) {
+  for (auto &x : input) {
     x = f16(1.0f);
   }
   void *pinputs = input.data();
