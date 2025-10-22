@@ -16,6 +16,7 @@
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -54,6 +55,7 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
     compiler::diag::invalid_argument();
   }
 
+
   SymGraph symGraph = model.symGraph();
 
   CanoModel canoModel = compiler::canonicalize(model, options);
@@ -66,6 +68,7 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   OpModel opModel = compiler::dce(specModel);
 
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
+
 
   CompModel compModel = compiler::placement(implModel);
 

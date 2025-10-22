@@ -1,9 +1,10 @@
 #include "compiler/sym_table.hpp"
 #include "model/DynamicInputExtent.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler {
 
-SymTable sym_table(const Model &model, const Options &options) {
+SymTable sym_table(const Model &model, [[maybe_unused]] const Options &options) {
   SymTable table;
 
   NamedExtent inputExtentNames = model.getInputExtentNames();
@@ -16,7 +17,7 @@ SymTable sym_table(const Model &model, const Options &options) {
   } 
 
   if (inputExtentNames.height.has_value()) {
-    table.symbolNames.emplace_back(model.getOutput().height().resolve(), inputExtentNames.height.value());
+    table.symbolNames.emplace_back(model.getInput().height().resolve(), inputExtentNames.height.value());
   } 
 
   NamedExtent outputExtentNames = model.getOutputExtentNames();

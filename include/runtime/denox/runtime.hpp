@@ -18,6 +18,7 @@ typedef void *RuntimeInstance;
 typedef void *RuntimeBuffer;
 
 int create_runtime_context(const char *deviceName, RuntimeContext *context);
+
 void destroy_runtime_context(RuntimeContext context);
 
 int create_runtime_model(RuntimeContext context, const void *dnx,

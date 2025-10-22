@@ -6,6 +6,7 @@
 #include "model.hpp"
 #include "vma.hpp"
 #include <algorithm>
+#include <fmt/base.h>
 #include <forward_list>
 #include <stdexcept>
 #include <variant>
@@ -20,23 +21,31 @@ interpret_symir(const dnx::Model *dnx,
   std::size_t opCount = dnx->sym_ir()->ops()->size();
   std::vector<std::int64_t> dp(varCount + opCount);
 
+  fmt::println("variables: {}", varCount);
+  fmt::println("extents: {}", dynamicExtents.size());
   // Variable initialization:
   for (std::size_t i = 0; i < dynamicExtents.size(); ++i) {
+    fmt::println("DynamicExtent: name= {} => value={}", dynamicExtents[i].name,
+        dynamicExtents[i].value);
 
     const auto [scalar_type, scalar_source] =
         dnx::getScalarSourceOfValueName(dnx, dynamicExtents[i].name);
     if (scalar_type == dnx::ScalarSource_NONE) {
-      throw std::runtime_error(fmt::format("dynamic extent \"{}\" does not exist.", dynamicExtents[i].name));
+      throw std::runtime_error(fmt::format(
+          "dynamic extent \"{}\" does not exist.", dynamicExtents[i].name));
     }
     if (scalar_type != dnx::ScalarSource_symbolic) {
       continue;
     }
     std::uint32_t sid = static_cast<const dnx::SymRef *>(scalar_source)->sid();
+    fmt::println("sid = {}", sid);
     if (sid >= varCount) {
       continue;
     }
+    fmt::println("Symbol[{}] = {}", sid, dynamicExtents[i].value);
     dp[sid] = dynamicExtents[i].value;
   }
+  fmt::println("DONE-with variables");
 
   for (std::uint64_t pc = 0; pc < opCount; ++pc) {
     const dnx::SymIROp *op = dnx->sym_ir()->ops()->Get(pc);
@@ -117,6 +126,7 @@ create_buffers(runtime::Context *ctx, const runtime::Model *m,
 
   for (std::size_t b = 0; b < bufferCount; ++b) {
     const dnx::Buffer *buffer = dnx->buffers()->Get(b);
+
     std::uint64_t size = dnx::parseUnsignedScalarSource(
         buffer->size_type(), buffer->size(), symbolValues);
 
