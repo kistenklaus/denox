@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-INPUT_CHANNELS_COUNT = 1
+INPUT_CHANNELS_COUNT = 8
 
 class Net(nn.Module):
     def __init__(self):

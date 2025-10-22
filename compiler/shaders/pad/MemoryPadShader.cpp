@@ -11,8 +11,7 @@ MemoryPadShader::MemoryPadShader(GlslCompiler *compiler)
     if (tensor.type != memory::Dtype::F16) {
       return false;
     }
-    if (tensor.layout != memory::ActivationLayout::HWC &&
-        tensor.layout != memory::ActivationLayout::CHWC8) {
+    if (tensor.layout != memory::ActivationLayout::HWC) {
       return false;
     }
     return true;
