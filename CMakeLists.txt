@@ -209,8 +209,13 @@ add_library(denox::compiler ALIAS denox_compiler)
 
 add_library(denox_runtime EXCLUDE_FROM_ALL
   runtime/api.cpp
+  runtime/api_context.cpp
+  runtime/api_eval.cpp
+  runtime/api_instance.cpp
+  runtime/api_model.cpp
+  runtime/api_queries.cpp
   runtime/context.cpp
-  runtime/model.cpp
+  runtime/dnx_parse_helpers.cpp
   runtime/vma_impl.cpp
 )
 

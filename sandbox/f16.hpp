@@ -7,6 +7,12 @@ struct f16 {
   explicit f16(float v) : m_bits(from_float(v)) {}
   explicit f16(double v) : m_bits(from_float(static_cast<float>(v))) {}
 
+  static f16 Raw(std::uint16_t bits) {
+    f16 x;
+    x.m_bits = bits;
+    return x;
+  }
+
   explicit operator float() const { return to_float(m_bits); }
   explicit operator double() const {
     return static_cast<double>(to_float(m_bits));

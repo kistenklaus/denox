@@ -1,25 +1,53 @@
 #pragma once
 
-#include "context.hpp"
 #include <dnx.h>
+#include <variant>
+#include <vector>
+#include <vulkan/vulkan_core.h>
 
 namespace denox::runtime {
+
+struct ModelDescriptorSet {
+  std::uint16_t set;
+  VkDescriptorSetLayout descriptorSetLayout;
+};
+
+struct ModelDispatch {
+  const dnx::ComputeDispatch *dispatch;
+  std::vector<ModelDescriptorSet> descriptorSets;
+  VkPipelineLayout pipelineLayout;
+  VkPipeline pipeline;
+};
+
+struct ModelBufferBarrier {
+  VkPipelineStageFlags srcStage;
+  VkPipelineStageFlags dstStage;
+  VkAccessFlags srcAccess;
+  VkAccessFlags dstAccess;
+  std::uint32_t tensorId;
+};
+
+struct ModelImageMemoryBarrier {
+  // TODO
+};
+
+struct ModelBarrier {
+  std::vector<ModelBufferBarrier> bufferBarriers;
+  std::vector<ModelImageMemoryBarrier> imageMemoryBarriers;
+};
+
+using ModelCmd = std::variant<ModelBarrier, ModelDispatch>;
+
+struct ModelDescriptorPoolRequirements {
+  std::size_t maxSets;
+  std::vector<VkDescriptorPoolSize> poolSizes;
+};
 
 struct Model {
   void *dnxBuffer;
   const dnx::Model *dnx;
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
-  std::vector<VkPipelineLayout> pipelineLayouts;
-  std::vector<VkPipeline> pipelines;
-
-  std::vector<Buffer> initalizedBuffers; // <- some buffers might not be
-};
-
-struct ModelInstance {
-  Model *model;
-  std::vector<std::int64_t> vars;
-  std::vector<Buffer> buffers;
-  std::vector<bool> ownedBuffers;
+  std::vector<ModelCmd> cmds;
+  ModelDescriptorPoolRequirements descriptorPoolRequirements;
 };
 
 } // namespace denox::runtime

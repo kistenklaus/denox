@@ -589,17 +589,17 @@ Buffer Context::createBuffer(std::size_t size, VkBufferUsageFlags usage,
 
   Buffer buffer;
   VkResult result =
-      vmaCreateBuffer(m_vma, &bufferInfo, &allocInfo, &buffer.buffer,
+      vmaCreateBuffer(m_vma, &bufferInfo, &allocInfo, &buffer.vkbuffer,
                       &buffer.allocation, nullptr);
   if (result != VK_SUCCESS) {
     throw std::runtime_error("Failed to create buffer.");
   }
   return buffer;
 }
-void Context::destroyBuffer(Buffer buffer) {
-  assert(buffer.buffer != VK_NULL_HANDLE);
+void Context::destroyBuffer(const Buffer& buffer) {
+  assert(buffer.vkbuffer != VK_NULL_HANDLE);
   assert(buffer.allocation != VK_NULL_HANDLE);
-  vmaDestroyBuffer(m_vma, buffer.buffer, buffer.allocation);
+  vmaDestroyBuffer(m_vma, buffer.vkbuffer, buffer.allocation);
 }
 VkDescriptorSetLayout Context::createDescriptorSetLayout(
     std::span<const VkDescriptorSetLayoutBinding> bindings) {
@@ -623,6 +623,7 @@ void Context::destroyDescriptorSetLayout(VkDescriptorSetLayout layout) {
   assert(layout != VK_NULL_HANDLE);
   vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
 }
+
 VkPipelineLayout Context::createPipelineLayout(
     std::span<const VkDescriptorSetLayout> descriptorLayouts,
     std::uint32_t pushConstantRange) {

@@ -17,7 +17,7 @@ class Net(nn.Module):
 
 torch.onnx.export(
         Net().eval(), 
-        (torch.randn(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
+        (torch.ones(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
         "net.onnx",
         dynamo=True,
         export_params=True,

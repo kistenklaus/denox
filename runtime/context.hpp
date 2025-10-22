@@ -12,7 +12,7 @@
 namespace denox::runtime {
 
 struct Buffer {
-  VkBuffer buffer;
+  VkBuffer vkbuffer;
   VmaAllocation allocation;
 };
 
@@ -27,7 +27,7 @@ public:
 
   Buffer createBuffer(std::size_t size, VkBufferUsageFlags usage = 0,
                       VmaAllocationCreateFlags flags = 0);
-  void destroyBuffer(Buffer buffer);
+  void destroyBuffer(const Buffer& buffer);
 
   VkDescriptorSetLayout createDescriptorSetLayout(
       std::span<const VkDescriptorSetLayoutBinding> bindings);
@@ -43,8 +43,9 @@ public:
                                    const char *entry);
   void destroyPipeline(VkPipeline pipeline);
 
-  VkDescriptorPool createDescriptorPool(std::size_t maxSets,
-                                        std::span<VkDescriptorPoolSize> sizes) {
+  VkDescriptorPool
+  createDescriptorPool(std::size_t maxSets,
+                       std::span<const VkDescriptorPoolSize> sizes) {
     VkDescriptorPoolCreateInfo poolInfo;
     std::memset(&poolInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -83,27 +84,23 @@ public:
 
   void allocDescriptorSets(VkDescriptorPool pool,
                            std::span<const VkDescriptorSetLayout> layouts,
-                           VkDescriptorSet* sets) {
+                           VkDescriptorSet *sets) {
     VkDescriptorSetAllocateInfo allocInfo;
     std::memset(&allocInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = pool;
     allocInfo.descriptorSetCount = layouts.size();
     allocInfo.pSetLayouts = layouts.data();
-    VkResult result =
-        vkAllocateDescriptorSets(m_device, &allocInfo, sets);
+    VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, sets);
     if (result != VK_SUCCESS) {
       throw std::runtime_error("Failed to create descriptor set");
     }
   }
-  //
-  // void freeDescriptorSet(VkDescriptorPool pool, VkDescriptorSet set) {
-  //   vkFreeDescriptorSets(m_device, pool, 1, &set);
-  // }
-  //
-  // void freeDescriptorSets(VkDescriptorPool pool, std::span<VkDescriptorSet> sets) {
-  //   vkFreeDescriptorSets(m_device, pool, sets.size(), sets.data());
-  // }
+
+  void updateDescriptorSets(std::span<const VkWriteDescriptorSet> writeInfos) {
+    vkUpdateDescriptorSets(m_device, writeInfos.size(), writeInfos.data(), 0,
+                           nullptr);
+  }
 
   VkCommandPool createCommandPool();
   void destroyCommandPool(VkCommandPool cmdPool);
@@ -140,7 +137,7 @@ public:
     copy.size = size;
     copy.srcOffset = srcOffset;
     copy.dstOffset = dstOffset;
-    vkCmdCopyBuffer(cmd, src.buffer, dst.buffer, 1, &copy);
+    vkCmdCopyBuffer(cmd, src.vkbuffer, dst.vkbuffer, 1, &copy);
   }
 
   void cmdMemoryBarrier(VkCommandBuffer cmd, VkPipelineStageFlags srcStage,
@@ -168,13 +165,15 @@ public:
     bufferBarrier.dstAccessMask = dstAccess;
     bufferBarrier.srcQueueFamilyIndex = m_queueFamily;
     bufferBarrier.dstQueueFamilyIndex = m_queueFamily;
-    bufferBarrier.buffer = buffer.buffer;
+    bufferBarrier.buffer = buffer.vkbuffer;
     bufferBarrier.offset = offset;
     bufferBarrier.size = size;
 
     vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 1,
                          &bufferBarrier, 0, nullptr);
   }
+
+  std::uint32_t getQueueFamily() const { return m_queueFamily; }
 
 private:
   VkInstance m_instance;

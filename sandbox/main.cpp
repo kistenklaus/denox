@@ -34,38 +34,40 @@ int main() {
   extents[0].value = inW;
   extents[1].name = "H";
   extents[1].value = inH;
-  denox::RuntimeModelInstance instance;
-  if (denox::create_runtime_model_instance(context, model, 2, extents,
-                                           &instance)) {
+  denox::RuntimeInstance instance;
+
+  if (denox::create_runtime_instance(context, model, 2, extents, &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
-  std::size_t inCh;
-  std::size_t checkInW;
-  std::size_t checkInH;
-  denox::get_runtime_model_instance_input_shape(instance, 0, &checkInW,
-                                                &checkInH, &inCh);
+  std::uint32_t inCh;
+  std::uint32_t checkInW;
+  std::uint32_t checkInH;
+  denox::get_runtime_instance_tensor_shape(instance, "input", &checkInH,
+                                           &checkInW, &inCh);
   assert(checkInW == inW);
   assert(checkInH == inH);
 
   std::vector<f16> input(inW * inH * inCh * sizeof(f16));
+  for (auto& x : input) {
+    x = f16(1.0f);
+  }
   void *pinputs = input.data();
-
-  std::size_t outW;
-  std::size_t outH;
-  std::size_t outCh;
-  denox::get_runtime_model_instance_output_shape(instance, 0, &outW, &outH,
-                                                 &outCh);
+  //
+  std::uint32_t outCh;
+  std::uint32_t outW;
+  std::uint32_t outH;
+  denox::get_runtime_instance_tensor_shape(instance, "output", &outH, &outW,
+                                           &outCh);
 
   std::vector<f16> output(outW * outH * outCh);
-  std::size_t expectedOutSize;
-  denox::get_runtime_model_instance_output_byte_size(instance, 0,
-                                                     &expectedOutSize);
 
+  std::size_t expectedOutSize =
+      denox::get_runtime_instance_tensor_byte_size(instance, "output");
   assert(output.size() * sizeof(decltype(output)::value_type) ==
          expectedOutSize);
   void *poutputs = output.data();
 
-  denox::eval_runtime_model_instance(context, instance, &pinputs, &poutputs);
+  denox::eval_runtime_instance(context, instance, &pinputs, &poutputs);
 
   for (std::size_t c = 0; c < outCh; ++c) {
     fmt::println("Channel: {}", c);
@@ -78,7 +80,7 @@ int main() {
     }
   }
 
-  denox::destroy_runtime_model_instance(context, instance);
+  denox::destroy_runtime_instance(context, instance);
 
   denox::destroy_runtime_model(context, model);
 

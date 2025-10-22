@@ -11,14 +11,9 @@ struct DynamicExtent {
   const char *name;
 };
 
-struct EvalResult {
-  int outputCount;
-  void **outputs;
-};
-
 typedef void *RuntimeContext;
 typedef void *RuntimeModel;
-typedef void *RuntimeModelInstance;
+typedef void *RuntimeInstance;
 
 typedef void *RuntimeBuffer;
 
@@ -29,34 +24,30 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
                          size_t dnxSize, RuntimeModel *model);
 void destroy_runtime_model(RuntimeContext context, RuntimeModel model);
 
-int create_runtime_model_instance(RuntimeContext context, RuntimeModel model,
-                                  int dynamicExtentCount,
-                                  DynamicExtent *dynamicExtents,
-                                  RuntimeModelInstance *instance);
+int create_runtime_instance(RuntimeContext context, RuntimeModel model,
+                            int dynamicExtentCount,
+                            DynamicExtent *dynamicExtents,
+                            RuntimeInstance *instance);
 
-void destroy_runtime_model_instance(RuntimeContext context,
-                                    RuntimeModelInstance instance);
+void destroy_runtime_instance(RuntimeContext context, RuntimeInstance instance);
 
-int eval_runtime_model_instance(RuntimeContext context,
-                                RuntimeModelInstance instance, 
-                                void **inputs, void** outputs);
+int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
+                          void **inputs, void **outputs);
 
 int get_runtime_model_input_count(RuntimeModel model);
 
-int get_runtime_model_output_count(RuntimeModel model);
+int get_runtime_model_output_count(RuntimeInstance model);
 
-void get_runtime_model_instance_input_shape(RuntimeModelInstance instance,
-                                            int input, size_t *width,
-                                            size_t *height, size_t *channels);
+int get_runtime_instance_extent(RuntimeInstance instance,
+                                const char *extentName);
 
-void get_runtime_model_instance_input_byte_size(RuntimeModelInstance instance,
-                                                int input, size_t *byteSize);
+int get_runtime_instance_tensor_shape(RuntimeInstance instance,
+                                      const char *tensorName,
+                                      std::uint32_t *height,
+                                      std::uint32_t *width,
+                                      std::uint32_t *channels);
 
-void get_runtime_model_instance_output_shape(RuntimeModelInstance instance,
-                                             int output, size_t *width,
-                                             size_t *height, size_t *channels);
-
-void get_runtime_model_instance_output_byte_size(RuntimeModelInstance instance,
-                                                 int coutput, size_t *byteSize);
+std::size_t get_runtime_instance_tensor_byte_size(RuntimeInstance instance,
+                                                  const char *tensorName);
 
 } // namespace denox
