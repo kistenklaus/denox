@@ -21,12 +21,8 @@ interpret_symir(const dnx::Model *dnx,
   std::size_t opCount = dnx->sym_ir()->ops()->size();
   std::vector<std::int64_t> dp(varCount + opCount);
 
-  fmt::println("variables: {}", varCount);
-  fmt::println("extents: {}", dynamicExtents.size());
   // Variable initialization:
   for (std::size_t i = 0; i < dynamicExtents.size(); ++i) {
-    fmt::println("DynamicExtent: name= {} => value={}", dynamicExtents[i].name,
-        dynamicExtents[i].value);
 
     const auto [scalar_type, scalar_source] =
         dnx::getScalarSourceOfValueName(dnx, dynamicExtents[i].name);
@@ -38,14 +34,11 @@ interpret_symir(const dnx::Model *dnx,
       continue;
     }
     std::uint32_t sid = static_cast<const dnx::SymRef *>(scalar_source)->sid();
-    fmt::println("sid = {}", sid);
     if (sid >= varCount) {
       continue;
     }
-    fmt::println("Symbol[{}] = {}", sid, dynamicExtents[i].value);
     dp[sid] = dynamicExtents[i].value;
   }
-  fmt::println("DONE-with variables");
 
   for (std::uint64_t pc = 0; pc < opCount; ++pc) {
     const dnx::SymIROp *op = dnx->sym_ir()->ops()->Get(pc);

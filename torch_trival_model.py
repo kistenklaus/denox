@@ -12,7 +12,7 @@ class Net(nn.Module):
 
     def forward(self, I):
         H, W = I.size(2), I.size(3)
-        alignment = 64  # ensure even H/W so pool+upsample align perfectly
+        alignment = 2  # ensure even H/W so pool+upsample align perfectly
         H, W = I.size(2), I.size(3)
         pad_w = (alignment - (W % alignment)) % alignment
         pad_h = (alignment - (H % alignment)) % alignment

@@ -28,8 +28,8 @@ int main() {
   assert(denox::get_runtime_model_input_count(model) == 1);
   assert(denox::get_runtime_model_output_count(model) == 1);
   denox::DynamicExtent extents[2];
-  std::size_t inW = 16;
-  std::size_t inH = 8;
+  std::size_t inW = 3;
+  std::size_t inH = 3;
   extents[0].name = "W";
   extents[0].value = inW;
   extents[1].name = "H";
@@ -48,8 +48,9 @@ int main() {
   assert(checkInH == inH);
 
   std::vector<f16> input(inW * inH * inCh * sizeof(f16));
+  std::size_t it = 0;
   for (auto &x : input) {
-    x = f16(1.0f);
+    x = f16(static_cast<float>(it++));
   }
   void *pinputs = input.data();
   //
