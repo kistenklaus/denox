@@ -128,8 +128,8 @@ table SymIR {
   ops:[SymIROp];
 }
 
-table BufferInitializer {
-  buffer:uint (key);
+table TensorInitializer {
+  tensor:uint (key);
   data:[ubyte];
 }
 
@@ -165,7 +165,7 @@ table Model {
   dispatches:[Dispatch];
   shader_binaries:[ShaderBinary];
   sym_ir:SymIR;
-  initializers:[BufferInitializer];
+  initializers:[TensorInitializer];
   inputs:[TensorInfo];
   outputs:[TensorInfo];
   value_names:[ValueName];

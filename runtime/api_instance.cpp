@@ -144,8 +144,9 @@ create_buffers(runtime::Context *ctx, const runtime::Model *m,
                                  }) != mi->outputs.rend();
     bool isInitialized =
         std::find_if(dnx->initializers()->begin(), dnx->initializers()->end(),
-                     [b](const dnx::BufferInitializer *initalizer) {
-                       return initalizer->buffer() == b;
+                     [&](const dnx::TensorInitializer *initalizer) {
+                       const auto &tensor = mi->tensors[initalizer->tensor()];
+                       return tensor.buffer == b;
                      }) != dnx->initializers()->end();
 
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
@@ -174,16 +175,15 @@ static void upload_initalizers(runtime::Context *ctx,
   std::vector<runtime::Buffer> stagingBuffers(initalizerCount);
 
   for (std::size_t i = 0; i < initalizerCount; ++i) {
-    const dnx::BufferInitializer *initalizer = dnx->initializers()->Get(i);
+    const dnx::TensorInitializer *initalizer = dnx->initializers()->Get(i);
     const void *data = initalizer->data()->data();
-    const runtime::InstanceBuffer &buffer = mi->buffers[initalizer->buffer()];
-    // See issue #48, currently buffer initalizers only allow initalization of
-    // full buffers.
-    assert(initalizer->data()->size() == buffer.size);
+    const runtime::InstanceTensor &tensor = mi->tensors[initalizer->tensor()];
+    const runtime::InstanceBuffer &buffer = mi->buffers[tensor.buffer];
+    assert(initalizer->data()->size() == tensor.size);
     runtime::Buffer stage = ctx->createBuffer(
-        buffer.size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        tensor.size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
-    ctx->copy(stage.allocation, data, buffer.size);
+    ctx->copy(stage.allocation, data, tensor.size);
     stagingBuffers[i] = stage;
   }
 
@@ -194,10 +194,11 @@ static void upload_initalizers(runtime::Context *ctx,
                         VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
 
   for (std::size_t i = 0; i < initalizerCount; ++i) {
-    const dnx::BufferInitializer *initalizer = dnx->initializers()->Get(i);
+    const dnx::TensorInitializer *initializer = dnx->initializers()->Get(i);
     const auto &stage = stagingBuffers[i];
-    const runtime::InstanceBuffer &buffer = mi->buffers[initalizer->buffer()];
-    ctx->cmdCopy(cmd, buffer.buffer, stage, buffer.size);
+    const runtime::InstanceTensor &tensor = mi->tensors[initializer->tensor()];
+    const runtime::InstanceBuffer &buffer = mi->buffers[tensor.buffer];
+    ctx->cmdCopy(cmd, buffer.buffer, stage, tensor.size, tensor.offset, 0);
   }
 
   ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
@@ -394,8 +395,8 @@ int create_runtime_instance(RuntimeContext context, RuntimeModel model,
   }
 
   // 3. Create buffers and parse tensor views.
+  mi->tensors = create_tensors(m, mi); 
   mi->buffers = create_buffers(ctx, m, mi);
-  mi->tensors = create_tensors(m, mi);
   upload_initalizers(ctx, mi);
 
   mi->descriptorPool = create_descriptor_pool(ctx, m);

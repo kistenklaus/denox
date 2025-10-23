@@ -344,19 +344,18 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   symIRBuilder.add_ops(iropsVec);
   auto sym_ir = symIRBuilder.Finish();
 
-  memory::vector<flatbuffers::Offset<BufferInitializer>> initializers;
-  for (std::size_t b = 0; b < compModel.buffers.size(); ++b) {
-    const auto &buffer = compModel.buffers[b];
-    if (!buffer.initalizer.has_value()) {
-      continue;
-    }
-    auto data = fbb.CreateVector(
-        reinterpret_cast<const std::uint8_t *>(buffer.initalizer->data()),
-        static_cast<std::size_t>(buffer.initalizer->size()));
+  memory::vector<flatbuffers::Offset<TensorInitializer>> initializers;
 
-    auto bufferInitializer =
-        CreateBufferInitializer(fbb, static_cast<std::uint32_t>(b), data);
-    initializers.push_back(bufferInitializer);
+  for (std::size_t i = 0; i < compModel.initializers.size(); ++i) {
+    const auto &initializer = compModel.initializers[i];
+
+    auto data = fbb.CreateVector(
+        reinterpret_cast<const std::uint8_t *>(initializer.data.data()),
+        static_cast<std::size_t>(initializer.data.size()));
+
+    auto tensorInitializer =
+        CreateTensorInitializer(fbb, initializer.tensor, data);
+    initializers.push_back(tensorInitializer);
   }
   auto initializersVec = fbb.CreateVector(initializers);
 
@@ -552,7 +551,6 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
       break;
     }
 
-
     TensorInfoBuilder builder{fbb};
     builder.add_tensor(static_cast<std::uint32_t>(output.tensor.index));
     builder.add_channels_type(channels_type);
@@ -580,7 +578,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
       value_type = ScalarSource_literal;
       std::uint64_t v = static_cast<std::uint64_t>(sym.constant());
       value = CreateScalarLiteral(
-                  fbb, ScalarType_U32,
+                  fbb, ScalarType_U64,
                   fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
                                    sizeof(std::uint64_t)))
                   .Union();

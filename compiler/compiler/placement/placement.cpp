@@ -61,7 +61,6 @@ CompModel placement(const ImplModel &model) {
     Buffer buffer{
         .size = tensor.byteSize,
         .alignment = tensor.minAlignment,
-        .initalizer = memory::nullopt,
     };
     const std::uint64_t bufferIndex = compModel.buffers.size();
     compModel.buffers.push_back(buffer);
@@ -85,9 +84,7 @@ CompModel placement(const ImplModel &model) {
   for (const auto &param : model.parameters) {
     const std::uint64_t tensorId = param.tensorId.index;
     const std::uint64_t viewId = tensorIdToViewMap[tensorId];
-    const TensorView &view = compModel.tensors[viewId];
-    Buffer &buffer = compModel.buffers[view.buffer];
-    buffer.initalizer = param.data;
+    compModel.initializers.emplace_back(viewId, param.data);
   }
 
   // Create views for runtime tensors.
@@ -246,7 +243,6 @@ CompModel placement(const ImplModel &model) {
     Buffer buffer{
         .size = size,
         .alignment = alignment,
-        .initalizer = memory::nullopt,
     };
     assert(compModel.buffers.size() == bufferIndex);
     compModel.buffers.push_back(buffer);

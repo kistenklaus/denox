@@ -10,6 +10,7 @@
 #include "shaders/compiler/ShaderBinary.hpp"
 #include "symbolic/Sym.hpp"
 #include <cstdint>
+#include <vector>
 
 namespace denox::compiler {
 
@@ -22,7 +23,11 @@ struct TensorView {
 struct Buffer {
   Sym size;
   unsigned int alignment;
-  memory::optional<std::vector<std::byte>> initalizer;
+};
+
+struct TensorInitalizer {
+  std::uint32_t tensor;
+  std::vector<std::byte> data;
 };
 
 struct ShaderSourceView {
@@ -60,6 +65,8 @@ struct CompModel {
 
   memory::vector<InputDesc> inputs;
   memory::vector<OutputDesc> outputs;
+
+  memory::vector<TensorInitalizer> initializers;
 };
 
 } // namespace denox::compiler
