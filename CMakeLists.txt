@@ -277,6 +277,7 @@ if (NOT BUILD_PYTHON_BINDING)
         denox::cli11
         
   )
+  install(TARGETS denox DESTINATION bin)
 
   if (DENOX_ENABLE_STRICT_WARNINGS)
     denox_enable_strict_warnings(denox)
@@ -341,11 +342,19 @@ endif()
 if (BUILD_PYTHON_BINDING)
   include(cmake/pybind11.cmake)
 
-  pybind11_add_module(_denox MODULE bindings/python/pydenox/binding.cpp)
-  target_link_libraries(_denox PRIVATE denox::compiler)
+  pybind11_add_module(_denox MODULE 
+    bindings/python/denox/mod.cpp
+    bindings/python/denox/Module.cpp
+    bindings/python/denox/Module_compile.cpp
+  )
+  target_link_libraries(_denox 
+    PRIVATE 
+      denox::compiler
+      denox::runtime
+      denox::fmt
+  )
   target_compile_definitions(_denox PRIVATE PYBIND11_DETAILED_ERROR_MESSAGES)
 
-  install(TARGETS _denox DESTINATION pydenox)
 
   if(APPLE)
     set_target_properties(_denox PROPERTIES 
@@ -358,6 +367,22 @@ if (BUILD_PYTHON_BINDING)
       INSTALL_RPATH "$ORIGIN"
     )
   endif()
+
+  install(TARGETS _denox LIBRARY DESTINATION ${Python3_SITEARCH}/denox)
+
+  # After installation, generate stubs next to installed .so
+  install(CODE "
+    message(STATUS \"Generating Python stubs for installed denox...\")
+    execute_process(
+      COMMAND \"${Python3_EXECUTABLE}\" -m pybind11_stubgen denox._denox
+        -o ${Python3_SITEARCH}
+      WORKING_DIRECTORY ${Python3_SITEARCH}
+      RESULT_VARIABLE result
+    )
+    if(NOT result EQUAL 0)
+      message(FATAL_ERROR \"pybind11-stubgen failed with exit code: ${result}\")
+    endif()
+  ")
 
 endif()
 

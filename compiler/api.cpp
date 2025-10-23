@@ -3,6 +3,7 @@
 #include "device_info/ApiVersion.hpp"
 #include "device_info/DeviceInfo.hpp"
 #include "device_info/query/query_driver_device_info.hpp"
+#include "diag/invalid_argument.hpp"
 #include "diag/logging.hpp"
 #include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
@@ -32,6 +33,8 @@ static memory::ActivationLayout parse_layout(Layout layout) {
     return memory::ActivationLayout::CHW;
   case Layout::CHWC8:
     return memory::ActivationLayout::CHWC8;
+  case Layout::Undefined:
+    compiler::diag::invalid_argument();
   }
   compiler::diag::unreachable();
 }
@@ -280,7 +283,7 @@ int compile(const char *cpath, const CompileOptions *options,
 
     flatbuffers::DetachedBuffer dnxBuffer = compiler::entry(buf, opt);
 
-    void* dnx = malloc(dnxBuffer.size());
+    void *dnx = malloc(dnxBuffer.size());
     std::memcpy(dnx, dnxBuffer.data(), dnxBuffer.size());
     result->dnx = dnx;
     result->dnxSize = dnxBuffer.size();

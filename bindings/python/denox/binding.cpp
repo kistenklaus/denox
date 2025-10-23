@@ -1,4 +1,5 @@
 #include <cctype>
+#include <exception>
 #include <fstream>
 #include <optional>
 #include <pybind11/pybind11.h>
@@ -9,6 +10,7 @@
 #include <vector>
 
 #include "denox/compiler.hpp"
+#include "denox/runtime.hpp"
 
 namespace py = pybind11;
 
@@ -334,6 +336,9 @@ static py::bytes py_compile_bytes(
   return py::bytes(r.dnx.data(), r.dnx.size());
 }
 
+class RuntimeModel;    // fwd
+class RuntimeInstance; // fwd
+
 PYBIND11_MODULE(_denox, m) {
   m.doc() = "denox Python binding";
 
@@ -368,4 +373,93 @@ PYBIND11_MODULE(_denox, m) {
 
   add_sig("compile", &py_compile_program);     // returns Program
   add_sig("compile_bytes", &py_compile_bytes); // returns bytes
+
+  // // Re-export enums you’ll likely need at runtime
+  // py::enum_<denox::DataType>(m, "DataType")
+  //     .value("Auto", denox::DataType::Auto)
+  //     .value("Float16", denox::DataType::Float16)
+  //     .value("Float32", denox::DataType::Float32)
+  //     .value("Uint8", denox::DataType::Uint8)
+  //     .value("Int8", denox::DataType::Int8);
+  //
+  // py::enum_<denox::Layout>(m, "Layout")
+  //     .value("HWC", denox::Layout::HWC)
+  //     .value("CHW", denox::Layout::CHW)
+  //     .value("CHWC8", denox::Layout::CHWC8);
+  //
+  // // RuntimeContext
+  // py::class_<RuntimeContext>(m, "RuntimeContext")
+  //     .def(
+  //         py::init<py::object>(), py::arg("device") = py::none(),
+  //         R"(Create a runtime context on an optional device name pattern,
+  //         e.g. "*AMD*".)")
+  //     .def(
+  //         "__enter__",
+  //         [](RuntimeContext &self) -> RuntimeContext * { return self.enter();
+  //         })
+  //     .def("__exit__",
+  //          [](RuntimeContext &self, py::object t, py::object v,
+  //             py::object tb) -> bool { return self.exit(t, v, tb); })
+  //     .def("__repr__", [](const RuntimeContext &self) { return self.repr();
+  //     }) .def(
+  //         "load_model",
+  //         [](const RuntimeContext &self, const py::object &program_or_bytes)
+  //             -> RuntimeModel { return self.load_model(program_or_bytes); },
+  //         py::arg("program_or_bytes"),
+  //         R"(Create a RuntimeModel from a Program or bytes (DNX).)");
+  //
+  // // RuntimeModel
+  // py::class_<RuntimeModel>(m, "RuntimeModel")
+  //     .def("__repr__", [](const RuntimeModel &self) { return self.repr(); })
+  //     .def("input_names",
+  //          [](const RuntimeModel &self) { return self.input_names(); })
+  //     .def("output_names",
+  //          [](const RuntimeModel &self) { return self.output_names(); })
+  //     .def(
+  //         "tensor_dtype",
+  //         [](const RuntimeModel &self, const std::string &name) {
+  //           return self.tensor_dtype(name);
+  //         },
+  //         py::arg("name"))
+  //     .def(
+  //         "tensor_layout",
+  //         [](const RuntimeModel &self, const std::string &name) {
+  //           return self.tensor_layout(name);
+  //         },
+  //         py::arg("name"))
+  //     .def(
+  //         "create_instance",
+  //         [](const RuntimeModel &self,
+  //            const py::dict &dynamic_extents) -> RuntimeInstance {
+  //           return self.create_instance(dynamic_extents);
+  //         },
+  //         py::arg("dynamic_extents") = py::dict(),
+  //         R"(Specialize dynamic extents by name, e.g. {"H":1080,
+  //         "W":1920}.)");
+  //
+  // // RuntimeInstance
+  // py::class_<RuntimeInstance>(m, "RuntimeInstance")
+  //     .def("__repr__", [](const RuntimeInstance &self) { return self.repr();
+  //     }) .def(
+  //         "tensor_shape",
+  //         [](const RuntimeInstance &self, const std::string &name) {
+  //           return self.tensor_shape(name);
+  //         },
+  //         py::arg("name"), R"(Return post-specialization (H, W, C).)")
+  //     .def(
+  //         "tensor_nbytes",
+  //         [](const RuntimeInstance &self, const std::string &name) {
+  //           return self.tensor_nbytes(name);
+  //         },
+  //         py::arg("name"))
+  //     .def(
+  //         "eval",
+  //         [](RuntimeInstance &self, const py::dict &inputs,
+  //            py::object outputs) { return self.eval(inputs, outputs); },
+  //         py::arg("inputs"), py::arg("outputs") = py::none(),
+  //         R"(Run inference. inputs: Mapping[str, __dlpack__]. outputs:
+  //         optional prealloc. return_format: "numpy" | "dlpack")");
 }
+
+
+

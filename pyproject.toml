@@ -1,12 +1,13 @@
 [build-system]
 requires = [
   "scikit-build-core>=0.10.0",
-  "pybind11>=2.12"
+  "pybind11>=2.12",
+  "pybind11-stubgen",
 ]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "pydenox"
+name = "denox"
 version = "0.0.1"
 description = "Realtime image denoising export"
 requires-python = ">=3.9"

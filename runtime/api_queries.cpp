@@ -43,8 +43,8 @@ std::uint64_t get_runtime_instance_extent(RuntimeInstance instance,
 }
 
 int get_runtime_instance_tensor_shape(RuntimeInstance instance,
-                                       const char *tensorName, Extent *height,
-                                       Extent *width, Extent *channels) {
+                                      const char *tensorName, Extent *height,
+                                      Extent *width, Extent *channels) {
   const runtime::Instance *mi = static_cast<runtime::Instance *>(instance);
   const auto matchesTensorName = [&](const runtime::InstanceTensorInfo &info) {
     return std::strcmp(info.name, tensorName) == 0;
@@ -68,8 +68,7 @@ int get_runtime_instance_tensor_shape(RuntimeInstance instance,
     return -1;
   }
   const std::uint32_t tensorId = info->tensor;
-  const auto& tensor = mi->tensors[tensorId];
-
+  const auto &tensor = mi->tensors[tensorId];
 
   if (height != nullptr) {
     *height = info->height;
@@ -135,7 +134,45 @@ DataType get_runtime_model_tensor_dtype(RuntimeModel model,
                                         const char *tensorName) {
   const auto *m = static_cast<runtime::Model *>(model);
   const auto *dnx = m->dnx;
-  throw std::runtime_error("fuck");
+  const dnx::TensorInfo *info = dnx::get_tensor_info_by_name(dnx, tensorName);
+  if (info == nullptr) {
+    return DataType::Auto;
+  }
+  switch (info->type()) {
+  case dnx::ScalarType_F16:
+    return DataType::Float16;
+  case dnx::ScalarType_F32:
+    return DataType::Float32;
+  case dnx::ScalarType_F64:
+  case dnx::ScalarType_I16:
+  case dnx::ScalarType_U16:
+  case dnx::ScalarType_I32:
+  case dnx::ScalarType_U32:
+  case dnx::ScalarType_I64:
+  case dnx::ScalarType_U64:
+  default:
+    throw std::runtime_error("invalid or unimplemented state.");
+  }
+}
+
+Layout get_runtime_model_tensor_layout(RuntimeModel model,
+                                       const char *tensorName) {
+  const auto *m = static_cast<runtime::Model *>(model);
+  const auto *dnx = m->dnx;
+  const dnx::TensorInfo* info = dnx::get_tensor_info_by_name(dnx, tensorName);
+  if (info == nullptr) {
+    return Layout::Undefined;
+  }
+  switch (info->layout()) {
+  case dnx::TensorLayout_HWC:
+    return Layout::HWC;
+  case dnx::TensorLayout_CHW:
+    return Layout::CHW;
+  case dnx::TensorLayout_CHWC8:
+    return Layout::CHWC8;
+  default:
+    throw std::runtime_error("unreachable");
+  }
 }
 
 } // namespace denox

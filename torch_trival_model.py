@@ -1,21 +1,26 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import io
+from typing import BinaryIO
+import denox._denox
 
 INPUT_CHANNELS_COUNT = 1
+
 
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
-        pm = 'zeros'
-        self.enc0 = nn.Conv2d(INPUT_CHANNELS_COUNT, 16, 3, padding='same', padding_mode=pm, bias=True)
+        pm = "zeros"
+        self.enc0 = nn.Conv2d(
+            INPUT_CHANNELS_COUNT, 16, 3, padding="same", padding_mode=pm, bias=True
+        )
 
-        self.con0 = nn.Conv2d(112, 112, 3, padding='same', padding_mode=pm)
-        self.dec0 = nn.Conv2d(32, 16, 3, padding='same', padding_mode=pm)
+        self.con0 = nn.Conv2d(112, 112, 3, padding="same", padding_mode=pm)
+        self.dec0 = nn.Conv2d(32, 16, 3, padding="same", padding_mode=pm)
 
         self.pool = nn.MaxPool2d(2, 2)
-        self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
-
+        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
 
     def forward(self, I):
         # H, W = I.size(2), I.size(3)
@@ -30,25 +35,40 @@ class Net(nn.Module):
 
         return x
 
+
 net = Net()
 
 with torch.no_grad():
     net.enc0.weight.fill_(1.0)
-    if net.enc0.bias != None:
+    if net.enc0.bias is not None:
         net.enc0.bias.fill_(0.0)
 
     pass
 
+example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 64, 64, dtype=torch.float16)
 
-torch.onnx.export(
-        net,
-        (torch.ones(1,INPUT_CHANNELS_COUNT, 64,64, dtype=torch.float16),),
-        "net.onnx",
-        dynamo=True,
-        export_params=True,
-        external_data=False,
-        input_names=["input"],
-        output_names=["output"],
-        dynamic_shapes={"I": {2 : torch.export.Dim.DYNAMIC, 3 : torch.export.Dim.DYNAMIC}},
-        report=False,
+program = torch.onnx.export(
+    net,
+    (example_input,),
+    # onnx,
+    dynamo=True,
+    export_params=True,
+    external_data=False,
+    input_names=["input"],
+    output_names=["output"],
+    dynamic_shapes={"I": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
+    report=False,
 )
+
+dnx = denox.Module.compile(
+    program,
+    device="*RTX*",
+    target_env="vulkan1.4",
+    input_shape=("H", "W", "C"),  # <- should probably be renabled into something else
+)
+
+dnx.save("net.dnx")
+
+# dreams:
+# output = dnx(example_input)
+

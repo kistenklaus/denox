@@ -8,6 +8,7 @@ enum class Storage {
 };
 
 enum class Layout {
+  Undefined,
   HWC,
   CHW,
   CHWC8,

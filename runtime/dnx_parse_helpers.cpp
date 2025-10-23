@@ -239,4 +239,24 @@ const char* reverse_value_name_search(const dnx::Model* dnx, const dnx::ScalarSo
   return nullptr;
 }
 
+const dnx::TensorInfo* get_tensor_info_by_name(const dnx::Model* dnx, 
+    const char* name) {
+  std::size_t inputCount = dnx->inputs()->size();
+  for (std::size_t i = 0; i< inputCount; ++i) {
+    const dnx::TensorInfo* input = dnx->inputs()->Get(i);
+    if (std::strcmp(input->name()->c_str(), name) == 0) {
+      return input;
+    }
+  }
+  std::size_t outputCount = dnx->outputs()->size();
+  for (std::size_t o = 0; o < outputCount; ++o)  {
+    const dnx::TensorInfo* output = dnx->outputs()->Get(o);
+    if (std::strcmp(output->name()->c_str(), name) == 0) {
+      return output;
+    }
+  }
+  return nullptr;
+}
+
+
 } // namespace denox::dnx

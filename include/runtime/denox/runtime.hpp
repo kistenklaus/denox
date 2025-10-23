@@ -48,4 +48,7 @@ std::size_t get_runtime_instance_tensor_byte_size(RuntimeInstance instance,
 DataType get_runtime_model_tensor_dtype(RuntimeModel model,
                                         const char *tensorName);
 
+Layout get_runtime_model_tensor_layout(RuntimeModel model,
+                                       const char *tensorName);
+
 } // namespace denox
