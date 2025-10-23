@@ -67,6 +67,9 @@ int get_runtime_instance_tensor_shape(RuntimeInstance instance,
   if (info == nullptr) {
     return -1;
   }
+  const std::uint32_t tensorId = info->tensor;
+  const auto& tensor = mi->tensors[tensorId];
+
 
   if (height != nullptr) {
     *height = info->height;

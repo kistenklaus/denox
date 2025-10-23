@@ -92,23 +92,26 @@ interpret_symir(const dnx::Model *dnx, std::span<const Extent> dynamicExtents) {
   return dp;
 }
 
-template <typename InOutput>
 static runtime::InstanceTensorInfo
-parse_tensor_info(const dnx::Model *dnx, const InOutput *tensorInfo,
+parse_tensor_info(const dnx::Model *dnx, const dnx::TensorInfo *tensorInfo,
                   std::span<const std::int64_t> symbolValues) {
   runtime::InstanceTensorInfo info;
+  std::memset(&info, 0, sizeof(runtime::InstanceTensorInfo));
   info.name = tensorInfo->name()->c_str();
   info.tensor = tensorInfo->tensor();
   info.channels.value = dnx::parseUnsignedScalarSource(
       tensorInfo->channels_type(), tensorInfo->channels(), symbolValues);
-  info.channels.name = dnx::reverse_value_name_search(dnx, tensorInfo->channels_type(), tensorInfo->channels());
+  info.channels.name = dnx::reverse_value_name_search(
+      dnx, tensorInfo->channels_type(), tensorInfo->channels());
 
   info.width.value = dnx::parseUnsignedScalarSource(
       tensorInfo->width_type(), tensorInfo->width(), symbolValues);
-  info.width.name = dnx::reverse_value_name_search(dnx, tensorInfo->width_type(), tensorInfo->width());
+  info.width.name = dnx::reverse_value_name_search(
+      dnx, tensorInfo->width_type(), tensorInfo->width());
   info.height.value = dnx::parseUnsignedScalarSource(
       tensorInfo->height_type(), tensorInfo->height(), symbolValues);
-  info.height.name = dnx::reverse_value_name_search(dnx, tensorInfo->height_type(), tensorInfo->height());
+  info.height.name = dnx::reverse_value_name_search(
+      dnx, tensorInfo->height_type(), tensorInfo->height());
   return info;
 }
 

@@ -61,7 +61,7 @@ int main() {
   denox::Extent outExtentW;
   denox::Extent outExtentH;
   denox::get_runtime_instance_tensor_shape(instance, "output", &outExtentH, &outExtentW,
-                                           &outExtentH);
+                                           &outExtentCh);
   std::size_t outCh = outExtentCh.value;
   std::size_t outW = outExtentW.value;
   std::size_t outH = outExtentH.value;

@@ -113,10 +113,6 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
     const auto &dispatch = compModel.dispatches[d];
 
-    // auto srcVec =
-    //     fbb.CreateVector(reinterpret_cast<const std::uint32_t *>(
-    //                          compModel.roData.data() + dispatch.src.offset),
-    //                      dispatch.src.size / sizeof(std::uint32_t));
     auto entryPointStr = fbb.CreateString("main");
 
     memory::vector<flatbuffers::Offset<DescriptorSetBinding>> setBindings;
@@ -364,7 +360,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   }
   auto initializersVec = fbb.CreateVector(initializers);
 
-  memory::vector<flatbuffers::Offset<Input>> inputs;
+  memory::vector<flatbuffers::Offset<TensorInfo>> inputs;
   inputs.reserve(compModel.inputs.size());
   for (std::size_t i = 0; i < compModel.inputs.size(); ++i) {
     const auto &input = compModel.inputs[i];
@@ -413,16 +409,57 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
                    .Union();
     }
 
+    dnx::TensorLayout layout = dnx::TensorLayout_HWC;
+    switch (input.layout.kind()) {
+    case memory::ActivationLayoutKind::CHW:
+      layout = dnx::TensorLayout_CHW;
+      break;
+    case memory::ActivationLayoutKind::HWC:
+      layout = dnx::TensorLayout_HWC;
+      break;
+    case memory::ActivationLayoutKind::CHWC8:
+      layout = dnx::TensorLayout_CHWC8;
+      break;
+    case memory::ActivationLayoutKind::CHWC4:
+    case memory::ActivationLayoutKind::CHWC16:
+      compiler::diag::invalid_state();
+    default:
+      compiler::diag::unreachable();
+    }
+
     auto nameStr = fbb.CreateString(inputName);
 
-    InputBuilder builder(fbb);
+    dnx::ScalarType dtype;
+    switch (input.dtype.kind()) {
+    case memory::DtypeKind::F16:
+      dtype = dnx::ScalarType::ScalarType_F16;
+      break;
+    case memory::DtypeKind::F32:
+      dtype = dnx::ScalarType::ScalarType_F32;
+      break;
+    case memory::DtypeKind::F64:
+      dtype = dnx::ScalarType::ScalarType_F64;
+      break;
+    case memory::DtypeKind::U32:
+      dtype = dnx::ScalarType::ScalarType_U32;
+      break;
+    case memory::DtypeKind::I32:
+      dtype = dnx::ScalarType::ScalarType_I32;
+      break;
+    default:
+      compiler::diag::unreachable();
+    }
+
+    TensorInfoBuilder builder{fbb};
+    builder.add_tensor(static_cast<std::uint32_t>(input.tensor.index));
     builder.add_channels_type(channels_type);
     builder.add_channels(channels);
     builder.add_width_type(width_type);
     builder.add_width(width);
     builder.add_height_type(height_type);
     builder.add_height(height);
-    builder.add_tensor(static_cast<std::uint32_t>(input.tensor.index));
+    builder.add_layout(layout);
+    builder.add_type(dtype);
     builder.add_name(nameStr);
 
     inputs.push_back(builder.Finish());
@@ -430,7 +467,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
 
   auto inputsVec = fbb.CreateVector(inputs);
 
-  memory::vector<flatbuffers::Offset<Output>> outputs;
+  memory::vector<flatbuffers::Offset<TensorInfo>> outputs;
   outputs.reserve(compModel.outputs.size());
   for (std::size_t o = 0; o < compModel.outputs.size(); ++o) {
     const auto &output = compModel.outputs[o];
@@ -478,16 +515,54 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
                                     sizeof(std::uint32_t)))
                    .Union();
     }
+    dnx::TensorLayout layout;
+    switch (output.layout.kind()) {
+    case memory::ActivationLayoutKind::CHW:
+      layout = dnx::TensorLayout_CHW;
+      break;
+    case memory::ActivationLayoutKind::HWC:
+      layout = dnx::TensorLayout_HWC;
+      break;
+    case memory::ActivationLayoutKind::CHWC8:
+      layout = dnx::TensorLayout_CHWC8;
+      break;
+    case memory::ActivationLayoutKind::CHWC4:
+    case memory::ActivationLayoutKind::CHWC16:
+      compiler::diag::invalid_state();
+    }
+
     auto nameStr = fbb.CreateString(outputName);
 
-    OutputBuilder builder(fbb);
+    dnx::ScalarType dtype;
+    switch (output.dtype.kind()) {
+    case memory::DtypeKind::F16:
+      dtype = dnx::ScalarType::ScalarType_F16;
+      break;
+    case memory::DtypeKind::F32:
+      dtype = dnx::ScalarType::ScalarType_F32;
+      break;
+    case memory::DtypeKind::F64:
+      dtype = dnx::ScalarType::ScalarType_F64;
+      break;
+    case memory::DtypeKind::U32:
+      dtype = dnx::ScalarType::ScalarType_U32;
+      break;
+    case memory::DtypeKind::I32:
+      dtype = dnx::ScalarType::ScalarType_I32;
+      break;
+    }
+
+
+    TensorInfoBuilder builder{fbb};
+    builder.add_tensor(static_cast<std::uint32_t>(output.tensor.index));
     builder.add_channels_type(channels_type);
     builder.add_channels(channels);
     builder.add_width_type(width_type);
     builder.add_width(width);
     builder.add_height_type(height_type);
     builder.add_height(height);
-    builder.add_tensor(static_cast<std::uint32_t>(output.tensor.index));
+    builder.add_layout(layout);
+    builder.add_type(dtype);
     builder.add_name(nameStr);
 
     outputs.push_back(builder.Finish());

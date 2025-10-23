@@ -189,12 +189,12 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   {
     auto in = model.graph.get(model.input);
     sym_vec2 extent = in.extent;
-    implModel.inputs.emplace_back(in.channels, extent, input);
+    implModel.inputs.emplace_back(in.channels, extent, input, in.layout, in.type);
   }
   {
     auto out = model.graph.get(model.output);
     sym_vec2 extent = out.extent;
-    implModel.outputs.emplace_back(out.channels, extent, output);
+    implModel.outputs.emplace_back(out.channels, extent, output, out.layout, out.type);
   }
 
   if (!options.skipSpirvCompile) {

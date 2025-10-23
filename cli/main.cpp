@@ -442,7 +442,7 @@ int main(int argc, char **argv) {
   options.device.apiVersion = parseTargetEnv(targetEnv);
 
   options.verbose = verbose;
-  options.quite = quite;
+  options.quiet = quite;
   options.summarize = summarize;
 
   if (showVersion) {
