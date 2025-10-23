@@ -17,8 +17,8 @@ int get_runtime_model_output_count(RuntimeModel model) {
   return m->dnx->outputs()->size();
 }
 
-int get_runtime_instance_extent(RuntimeInstance instance,
-                                const char *extentName) {
+std::uint64_t get_runtime_instance_extent(RuntimeInstance instance,
+                                          const char *extentName) {
   const runtime::Instance *mi =
       static_cast<const runtime::Instance *>(instance);
   const runtime::Model *m = mi->model;
@@ -43,10 +43,8 @@ int get_runtime_instance_extent(RuntimeInstance instance,
 }
 
 int get_runtime_instance_tensor_shape(RuntimeInstance instance,
-                                      const char *tensorName,
-                                      std::uint32_t *height,
-                                      std::uint32_t *width,
-                                      std::uint32_t *channels) {
+                                       const char *tensorName, Extent *height,
+                                       Extent *width, Extent *channels) {
   const runtime::Instance *mi = static_cast<runtime::Instance *>(instance);
   const auto matchesTensorName = [&](const runtime::InstanceTensorInfo &info) {
     return std::strcmp(info.name, tensorName) == 0;
@@ -109,6 +107,32 @@ std::size_t get_runtime_instance_tensor_byte_size(RuntimeInstance instance,
         fmt::format("Tensor \"{}\" does not exist", tensorName));
   }
   return mi->tensors[info->tensor].size;
+}
+
+const char *get_runtime_model_input_name(RuntimeModel model, int index) {
+  const auto *m = static_cast<runtime::Model *>(model);
+  const auto *dnx = m->dnx;
+  std::uint32_t inputCount = dnx->inputs()->size();
+  if (index >= inputCount) {
+    return nullptr;
+  }
+  return dnx->inputs()->Get(index)->name()->c_str();
+}
+const char *get_runtime_model_output_name(RuntimeModel model, int index) {
+  const auto *m = static_cast<runtime::Model *>(model);
+  const auto *dnx = m->dnx;
+  std::uint32_t outputCount = dnx->outputs()->size();
+  if (index >= outputCount) {
+    return nullptr;
+  }
+  return dnx->outputs()->Get(index)->name()->c_str();
+}
+
+DataType get_runtime_model_tensor_dtype(RuntimeModel model,
+                                        const char *tensorName) {
+  const auto *m = static_cast<runtime::Model *>(model);
+  const auto *dnx = m->dnx;
+  throw std::runtime_error("fuck");
 }
 
 } // namespace denox

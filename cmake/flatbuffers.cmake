@@ -14,14 +14,17 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/google/flatbuffers.git
   GIT_TAG        ${DENOX_FLATBUFFERS_GIT_TAG}
   GIT_PROGRESS TRUE
+  EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(flatbuffers)
+
 
 # --- Wrapper you link against everywhere ---
 if(NOT TARGET denox_flatbuffers)
   add_library(denox_flatbuffers INTERFACE)
   add_library(denox::flatbuffers ALIAS denox_flatbuffers)
 endif()
+
 
 # Link to whatever name upstream used for the library
 if(TARGET flatbuffers::flatbuffers)
@@ -140,11 +143,13 @@ function(denox_add_fbs_lib tgt)
     add_dependencies(all "${_gen_tgt}")
   endif()
 
+
   # Header-only lib exposing generated includes
   add_library(${_tgt_real} INTERFACE)
   add_dependencies(${_tgt_real} "${_gen_tgt}")
   target_include_directories(${_tgt_real} INTERFACE "${FBS_OUT_DIR}")
   target_link_libraries(${_tgt_real} INTERFACE denox::flatbuffers)
+  set_target_properties(${_tgt_real} PROPERTIES POSITION_INDEPENDENT_CODE BUILD_PIL)
 
   # Create requested alias if namespaced
   if (_tgt_in MATCHES "::")

@@ -41,3 +41,5 @@ cmake-debug-build
 *.onnx
 
 **/**__pycache__/
+*.json
+*.png

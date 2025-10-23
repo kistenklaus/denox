@@ -16,4 +16,6 @@ parseUnsignedScalarSource(dnx::ScalarSource scalar_source_type,
 void memcpyPushConstantField(void *dst, const dnx::PushConstantField *field,
                              std::span<const std::int64_t> symbolValues);
 
+const char* reverse_value_name_search(const dnx::Model* dnx, const dnx::ScalarSource source_type, const void* source);
+
 } // namespace denox::dnx

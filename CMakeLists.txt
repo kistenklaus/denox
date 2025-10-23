@@ -169,12 +169,14 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
 target_compile_features(denox_compiler PUBLIC cxx_std_20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
-set_target_properties(denox_compiler PROPERTIES POSITION_INDEPENDENT_CODE BUILD_PIL)
+set_target_properties(denox_compiler PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(denox_compiler
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/compiler> 
     $<INSTALL_INTERFACE:include/compiler>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/common> 
+    $<INSTALL_INTERFACE:include/common>
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/compiler
 )
@@ -222,6 +224,8 @@ target_include_directories(denox_runtime PUBLIC
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/runtime> 
     $<INSTALL_INTERFACE:include/runtime>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/common> 
+    $<INSTALL_INTERFACE:include/common>
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime
 )
@@ -231,15 +235,13 @@ target_compile_definitions(denox_runtime
     DENOX_VERSION=0
 )
 
-target_link_libraries(denox_runtime 
+target_link_libraries(denox_runtime
   PRIVATE
     denox::fmt
     denox::vulkan
     denox::dnx
     denox::vma
 )
-    
-  
 
 target_compile_features(denox_runtime PUBLIC cxx_std_20)
 
@@ -260,27 +262,26 @@ if (DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT)
 endif()
 
 
+if (NOT BUILD_PYTHON_BINDING)
+  add_executable(denox
+    cli/main.cpp
+  )
 
-add_executable(denox
-  cli/main.cpp
-)
+  set_target_properties(denox PROPERTIES POSITION_INDEPENDENT_CODE BUILD_PIL)
 
+  target_link_libraries(denox 
+      PUBLIC 
+        denox::compiler
+      PRIVATE
+        denox::glslang
+        denox::cli11
+        
+  )
 
-
-set_target_properties(denox PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-target_link_libraries(denox 
-    PUBLIC 
-      denox::compiler
-    PRIVATE
-      denox::glslang
-      denox::cli11
-      
-)
-
-if (DENOX_ENABLE_STRICT_WARNINGS)
-  denox_enable_strict_warnings(denox)
-  denox_enable_strict_warnings(denox_compiler)
+  if (DENOX_ENABLE_STRICT_WARNINGS)
+    denox_enable_strict_warnings(denox)
+    denox_enable_strict_warnings(denox_compiler)
+  endif()
 endif()
 
 # ================= Testing ======================

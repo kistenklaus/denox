@@ -6,6 +6,7 @@
 #include "model.hpp"
 #include "vma.hpp"
 #include <algorithm>
+#include <cstring>
 #include <forward_list>
 #include <stdexcept>
 #include <variant>
@@ -14,8 +15,7 @@
 namespace denox {
 
 static std::vector<std::int64_t>
-interpret_symir(const dnx::Model *dnx,
-                std::span<const DynamicExtent> dynamicExtents) {
+interpret_symir(const dnx::Model *dnx, std::span<const Extent> dynamicExtents) {
   std::size_t varCount = dnx->sym_ir()->var_count();
   std::size_t opCount = dnx->sym_ir()->ops()->size();
   std::vector<std::int64_t> dp(varCount + opCount);
@@ -94,17 +94,21 @@ interpret_symir(const dnx::Model *dnx,
 
 template <typename InOutput>
 static runtime::InstanceTensorInfo
-parse_tensor_info(const InOutput *tensorInfo,
+parse_tensor_info(const dnx::Model *dnx, const InOutput *tensorInfo,
                   std::span<const std::int64_t> symbolValues) {
   runtime::InstanceTensorInfo info;
   info.name = tensorInfo->name()->c_str();
   info.tensor = tensorInfo->tensor();
-  info.channels = dnx::parseUnsignedScalarSource(
+  info.channels.value = dnx::parseUnsignedScalarSource(
       tensorInfo->channels_type(), tensorInfo->channels(), symbolValues);
-  info.width = dnx::parseUnsignedScalarSource(
+  info.channels.name = dnx::reverse_value_name_search(dnx, tensorInfo->channels_type(), tensorInfo->channels());
+
+  info.width.value = dnx::parseUnsignedScalarSource(
       tensorInfo->width_type(), tensorInfo->width(), symbolValues);
-  info.height = dnx::parseUnsignedScalarSource(
+  info.width.name = dnx::reverse_value_name_search(dnx, tensorInfo->width_type(), tensorInfo->width());
+  info.height.value = dnx::parseUnsignedScalarSource(
       tensorInfo->height_type(), tensorInfo->height(), symbolValues);
+  info.height.name = dnx::reverse_value_name_search(dnx, tensorInfo->height_type(), tensorInfo->height());
   return info;
 }
 
@@ -361,8 +365,7 @@ void update_descriptor_sets(runtime::Context *ctx,
 }
 
 int create_runtime_instance(RuntimeContext context, RuntimeModel model,
-                            int dynamicExtentCount,
-                            DynamicExtent *dynamicExtents,
+                            int dynamicExtentCount, Extent *dynamicExtents,
                             RuntimeInstance *instance) {
   assert(context);
   assert(model);
@@ -380,11 +383,11 @@ int create_runtime_instance(RuntimeContext context, RuntimeModel model,
   // 2. Collect input & outputs.
   for (std::size_t i = 0; i < dnx->inputs()->size(); ++i) {
     mi->inputs.push_back(
-        parse_tensor_info(dnx->inputs()->Get(i), mi->symbolValues));
+        parse_tensor_info(dnx, dnx->inputs()->Get(i), mi->symbolValues));
   }
   for (std::size_t o = 0; o < dnx->outputs()->size(); ++o) {
     mi->outputs.push_back(
-        parse_tensor_info(dnx->outputs()->Get(o), mi->symbolValues));
+        parse_tensor_info(dnx, dnx->outputs()->Get(o), mi->symbolValues));
   }
 
   // 3. Create buffers and parse tensor views.

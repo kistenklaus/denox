@@ -61,7 +61,7 @@ class Net(nn.Module):
         x     = F.relu(self.dec5(torch.cat([self.upsample(x),   I_aligned],  1)))
         x     = F.relu(self.con5(x))
 
-        # x = x[:, :, :H, :W]
+        x = x[:, :, :H, :W]
         return x
 
 net = Net()

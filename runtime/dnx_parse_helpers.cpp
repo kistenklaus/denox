@@ -208,4 +208,35 @@ void memcpyPushConstantField(void *dst, const dnx::PushConstantField *field,
     break;
   }
 }
+
+const char* reverse_value_name_search(const dnx::Model* dnx, const dnx::ScalarSource source_type,
+    const void* source) {
+  std::size_t count = dnx->value_names()->size();
+  for (std::size_t v = 0; v < count; ++v) {
+    const dnx::ValueName* valueName = dnx->value_names()->Get(v);
+    if (valueName->value_type() != source_type) {
+      continue;
+    }
+    if (valueName->value_type() == dnx::ScalarSource_symbolic) {
+      const dnx::SymRef* valueNameSymRef = valueName->value_as_symbolic();
+      const dnx::SymRef* sourceRef = static_cast<const dnx::SymRef*>(source);
+      if (sourceRef->sid() == valueNameSymRef->sid()) {
+        return valueName->name()->c_str();
+      }
+    } else if(valueName->value_type() == dnx::ScalarSource_literal) {
+      const dnx::ScalarLiteral* valueLiteral =  valueName->value_as_literal();
+      const dnx::ScalarLiteral* sourceLiteral = static_cast<const dnx::ScalarLiteral*>(source);
+      if (valueLiteral->dtype() != sourceLiteral->dtype()) {
+        continue;
+      }
+      assert(valueLiteral->bytes()->size() == sourceLiteral->bytes()->size());
+      std::size_t n = valueLiteral->bytes()->size();
+      if (std::memcmp(valueLiteral->bytes()->data(), sourceLiteral->bytes()->data(), valueLiteral->bytes()->size()) == 0) {
+        return valueName->name()->c_str();
+      }
+    }
+  }
+  return nullptr;
+}
+
 } // namespace denox::dnx

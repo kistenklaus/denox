@@ -263,7 +263,7 @@ static CompileResultBytes do_compile_to_bytes(
   // misc
   opt.cwd = cwd.is_none() ? nullptr : arena.intern(cwd.cast<std::string>());
   opt.verbose = verbose;
-  opt.quite = quiet;
+  opt.quiet = quiet;
   opt.summarize = summarize;
 
   denox::CompilationResult res{};

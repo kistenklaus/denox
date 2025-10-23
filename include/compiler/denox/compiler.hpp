@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/common/types.hpp"
 #include <cstddef>
 #include <string>
 
@@ -28,42 +29,6 @@ struct Features {
 
 enum class Heuristic {
   MemoryBandwidth,
-};
-
-enum class Storage {
-  StorageBuffer,
-};
-
-enum class Layout {
-  HWC,
-  CHW,
-  CHWC8,
-};
-
-enum DataType {
-  Auto,
-  Float16,
-  Float32,
-  Uint8,
-  Int8,
-};
-
-struct Extent {
-  const char *name;
-  unsigned int value;
-};
-
-struct Shape {
-  Extent height;
-  Extent width;
-  Extent channels;
-};
-
-struct BufferDescription {
-  Shape shape;
-  Storage storage;
-  Layout layout;
-  DataType dtype;
 };
 
 enum class VulkanApiVersion {
@@ -104,7 +69,7 @@ struct CompileOptions {
   SpirvOptions spirvOptions;
   const char *cwd = nullptr;
   bool verbose;
-  bool quite;
+  bool quiet;
   bool summarize;
   bool externally_managed_glslang_runtime = false;
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
@@ -121,6 +86,6 @@ struct CompilationResult {
 int compile(const char *path, const CompileOptions *options,
             CompilationResult *result);
 
-void destroy_compilation_result(CompilationResult* result); 
+void destroy_compilation_result(CompilationResult *result);
 
 } // namespace denox

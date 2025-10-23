@@ -89,40 +89,32 @@ void BasicUpsampleShader::implement(
   std::uint32_t wgW;
   std::uint32_t wgH;
 
+  assert(in.channels == out.channels);
+
   if (inLayout == memory::ActivationLayout::HWC &&
       outLayout == memory::ActivationLayout::HWC &&
-      (in.channels % 8 != 0 || out.channels % 8 != 0)) {
+      (in.channels % 8 != 0)) {
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
     shader.define("OSTYPE_SIZE", 2);
     shader.define("IN_LAYOUT_HWC");
     shader.define("OUT_LAYOUT_HWC");
-
-    // decent defaults:
-    if (in.channels <= 24) {
-      unsigned int ix = (in.channels + 4 - 1) / 4;
-      invocC = ix;
-      invocW = 1;
-      invocH = 1;
-      wgC = 4;
-      wgW = 64;
-      wgH = 1;
-    } else if (in.channels <= 48) {
-      unsigned int ix = (in.channels + 8 - 1) / 8;
-      invocC = ix;
-      invocW = 1;
+    if (in.channels >= 16) {
+      invocC = 2;
+      invocW = 2;
       invocH = 1;
       wgC = 8;
       wgW = 32;
       wgH = 1;
     } else {
-      invocC = 2;
-      invocW = 2;
+      invocC = 1;
+      invocW = 4;
       invocH = 1;
-      wgC = 16;
-      wgW = 16;
+      wgC = in.channels;
+      wgW = 32;
       wgH = 1;
+      
     }
   } else if (inLayout == memory::ActivationLayout::HWC &&
              outLayout == memory::ActivationLayout::HWC &&
@@ -190,9 +182,9 @@ void BasicUpsampleShader::implement(
   std::uint32_t tileY = invocW * wgW;
   std::uint32_t tileZ = invocH * wgH;
 
-  Sym workgroupCountX = symGraph.cdiv(in.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
-  Sym workgroupCountZ = symGraph.cdiv(in.extent.y.asSym(), tileZ);
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
+  Sym workgroupCountY = symGraph.cdiv(out.extent.x.asSym(), tileY);
+  Sym workgroupCountZ = symGraph.cdiv(out.extent.y.asSym(), tileZ);
 
   auto dispatch = impl.registerDispatch(std::move(shader),
       workgroupCountX, workgroupCountY, workgroupCountZ);

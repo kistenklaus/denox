@@ -1,20 +1,15 @@
 #pragma once
 
+#include "denox/common/types.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 
 namespace denox {
 
-struct DynamicExtent {
-  uint64_t value;
-  const char *name;
-};
-
 typedef void *RuntimeContext;
 typedef void *RuntimeModel;
 typedef void *RuntimeInstance;
-
 typedef void *RuntimeBuffer;
 
 int create_runtime_context(const char *deviceName, RuntimeContext *context);
@@ -26,8 +21,7 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
 void destroy_runtime_model(RuntimeContext context, RuntimeModel model);
 
 int create_runtime_instance(RuntimeContext context, RuntimeModel model,
-                            int dynamicExtentCount,
-                            DynamicExtent *dynamicExtents,
+                            int dynamicExtentCount, Extent *dynamicExtents,
                             RuntimeInstance *instance);
 
 void destroy_runtime_instance(RuntimeContext context, RuntimeInstance instance);
@@ -36,19 +30,22 @@ int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
                           void **inputs, void **outputs);
 
 int get_runtime_model_input_count(RuntimeModel model);
+int get_runtime_model_output_count(RuntimeModel model);
 
-int get_runtime_model_output_count(RuntimeInstance model);
+const char *get_runtime_model_input_name(RuntimeModel model, int index);
+const char *get_runtime_model_output_name(RuntimeModel model, int index);
 
-int get_runtime_instance_extent(RuntimeInstance instance,
-                                const char *extentName);
+std::uint64_t get_runtime_instance_extent(RuntimeInstance instance,
+                                          const char *extentName);
 
 int get_runtime_instance_tensor_shape(RuntimeInstance instance,
-                                      const char *tensorName,
-                                      std::uint32_t *height,
-                                      std::uint32_t *width,
-                                      std::uint32_t *channels);
+                                      const char *tensorName, Extent *height,
+                                      Extent *width, Extent *channels);
 
 std::size_t get_runtime_instance_tensor_byte_size(RuntimeInstance instance,
                                                   const char *tensorName);
+
+DataType get_runtime_model_tensor_dtype(RuntimeModel model,
+                                        const char *tensorName);
 
 } // namespace denox

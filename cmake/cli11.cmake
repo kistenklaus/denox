@@ -22,6 +22,7 @@ FetchContent_Declare(CLI11
   GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
   GIT_TAG        ${denox_CLI11_TAG}
   GIT_SHALLOW    TRUE
+  EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(CLI11)
 

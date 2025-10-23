@@ -270,7 +270,7 @@ int compile(const char *cpath, const CompileOptions *options,
         .cwd = cwd,
         .srcPath = path,
         .verbose = options->verbose,
-        .quite = options->quite,
+        .quite = options->quiet,
         .summarize = options->summarize,
     };
 

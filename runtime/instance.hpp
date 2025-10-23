@@ -1,6 +1,7 @@
 #pragma once
 
 #include "context.hpp"
+#include "denox/common/types.hpp"
 #include "model.hpp"
 #include <vector>
 
@@ -33,9 +34,9 @@ struct InstanceBuffer {
 struct InstanceTensorInfo {
   const char *name;
   std::uint32_t tensor;
-  std::uint32_t width;
-  std::uint32_t height;
-  std::uint32_t channels;
+  Extent width;
+  Extent height;
+  Extent channels;
 };
 
 struct Instance {

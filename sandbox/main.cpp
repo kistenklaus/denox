@@ -1,3 +1,4 @@
+#include "denox/common/types.hpp"
 #include "denox/runtime.hpp"
 #include "f16.hpp"
 #include <cassert>
@@ -27,7 +28,7 @@ int main() {
 
   assert(denox::get_runtime_model_input_count(model) == 1);
   assert(denox::get_runtime_model_output_count(model) == 1);
-  denox::DynamicExtent extents[2];
+  denox::Extent extents[2];
   std::size_t inW = 8;
   std::size_t inH = 8;
   extents[0].name = "W";
@@ -39,13 +40,14 @@ int main() {
   if (denox::create_runtime_instance(context, model, 2, extents, &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
-  std::uint32_t inCh;
-  std::uint32_t checkInW;
-  std::uint32_t checkInH;
+  denox::Extent checkInCh;
+  denox::Extent checkInW;
+  denox::Extent checkInH;
   denox::get_runtime_instance_tensor_shape(instance, "input", &checkInH,
-                                           &checkInW, &inCh);
-  assert(checkInW == inW);
-  assert(checkInH == inH);
+                                           &checkInW, &checkInCh);
+  assert(checkInW.value == inW);
+  assert(checkInH.value == inH);
+  std::size_t inCh = checkInCh.value;
 
   std::vector<f16> input(inW * inH * inCh * sizeof(f16));
   std::size_t it = 0;
@@ -55,11 +57,14 @@ int main() {
   }
   void *pinputs = input.data();
   //
-  std::uint32_t outCh;
-  std::uint32_t outW;
-  std::uint32_t outH;
-  denox::get_runtime_instance_tensor_shape(instance, "output", &outH, &outW,
-                                           &outCh);
+  denox::Extent outExtentCh;
+  denox::Extent outExtentW;
+  denox::Extent outExtentH;
+  denox::get_runtime_instance_tensor_shape(instance, "output", &outExtentH, &outExtentW,
+                                           &outExtentH);
+  std::size_t outCh = outExtentCh.value;
+  std::size_t outW = outExtentW.value;
+  std::size_t outH = outExtentH.value;
 
   std::vector<f16> output(outW * outH * outCh);
 

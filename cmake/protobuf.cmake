@@ -230,8 +230,9 @@ function(denox_add_proto_lib tgt)
   if (NOT DAP_IN_ALL)
     set_property(TARGET ${_tgt_real} PROPERTY EXCLUDE_FROM_ALL TRUE)
   endif()
+
   if (DAP_PIC)
-    set_property(TARGET ${_tgt_real} PROPERTY POSITION_INDEPENDENT_CODE BUILD_PIL)
+    set_property(TARGET ${_tgt_real} PROPERTY POSITION_INDEPENDENT_CODE ON)
   endif()
 
   target_compile_features(${_tgt_real} PUBLIC "cxx_std_${DAP_CXX_STD}")
