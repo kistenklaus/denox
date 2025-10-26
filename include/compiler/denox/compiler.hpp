@@ -86,6 +86,9 @@ struct CompilationResult {
 int compile(const char *path, const CompileOptions *options,
             CompilationResult *result);
 
+int compile(const void *data, std::size_t dataSize,
+            const CompileOptions *options, CompilationResult *result);
+
 void destroy_compilation_result(CompilationResult *result);
 
 } // namespace denox
