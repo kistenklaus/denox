@@ -1,5 +1,8 @@
 #include "Module.hpp"
+#include "denox/common/types.hpp"
+#include "denox/compiler.hpp"
 #include <filesystem>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fstream>
 #include <limits>
@@ -69,16 +72,25 @@ void Module::define(pybind11::module_ &m) {
            "<denox.Model size=32768 bytes>.")
       .def_static(
           "compile", &Module::compile, py::arg("model"), py::kw_only(),
-          py::arg("device") = py::none(), py::arg("target_env") = "vulkan1.1",
-          py::arg("input_shape") = py::none(),
-          py::arg("output_shape") = py::none(), py::arg("input_type") = "auto",
-          py::arg("output_type") = "auto", py::arg("input_layout") = "HWC",
-          py::arg("output_layout") = "HWC", py::arg("input_storage") = "SSBO",
-          py::arg("output_storage") = "SSBO", py::arg("coopmat") = py::none(),
-          py::arg("fusion") = py::none(), py::arg("memory_concat") = py::none(),
+          py::arg("device") = py::none(),
+          py::arg("target_env") = denox::VulkanApiVersion::Vulkan_1_1,
+          py::arg("input_shape") = pydenox::Shape(),
+          py::arg("output_shape") = pydenox::Shape(),
+          py::arg("input_type") = denox::DataType::Auto,
+          py::arg("output_type") = denox::DataType::Auto,
+          py::arg("input_layout") = denox::Layout::Undefined,
+          py::arg("output_layout") = denox::Layout::Undefined,
+          py::arg("input_storage") = denox::Storage::StorageBuffer,
+          py::arg("output_storage") = denox::Storage::StorageBuffer,
+          py::arg("coopmat") = py::none(), //
+          py::arg("fusion") = py::none(), //
+          py::arg("memory_concat") = py::none(),
           py::arg("spirv_debug_info") = false,
           py::arg("spirv_non_semantic_debug_info") = false,
           py::arg("spirv_optimize") = true,
+          py::arg("verbose") = false,
+          py::arg("summary") = false,
+          py::arg("quiet") = false,
           "Compile an ONNX model or file into a DNX runtime module.\n"
           "\n"
           "Args:\n"

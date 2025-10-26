@@ -34,7 +34,7 @@ static memory::ActivationLayout parse_layout(Layout layout) {
   case Layout::CHWC8:
     return memory::ActivationLayout::CHWC8;
   case Layout::Undefined:
-    compiler::diag::invalid_argument();
+    return memory::ActivationLayout::HWC;
   }
   compiler::diag::unreachable();
 }
@@ -332,14 +332,7 @@ int compile(const void *data, std::size_t dataSize,
     }
 
     auto dnxVersion = infer_dnxVersion(*options);
-    compiler::SrcType srcType;
-    switch (options->srcType) {
-    case SrcType::Auto:
-      throw std::runtime_error("Failed to infer src type, must be specified.");
-    case SrcType::Onnx:
-      srcType = compiler::SrcType::Onnx;
-      break;
-    }
+    compiler::SrcType srcType = infer_srctype(memory::nullopt, *options);
     auto cwd = infer_cwd(*options);
     memory::ActivationLayout inputLayout =
         parse_layout(options->inputDescription.layout);

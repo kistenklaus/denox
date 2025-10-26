@@ -1,9 +1,10 @@
+import io
+from typing import BinaryIO
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import io
-from typing import BinaryIO
-import denox._denox
+from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
 INPUT_CHANNELS_COUNT = 1
 
@@ -36,39 +37,24 @@ class Net(nn.Module):
         return x
 
 
-net = Net()
+example_input = torch.rand(1, INPUT_CHANNELS_COUNT, 64, 64, dtype=torch.float16)
 
-with torch.no_grad():
-    net.enc0.weight.fill_(1.0)
-    if net.enc0.bias is not None:
-        net.enc0.bias.fill_(0.0)
-
-    pass
-
-example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 64, 64, dtype=torch.float16)
+net : nn.Module = Net()
 
 program = torch.onnx.export(
     net,
     (example_input,),
-    # onnx,
-    dynamo=True,
-    export_params=True,
-    external_data=False,
-    input_names=["input"],
-    output_names=["output"],
     dynamic_shapes={"I": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
-    report=False,
 )
 
-dnx = denox.Module.compile(
+dnx = Module.compile(
     program,
-    device="*RTX*",
-    target_env="vulkan1.4",
-    input_shape=("H", "W", "C"),  # <- should probably be renabled into something else
+    input_shape=Shape(H="H", W="W"),
+    summary=True,
 )
 
 dnx.save("net.dnx")
 
 # dreams:
-# output = dnx(example_input)
+output = dnx(example_input)
 

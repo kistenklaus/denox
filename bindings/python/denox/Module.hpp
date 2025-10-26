@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Shape.hpp"
+#include "denox/compiler.hpp"
 #include <cstddef>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
@@ -13,23 +15,39 @@ public:
   static void define(pybind11::module_ &m);
   static Module compile(pybind11::object model,
                         // kwargs
-                        pybind11::object device,                        //
-                        pybind11::object target_env,                    //
-                        pybind11::object input_shape,                   //
-                        pybind11::object output_shape,                  //
-                        pybind11::object input_type,                    //
-                        pybind11::object output_type,                   //
-                        pybind11::object input_layout,                  //
-                        pybind11::object output_layout,                 //
-                        pybind11::object input_storage,                 //
-                        pybind11::object output_storage,                //
-                        pybind11::object coopmat,                       //
-                        pybind11::object fusion,                        //
-                        pybind11::object memory_concat,                 //
-                        pybind11::object spirv_debug_info,              //
-                        pybind11::object spirv_non_semantic_debug_info, //
-                        pybind11::object spirv_optimize                 //
-  );
+                        std::optional<std::string> device,  //
+                        denox::VulkanApiVersion target_env, //
+                        pydenox::Shape input_shape,         //
+                        pydenox::Shape output_shape,        //
+                        denox::DataType input_type,         //
+                        denox::DataType output_type,        //
+                        denox::Layout input_layout,         //
+                        denox::Layout output_layout,        //
+                        denox::Storage input_storage,       //
+                        denox::Storage output_storage,      //
+                        std::optional<bool> coopmat,        //
+                        std::optional<bool> fusion,         //
+                        std::optional<bool> memory_concat,  //
+                        bool spirv_debug_info,              //
+                        bool spirv_non_semantic_debug_info, //
+                        bool spirv_optimize,                //
+                        bool verbose, bool summary, bool quiet);
+  Module(const Module &) = default;            // shallow copy → double free
+  Module &operator=(const Module &) = default; // shallow copy → double free
+
+  Module(Module &&o)
+      : m_dnxBuffer(std::exchange(o.m_dnxBuffer, nullptr)),
+        m_dnxBufferSize(std::exchange(o.m_dnxBufferSize, 0)) {}
+  Module &operator=(Module &&o) {
+    if (this == &o) {
+      return *this;
+    }
+    release();
+    m_dnxBuffer = std::exchange(o.m_dnxBuffer, nullptr);
+    m_dnxBufferSize = std::exchange(o.m_dnxBufferSize, 0);
+
+    return *this;
+  }
 
   explicit Module(void *dnxBuffer, std::size_t dnxBufferSize);
   ~Module();
@@ -41,6 +59,13 @@ public:
   std::string repr() const;
   std::size_t size() const;
   const void *get() const;
+
+  pybind11::object infer(pybind11::object input, 
+      // kwargs
+      std::optional<std::string> device,
+      denox::VulkanApiVersion targetEnv) {
+    throw std::runtime_error("not-implemented-yet.");
+  }
 
 private:
   void release();
