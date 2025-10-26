@@ -83,14 +83,12 @@ void Module::define(pybind11::module_ &m) {
           py::arg("input_storage") = denox::Storage::StorageBuffer,
           py::arg("output_storage") = denox::Storage::StorageBuffer,
           py::arg("coopmat") = py::none(), //
-          py::arg("fusion") = py::none(), //
+          py::arg("fusion") = py::none(),  //
           py::arg("memory_concat") = py::none(),
           py::arg("spirv_debug_info") = false,
           py::arg("spirv_non_semantic_debug_info") = false,
-          py::arg("spirv_optimize") = true,
-          py::arg("verbose") = false,
-          py::arg("summary") = false,
-          py::arg("quiet") = false,
+          py::arg("spirv_optimize") = true, py::arg("verbose") = false,
+          py::arg("summary") = false, py::arg("quiet") = false,
           "Compile an ONNX model or file into a DNX runtime module.\n"
           "\n"
           "Args:\n"
@@ -111,7 +109,12 @@ void Module::define(pybind11::module_ &m) {
           "  spirv_optimize: Run SPIR-V optimization passes.\n"
           "\n"
           "Returns:\n"
-          "  A compiled DNX Module ready for runtime loading.");
+          "  A compiled DNX Module ready for runtime loading.")
+      .def("__call__", &Module::infer,                                 //
+           py::arg("input"), py::kw_only(),                            //
+           py::arg("device") = py::none(),                             //
+           py::arg("target_env") = denox::VulkanApiVersion::Vulkan_1_1 //
+      );
 }
 
 Module::Module(void *dnxBuffer, std::size_t dnxBufferSize)

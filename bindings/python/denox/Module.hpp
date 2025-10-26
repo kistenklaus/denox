@@ -1,10 +1,14 @@
 #pragma once
 
 #include "Shape.hpp"
+#include "Tensor.hpp"
 #include "denox/compiler.hpp"
 #include <cstddef>
+#include <fmt/base.h>
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
+#include <pybind11/stl.h>
 #include <stdexcept>
 
 namespace pydenox {
@@ -60,11 +64,21 @@ public:
   std::size_t size() const;
   const void *get() const;
 
-  pybind11::object infer(pybind11::object input, 
-      // kwargs
-      std::optional<std::string> device,
-      denox::VulkanApiVersion targetEnv) {
-    throw std::runtime_error("not-implemented-yet.");
+  pybind11::object infer(pybind11::object input,
+                         // kwargs
+                         std::optional<std::string> device,
+                         denox::VulkanApiVersion targetEnv) {
+
+    Tensor tensor =
+        Tensor::from(input, denox::DataType::Auto, denox::Layout::CHW);
+    fmt::println("C = {}", tensor.channels());
+    fmt::println("H = {}", tensor.width());
+    fmt::println("w = {}", tensor.height());
+
+    tensor = tensor.transform(denox::DataType::Float16, denox::Layout::HWC);
+    // TODO (Ignore for now)
+
+    throw std::runtime_error("not-implemented");
   }
 
 private:

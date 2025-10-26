@@ -343,9 +343,10 @@ if (BUILD_PYTHON_BINDING)
   include(cmake/pybind11.cmake)
 
   pybind11_add_module(_denox MODULE 
-    bindings/python/denox/mod.cpp
     bindings/python/denox/Module.cpp
     bindings/python/denox/Module_compile.cpp
+    bindings/python/denox/Tensor.cpp
+    bindings/python/denox/mod.cpp
   )
   target_link_libraries(_denox 
     PRIVATE 
@@ -354,6 +355,7 @@ if (BUILD_PYTHON_BINDING)
       denox::fmt
   )
   target_compile_definitions(_denox PRIVATE PYBIND11_DETAILED_ERROR_MESSAGES)
+  target_include_directories(_denox PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/dlpack)
 
 
   if(APPLE)
