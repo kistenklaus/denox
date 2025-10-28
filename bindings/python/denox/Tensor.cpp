@@ -1,8 +1,11 @@
 #include "Tensor.hpp"
 #include "denox/common/types.hpp"
+#include "dlpack/dlpack.h"
 #include "f16.hpp"
 #include <absl/strings/internal/str_format/extension.h>
 #include <dlpack/dlpack.h>
+#include <fmt/base.h>
+#include <fmt/format.h>
 #include <memory>
 #include <new>
 #include <pycapsule.h>
@@ -10,15 +13,45 @@
 
 namespace pydenox {
 
-static denox::DataType parse_data_type_code(std::uint8_t code) {
-  switch (code) {
-  case DLDataTypeCode::kDLFloat:
-    return denox::DataType::Float32;
-  case DLDataTypeCode::kDLBfloat:
-    return denox::DataType::Float16;
-  default:
+static denox::DataType parse_data_type_code(const DLDataType &type) {
+  if (type.lanes != 1) {
     throw std::runtime_error(
-        "Failed to convert DLDataTypeCode to denox datatype.");
+        "Vectorized DLPack types (lanes != 1) are not supported.");
+  }
+
+  switch (type.code) {
+  case kDLFloat:
+    switch (type.bits) {
+    case 16:
+      return denox::DataType::Float16;
+    case 32:
+      return denox::DataType::Float32;
+    default:
+      throw std::runtime_error(
+          fmt::format("Unsupported floating-point bit width: {}", type.bits));
+    }
+
+  case kDLUInt:
+    switch (type.bits) {
+    case 8:
+      return denox::DataType::Uint8;
+    default:
+      throw std::runtime_error(
+          fmt::format("Unsupported unsigned int bit width: {}", type.bits));
+    }
+
+  case kDLInt:
+    switch (type.bits) {
+    case 8:
+      return denox::DataType::Int8;
+    default:
+      throw std::runtime_error(
+          fmt::format("Unsupported signed int bit width: {}", type.bits));
+    }
+
+  default:
+    throw std::runtime_error(fmt::format(
+        "Unsupported DLPack data type code: {}", static_cast<int>(type.code)));
   }
 }
 
@@ -86,7 +119,7 @@ Tensor Tensor::from(pybind11::object obj, denox::DataType dtype,
     }
     std::memcpy(buffer, t.data, totalSize);
 
-    denox::DataType dldatatype = parse_data_type_code(t.dtype.code);
+    denox::DataType dldatatype = parse_data_type_code(t.dtype);
     if (dtype == denox::DataType::Auto) {
       dtype = dldatatype;
     }
@@ -96,15 +129,9 @@ Tensor Tensor::from(pybind11::object obj, denox::DataType dtype,
 
     // TODO type and layout convertion.
 
-    return Tensor{
-        buffer, batch, H, W, C, dtype, layout,
-    };
+    return Tensor{buffer, batch, H, W, C, dtype, layout, t.ndim};
   }
   throw std::runtime_error("Failed to parse tensor");
-}
-
-pybind11::object Tensor::to() const {
-  throw std::runtime_error("not implemented");
 }
 
 static std::size_t hwc_index(std::size_t N, std::size_t H, std::size_t W,
@@ -116,7 +143,7 @@ static std::size_t hwc_index(std::size_t N, std::size_t H, std::size_t W,
 static std::size_t chw_index(std::size_t N, std::size_t H, std::size_t W,
                              std::size_t C, std::size_t n, std::size_t h,
                              std::size_t w, std::size_t c) {
-  return n * (H * W * C) + c * (W * C) + h * W + w;
+  return n * (H * W * C) + c * (H * W) + h * W + w;
 }
 
 typedef std::size_t (*layout_index)(std::size_t N, std::size_t H, std::size_t W,
@@ -171,6 +198,7 @@ Tensor Tensor::transform(denox::DataType new_dtype,
   case denox::Layout::CHWC8:
     throw std::runtime_error("not implemented (chwc8)");
   }
+  assert(new_idx != nullptr);
 
   const std::byte *src_ptr = static_cast<const std::byte *>(m_data);
   std::byte *dst_ptr = static_cast<std::byte *>(buf);
@@ -233,13 +261,13 @@ Tensor Tensor::transform(denox::DataType new_dtype,
       }
     }
   }
-  return Tensor{static_cast<void *>(dst_ptr),
-                m_batchSize,
+  return Tensor{static_cast<void *>(dst_ptr), m_batchSize,
                 m_height,
                 m_width,
                 m_channels,
                 new_dtype,
-                new_layout};
+                new_layout,
+                m_rank};
 }
 
 std::size_t Tensor::dtype_size(denox::DataType dtype) {
@@ -259,9 +287,15 @@ std::size_t Tensor::dtype_size(denox::DataType dtype) {
   }
 }
 Tensor::Tensor(void *data, std::size_t N, std::size_t H, std::size_t W,
-               std::size_t C, denox::DataType dtype, denox::Layout layout)
+               std::size_t C, denox::DataType dtype, denox::Layout layout,
+               int rank)
     : m_data(data), m_batchSize(N), m_height(H), m_width(W), m_channels(C),
-      m_dtype(dtype), m_layout(layout) {}
+      m_rank(rank), m_dtype(dtype), m_layout(layout) {
+  if (m_rank != 3 && m_rank != 4) {
+    throw std::runtime_error(
+        "not supported. denox only supports tensors with rank 3 or 4.");
+  }
+}
 Tensor::Tensor(const Tensor &o) {
   std::size_t size = o.byte_size();
   m_data = std::malloc(size);
@@ -272,11 +306,13 @@ Tensor::Tensor(const Tensor &o) {
   m_channels = o.m_channels;
   m_dtype = o.m_dtype;
   m_layout = o.m_layout;
+  m_rank = o.m_rank;
 }
 Tensor &Tensor::operator=(const Tensor &o) {
   if (this == &o) {
     return *this;
   }
+  release();
   std::size_t size = o.byte_size();
   m_data = std::malloc(size);
   std::memcpy(m_data, o.m_data, size);
@@ -286,7 +322,7 @@ Tensor &Tensor::operator=(const Tensor &o) {
   m_channels = o.m_channels;
   m_dtype = o.m_dtype;
   m_layout = o.m_layout;
-  release();
+  m_rank = o.m_rank;
   return *this;
 }
 Tensor::Tensor(Tensor &&o)
@@ -295,6 +331,7 @@ Tensor::Tensor(Tensor &&o)
       m_height(std::exchange(o.m_height, 0)),
       m_width(std::exchange(o.m_width, 0)),
       m_channels(std::exchange(o.m_channels, 0)),
+      m_rank(std::exchange(o.m_rank, 0)),
       m_dtype(std::exchange(o.m_dtype, denox::DataType::Auto)),
       m_layout(std::exchange(o.m_layout, denox::Layout::Undefined)) {}
 Tensor &Tensor::operator=(Tensor &&o) {
@@ -309,6 +346,7 @@ Tensor &Tensor::operator=(Tensor &&o) {
   std::swap(m_channels, o.m_channels);
   std::swap(m_dtype, o.m_dtype);
   std::swap(m_layout, o.m_layout);
+  std::swap(m_rank, o.m_rank);
   return *this;
 }
 void Tensor::release() {
@@ -325,5 +363,180 @@ void Tensor::release() {
 }
 std::size_t Tensor::byte_size() const {
   return m_batchSize * m_height * m_width * m_channels * dtype_size(m_dtype);
+}
+
+Tensor Tensor::make(const void *data, std::size_t batchSize, std::size_t height,
+                    std::size_t width, std::size_t channels,
+                    denox::DataType dtype, denox::Layout layout, int rank) {
+  std::size_t byteSize =
+      batchSize * height * width * channels * dtype_size(dtype);
+  void *ptr = std::malloc(byteSize);
+  std::memcpy(ptr, data, byteSize);
+  return Tensor{ptr, batchSize, height, width, channels, dtype, layout, rank};
+}
+
+void Tensor::define(pybind11::module_ &m) {
+  pybind11::class_<pydenox::Tensor>(m, "Tensor")
+      .def("__dlpack__", &Tensor::to_dlpack)
+      .def("__dlpack_device__",
+           [](const pydenox::Tensor &self) {
+             // CPU tensors only
+             return std::make_pair(static_cast<int>(kDLCPU), 0);
+           })
+      .def("size", &Tensor::size, pybind11::arg("dim"))
+      .def("dim", &Tensor::rank)
+      .def("batch", &Tensor::batchSize)
+      .def("height", &Tensor::height)
+      .def("width", &Tensor::width)
+      .def("channels", &Tensor::channels)
+      .def("dtype", &Tensor::dtype)
+      .def("layout", &Tensor::layout);
+}
+
+static DLDataType to_dl_dtype(denox::DataType t) {
+  switch (t) {
+  case denox::DataType::Float16:
+    return {kDLFloat, 16, 1};
+  case denox::DataType::Float32:
+    return {kDLFloat, 32, 1};
+  case denox::DataType::Int8:
+    return {kDLInt, 8, 1};
+  case denox::DataType::Uint8:
+    return {kDLUInt, 8, 1};
+  default:
+    return {kDLFloat, 32, 1};
+  }
+}
+
+pybind11::capsule Tensor::to_dlpack() const {
+  auto dl = new DLManagedTensor;
+  std::memset(dl, 0, sizeof(DLManagedTensor));
+
+  void *data = malloc(byte_size());
+  std::memcpy(data, m_data, byte_size());
+
+  DLDevice device{kDLCPU, 0};
+  dl->dl_tensor.device = device;
+  dl->dl_tensor.dtype = to_dl_dtype(m_dtype);
+  dl->dl_tensor.ndim = m_rank;
+  dl->dl_tensor.data = data;
+  dl->dl_tensor.byte_offset = 0;
+
+  assert(m_rank == 3 || m_rank == 4);
+  auto *shape = new int64_t[m_rank];
+  std::size_t o = m_rank == 3 ? 0 : 1;
+  if (m_rank == 4) {
+    shape[0] = static_cast<std::int64_t>(m_batchSize);
+  }
+  if (m_layout == denox::Layout::CHW) {
+    shape[o + 0] = static_cast<int64_t>(m_channels);
+    shape[o + 1] = static_cast<int64_t>(m_height);
+    shape[o + 2] = static_cast<int64_t>(m_width);
+  } else if (m_layout == denox::Layout::HWC) { // HWC
+    shape[o + 0] = static_cast<int64_t>(m_height);
+    shape[o + 1] = static_cast<int64_t>(m_width);
+    shape[o + 2] = static_cast<int64_t>(m_channels);
+  } else {
+    throw std::runtime_error("layout not implemented");
+  }
+  dl->dl_tensor.shape = shape;
+  dl->dl_tensor.strides = nullptr;
+
+  // Single, canonical cleanup path:
+  dl->deleter = [](DLManagedTensor *self) {
+    if (!self)
+      return;
+    std::free(self->dl_tensor.data);
+    delete[] self->dl_tensor.shape;
+    delete self;
+  };
+
+  return pybind11::capsule(dl, "dltensor", [](PyObject *obj) {
+    // Capsule may already be renamed to "used_dltensor" by PyTorch
+    const char *name = PyCapsule_GetName(obj);
+    if (!name)
+      return;
+
+    if (std::strcmp(name, "used_dltensor") == 0) {
+      // Ownership already transferred — don't touch anything
+      return;
+    }
+
+    if (std::strcmp(name, "dltensor") != 0) {
+      // Unknown or corrupted capsule name — skip cleanup for safety
+      return;
+    }
+
+    auto *self = reinterpret_cast<DLManagedTensor *>(
+        PyCapsule_GetPointer(obj, "dltensor"));
+    if (self && self->deleter)
+      self->deleter(self);
+  });
+}
+
+std::size_t Tensor::size(int dim) const {
+  switch (m_layout) {
+  case denox::Layout::HWC:
+    assert(m_rank == 3 || m_rank == 4);
+    if (m_rank == 3) {
+      switch (dim) {
+      case 0:
+        return m_height;
+      case 1:
+        return m_width;
+      case 2:
+        return m_channels;
+      default:
+        throw std::runtime_error("dim out of bound ");
+      }
+    } else {
+      switch (dim) {
+      case 0:
+        return m_batchSize;
+      case 1:
+        return m_height;
+      case 2:
+        return m_width;
+      case 3:
+        return m_channels;
+      default:
+        throw std::runtime_error("dim out of bound");
+      }
+    }
+    break;
+  case denox::Layout::CHW:
+    assert(m_rank == 3 || m_rank == 4);
+    if (m_rank == 3) {
+      switch (dim) {
+      case 0:
+        return m_channels;
+      case 1:
+        return m_height;
+      case 2:
+        return m_width;
+      default:
+        throw std::runtime_error("dim out of bound");
+      }
+    } else {
+      switch (dim) {
+      case 0:
+        return m_batchSize;
+      case 1:
+        return m_channels;
+      case 2:
+        return m_height;
+      case 3:
+        return m_channels;
+      default:
+        throw std::runtime_error("dim out of bound");
+      }
+    }
+    break;
+  case denox::Layout::Undefined:
+    throw std::runtime_error("unreachable");
+  default:
+  case denox::Layout::CHWC8:
+    throw std::runtime_error("not implemented (CHWC8)");
+  }
 }
 } // namespace pydenox

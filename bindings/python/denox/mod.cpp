@@ -31,6 +31,7 @@ PYBIND11_MODULE(_denox, m) {
       .value("Vulkan1_3", denox::VulkanApiVersion::Vulkan_1_3)
       .value("Vulkan1_4", denox::VulkanApiVersion::Vulkan_1_4);
 
+  pydenox::Tensor::define(m);
   pydenox::Shape::define(m);
   pydenox::Module::define(m);
 }

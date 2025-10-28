@@ -78,85 +78,11 @@ public:
   std::size_t size() const;
   const void *get() const;
 
-  pybind11::object infer(pybind11::object input,
-                         // kwargs
-                         std::optional<std::string> device,
-                         denox::VulkanApiVersion target_env,
-                         denox::DataType dtype, denox::Layout layout) {
-
-    Tensor tensor = Tensor::from(input, dtype, layout);
-
-    denox::RuntimeContext ctx =
-        m_contextManager.getContextFor(device, target_env);
-    assert(ctx);
-
-    denox::RuntimeModel model;
-    if (m_runtimeModels.contains(ctx)) {
-      model = *m_runtimeModels.at(ctx).get();
-    } else {
-      if (denox::create_runtime_model(ctx, m_dnxBuffer, m_dnxBufferSize,
-                                      &model) < 0) {
-        throw std::runtime_error("Failed to create runtime model.");
-      }
-      auto deleter = [ctx](denox::RuntimeModel *ptr) {
-        assert(ptr != nullptr);
-        denox::destroy_runtime_model(ctx, *ptr);
-        delete ptr;
-      };
-      auto ptr = std::shared_ptr<denox::RuntimeModel>(new denox::RuntimeModel,
-                                                      deleter);
-      *ptr = model;
-      m_runtimeModels.insert(std::make_pair(ctx, std::move(ptr)));
-    }
-    assert(model);
-
-    int inputCount = denox::get_runtime_model_input_count(model);
-    int outputCount = denox::get_runtime_model_output_count(model);
-    if (outputCount == 0) {
-      return pybind11::none();
-    }
-    if (inputCount != 1 || outputCount != 1) {
-      throw std::runtime_error("not-implemented");
-    }
-
-    const char *inputName = denox::get_runtime_model_input_name(model, 0);
-    const char *outputName = denox::get_runtime_model_output_name(model, 0);
-    denox::DataType inputType =
-        denox::get_runtime_model_tensor_dtype(model, inputName);
-    denox::DataType outputType =
-        denox::get_runtime_model_tensor_dtype(model, outputName);
-    denox::Layout inputLayout =
-        denox::get_runtime_model_tensor_layout(model, inputName);
-    denox::Layout outputLayout =
-        denox::get_runtime_model_tensor_layout(model, outputName);
-
-    assert(inputType != denox::DataType::Auto);
-    assert(outputType != denox::DataType::Auto);
-    assert(inputLayout != denox::Layout::Undefined);
-    assert(outputLayout != denox::Layout::Undefined);
-
-    tensor = tensor.transform(inputType, inputLayout);
-
-    denox::RuntimeInstance instance;
-    if (denox::create_runtime_instance2(ctx, model, tensor.height(),
-                                        tensor.width(), tensor.channels(),
-                                        &instance) < 0) {
-      throw std::runtime_error("Failed to create denox runtime instance.");
-    }
-
-    const void *inptr = tensor.data();
-
-    std::size_t outputSize =
-        denox::get_runtime_instance_tensor_byte_size(instance, outputName);
-
-    void *outptr = std::malloc(outputSize);
-
-    denox::eval_runtime_instance(ctx, instance, &inptr, &outptr);
-
-    denox::destroy_runtime_instance(ctx, instance);
-
-    return pybind11::none();
-  }
+  std::optional<pydenox::Tensor> infer(pybind11::object input,
+                        // kwargs
+                        std::optional<std::string> device,
+                        denox::VulkanApiVersion target_env,
+                        denox::DataType dtype, denox::Layout layout);
 
 private:
   void release();

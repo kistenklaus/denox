@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.dlpack
 from torchvision import transforms
 from PIL import Image
-import pydenox
+from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
 
 class TrivialPadding(nn.Module):
@@ -52,35 +53,92 @@ class TrivialConv(nn.Module):
         return self.conv(I)
 
 
-net = TrivialConv()
+class FixedGaussianBlur(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv = nn.Conv2d(
+            in_channels=3,
+            out_channels=3,
+            kernel_size=3,
+            padding="same",
+            bias=False,
+        )
+
+        # 3x3 Gaussian kernel (σ≈1)
+        kernel = torch.tensor(
+            [
+                [1, 2, 1],
+                [2, 4, 2],
+                [1, 2, 1],
+            ],
+            dtype=torch.float16,
+        )
+        kernel /= kernel.sum()
+
+        # shape (out_channels, in_channels, kH, kW)
+        weight = torch.zeros((3, 3, 3, 3), dtype=torch.float16)
+        for c in range(3):
+            weight[c, c] = kernel
+
+        with torch.no_grad():
+            self.conv.weight.copy_(weight)
+
+        # ensure the module runs in float16
+        self.conv.to(dtype=torch.float16)
+
+        # freeze parameters
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+    def forward(self, I):
+        # ensure input is half precision
+        if I.dtype != torch.float16:
+            I = I.to(dtype=torch.float16)
+        return self.conv(self.conv(self.conv(I)))
+
+
+net = FixedGaussianBlur()
 net.eval()
 
 
 img = Image.open("doom_pic.png").convert("RGB")
 
 to_tensor = transforms.ToTensor()
-input_tensor = to_tensor(img).unsqueeze(0)  # add batch dimension → (1, 3, H, W)
+input_tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
 
-dnx = pydenox.compile_from_torch(
+program = torch.onnx.export(
     net,
-    input_tensor.to(torch.float16),
-    input_names=("input",),
-    output_names=("output",),
-    input_shape=("H", "W", "C"),
+    (input_tensor,),
     dynamic_shapes={"I": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
+    input_names=["input"],
+    output_names=["output"],
 )
 
-# --- 3. Run inference ---
+dnx = Module.compile(
+    program,
+    input_shape=Shape(H="H", W="W"),
+    summary=True,
+)
+
+output_tensor = torch.utils.dlpack.from_dlpack(dnx(input_tensor))
+
+
+# --- 3. Run inference (reference) ---
 with torch.no_grad():
-    output_tensor = net(input_tensor)
+    output_tensor_ref = net(input_tensor)
 
 
 # Remove batch dimension
+output_tensor_ref = output_tensor_ref.squeeze(0)
 output_tensor = output_tensor.squeeze(0)
 
+output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
 output_tensor = torch.clamp(output_tensor, 0.0, 1.0)
 
 to_pil = transforms.ToPILImage()
-output_img = to_pil(output_tensor)
 
+output_img_ref = to_pil(output_tensor_ref)
+output_img_ref.save("output_ref.png")
+
+output_img = to_pil(output_tensor)
 output_img.save("output.png")

@@ -4,9 +4,10 @@ from typing import BinaryIO
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.dlpack
 from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
-INPUT_CHANNELS_COUNT = 1
+INPUT_CHANNELS_COUNT = 2
 
 
 class Net(nn.Module):
@@ -32,12 +33,12 @@ class Net(nn.Module):
         # I_aligned = F.pad(I, (0, pad_w, 0, pad_h), mode="replicate")
         # extr = self.enc0(I_aligned)
         # x_128 = self.pool(extr);
-        x = self.upsample(I)
+        x = self.pool(I)
 
         return x
 
 
-example_input = torch.rand(1, INPUT_CHANNELS_COUNT, 64, 64, dtype=torch.float16)
+example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 8, 8, dtype=torch.float16)
 
 net : nn.Module = Net()
 
@@ -55,8 +56,12 @@ dnx = Module.compile(
     summary=True,
 )
 
-dnx.save("net.dnx")
-
 # dreams:
-output = dnx(example_input)
+output = torch.utils.dlpack.from_dlpack(dnx(example_input))
+
+expected = net(example_input)
+
+print(output)
+print(expected)
+
 
