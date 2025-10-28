@@ -4,7 +4,6 @@
 #include "denox/runtime.hpp"
 #include "f16.hpp"
 #include <filesystem>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fstream>
 #include <limits>

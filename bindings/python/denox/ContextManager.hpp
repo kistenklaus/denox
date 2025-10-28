@@ -2,7 +2,6 @@
 #include "denox/compiler.hpp"
 #include "denox/runtime.hpp"
 #include <cassert>
-#include <fmt/base.h>
 #include <functional>
 #include <memory>
 #include <mutex>

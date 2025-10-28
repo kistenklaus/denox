@@ -4,7 +4,6 @@
 #include "f16.hpp"
 #include <absl/strings/internal/str_format/extension.h>
 #include <dlpack/dlpack.h>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <memory>
 #include <new>

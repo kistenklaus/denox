@@ -392,8 +392,8 @@ int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
     case dnx::ScalarSource_NONE:
       throw std::runtime_error("invalid dnx format");
     case dnx::ScalarSource_literal: {
-      std::uint64_t expected =
-          dnx::parseUnsignedScalarLiteral(static_cast<const dnx::ScalarLiteral*>(source));
+      std::uint64_t expected = dnx::parseUnsignedScalarLiteral(
+          static_cast<const dnx::ScalarLiteral *>(source));
       if (expected != extent) {
         throw std::runtime_error("Mismatched input dimension");
       }
@@ -411,8 +411,9 @@ int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
   check_and_collect(width, inputInfo->width_type(), inputInfo->width());
   check_and_collect(channels, inputInfo->channels_type(),
                     inputInfo->channels());
-  return create_runtime_instance(context, model, extents.size(), extents.data(),
-                                 instance);
+
+  return create_runtime_instance(context, model, extents.size(),
+                                   extents.data(), instance);
 }
 
 int create_runtime_instance(RuntimeContext context, RuntimeModel model,

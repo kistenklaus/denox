@@ -7,64 +7,9 @@ from PIL import Image
 from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
 
-class TrivialPadding(nn.Module):
+class GaussianBlur(nn.Module):
     def __init__(self):
         super().__init__()
-
-    def forward(self, I):
-        H, W = I.size(2), I.size(3)
-        alignment = 2  # ensure even H/W so pool+upsample align perfectly
-        H, W = I.size(2), I.size(3)
-        pad_w = (alignment - (W % alignment)) % alignment
-        pad_h = (alignment - (H % alignment)) % alignment
-        I_aligned = F.pad(I, (100, 100, 100, 100), mode="replicate")
-        x = I_aligned
-        return x
-
-
-class TrivialPool(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.pool = nn.MaxPool2d(2, 2)
-
-    def forward(self, I):
-        return self.pool(I)
-
-
-class TrivialUpsample(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
-
-    def forward(self, I):
-        return self.upsample(I)
-
-
-class TrivialConv(nn.Module):
-    def __init__(self):
-        super().__init__()
-        pm = "zeros"
-
-        self.conv = nn.Conv2d(3, 3, 3, padding="same", padding_mode=pm, bias=True)
-
-    def forward(self, I):
-        return self.conv(I)
-
-
-class FixedGaussianBlur(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv = nn.Conv2d(
-            in_channels=3,
-            out_channels=3,
-            kernel_size=3,
-            padding="same",
-            bias=False,
-        )
-
-        # 3x3 Gaussian kernel (σ≈1)
         kernel = torch.tensor(
             [
                 [1, 2, 1],
@@ -74,30 +19,22 @@ class FixedGaussianBlur(nn.Module):
             dtype=torch.float16,
         )
         kernel /= kernel.sum()
-
-        # shape (out_channels, in_channels, kH, kW)
         weight = torch.zeros((3, 3, 3, 3), dtype=torch.float16)
-        for c in range(3):
-            weight[c, c] = kernel
+        weight[0, 0] = kernel
+        weight[1, 1] = kernel
+        weight[2, 2] = kernel
 
+        self.conv = nn.Conv2d(3, 3, 3, padding="same", bias=False, dtype=torch.float16)
         with torch.no_grad():
             self.conv.weight.copy_(weight)
 
-        # ensure the module runs in float16
-        self.conv.to(dtype=torch.float16)
-
-        # freeze parameters
-        for param in self.parameters():
-            param.requires_grad_(False)
-
-    def forward(self, I):
-        # ensure input is half precision
-        if I.dtype != torch.float16:
-            I = I.to(dtype=torch.float16)
-        return self.conv(self.conv(self.conv(I)))
+    def forward(self, x):
+        for _ in range(100):
+            x = self.conv(x)
+        return x
 
 
-net = FixedGaussianBlur()
+net = GaussianBlur()
 net.eval()
 
 
@@ -109,7 +46,7 @@ input_tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
 program = torch.onnx.export(
     net,
     (input_tensor,),
-    dynamic_shapes={"I": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
+    dynamic_shapes={"x": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
     input_names=["input"],
     output_names=["output"],
 )

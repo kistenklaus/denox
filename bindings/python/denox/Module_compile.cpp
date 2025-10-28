@@ -1,7 +1,6 @@
 #include "Module.hpp"
 #include "denox/common/types.hpp"
 #include "denox/compiler.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <pybind11/stl.h>
 #include <stdexcept>
