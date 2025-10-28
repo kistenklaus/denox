@@ -37,7 +37,7 @@ int main() {
   extents[1].value = inH;
   denox::RuntimeInstance instance;
 
-  if (denox::create_runtime_instance(context, model, 2, extents, &instance)) {
+  if (denox::create_runtime_instance2(context, model, 8, 8, 1, &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
   denox::Extent checkInCh;
@@ -60,8 +60,8 @@ int main() {
   denox::Extent outExtentCh;
   denox::Extent outExtentW;
   denox::Extent outExtentH;
-  denox::get_runtime_instance_tensor_shape(instance, "output", &outExtentH, &outExtentW,
-                                           &outExtentCh);
+  denox::get_runtime_instance_tensor_shape(instance, "output", &outExtentH,
+                                           &outExtentW, &outExtentCh);
   std::size_t outCh = outExtentCh.value;
   std::size_t outW = outExtentW.value;
   std::size_t outH = outExtentH.value;

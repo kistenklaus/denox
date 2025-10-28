@@ -98,9 +98,8 @@ public:
                                       &model) < 0) {
         throw std::runtime_error("Failed to create runtime model.");
       }
-      auto deleter = [&](denox::RuntimeModel *ptr) {
+      auto deleter = [ctx](denox::RuntimeModel *ptr) {
         assert(ptr != nullptr);
-        fmt::println("Destroy runtime model");
         denox::destroy_runtime_model(ctx, *ptr);
         delete ptr;
       };
@@ -111,21 +110,50 @@ public:
     }
     assert(model);
 
-    fmt::println("create instance");
+    int inputCount = denox::get_runtime_model_input_count(model);
+    int outputCount = denox::get_runtime_model_output_count(model);
+    if (outputCount == 0) {
+      return pybind11::none();
+    }
+    if (inputCount != 1 || outputCount != 1) {
+      throw std::runtime_error("not-implemented");
+    }
 
-    // denox::RuntimeInstance instance;
-    // if (denox::create_runtime_instance2(ctx, model, tensor.height(),
-    // tensor.width(),
-    //                                 tensor.channels(), &instance) < 0) {
-    //   throw std::runtime_error("Failed to create denox runtime instance.");
-    // }
+    const char *inputName = denox::get_runtime_model_input_name(model, 0);
+    const char *outputName = denox::get_runtime_model_output_name(model, 0);
+    denox::DataType inputType =
+        denox::get_runtime_model_tensor_dtype(model, inputName);
+    denox::DataType outputType =
+        denox::get_runtime_model_tensor_dtype(model, outputName);
+    denox::Layout inputLayout =
+        denox::get_runtime_model_tensor_layout(model, inputName);
+    denox::Layout outputLayout =
+        denox::get_runtime_model_tensor_layout(model, outputName);
 
-    // denox::eval_runtime_instance(ctx, instance, tensor.data(), void
-    // **outputs)
+    assert(inputType != denox::DataType::Auto);
+    assert(outputType != denox::DataType::Auto);
+    assert(inputLayout != denox::Layout::Undefined);
+    assert(outputLayout != denox::Layout::Undefined);
 
-    // denox::destroy_runtime_instance(ctx, instance);
+    tensor = tensor.transform(inputType, inputLayout);
 
-    fmt::println("destroy instance");
+    denox::RuntimeInstance instance;
+    if (denox::create_runtime_instance2(ctx, model, tensor.height(),
+                                        tensor.width(), tensor.channels(),
+                                        &instance) < 0) {
+      throw std::runtime_error("Failed to create denox runtime instance.");
+    }
+
+    const void *inptr = tensor.data();
+
+    std::size_t outputSize =
+        denox::get_runtime_instance_tensor_byte_size(instance, outputName);
+
+    void *outptr = std::malloc(outputSize);
+
+    denox::eval_runtime_instance(ctx, instance, &inptr, &outptr);
+
+    denox::destroy_runtime_instance(ctx, instance);
 
     return pybind11::none();
   }
@@ -136,10 +164,10 @@ private:
 private:
   void *m_dnxBuffer;
   std::size_t m_dnxBufferSize;
-  ContextManager m_contextManager;
   std::unordered_map<denox::RuntimeContext,
                      std::shared_ptr<denox::RuntimeModel>>
       m_runtimeModels;
+  ContextManager m_contextManager; // order matters!
 };
 
 } // namespace pydenox

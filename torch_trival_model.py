@@ -45,6 +45,8 @@ program = torch.onnx.export(
     net,
     (example_input,),
     dynamic_shapes={"I": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
+    input_names=["input"],
+    output_names=["output"]
 )
 
 dnx = Module.compile(

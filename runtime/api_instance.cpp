@@ -393,7 +393,7 @@ int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
       throw std::runtime_error("invalid dnx format");
     case dnx::ScalarSource_literal: {
       std::uint64_t expected =
-          dnx::parseUnsignedScalarLiteral(inputInfo->height_as_literal());
+          dnx::parseUnsignedScalarLiteral(static_cast<const dnx::ScalarLiteral*>(source));
       if (expected != extent) {
         throw std::runtime_error("Mismatched input dimension");
       }
@@ -401,7 +401,7 @@ int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
     }
     case dnx::ScalarSource_symbolic: {
       const char *name = dnx::reverse_value_name_search(
-          dnx, dnx::ScalarSource_symbolic, inputInfo->height());
+          dnx, dnx::ScalarSource_symbolic, source);
       extents.emplace_back(name, extent);
       break;
     }

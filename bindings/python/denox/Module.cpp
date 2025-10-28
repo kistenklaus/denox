@@ -175,6 +175,7 @@ void Module::release() {
     m_dnxBufferSize = 0;
     m_dnxBuffer = nullptr;
   }
+  m_runtimeModels.clear();
   assert(m_dnxBuffer == nullptr);
   assert(m_dnxBufferSize == 0);
 }

@@ -9,7 +9,7 @@
 namespace denox {
 
 int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
-                          void **inputs, void **outputs) {
+                          const void **inputs, void **outputs) {
   auto *ctx = static_cast<runtime::Context *>(context);
   const auto *mi = static_cast<runtime::Instance *>(instance);
 

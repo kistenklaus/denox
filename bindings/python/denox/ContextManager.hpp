@@ -2,6 +2,7 @@
 #include "denox/compiler.hpp"
 #include "denox/runtime.hpp"
 #include <cassert>
+#include <fmt/base.h>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -95,7 +96,8 @@ namespace pydenox {
 
 struct ContextManager {
 public:
-  ~ContextManager() {}
+  ~ContextManager() {
+  }
 
   ContextManager() {}
 
