@@ -20,6 +20,11 @@ int create_runtime_model(RuntimeContext context, const void *dnx,
                          size_t dnxSize, RuntimeModel *model);
 void destroy_runtime_model(RuntimeContext context, RuntimeModel model);
 
+
+int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
+                            std::uint64_t height, std::uint64_t width,
+                            std::uint64_t channels, RuntimeInstance *instance);
+
 int create_runtime_instance(RuntimeContext context, RuntimeModel model,
                             int dynamicExtentCount, Extent *dynamicExtents,
                             RuntimeInstance *instance);

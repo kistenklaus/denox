@@ -1,6 +1,7 @@
 #include "Module.hpp"
 #include "denox/common/types.hpp"
 #include "denox/compiler.hpp"
+#include "denox/runtime.hpp"
 #include <filesystem>
 #include <fmt/base.h>
 #include <fmt/format.h>
@@ -110,17 +111,21 @@ void Module::define(pybind11::module_ &m) {
           "\n"
           "Returns:\n"
           "  A compiled DNX Module ready for runtime loading.")
-      .def("__call__", &Module::infer,                                 //
-           py::arg("input"), py::kw_only(),                            //
-           py::arg("device") = py::none(),                             //
-           py::arg("target_env") = denox::VulkanApiVersion::Vulkan_1_1 //
+      .def("__call__", &Module::infer,                                  //
+           py::arg("input"), py::kw_only(),                             //
+           py::arg("device") = py::none(),                              //
+           py::arg("target_env") = denox::VulkanApiVersion::Vulkan_1_1, //
+           py::arg("dtype") = denox::DataType::Auto,                    //
+           py::arg("layout") = denox::Layout::CHW                       //
       );
 }
 
 Module::Module(void *dnxBuffer, std::size_t dnxBufferSize)
     : m_dnxBuffer(dnxBuffer), m_dnxBufferSize(dnxBufferSize) {}
 
-Module::~Module() { release(); }
+Module::~Module() {
+  release();
+}
 
 Module *Module::enter() { return this; }
 

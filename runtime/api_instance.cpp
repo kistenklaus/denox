@@ -7,6 +7,7 @@
 #include "vma.hpp"
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <forward_list>
 #include <stdexcept>
 #include <variant>
@@ -368,6 +369,52 @@ void update_descriptor_sets(runtime::Context *ctx,
   ctx->updateDescriptorSets(writeInfos);
 }
 
+int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
+                             std::uint64_t height, std::uint64_t width,
+                             std::uint64_t channels,
+                             RuntimeInstance *instance) {
+  assert(context);
+  assert(model);
+  runtime::Context *ctx = reinterpret_cast<runtime::Context *>(context);
+  const runtime::Model *m = reinterpret_cast<runtime::Model *>(model);
+  const dnx::Model *dnx = m->dnx;
+  std::vector<Extent> extents;
+
+  std::size_t inputCount = m->dnx->inputs()->size();
+  if (inputCount != 1) {
+    return -1;
+  }
+  const dnx::TensorInfo *inputInfo = m->dnx->inputs()->Get(0);
+  auto check_and_collect = [&](std::uint64_t extent,
+                               dnx::ScalarSource source_type,
+                               const void *source) {
+    switch (source_type) {
+    case dnx::ScalarSource_NONE:
+      throw std::runtime_error("invalid dnx format");
+    case dnx::ScalarSource_literal: {
+      std::uint64_t expected =
+          dnx::parseUnsignedScalarLiteral(inputInfo->height_as_literal());
+      if (expected != extent) {
+        throw std::runtime_error("Mismatched input dimension");
+      }
+      break;
+    }
+    case dnx::ScalarSource_symbolic: {
+      const char *name = dnx::reverse_value_name_search(
+          dnx, dnx::ScalarSource_symbolic, inputInfo->height());
+      extents.emplace_back(name, extent);
+      break;
+    }
+    }
+  };
+  check_and_collect(height, inputInfo->height_type(), inputInfo->height());
+  check_and_collect(width, inputInfo->width_type(), inputInfo->width());
+  check_and_collect(channels, inputInfo->channels_type(),
+                    inputInfo->channels());
+  return create_runtime_instance(context, model, extents.size(), extents.data(),
+                                 instance);
+}
+
 int create_runtime_instance(RuntimeContext context, RuntimeModel model,
                             int dynamicExtentCount, Extent *dynamicExtents,
                             RuntimeInstance *instance) {
@@ -395,7 +442,7 @@ int create_runtime_instance(RuntimeContext context, RuntimeModel model,
   }
 
   // 3. Create buffers and parse tensor views.
-  mi->tensors = create_tensors(m, mi); 
+  mi->tensors = create_tensors(m, mi);
   mi->buffers = create_buffers(ctx, m, mi);
   upload_initalizers(ctx, mi);
 

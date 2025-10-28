@@ -134,7 +134,7 @@ Tensor Tensor::transform(denox::DataType new_dtype,
                                 "new_layout argument, got Undefined.");
   }
   if (new_dtype == m_dtype && new_layout == m_layout) {
-    return *this; // TODO requires copy constructor.
+    return *this;
   }
 
   std::size_t new_dtype_size = Tensor::dtype_size(new_dtype);
@@ -175,7 +175,7 @@ Tensor Tensor::transform(denox::DataType new_dtype,
   const std::byte *src_ptr = static_cast<const std::byte *>(m_data);
   std::byte *dst_ptr = static_cast<std::byte *>(buf);
 
-  // NOTE obviously this is horrible performance =^).
+  // NOTE obviously this has horrible performance.
   for (std::size_t n = 0; n < m_batchSize; ++n) {
     for (std::size_t h = 0; h < m_height; ++h) {
       for (std::size_t w = 0; w < m_width; ++w) {
@@ -257,4 +257,68 @@ Tensor::Tensor(void *data, std::size_t N, std::size_t H, std::size_t W,
                std::size_t C, denox::DataType dtype, denox::Layout layout)
     : m_data(data), m_batchSize(N), m_height(H), m_width(W), m_channels(C),
       m_dtype(dtype), m_layout(layout) {}
+Tensor::Tensor(const Tensor &o) {
+  std::size_t size = o.byte_size();
+  m_data = std::malloc(size);
+  std::memcpy(m_data, o.m_data, size);
+  m_batchSize = o.m_batchSize;
+  m_height = o.m_height;
+  m_width = o.m_width;
+  m_channels = o.m_channels;
+  m_dtype = o.m_dtype;
+  m_layout = o.m_layout;
+}
+Tensor &Tensor::operator=(const Tensor &o) {
+  if (this == &o) {
+    return *this;
+  }
+  std::size_t size = o.byte_size();
+  m_data = std::malloc(size);
+  std::memcpy(m_data, o.m_data, size);
+  m_batchSize = o.m_batchSize;
+  m_height = o.m_height;
+  m_width = o.m_width;
+  m_channels = o.m_channels;
+  m_dtype = o.m_dtype;
+  m_layout = o.m_layout;
+  release();
+  return *this;
+}
+Tensor::Tensor(Tensor &&o)
+    : m_data(std::exchange(o.m_data, nullptr)),
+      m_batchSize(std::exchange(o.m_batchSize, 0)),
+      m_height(std::exchange(o.m_height, 0)),
+      m_width(std::exchange(o.m_width, 0)),
+      m_channels(std::exchange(o.m_channels, 0)),
+      m_dtype(std::exchange(o.m_dtype, denox::DataType::Auto)),
+      m_layout(std::exchange(o.m_layout, denox::Layout::Undefined)) {}
+Tensor &Tensor::operator=(Tensor &&o) {
+  if (this == &o) {
+    return *this;
+  }
+  release();
+  std::swap(m_data, o.m_data);
+  std::swap(m_batchSize, o.m_batchSize);
+  std::swap(m_height, o.m_height);
+  std::swap(m_width, o.m_width);
+  std::swap(m_channels, o.m_channels);
+  std::swap(m_dtype, o.m_dtype);
+  std::swap(m_layout, o.m_layout);
+  return *this;
+}
+void Tensor::release() {
+  if (m_data != nullptr) {
+    std::free(m_data);
+    m_data = nullptr;
+    m_batchSize = 0;
+    m_height = 0;
+    m_width = 0;
+    m_channels = 0;
+    m_dtype = denox::DataType::Auto;
+    m_layout = denox::Layout::Undefined;
+  }
+}
+std::size_t Tensor::byte_size() const {
+  return m_batchSize * m_height * m_width * m_channels * dtype_size(m_dtype);
+}
 } // namespace pydenox

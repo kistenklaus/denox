@@ -245,6 +245,8 @@ target_link_libraries(denox_runtime
 
 target_compile_features(denox_runtime PUBLIC cxx_std_20)
 
+set_target_properties(denox_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 add_library(denox::runtime ALIAS denox_runtime)
 
 
@@ -356,6 +358,8 @@ if (BUILD_PYTHON_BINDING)
   )
   target_compile_definitions(_denox PRIVATE PYBIND11_DETAILED_ERROR_MESSAGES)
   target_include_directories(_denox PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/dlpack)
+
+  set_target_properties(_denox PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 
   if(APPLE)

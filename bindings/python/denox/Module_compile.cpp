@@ -4,7 +4,6 @@
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <pybind11/stl.h>
-#include <span>
 #include <stdexcept>
 
 namespace pydenox {
