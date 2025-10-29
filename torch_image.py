@@ -47,13 +47,10 @@ program = torch.onnx.export(
     net,
     (input_tensor,),
     dynamic_shapes={"x": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
-    input_names=["input"],
-    output_names=["output"],
 )
 
 dnx = Module.compile(
     program,
-    input_shape=Shape(H="H", W="W"),
     summary=True,
 )
 

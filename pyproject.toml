@@ -12,10 +12,18 @@ version = "0.0.1"
 description = "Realtime image denoising export"
 requires-python = ">=3.9"
 
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov", "torch", "onnxscript"]
+
 [tool.scikit-build]
 wheel.expand-macos-universal-tags = true
 build-dir = "build/{wheel_tag}"
 wheel.packages = ["bindings/python/denox"]
+
+[tool.pytest.ini_options]
+addopts = "-v"
+testpaths = ["test"]
+
 
 [tool.scikit-build.cmake.define]
 BUILD_PYTHON_BINDING = true
