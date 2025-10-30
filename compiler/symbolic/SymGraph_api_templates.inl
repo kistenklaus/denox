@@ -136,7 +136,7 @@ template <typename L, typename R>
 Sym SymGraph::cdiv(L lhs, R rhs, bool dno) {
   const auto r = resolve(rhs);
   if (r.isConstant() && r.constant() - 1 >= 0) {
-    return div(add(lhs, r.constant() - 1, true), rhs, dno);
+    return div(add(lhs, r.constant() - 1, false), rhs, dno);
   }
   return div(sub(add(lhs, rhs, false), 1), rhs, dno);
 }

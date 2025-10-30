@@ -2,6 +2,7 @@
 #include "denox/runtime.hpp"
 #include "instance.hpp"
 #include "vma.hpp"
+#include <fmt/base.h>
 #include <variant>
 #include <vector>
 #include <vulkan/vulkan_core.h>
@@ -60,6 +61,9 @@ int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
     if (std::holds_alternative<runtime::InstanceDispatch>(op)) {
       const auto &dispatch = std::get<runtime::InstanceDispatch>(op);
 
+      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+                        dispatch.dispatch->pipeline);
+
       vkCmdPushConstants(cmd, dispatch.dispatch->pipelineLayout,
                          VK_SHADER_STAGE_COMPUTE_BIT, 0,
                          dispatch.dispatch->dispatch->push_constant()->size(),
@@ -70,9 +74,10 @@ int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
                               dispatch.dispatch->descriptorSets.size(),
                               dispatch.descriptorSets, 0, nullptr);
 
-      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
-                        dispatch.dispatch->pipeline);
 
+      fmt::println("Dispatch: ({}, {}, {})", dispatch.workgroupCounts[0],
+          dispatch.workgroupCounts[1],
+          dispatch.workgroupCounts[2]);
       vkCmdDispatch(cmd, dispatch.workgroupCounts[0],
                     dispatch.workgroupCounts[1], dispatch.workgroupCounts[2]);
     } else if (std::holds_alternative<runtime::InstanceBarrier>(op)) {

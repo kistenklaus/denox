@@ -29,15 +29,15 @@ int main() {
   assert(denox::get_runtime_model_input_count(model) == 1);
   assert(denox::get_runtime_model_output_count(model) == 1);
   denox::Extent extents[2];
-  std::size_t inW = 8;
-  std::size_t inH = 8;
+  std::size_t inW = 3;
+  std::size_t inH = 3;
   extents[0].name = "W";
   extents[0].value = inW;
   extents[1].name = "H";
   extents[1].value = inH;
   denox::RuntimeInstance instance;
 
-  if (denox::create_runtime_instance2(context, model, 8, 8, 1, &instance)) {
+  if (denox::create_runtime_instance(context, model, 2, extents, &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
   denox::Extent checkInCh;
@@ -52,10 +52,9 @@ int main() {
   std::vector<f16> input(inW * inH * inCh * sizeof(f16));
   std::size_t it = 0;
   for (auto &x : input) {
-    x = f16(static_cast<float>(1.0));
-    // x = f16(1.0f);
+    x = f16(10.0f);
   }
-  void *pinputs = input.data();
+  const void *pinputs = input.data();
   //
   denox::Extent outExtentCh;
   denox::Extent outExtentW;

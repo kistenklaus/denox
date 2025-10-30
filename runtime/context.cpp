@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <stdexcept>
@@ -43,11 +44,11 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   case Severity::None:
     return VK_FALSE;
   case Severity::Verbose:
-    fmt::println("\x1B[37m[Validation-Layer]:\x1B[0m\n{}",
+    fmt::println("\x1B[37m[Validation-Layer]:\x1B[0m {}",
                  pCallbackData->pMessage);
     break;
   case Severity::Info:
-    fmt::println("\x1B[34m[Validation-Layer]:\x1B[0m\n{}",
+    fmt::println("\x1B[34m[Validation-Layer]:\x1B[0m {}",
                  pCallbackData->pMessage);
     break;
   case Severity::Warning:
@@ -234,8 +235,8 @@ Context::Context(const char *deviceName)
           VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
       debugUtilsMessengerCreateInfo.pNext = nullptr;
       debugUtilsMessengerCreateInfo.messageSeverity =
-          // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-          // VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+          VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
       debugUtilsMessengerCreateInfo.messageType =
@@ -326,7 +327,7 @@ Context::Context(const char *deviceName)
   {
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
     vkGetPhysicalDeviceFeatures(m_physicalDevice, &features);
-    features.robustBufferAccess = VK_FALSE;
+    // features.robustBufferAccess = VK_FALSE;
   }
 
   std::vector<const char *> layers;

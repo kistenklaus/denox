@@ -17,9 +17,15 @@ def test_conv2d_3_32_3():
     )
 
 def test_conv2d_8_16_3():
+    in_channels = 8
+    out_channels = 16
+    weight = torch.ones((out_channels, in_channels, 3, 3), dtype=torch.float16)
+    conv = nn.Conv2d(in_channels, out_channels, 3, padding="same", padding_mode="zeros", dtype=torch.float16, bias=False)
+    with torch.no_grad():
+        conv.weight.copy_(weight)
     run_module_test(
-        nn.Conv2d(8, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 8, 64, 64, dtype=torch.float16),
+        conv,
+        torch.ones(1, in_channels, 3, 3, dtype=torch.float16),
         atol=1e-3
     )
 

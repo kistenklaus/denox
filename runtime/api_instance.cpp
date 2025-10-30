@@ -212,19 +212,19 @@ static void upload_initalizers(runtime::Context *ctx,
 
 static std::vector<runtime::InstanceTensor>
 create_tensors(const runtime::Model *m, const runtime::Instance *mi) {
-  std::span<const std::int64_t> symbolValues = mi->symbolValues;
+  const std::span<const std::int64_t> symbolValues = mi->symbolValues;
   const dnx::Model *dnx = m->dnx;
   std::size_t tensorCount = dnx->tensors()->size();
   std::vector<runtime::InstanceTensor> tensors(tensorCount);
 
   for (std::size_t t = 0; t < tensorCount; ++t) {
     const dnx::Tensor *tensor = dnx->tensors()->Get(t);
-    std::uint64_t size = dnx::parseUnsignedScalarSource(
+    const std::uint64_t size = dnx::parseUnsignedScalarSource(
         tensor->size_type(), tensor->size(), symbolValues);
-    std::uint64_t offset = dnx::parseUnsignedScalarSource(
+    const std::uint64_t offset = dnx::parseUnsignedScalarSource(
         tensor->offset_type(), tensor->offset(), symbolValues);
 
-    runtime::InstanceTensor instanceTensor;
+    runtime::InstanceTensor instanceTensor{};
     instanceTensor.size = size;
     instanceTensor.offset = offset;
     instanceTensor.buffer = tensor->buffer();
@@ -246,7 +246,7 @@ create_cmds(runtime::Context *ctx, const runtime::Model *m,
   const dnx::Model *dnx = m->dnx;
   std::uint64_t cmdCount = m->cmds.size();
   std::vector<runtime::InstanceCmd> cmds;
-  cmds.reserve(cmdCount);
+  cmds.reserve(cmdCount * 2);
 
   for (std::size_t pc = 0; pc < cmdCount; ++pc) {
     const auto &cmd = m->cmds[pc];
@@ -361,6 +361,8 @@ void update_descriptor_sets(runtime::Context *ctx,
           bufferInfo.range = tensor.size;
           bufferInfos.push_front(bufferInfo);
           writeInfo.pBufferInfo = &bufferInfos.front();
+          writeInfo.pImageInfo = nullptr;
+          writeInfo.pTexelBufferView = nullptr;
           writeInfos.push_back(writeInfo);
         }
       }

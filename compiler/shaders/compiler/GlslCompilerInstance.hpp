@@ -45,7 +45,7 @@ public:
   }
 
   void define(std::string_view name) {
-    m_preamble.append(fmt::format("#define {}\n", name));
+    m_preamble.append(fmt::format("#define {} (1)\n", name));
   }
 
   void enableDenoxPreprocessor() { m_denoxPreprocessor = true; }

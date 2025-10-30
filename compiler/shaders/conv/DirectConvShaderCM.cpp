@@ -171,8 +171,8 @@ void DirectConvShaderCM::implement(
   }
   // TODO Properly select coopmat shape.
   unsigned int cm_m = 16;
-  unsigned int cm_k = 16;
-  unsigned int cm_n = 16;
+  unsigned int cm_k = 8;
+  unsigned int cm_n = 8;
   shader.define("CM_M", cm_m);
   shader.define("CM_K", cm_k);
   shader.define("CM_N", cm_n);
@@ -227,11 +227,11 @@ void DirectConvShaderCM::implement(
     shader.define("FSTYPE_SIZE", 2);
   }
 
-  if (in.channels >= 128 || out.channels >= 128) {
-    shader.define("ASYNC_READ");
-  } else {
-    shader.define("NASYNC_READ");
-  }
+  shader.define("ASYNC_READ");
+  // if (in.channels >= 128 || out.channels >= 128) {
+  // } else {
+  //   shader.define("NASYNC_READ");
+  // }
 
   shader.define("atype", "float16_t");
   shader.define("ATYPE_SIZE", 2);
@@ -248,13 +248,17 @@ void DirectConvShaderCM::implement(
 
   if (conv->B != nullptr) {
     shader.define("USE_BIAS");
+  } else {
+    shader.define("NUSE_BIAS");
   }
+
 
   std::uint32_t tileX = cm_n * sg_n * wg_n;
   std::uint32_t tileY = cm_m;
   std::uint32_t tileZ = sg_m * wg_m;
 
-  Sym workgroupCountX = symGraph.cdiv(in.channels, tileX);
+
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
   Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
   Sym workgroupCountZ = symGraph.cdiv(in.extent.y.asSym(), tileZ);
 
@@ -294,8 +298,8 @@ void DirectConvShaderCM::implement(
   if (biasTensorId) {
     dispatch.addBinding(0, 3, AccessFlag::ReadOnly, *biasTensorId);
   }
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
+  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
   dispatch.setName(name(pattern));
   dispatch.setSourcePath(m_srcPath);
 }

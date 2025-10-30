@@ -7,7 +7,8 @@ import torch.nn.functional as F
 import torch.utils.dlpack
 from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
-INPUT_CHANNELS_COUNT = 2
+INPUT_CHANNELS_COUNT = 8
+OUTPUT_CHANNEL_COUNT = 16
 
 
 class Net(nn.Module):
@@ -15,7 +16,7 @@ class Net(nn.Module):
         super().__init__()
         pm = "zeros"
         self.enc0 = nn.Conv2d(
-            INPUT_CHANNELS_COUNT, 16, 3, padding="same", padding_mode=pm, bias=True
+            INPUT_CHANNELS_COUNT, OUTPUT_CHANNEL_COUNT, 3, padding="same", padding_mode=pm, bias=False
         )
 
         self.con0 = nn.Conv2d(112, 112, 3, padding="same", padding_mode=pm)
@@ -33,7 +34,8 @@ class Net(nn.Module):
         # I_aligned = F.pad(I, (0, pad_w, 0, pad_h), mode="replicate")
         # extr = self.enc0(I_aligned)
         # x_128 = self.pool(extr);
-        x = self.pool(I)
+        x = self.enc0(I)
+
 
         return x
 
@@ -42,6 +44,10 @@ example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 8, 8, dtype=torch.float16)
 
 net : nn.Module = Net()
 
+weight = torch.ones((OUTPUT_CHANNEL_COUNT, INPUT_CHANNELS_COUNT, 3, 3), dtype=torch.float16)
+with torch.no_grad():
+    net.enc0.weight.copy_(weight)
+
 program = torch.onnx.export(
     net,
     (example_input,),
@@ -49,19 +55,18 @@ program = torch.onnx.export(
     input_names=["input"],
     output_names=["output"]
 )
-
+program.save("net.onnx")
 dnx = Module.compile(
     program,
     input_shape=Shape(H="H", W="W"),
     summary=True,
+    verbose=True,
 )
+#
+# dnx.save("net.dnx")
 
 # dreams:
-output = torch.utils.dlpack.from_dlpack(dnx(example_input))
-
-expected = net(example_input)
-
-print(output)
-print(expected)
-
-
+# output = torch.utils.dlpack.from_dlpack(dnx(example_input))
+# expected = net(example_input)
+# print(output)
+# print(expected)
