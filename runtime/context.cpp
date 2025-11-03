@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <stdexcept>
@@ -200,7 +199,7 @@ Context::Context(const char *deviceName)
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pNext = nullptr;
 #ifdef VK_API_VERSION_1_4
-    appInfo.apiVersion = VK_API_VERSION_1_4;
+    appInfo.apiVersion = VK_API_VERSION_1_3;
 #elif defined(VK_API_VERSION_1_3)
     appInfo.apiVersion = VK_API_VERSION_1_3;
 #else
@@ -327,6 +326,7 @@ Context::Context(const char *deviceName)
   {
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
     vkGetPhysicalDeviceFeatures(m_physicalDevice, &features);
+    std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
     // features.robustBufferAccess = VK_FALSE;
   }
 
@@ -343,6 +343,10 @@ Context::Context(const char *deviceName)
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &features11;
     vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+
+    std::memset(&features11, 0, sizeof(VkPhysicalDeviceVulkan11Features));
+    features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+
     features11.pNext = pNextDevice;
     pNextDevice = &features11;
   }
@@ -356,7 +360,12 @@ Context::Context(const char *deviceName)
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &features12;
     vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+
+    std::memset(&features12, 0, sizeof(VkPhysicalDeviceVulkan12Features));
+    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     features12.pNext = pNextDevice;
+    features12.vulkanMemoryModel = true;
+    features12.shaderFloat16 = true;
     pNextDevice = &features12;
   }
 #endif
@@ -369,6 +378,8 @@ Context::Context(const char *deviceName)
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &features13;
     vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+    std::memset(&features13, 0, sizeof(VkPhysicalDeviceVulkan13Features));
+    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     features13.pNext = pNextDevice;
     pNextDevice = &features13;
   }
@@ -382,6 +393,30 @@ Context::Context(const char *deviceName)
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &features14;
     vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+
+    std::memset(&features14, 0, sizeof(VkPhysicalDeviceVulkan14Features));
+    features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
+    // features14.globalPriorityQuery = true;
+    // features14.shaderSubgroupRotate = true;
+    // features14.shaderSubgroupRotateClustered = true;
+    // features14.shaderFloatControls2 = true;
+    // features14.shaderExpectAssume = true;
+    // features14.rectangularLines = true;
+    // features14.bresenhamLines = true;
+    // features14.smoothLines = true;
+    // features14.stippledRectangularLines = true;
+    // features14.stippledBresenhamLines = true;
+    // features14.vertexAttributeInstanceRateDivisor = true;
+    // features14.vertexAttributeInstanceRateZeroDivisor = true;
+    // features14.indexTypeUint8 = true;
+    // features14.dynamicRenderingLocalRead = true;
+    // features14.pipelineProtectedAccess = true;
+    features14.pipelineRobustness = true; // <- very interessting for finding OOB accecsses.
+    // features14.hostImageCopy = true;
+    // features14.pushDescriptor = true;
+    // features14.maintenance5 = true;
+    // features14.maintenance6 = true;
+
     features14.pNext = pNextDevice;
     pNextDevice = &features14;
   }
@@ -431,58 +466,58 @@ Context::Context(const char *deviceName)
     extentions.push_back("VK_KHR_portability_subset");
 #endif
     { // Query extention support.
-      std::uint32_t ecount = 0;
-      vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
-                                           nullptr);
-      std::vector<VkExtensionProperties> supported(ecount);
-      vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
-                                           supported.data());
-      for (const VkExtensionProperties &ext : supported) {
-        if (std::strcmp(ext.extensionName, "VK_KHR_dedicated_allocation") ==
-            0) {
-          extentions.push_back("VK_KHR_dedicated_allocation");
-          dedicatedAllocation = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_KHR_bind_memory2") == 0) {
-          extentions.push_back("VK_KHR_bind_memory2");
-          bindMemory2 = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_KHR_maintenance4") == 0) {
-          extentions.push_back("VK_KHR_maintenance4");
-          maintenance4 = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_KHR_maintenance5") == 0) {
-          extentions.push_back("VK_KHR_maintenance5");
-          maintenance5 = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_EXT_memory_budget") == 0) {
-          extentions.push_back("VK_EXT_memory_budget");
-          memoryBudget = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_KHR_buffer_device_address") ==
-            0) {
-          // NOTE: Maybe in some day in the future it would be nice to play
-          // around with this because it can probably avoid the overhead of
-          // switching pipeline layouts between dispatches as well as improve
-          // descriptor update perf.
-          // extentions.push_back("VK_KHR_buffer_device_address");
-          // bufferDeviceAddress = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_EXT_memory_priority") == 0) {
-          extentions.push_back("VK_EXT_memory_priority");
-          memoryPriority = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_AMD_device_coherent_memory") ==
-            0) {
-          extentions.push_back("VK_AMD_device_coherent_memory");
-          amdDeviceCoherentMemory = true;
-        }
-        if (std::strcmp(ext.extensionName, "VK_KHR_external_memory_win32") ==
-            0) {
-          extentions.push_back("VK_KHR_external_memory_win32");
-          externalMemoryWin32 = true;
-        }
-      }
+      // std::uint32_t ecount = 0;
+      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+      //                                      nullptr);
+      // std::vector<VkExtensionProperties> supported(ecount);
+      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+      //                                      supported.data());
+      // for (const VkExtensionProperties &ext : supported) {
+      //   if (std::strcmp(ext.extensionName, "VK_KHR_dedicated_allocation") ==
+      //       0) {
+      //     extentions.push_back("VK_KHR_dedicated_allocation");
+      //     dedicatedAllocation = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_KHR_bind_memory2") == 0) {
+      //     extentions.push_back("VK_KHR_bind_memory2");
+      //     bindMemory2 = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_KHR_maintenance4") == 0) {
+      //     extentions.push_back("VK_KHR_maintenance4");
+      //     maintenance4 = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_KHR_maintenance5") == 0) {
+      //     extentions.push_back("VK_KHR_maintenance5");
+      //     maintenance5 = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_EXT_memory_budget") == 0) {
+      //     extentions.push_back("VK_EXT_memory_budget");
+      //     memoryBudget = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_KHR_buffer_device_address") ==
+      //       0) {
+      //     // NOTE: Maybe in some day in the future it would be nice to play
+      //     // around with this because it can probably avoid the overhead of
+      //     // switching pipeline layouts between dispatches as well as improve
+      //     // descriptor update perf.
+      //     // extentions.push_back("VK_KHR_buffer_device_address");
+      //     // bufferDeviceAddress = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_EXT_memory_priority") == 0) {
+      //     extentions.push_back("VK_EXT_memory_priority");
+      //     memoryPriority = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_AMD_device_coherent_memory") ==
+      //       0) {
+      //     extentions.push_back("VK_AMD_device_coherent_memory");
+      //     amdDeviceCoherentMemory = true;
+      //   }
+      //   if (std::strcmp(ext.extensionName, "VK_KHR_external_memory_win32") ==
+      //       0) {
+      //     extentions.push_back("VK_KHR_external_memory_win32");
+      //     externalMemoryWin32 = true;
+      //   }
+      // }
     }
 
     VkDeviceCreateInfo createInfo;
@@ -674,7 +709,7 @@ VkPipeline Context::createComputePipeline(VkPipelineLayout layout,
     }
   }
 
-  VkComputePipelineCreateInfo pipelineInfo;
+  VkComputePipelineCreateInfo pipelineInfo{};
   std::memset(&pipelineInfo, 0, sizeof(VkComputePipelineCreateInfo));
   pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 

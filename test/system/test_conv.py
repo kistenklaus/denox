@@ -55,8 +55,8 @@ def test_conv2d_32_32_3():
 
 def test_conv2d_64_64_3():
     run_module_test(
-        nn.Conv2d(32, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 32, 64, 64, dtype=torch.float16),
+        nn.Conv2d(64, 64, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 64, 64, 64, dtype=torch.float16),
         atol=1e-2,
         rtol=0,
     )
@@ -64,8 +64,16 @@ def test_conv2d_64_64_3():
 
 def test_conv2d_128_128_3():
     run_module_test(
-        nn.Conv2d(32, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 32, 64, 64, dtype=torch.float16),
+        nn.Conv2d(128, 128, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 128, 64, 64, dtype=torch.float16),
+        atol=1e-2,
+        rtol=0,
+    )
+
+def test_conv2d_256_256_3():
+    run_module_test(
+        nn.Conv2d(256, 256, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 256, 64, 64, dtype=torch.float16),
         atol=1e-2,
         rtol=0,
     )

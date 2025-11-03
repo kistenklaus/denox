@@ -2,7 +2,6 @@
 #include "denox/runtime.hpp"
 #include "instance.hpp"
 #include "vma.hpp"
-#include <fmt/base.h>
 #include <variant>
 #include <vector>
 #include <vulkan/vulkan_core.h>
