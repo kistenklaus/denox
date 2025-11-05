@@ -52,8 +52,21 @@ int main() {
   std::vector<f16> input(inW * inH * inCh * sizeof(f16));
   std::size_t it = 0;
   for (auto &x : input) {
-    x = f16(10.0f);
+    x = f16(1.0f);
   }
+
+  fmt::println("INPUT");
+  for (std::size_t c = 0; c < inCh; ++c) {
+    fmt::println("Channel: {}", c);
+    for (std::size_t h = 0; h < inH; ++h) {
+      for (std::size_t w = 0; w < inW; ++w) {
+        std::size_t index = h * (inW * inCh) + w * (inCh) + c;
+        fmt::print(" {:^7.3f} ", static_cast<float>(input[index]));
+      }
+      fmt::println("");
+    }
+  }
+
   const void *pinputs = input.data();
   //
   denox::Extent outExtentCh;
@@ -75,6 +88,7 @@ int main() {
 
   denox::eval_runtime_instance(context, instance, &pinputs, &poutputs);
 
+  fmt::println("OUTPUT");
   for (std::size_t c = 0; c < outCh; ++c) {
     fmt::println("Channel: {}", c);
     for (std::size_t h = 0; h < outH; ++h) {

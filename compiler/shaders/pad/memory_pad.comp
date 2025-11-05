@@ -73,7 +73,6 @@ void main() {
 
                 if (ho < OUT_H && wo < OUT_W && c < CH) {
                     output_tensor_blob[ho * OUT_W * CH + wo * CH + c] =
-                        // float16BitsToUint16(float16_t(OUT_H));
                         input_tensor_blob[hi * IN_W * CH + wi * CH + c];
                 }
             }

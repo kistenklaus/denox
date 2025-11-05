@@ -51,8 +51,8 @@ def run_module_test(
 
     expected = net(input)
 
-    # print(output)
-    # print(expected)
+    print(output)
+    print(expected)
     #
     print(output - expected)
     print(torch.max(output - expected))
