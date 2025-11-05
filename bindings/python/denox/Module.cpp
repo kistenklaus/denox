@@ -184,9 +184,10 @@ std::optional<pydenox::Tensor> Module::infer(pybind11::object input,
                                              denox::VulkanApiVersion target_env,
                                              denox::DataType dtype,
                                              denox::Layout layout) {
+  assert(layout != denox::Layout::CHWC8);
 
-  Tensor tensor = Tensor::from(input, dtype, layout);
-  dtype = tensor.dtype();
+  Tensor inputTensor = Tensor::from(input, dtype, layout);
+  dtype = inputTensor.dtype();
 
   denox::RuntimeContext ctx =
       m_contextManager.getContextFor(device, target_env);
@@ -237,11 +238,11 @@ std::optional<pydenox::Tensor> Module::infer(pybind11::object input,
   assert(inputLayout != denox::Layout::Undefined);
   assert(outputLayout != denox::Layout::Undefined);
 
-  tensor = tensor.transform(inputType, inputLayout);
+  inputTensor = inputTensor.transform(inputType, inputLayout);
 
   denox::RuntimeInstance instance;
-  if (denox::create_runtime_instance2(ctx, model, tensor.height(),
-                                      tensor.width(), tensor.channels(),
+  if (denox::create_runtime_instance2(ctx, model, inputTensor.height(),
+                                      inputTensor.width(), inputTensor.channels(),
                                       &instance) < 0) {
     throw std::runtime_error("Failed to create denox runtime instance.");
   }
@@ -250,10 +251,10 @@ std::optional<pydenox::Tensor> Module::infer(pybind11::object input,
       denox::get_runtime_instance_tensor_byte_size(instance, inputName);
   std::size_t outputSize =
       denox::get_runtime_instance_tensor_byte_size(instance, outputName);
-  void *output_data = std::malloc(outputSize * tensor.batchSize());
-  for (std::size_t n = 0; n < tensor.batchSize(); ++n) {
+  void *output_data = std::malloc(outputSize * inputTensor.batchSize());
+  for (std::size_t n = 0; n < inputTensor.batchSize(); ++n) {
     const void *inptr =
-        static_cast<const std::byte *>(tensor.data()) + n * inputSize;
+        static_cast<const std::byte *>(inputTensor.data()) + n * inputSize;
 
     void *outptr = static_cast<std::byte *>(output_data) + n * outputSize;
     if (denox::eval_runtime_instance(ctx, instance, &inptr, &outptr) < 0) {
@@ -268,43 +269,11 @@ std::optional<pydenox::Tensor> Module::infer(pybind11::object input,
       &outputChannelExtent);
 
   auto output =
-      Tensor::make(output_data, tensor.batchSize(), outputHeightExtent.value,
+      Tensor::make(output_data, inputTensor.batchSize(), outputHeightExtent.value,
                    outputWidthExtent.value, outputChannelExtent.value,
-                   outputType, outputLayout, tensor.rank());
-
-  // assert(tensor.dtype() == denox::DataType::Float16);
-  // assert(tensor.layout() == denox::Layout::HWC);
-  // fmt::println("SHOULD BE ONES");
-  // for (std::size_t c = 0; c < output.channels(); ++c) {
-  //   fmt::println("Channel: {}", c);
-  //   for (std::size_t h = 0; h < output.height(); ++h) {
-  //     for (std::size_t w = 0; w < output.width(); ++w) {
-  //       const f16 *ptr = static_cast<const f16 *>(output.data()) +
-  //                        h * output.width() * output.channels() +
-  //                        w * output.channels() + c;
-  //       fmt::print("{:.3f}, ", static_cast<float>(*ptr));
-  //     }
-  //     fmt::println("");
-  //   }
-  // }
+                   outputType, outputLayout, inputTensor.rank());
 
   output = output.transform(dtype, layout);
-
-  // assert(output.layout() == denox::Layout::CHW);
-  // assert(output.dtype() == denox::DataType::Float16);
-  // fmt::println("SHOULD BE ONES");
-  // for (std::size_t c = 0; c < output.channels(); ++c) {
-  //   fmt::println("Channel: {}", c);
-  //   for (std::size_t h = 0; h < output.height(); ++h) {
-  //     for (std::size_t w = 0; w < output.width(); ++w) {
-  //       const f16 *ptr = static_cast<const f16 *>(output.data()) +
-  //                        c * output.width() * output.height() +
-  //                        h * output.width() + w;
-  //       fmt::print("{:.3f}, ", static_cast<float>(*ptr));
-  //     }
-  //     fmt::println("");
-  //   }
-  // }
 
   denox::destroy_runtime_instance(ctx, instance);
 

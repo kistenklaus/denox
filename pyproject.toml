@@ -23,7 +23,7 @@ wheel.packages = ["bindings/python/denox"]
 [tool.pytest.ini_options]
 addopts = "-v"
 testpaths = ["test"]
-
+filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.scikit-build.cmake.define]
 BUILD_PYTHON_BINDING = true

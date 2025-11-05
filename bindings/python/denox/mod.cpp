@@ -1,4 +1,5 @@
 #include "Module.hpp"
+#include "Tensor.hpp"
 #include "denox/common/types.hpp"
 #include "denox/compiler.hpp"
 #include <pybind11/pybind11.h>
@@ -12,7 +13,9 @@ PYBIND11_MODULE(_denox, m) {
       .value("StorageBuffer", denox::Storage::StorageBuffer);
 
   pybind11::enum_<denox::Layout>(m, "Layout")
-      .value("Undefined", denox::Layout::Undefined);
+      .value("Undefined", denox::Layout::Undefined)
+      .value("HWC", denox::Layout::HWC)
+      .value("CHWC8", denox::Layout::CHWC8);
 
   pybind11::enum_<denox::DataType>(m, "DataType")
       .value("Auto", denox::DataType::Auto)

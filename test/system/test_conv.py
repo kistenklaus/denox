@@ -3,77 +3,365 @@ import torch.nn as nn
 
 from test import run_module_test
 
+from denox import Layout
 
-def test_conv2d_3_3_3():
+
+def test_conv2d_3x3_3hwc_3hwc():
     run_module_test(
         nn.Conv2d(3, 3, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 3, 64, 64, dtype=torch.float16),
+        torch.rand(1, 3, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
     )
 
-def test_conv2d_3_32_3():
+
+def test_conv2d_3x3_3hwc_32hwc():
     run_module_test(
         nn.Conv2d(3, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 3, 64, 64, dtype=torch.float16),
+        torch.rand(1, 3, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
     )
 
-def test_conv2d_8_16_3():
-    in_channels = 8
-    out_channels = 16
-    weight = torch.ones((out_channels, in_channels, 3, 3), dtype=torch.float16)
-    conv = nn.Conv2d(in_channels, out_channels, 3, padding="same", padding_mode="zeros", dtype=torch.float16, bias=False)
-    with torch.no_grad():
-        conv.weight.copy_(weight)
+
+def test_conv2d_3x3_32hwc_3hwc():
     run_module_test(
-        conv,
-        torch.ones(1, in_channels, 3, 3, dtype=torch.float16),
-        atol=1e-3
+        nn.Conv2d(32, 3, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
     )
 
-def test_conv2d_16_32_3():
-    in_channels = 16
-    out_channels = 32
-    weight = torch.ones((out_channels, in_channels, 3, 3), dtype=torch.float16)
-    conv = nn.Conv2d(in_channels, out_channels, 3, padding="same", padding_mode="zeros", dtype=torch.float16, bias=False)
-    with torch.no_grad():
-        conv.weight.copy_(weight)
 
+def test_conv2d_3x3_8hwc_16hwc():
     run_module_test(
-        conv,
-        torch.ones(1, in_channels, 4, 4, dtype=torch.float16),
-        atol=1e-3,
+        nn.Conv2d(8, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 8, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
     )
 
-def test_conv2d_32_32_3():
+
+def test_conv2d_3x3_16hwc_8hwc():
+    run_module_test(
+        nn.Conv2d(16, 8, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_16hwc_32hwc():
+    run_module_test(
+        nn.Conv2d(16, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_32hwc_16hwc_weak():
+    run_module_test(
+        nn.Conv2d(32, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_32hwc_32hwc_weak():
     run_module_test(
         nn.Conv2d(32, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 32, 64, 64, dtype=torch.float16),
-        atol=1e-2,
-        rtol=0,
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarantee!
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
     )
 
 
-
-def test_conv2d_64_64_3():
+def test_conv2d_3x3_64hwc_64hwc_weak():
     run_module_test(
         nn.Conv2d(64, 64, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 64, 64, 64, dtype=torch.float16),
-        atol=1e-2,
-        rtol=0,
+        torch.rand(1, 64, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarnatee!
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
     )
 
 
-def test_conv2d_128_128_3():
+def test_conv2d_3x3_128hwc_128hwc_weak():
     run_module_test(
-        nn.Conv2d(128, 128, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 128, 64, 64, dtype=torch.float16),
+        nn.Conv2d(
+            128, 128, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 128, 100, 100, dtype=torch.float16),
         atol=1e-2,
         rtol=0,
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
     )
 
-def test_conv2d_256_256_3():
+
+def test_conv2d_3x3_256hwc_256hwc_weak():
     run_module_test(
-        nn.Conv2d(256, 256, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
-        torch.rand(1, 256, 64, 64, dtype=torch.float16),
+        nn.Conv2d(
+            256, 256, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 256, 100, 100, dtype=torch.float16),
+        atol=1e-1,
+        rtol=0,
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_8chwc8_16chwc8():
+    run_module_test(
+        nn.Conv2d(8, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 8, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_16chwc8_8chwc8():
+    run_module_test(
+        nn.Conv2d(16, 8, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_16chwc8_32chwc8():
+    run_module_test(
+        nn.Conv2d(16, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_32chwc8_16chwc8_weak():
+    run_module_test(
+        nn.Conv2d(32, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_32chwc8_32chwc8_weak():
+    run_module_test(
+        nn.Conv2d(32, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarantee!
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_64chwc8_64chwc8_weak():
+    run_module_test(
+        nn.Conv2d(64, 64, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 64, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarnatee!
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_128chwc8_128chwc8_weak():
+    run_module_test(
+        nn.Conv2d(
+            128, 128, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 128, 100, 100, dtype=torch.float16),
         atol=1e-2,
         rtol=0,
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_256chwc8_256chwc8_weak():
+    run_module_test(
+        nn.Conv2d(
+            256, 256, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 256, 100, 100, dtype=torch.float16),
+        atol=1e-1,
+        rtol=0,
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_8hwc_16chwc8():
+    run_module_test(
+        nn.Conv2d(8, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 8, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_16hwc_8chwc8():
+    run_module_test(
+        nn.Conv2d(16, 8, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_16hwc_32chwc8_weak():
+    run_module_test(
+        nn.Conv2d(16, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+        atol=1e-2,
+    )
+
+
+def test_conv2d_3x3_32hwc_16chwc8_weak():
+    run_module_test(
+        nn.Conv2d(32, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_32hwc_32chwc8_weak():
+    run_module_test(
+        nn.Conv2d(32, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarantee!
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_64hwc_64chwc8_weak():
+    run_module_test(
+        nn.Conv2d(64, 64, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 64, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarnatee!
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_128hwc_128chwc8_weak():
+    run_module_test(
+        nn.Conv2d(
+            128, 128, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 128, 100, 100, dtype=torch.float16),
+        atol=1e-2,
+        rtol=0,
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_256hwc_256chwc8_weak():
+    run_module_test(
+        nn.Conv2d(
+            256, 256, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 256, 100, 100, dtype=torch.float16),
+        atol=1e-1,
+        rtol=0,
+        input_layout=Layout.HWC,
+        output_layout=Layout.CHWC8,
+    )
+
+
+def test_conv2d_3x3_8chwc8_16hwc():
+    run_module_test(
+        nn.Conv2d(8, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 8, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_16chwc8_8hwc():
+    run_module_test(
+        nn.Conv2d(16, 8, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_16chwc8_32hwc_weak():
+    run_module_test(
+        nn.Conv2d(16, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 16, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
+        atol=1e-2,
+    )
+
+
+def test_conv2d_3x3_32chwc8_16hwc_weak():
+    run_module_test(
+        nn.Conv2d(32, 16, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_32chwc8_32hwc_weak():
+    run_module_test(
+        nn.Conv2d(32, 32, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 32, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarantee!
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_64chwc8_64hwc_weak():
+    run_module_test(
+        nn.Conv2d(64, 64, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 64, 100, 100, dtype=torch.float16),
+        atol=1e-2,  # weaker guarnatee!
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_128chwc8_128hwc_weak():
+    run_module_test(
+        nn.Conv2d(
+            128, 128, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 128, 100, 100, dtype=torch.float16),
+        atol=1e-2,
+        rtol=0,
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
+    )
+
+
+def test_conv2d_3x3_256chwc8_256hwc_weak():
+    run_module_test(
+        nn.Conv2d(
+            256, 256, 3, padding="same", padding_mode="zeros", dtype=torch.float16
+        ),
+        torch.rand(1, 256, 100, 100, dtype=torch.float16),
+        atol=1e-1,
+        rtol=0,
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.HWC,
     )

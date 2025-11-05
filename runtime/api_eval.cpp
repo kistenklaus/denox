@@ -73,10 +73,6 @@ int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
                               dispatch.dispatch->descriptorSets.size(),
                               dispatch.descriptorSets, 0, nullptr);
 
-
-      fmt::println("Dispatch: ({}, {}, {})", dispatch.workgroupCounts[0],
-          dispatch.workgroupCounts[1],
-          dispatch.workgroupCounts[2]);
       vkCmdDispatch(cmd, dispatch.workgroupCounts[0],
                     dispatch.workgroupCounts[1], dispatch.workgroupCounts[2]);
     } else if (std::holds_alternative<runtime::InstanceBarrier>(op)) {

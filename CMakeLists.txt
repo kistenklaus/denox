@@ -344,6 +344,8 @@ endif()
 if (BUILD_PYTHON_BINDING)
   include(cmake/pybind11.cmake)
 
+  target_compile_definitions(denox_runtime PRIVATE DENOX_QUIET)
+
   pybind11_add_module(_denox MODULE 
     bindings/python/denox/Module.cpp
     bindings/python/denox/Module_compile.cpp

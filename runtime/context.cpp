@@ -43,12 +43,16 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   case Severity::None:
     return VK_FALSE;
   case Severity::Verbose:
+#ifndef DENOX_QUIET
     fmt::println("\x1B[37m[Validation-Layer]:\x1B[0m {}",
                  pCallbackData->pMessage);
+#endif
     break;
   case Severity::Info:
+#ifndef DENOX_QUIET
     fmt::println("\x1B[34m[Validation-Layer]:\x1B[0m {}",
                  pCallbackData->pMessage);
+#endif
     break;
   case Severity::Warning:
     fmt::println("\x1B[33m[Validation-Layer]:\x1B[0m\n{}",
@@ -199,7 +203,7 @@ Context::Context(const char *deviceName)
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pNext = nullptr;
 #ifdef VK_API_VERSION_1_4
-    appInfo.apiVersion = VK_API_VERSION_1_3;
+    appInfo.apiVersion = VK_API_VERSION_1_4;
 #elif defined(VK_API_VERSION_1_3)
     appInfo.apiVersion = VK_API_VERSION_1_3;
 #else
@@ -327,7 +331,8 @@ Context::Context(const char *deviceName)
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
     vkGetPhysicalDeviceFeatures(m_physicalDevice, &features);
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
-    // features.robustBufferAccess = VK_FALSE;
+    features.robustBufferAccess = VK_TRUE;
+    features.shaderInt16 = VK_TRUE;
   }
 
   std::vector<const char *> layers;
@@ -346,6 +351,7 @@ Context::Context(const char *deviceName)
 
     std::memset(&features11, 0, sizeof(VkPhysicalDeviceVulkan11Features));
     features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    features11.storageBuffer16BitAccess = VK_TRUE;
 
     features11.pNext = pNextDevice;
     pNextDevice = &features11;
@@ -364,8 +370,8 @@ Context::Context(const char *deviceName)
     std::memset(&features12, 0, sizeof(VkPhysicalDeviceVulkan12Features));
     features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     features12.pNext = pNextDevice;
-    features12.vulkanMemoryModel = true;
-    features12.shaderFloat16 = true;
+    features12.vulkanMemoryModel = VK_TRUE;
+    features12.shaderFloat16 = VK_TRUE;
     pNextDevice = &features12;
   }
 #endif
@@ -411,7 +417,8 @@ Context::Context(const char *deviceName)
     // features14.indexTypeUint8 = true;
     // features14.dynamicRenderingLocalRead = true;
     // features14.pipelineProtectedAccess = true;
-    features14.pipelineRobustness = true; // <- very interessting for finding OOB accecsses.
+    features14.pipelineRobustness =
+        false; // <- very interessting for finding OOB accecsses.
     // features14.hostImageCopy = true;
     // features14.pushDescriptor = true;
     // features14.maintenance5 = true;
@@ -467,10 +474,12 @@ Context::Context(const char *deviceName)
 #endif
     { // Query extention support.
       // std::uint32_t ecount = 0;
-      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr,
+      // &ecount,
       //                                      nullptr);
       // std::vector<VkExtensionProperties> supported(ecount);
-      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr,
+      // &ecount,
       //                                      supported.data());
       // for (const VkExtensionProperties &ext : supported) {
       //   if (std::strcmp(ext.extensionName, "VK_KHR_dedicated_allocation") ==
@@ -507,7 +516,8 @@ Context::Context(const char *deviceName)
       //     extentions.push_back("VK_EXT_memory_priority");
       //     memoryPriority = true;
       //   }
-      //   if (std::strcmp(ext.extensionName, "VK_AMD_device_coherent_memory") ==
+      //   if (std::strcmp(ext.extensionName, "VK_AMD_device_coherent_memory")
+      //   ==
       //       0) {
       //     extentions.push_back("VK_AMD_device_coherent_memory");
       //     amdDeviceCoherentMemory = true;
@@ -632,7 +642,7 @@ Buffer Context::createBuffer(std::size_t size, VkBufferUsageFlags usage,
   }
   return buffer;
 }
-void Context::destroyBuffer(const Buffer& buffer) {
+void Context::destroyBuffer(const Buffer &buffer) {
   assert(buffer.vkbuffer != VK_NULL_HANDLE);
   assert(buffer.allocation != VK_NULL_HANDLE);
   vmaDestroyBuffer(m_vma, buffer.vkbuffer, buffer.allocation);

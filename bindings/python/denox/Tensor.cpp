@@ -145,6 +145,14 @@ static std::size_t chw_index(std::size_t N, std::size_t H, std::size_t W,
   return n * (H * W * C) + c * (H * W) + h * W + w;
 }
 
+static std::size_t chwc8_index(std::size_t N, std::size_t H, std::size_t W,
+                               std::size_t C, std::size_t n, std::size_t h,
+                               std::size_t w, std::size_t c) {
+  assert(C % 8 == 0);
+  return n * (H * W * C) + (c / 8) * (H * W * 8) + h * (W * 8) + w * 8 +
+         (c % 8);
+}
+
 typedef std::size_t (*layout_index)(std::size_t N, std::size_t H, std::size_t W,
                                     std::size_t C, std::size_t n, std::size_t h,
                                     std::size_t w, std::size_t c);
@@ -181,7 +189,10 @@ Tensor Tensor::transform(denox::DataType new_dtype,
     old_idx = chw_index;
     break;
   case denox::Layout::CHWC8:
-    throw std::runtime_error("not implemented (chwc8)");
+    old_idx = chwc8_index;
+    break;
+  default:
+    throw std::runtime_error("not implemented");
   }
   assert(old_idx != nullptr);
   layout_index new_idx = nullptr;
@@ -195,7 +206,10 @@ Tensor Tensor::transform(denox::DataType new_dtype,
     new_idx = chw_index;
     break;
   case denox::Layout::CHWC8:
-    throw std::runtime_error("not implemented (chwc8)");
+    new_idx = chwc8_index;
+    break;
+  default:
+    throw std::runtime_error("not implemented");
   }
   assert(new_idx != nullptr);
 
@@ -260,7 +274,8 @@ Tensor Tensor::transform(denox::DataType new_dtype,
       }
     }
   }
-  return Tensor{static_cast<void *>(dst_ptr), m_batchSize,
+  return Tensor{static_cast<void *>(dst_ptr),
+                m_batchSize,
                 m_height,
                 m_width,
                 m_channels,
