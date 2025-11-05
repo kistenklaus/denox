@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.utils.dlpack
 from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
-INPUT_CHANNELS_COUNT = 8
+INPUT_CHANNELS_COUNT = 3
 OUTPUT_CHANNEL_COUNT = 16
 
 
@@ -36,7 +36,7 @@ class Net(nn.Module):
         # x_128 = self.pool(extr);
         # x = self.enc0(I)
 
-        x = x[:,:,:3,:3]
+        x = x[:,:,1:3,1:3]
         return x
 
 
@@ -56,14 +56,14 @@ program = torch.onnx.export(
     output_names=["output"]
 )
 program.save("net.onnx")
-dnx = Module.compile(
-    program,
-    input_shape=Shape(H="H", W="W"),
-    summary=True,
-    verbose=True,
-)
-
-dnx.save("net.dnx")
+# dnx = Module.compile(
+#     program,
+#     input_shape=Shape(H="H", W="W"),
+#     summary=True,
+#     verbose=True,
+# )
+#
+# dnx.save("net.dnx")
 
 # dreams:
 # output = torch.utils.dlpack.from_dlpack(dnx(example_input))

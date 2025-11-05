@@ -1,5 +1,6 @@
 #include "frontend/onnx/details/ops/ops.hpp"
 
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 

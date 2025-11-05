@@ -3,6 +3,7 @@
 #include "memory/hypergraph/LinkedGraph.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
+#include "symbolic/SymGraph.hpp"
 namespace denox::compiler {
 
 struct CanoModel {
@@ -10,6 +11,7 @@ struct CanoModel {
   Graph graph;
   Graph::NodeHandle input;
   Graph::NodeHandle output;
+  SymGraph symGraph;
 };
 
 } // namespace denox::compiler

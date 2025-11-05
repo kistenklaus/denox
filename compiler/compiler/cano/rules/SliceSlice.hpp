@@ -1,5 +1,6 @@
 #pragma once
 
+#include "symbolic/SymGraph.hpp"
 #include "algorithm/pattern_matching/EdgePattern.hpp"
 #include "algorithm/pattern_matching/NodePattern.hpp"
 #include "compiler/cano/rules/IFusionRule.hpp"
@@ -36,17 +37,26 @@ public:
     return m_handles.pattern;
   }
 
-  virtual void apply(const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp>
+  virtual void apply(SymGraph& symGraph, const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp>
                          &match) final override {
     const auto &handles = m_handles;
 
     auto nodeA = match[handles.A];
-    auto nodeC = match[handles.C];
     auto edgeAB = match[handles.AB];
+    auto nodeC = match[handles.C];
     auto edgeBC = match[handles.BC];
 
+    const auto& sliceAB = edgeAB.value().slice();
+    const auto& sliceBC = edgeBC.value().slice();
+    ComputeOpSlice sliceAC(
+        symGraph.add(sliceAB->left, sliceBC->left),
+        symGraph.min(sliceAB->right, symGraph.add(sliceAB->left, sliceBC->right)),
+        symGraph.add(sliceAB->top, sliceBC->top),
+        symGraph.min(sliceAB->bottom, symGraph.add(sliceAB->top, sliceBC->bottom)));
+
+
     nodeA->outgoing().insert_after(edgeAB.nextOutgoingIterator(), nodeC,
-                                   edgeBC.value().slice());
+        sliceAC);
     edgeAB.erase();
   }
 

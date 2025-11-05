@@ -55,9 +55,9 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   }
 
 
-  SymGraph symGraph = model.symGraph();
-
   CanoModel canoModel = compiler::canonicalize(model, options);
+
+  SymGraph& symGraph = canoModel.symGraph;
 
   Lifetimes lifetimes = compiler::lifeness(canoModel);
 

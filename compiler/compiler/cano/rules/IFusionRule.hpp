@@ -14,7 +14,7 @@ public:
   pattern() = 0;
 
   virtual void
-  apply(const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp> &match) = 0;
+  apply(SymGraph& symGraph, const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp> &match) = 0;
 };
 
 } // namespace denox::compiler::cano

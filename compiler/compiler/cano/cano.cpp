@@ -6,6 +6,7 @@
 #include "compiler/ir/CanoModel.hpp"
 #include "diag/logging.hpp"
 #include "memory/hypergraph/LinkedGraph.hpp"
+#include "symbolic/SymGraph.hpp"
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -36,17 +37,20 @@ CanoModel canonicalize(const Model &model, const Options &options) {
   if (options.fusionRules.enableSliceSliceFusion) {
     rules.push_back(&sliceSliceRule);
   }
+  
+  SymGraph symGraph = model.symGraph();
 
   for (const auto &rule : rules) {
     const auto &pattern = rule->pattern();
     for (const auto &match : algorithm::match_all(pattern, input)) {
-      rule->apply(match);
+      rule->apply(symGraph, match);
     }
   }
   CanoModel m{
       .graph = std::move(graph),
       .input = std::move(input),
       .output = std::move(output),
+      .symGraph = std::move(symGraph),
   };
 
   return m;
