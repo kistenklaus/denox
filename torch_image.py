@@ -51,6 +51,7 @@ program = torch.onnx.export(
 
 dnx = Module.compile(
     program,
+    input_shape=Shape(H="H", W="W"),
     summary=True,
 )
 

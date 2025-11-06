@@ -1519,6 +1519,7 @@ void main() {
   // === Pipeline Epilog ===
   #pragma inline_block(copy_prefetch_A);
   #pragma inline_block(copy_prefetch_B);
+
   barrier();
   #pragma inline_block(gemm);
 
@@ -1541,6 +1542,7 @@ void main() {
   }
   #endif
 
+  #pragma inline_block(activation)
   // === Writeback ===
   barrier();
   #pragma inline_block(writeback);

@@ -43,3 +43,6 @@ cmake-debug-build
 **/**__pycache__/
 *.json
 *.png
+*.pth
+*.pt
+*.tza
