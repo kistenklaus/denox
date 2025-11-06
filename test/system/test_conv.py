@@ -69,6 +69,13 @@ def test_conv2d_3x3_32hwc_16hwc_weak():
         output_layout=Layout.HWC,
     )
 
+def test_conv2d_3x3_24hwc_24hwc():
+    run_module_test(
+        nn.Conv2d(24, 24, 3, padding="same", padding_mode="zeros", dtype=torch.float16),
+        torch.rand(1, 24, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
 
 def test_conv2d_3x3_32hwc_32hwc_weak():
     run_module_test(
