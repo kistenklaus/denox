@@ -39,8 +39,6 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
     severity = Severity::Error;
   }
-  return false;
-
   switch (severity) {
   case Severity::None:
     return VK_FALSE;
@@ -640,7 +638,7 @@ Buffer Context::createBuffer(std::size_t size, VkBufferUsageFlags usage,
       vmaCreateBuffer(m_vma, &bufferInfo, &allocInfo, &buffer.vkbuffer,
                       &buffer.allocation, nullptr);
   if (result != VK_SUCCESS) {
-    throw std::runtime_error("Failed to create buffer.");
+    throw std::runtime_error("Failed to create buffer (vulkan error).");
   }
   return buffer;
 }

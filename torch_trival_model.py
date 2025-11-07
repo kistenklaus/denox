@@ -14,48 +14,79 @@ OUTPUT_CHANNEL_COUNT = 16
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
-        # pm = "zeros"
-        # self.enc0 = nn.Conv2d(
-        #     INPUT_CHANNELS_COUNT, OUTPUT_CHANNEL_COUNT, 3, padding="same", padding_mode=pm, bias=False
-        # )
-        #
-        # self.con0 = nn.Conv2d(112, 112, 3, padding="same", padding_mode=pm)
+        pm = "zeros"
+        ch = INPUT_CHANNELS_COUNT
+        self.enc0 = nn.Conv2d( INPUT_CHANNELS_COUNT, 8, 3, padding="same", padding_mode=pm, bias=True,dtype=torch.float16)
+        self.enc1 = nn.Conv2d( 8, 16, 3, padding="same", padding_mode=pm, bias=True,dtype=torch.float16)
+        self.enc3 = nn.Conv2d( 24, 32, 3, padding="same", padding_mode=pm, bias=True,dtype=torch.float16)
+        # self.con0 = nn.Conv2d(32, 32, 3, padding="same", padding_mode=pm, bias=True, dtype=torch.float16)
         # self.dec0 = nn.Conv2d(32, 16, 3, padding="same", padding_mode=pm)
         #
-        # self.pool = nn.MaxPool2d(2, 2)
-        # self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
 
-    def forward(self, x):
-        # H, W = I.size(2), I.size(3)
-        # alignment = 2  # ensure even H/W so pool+upsample align perfectly
-        # H, W = I.size(2), I.size(3)
+        self.conv0 = nn.Conv2d(INPUT_CHANNELS_COUNT, 1, 3, padding="same", dtype=torch.float16)
+        self.conv1 = nn.Conv2d(INPUT_CHANNELS_COUNT, 2, 3, padding="same", dtype=torch.float16)
+
+        self.pool = nn.MaxPool2d(2, 2)
+        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
+
+    def forward(self, input):
+        # H, W = input.size(2), input.size(3)
+        # alignment = 4  # ensure even H/W so pool+upsample align perfectly
         # pad_w = (alignment - (W % alignment)) % alignment
         # pad_h = (alignment - (H % alignment)) % alignment
-        # I_aligned = F.pad(I, (0, pad_w, 0, pad_h), mode="replicate")
-        # extr = self.enc0(I_aligned)
-        # x_128 = self.pool(extr);
-        # x = self.enc0(I)
+        # x = F.pad(input, (0, pad_w, 0, pad_h), mode="replicate")
+        # # extr = self.enc0(I_aligned)
+        # # x_128 = self.pool(extr);
+        # x = self.enc0(x)
+        #
+        # x = pool1 = self.pool(x)
+        # x = self.pool(x)
+        #
+        # x = self.enc1(x)
+        #
+        # x = self.upsample(x)
+        #
+        # x = torch.cat((x,pool1), 1)
+        #
+        # x = self.enc3(x)
 
-        x = x[:,:,1:3,1:3]
+        x0 = self.conv0(input)
+        x1 = self.conv1(input)
+        x = torch.cat((x0, x1), 1)
+
+
+        # x = x[:,:,1:3,1:3]
         return x
 
 
-example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 100, 100, dtype=torch.float16)
+example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 5, 5, dtype=torch.float16)
 
 net : nn.Module = Net()
 
-# weight = torch.ones((OUTPUT_CHANNEL_COUNT, INPUT_CHANNELS_COUNT, 3, 3), dtype=torch.float16)
+weight0 = torch.ones((32, 3, 3, 3), dtype=torch.float16)
+weight1 = torch.ones((32, 32, 3, 3), dtype=torch.float16)
+
 # with torch.no_grad():
-#     net.enc0.weight.copy_(weight)
+#     net.enc0.weight.copy_(weight0)
+#     net.con0.weight.copy_(weight1)
+#     if net.enc0.bias is not None:
+#         net.enc0.bias.fill_(1.0)
+#     if net.con0.bias is not None:
+#         net.con0.bias.fill_(1.0)
 
 program = torch.onnx.export(
     net,
     (example_input,),
-    dynamic_shapes={"x": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
+    dynamic_shapes={"input": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}},
     input_names=["input"],
     output_names=["output"]
 )
 program.save("net.onnx")
+
+output = net(example_input)
+
+print(output)
+
 # dnx = Module.compile(
 #     program,
 #     input_shape=Shape(H="H", W="W"),

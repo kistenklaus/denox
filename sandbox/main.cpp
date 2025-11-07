@@ -29,8 +29,8 @@ int main() {
   assert(denox::get_runtime_model_input_count(model) == 1);
   assert(denox::get_runtime_model_output_count(model) == 1);
   denox::Extent extents[2];
-  std::size_t inW = 5;
-  std::size_t inH = 5;
+  std::size_t inW = 1920;
+  std::size_t inH = 1080;
   extents[0].name = "W";
   extents[0].value = inW;
   extents[1].name = "H";
@@ -52,18 +52,20 @@ int main() {
   std::vector<f16> input(inW * inH * inCh * sizeof(f16));
   std::size_t it = 0;
   for (auto &x : input) {
-    x = f16(static_cast<float>(++it));
+    x = f16(static_cast<float>(1.0));
   }
 
-  fmt::println("INPUT");
-  for (std::size_t c = 0; c < inCh; ++c) {
-    fmt::println("Channel: {}", c);
-    for (std::size_t h = 0; h < inH; ++h) {
-      for (std::size_t w = 0; w < inW; ++w) {
-        std::size_t index = h * (inW * inCh) + w * (inCh) + c;
-        fmt::print(" {:^7.3f} ", static_cast<float>(input[index]));
+  if (inW <= 32) {
+    fmt::println("INPUT");
+    for (std::size_t c = 0; c < inCh; ++c) {
+      fmt::println("Channel: {}", c);
+      for (std::size_t h = 0; h < inH; ++h) {
+        for (std::size_t w = 0; w < inW; ++w) {
+          std::size_t index = h * (inW * inCh) + w * (inCh) + c;
+          fmt::print(" {:^7.3f} ", static_cast<float>(input[index]));
+        }
+        fmt::println("");
       }
-      fmt::println("");
     }
   }
 
@@ -88,15 +90,17 @@ int main() {
 
   denox::eval_runtime_instance(context, instance, &pinputs, &poutputs);
 
-  fmt::println("OUTPUT");
-  for (std::size_t c = 0; c < outCh; ++c) {
-    fmt::println("Channel: {}", c);
-    for (std::size_t h = 0; h < outH; ++h) {
-      for (std::size_t w = 0; w < outW; ++w) {
-        std::size_t index = h * (outW * outCh) + w * (outCh) + c;
-        fmt::print(" {:^7.3f} ", static_cast<float>(output[index]));
+  if (outW <= 32) {
+    fmt::println("OUTPUT");
+    for (std::size_t c = 0; c < outCh; ++c) {
+      fmt::println("Channel: {}", c);
+      for (std::size_t h = 0; h < outH; ++h) {
+        for (std::size_t w = 0; w < outW; ++w) {
+          std::size_t index = h * (outW * outCh) + w * (outCh) + c;
+          fmt::print(" {:^7.3f} ", static_cast<float>(output[index]));
+        }
+        fmt::println("");
       }
-      fmt::println("");
     }
   }
 

@@ -199,7 +199,9 @@ void denox::compiler::shaders::CopyTransformShader::implement(
     throw std::runtime_error("not implemented yet.");
   }
   case EXPLICIT_CONCAT_MODE: {
+    assert(src0.layout == src1.layout);
     {
+      // COPY SRC0
       std::uint32_t invocC;
       std::uint32_t invocW;
       std::uint32_t invocH;
@@ -313,8 +315,9 @@ void denox::compiler::shaders::CopyTransformShader::implement(
       copySrc0Dispatch.setName("explicit-concat-copy-src0");
       copySrc0Dispatch.setSourcePath(m_srcPath);
     }
-    {
 
+    // COPY SRC1
+    {
       auto shader = m_compiler->read(m_srcPath);
       std::uint32_t invocC;
       std::uint32_t invocW;
@@ -324,7 +327,7 @@ void denox::compiler::shaders::CopyTransformShader::implement(
       std::uint32_t wgH;
 
       shader.define("IN_CH_OFFSET", 0);
-      shader.define("IN_CH", src0.channels);
+      shader.define("IN_CH", src1.channels);
       shader.define("OUT_CH_OFFSET", src0.channels);
       shader.define("OUT_CH", dst.channels);
       if (src0.layout == memory::ActivationLayout::HWC &&
@@ -338,7 +341,7 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("IN_LAYOUT_HWC");
         shader.define("OUT_LAYOUT_HWC");
 
-        if (src0.channels >= 16) {
+        if (src1.channels >= 16) {
           invocC = 2;
           invocW = 2;
           invocH = 1;
@@ -349,7 +352,7 @@ void denox::compiler::shaders::CopyTransformShader::implement(
           invocC = 1;
           invocW = 4;
           invocH = 1;
-          wgC = src0.channels;
+          wgC = src1.channels;
           wgW = 32;
           wgH = 1;
         }
@@ -364,14 +367,14 @@ void denox::compiler::shaders::CopyTransformShader::implement(
         shader.define("IN_LAYOUT_HWC8");
         shader.define("OUT_LAYOUT_HWC8");
 
-        if (src0.channels >= 32) {
+        if (src1.channels >= 32) {
           invocC = 8;
           invocW = 1;
           invocH = 1;
           wgC = 4;
           wgW = 64;
           wgH = 1;
-        } else if (src0.channels >= 16) {
+        } else if (src1.channels >= 16) {
           invocC = 8;
           invocW = 1;
           invocH = 1;

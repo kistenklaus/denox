@@ -45,8 +45,8 @@ def tensor_error_report(ref: torch.Tensor,
 def run_module_test(
     module: nn.Module,
     input: torch.Tensor,
-    rtol=1e-2,
-    atol=1e-3,
+    rtol=1e-3,
+    atol=1e-2,
     input_layout=Layout.Undefined,
     output_layout=Layout.Undefined,
 ):
@@ -95,5 +95,6 @@ def run_module_test(
     # print(torch.max(torch.abs(output - expected)))
 
     if not torch.allclose(output, expected, rtol=rtol, atol=atol):
+        print(output)
         tensor_error_report(output, expected)
         assert False
