@@ -58,11 +58,6 @@ table DescriptorSetBinding {
   bindings:[DescriptorBinding];
 }
 
-table ComputeDispatchInfo {
-  name:string;
-  spirv_source_file:string;
-}
-
 table ComputeDispatch {
   binary_id:uint32;
   workgroup_count_x:ScalarSource;
@@ -75,6 +70,12 @@ table ComputeDispatch {
 
 union Dispatch {
   ComputeDispatch,
+}
+
+table DispatchInfo {
+  debug_info:string;
+  memory_reads:ScalarSource;
+  memory_writes:ScalarSource;
 }
 
 table Buffer {
@@ -163,6 +164,7 @@ table Model {
   tensors:[Tensor];
   buffers:[Buffer];
   dispatches:[Dispatch];
+  dispatch_infos:[DispatchInfo];
   shader_binaries:[ShaderBinary];
   sym_ir:SymIR;
   initializers:[TensorInitializer];

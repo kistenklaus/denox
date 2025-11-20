@@ -1,6 +1,7 @@
 #pragma once
 
 #include "diag/unreachable.hpp"
+#include "memory/container/string.hpp"
 #include "memory/tensor/FilterShape.hpp"
 #include <cassert>
 #include <cstddef>
@@ -135,6 +136,35 @@ public:
 
   FilterLayoutKind kind() const { return m_tag; }
 
+  denox::memory::string to_string() const {
+    switch (m_tag) {
+    case FilterLayoutKind::KRSC:
+      return "KRSC";
+    case FilterLayoutKind::KCRS:
+      return "KCRS";
+    case FilterLayoutKind::RSCK:
+      return "RSCK";
+    case FilterLayoutKind::RSKC:
+      return "RSKC";
+    case FilterLayoutKind::RSCKC8:
+      return "RSCKC8";
+    case FilterLayoutKind::RCSKC8:
+      return "RCSKC8";
+    case FilterLayoutKind::RSCKC16:
+      return "RSCKC16";
+    case FilterLayoutKind::RCSKC16:
+      return "RCSKC16";
+    case FilterLayoutKind::RSKCK8:
+      return "RSKCK8";
+    case FilterLayoutKind::RSKCK16:
+      return "RSKCK16";
+    case FilterLayoutKind::KRSCK8:
+      return "KRSCK8";
+    case FilterLayoutKind::KRSCK16:
+      return "KRSCK16";
+    }
+  }
+
 private:
   FilterLayoutKind m_tag;
 };
@@ -195,6 +225,8 @@ public:
   friend bool operator!=(const FilterLayout &lhs, const FilterLayout &rhs) {
     return lhs.m_layout != rhs.m_layout;
   }
+
+  memory::string to_string() const { return m_layout.to_string(); }
 
   bool isVectorized() const { return m_layout.isVectorized(); }
 

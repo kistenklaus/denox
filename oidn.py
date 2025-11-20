@@ -364,12 +364,14 @@ program = torch.onnx.export(
     input_names=["input"],
     output_names=["output"],
 )
+program.save("net.onnx")
 
 dnx = Module.compile(
     program,
     input_shape=Shape(H="H", W="W"),
     summary=True,
 )
+dnx.save("net.dnx")
 
 
 img = Image.open("input.png").convert("RGB")

@@ -196,6 +196,21 @@ void BasicActivationShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
   dispatch.setName(name(patternEnc));
   dispatch.setSourcePath(m_srcPath);
+
+  Sym reads =
+      symGraph.mul(symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym()),
+                   in.channels * in.type.size());
+  dispatch.setMemoryReads(reads);
+  Sym writes =
+      symGraph.mul(symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym()),
+                   out.channels * out.type.size());
+  dispatch.setMemoryWrites(writes);
+
+  dispatch.setDebugInfo(fmt::format("BasicActivationShader\n"
+                                    "- IN_LAYOUT:  {}\n"
+                                    "- OUT_LAYOUT: {}",
+                                    in.layout.to_string(),
+                                    out.layout.to_string()));
 }
 memory::string BasicActivationShader::name(unsigned int pattern) const {
   switch (pattern & ACTI_FUNC_TYPE_MASK) {

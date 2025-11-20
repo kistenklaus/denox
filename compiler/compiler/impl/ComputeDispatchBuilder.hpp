@@ -21,7 +21,8 @@ public:
     self().bindings.push_back(TensorBinding{set, binding, access, tensor});
   }
 
-  void addBinding(std::uint32_t set, std::uint32_t binding, AccessFlag access, memory::NodeId nodeId);
+  void addBinding(std::uint32_t set, std::uint32_t binding, AccessFlag access,
+                  memory::NodeId nodeId);
 
   void addPushConstant(PushConstant pushConstant) {
     self().pushConstants.push_back(pushConstant);
@@ -29,11 +30,32 @@ public:
 
   void setName(memory::string name);
 
+  void setDebugInfo(memory::string debugInfo) {
+    if (self().meta == nullptr) {
+      self().meta = std::make_unique<ComputeDispatchMeta>();
+    }
+    self().meta->debug_info = std::move(debugInfo);
+  }
+
   void setSourcePath(io::Path sourcePath) {
     if (self().meta == nullptr) {
       self().meta = std::make_unique<ComputeDispatchMeta>();
     }
     self().meta->sourcePath = std::move(sourcePath);
+  }
+
+  void setMemoryReads(Sym reads) {
+    if (self().meta == nullptr) {
+      self().meta = std::make_unique<ComputeDispatchMeta>();
+    }
+    self().meta->memory_reads = reads;
+  }
+
+  void setMemoryWrites(Sym reads) {
+    if (self().meta == nullptr) {
+      self().meta = std::make_unique<ComputeDispatchMeta>();
+    }
+    self().meta->memory_writes = reads;
   }
 
 private:

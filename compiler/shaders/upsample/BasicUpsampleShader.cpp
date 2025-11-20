@@ -92,8 +92,7 @@ void BasicUpsampleShader::implement(
   assert(in.channels == out.channels);
 
   if (inLayout == memory::ActivationLayout::HWC &&
-      outLayout == memory::ActivationLayout::HWC &&
-      (in.channels % 8 != 0)) {
+      outLayout == memory::ActivationLayout::HWC && (in.channels % 8 != 0)) {
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
@@ -114,7 +113,6 @@ void BasicUpsampleShader::implement(
       wgC = in.channels;
       wgW = 32;
       wgH = 1;
-      
     }
   } else if (inLayout == memory::ActivationLayout::HWC &&
              outLayout == memory::ActivationLayout::HWC &&
@@ -186,14 +184,26 @@ void BasicUpsampleShader::implement(
   Sym workgroupCountY = symGraph.cdiv(out.extent.x.asSym(), tileY);
   Sym workgroupCountZ = symGraph.cdiv(out.extent.y.asSym(), tileZ);
 
-  auto dispatch = impl.registerDispatch(std::move(shader),
-      workgroupCountX, workgroupCountY, workgroupCountZ);
+  auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
+                                        workgroupCountY, workgroupCountZ);
   dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
   dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
   dispatch.setName(name(pattern));
   dispatch.setSourcePath(m_srcPath);
+
+  Sym reads = symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym(),
+                           in.channels * in.type.size());
+  Sym writes = symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym(),
+                            out.channels * out.type.size());
+  dispatch.setMemoryReads(reads);
+  dispatch.setMemoryWrites(writes);
+  dispatch.setDebugInfo(fmt::format("BasicUpsampleShader\n"
+                                    "- IN_LAYOUT:  {}\n"
+                                    "- OUT_LAYOUT: {}\n",
+                                    in.layout.to_string(),
+                                    out.layout.to_string()));
 }
 memory::string
 BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern) const {

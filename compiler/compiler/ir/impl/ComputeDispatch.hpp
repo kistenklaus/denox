@@ -5,14 +5,16 @@
 #include "io/fs/Path.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
-#include "shaders/compiler/ShaderBinary.hpp"
 #include <memory>
 
 namespace denox::compiler {
 
 struct ComputeDispatchMeta {
   memory::optional<memory::string> name;
+  memory::optional<memory::string> debug_info;
   memory::optional<io::Path> sourcePath;
+  memory::optional<Sym> memory_reads;
+  memory::optional<Sym> memory_writes;
 };
 
 struct ComputeDispatch {

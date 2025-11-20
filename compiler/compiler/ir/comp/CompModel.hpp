@@ -51,6 +51,9 @@ struct Dispatch {
   std::array<Sym, 3> workgroupCount;
   memory::vector<DescriptorSetBinding> setBindings;
   memory::vector<PushConstant> pushConstants;
+  std::optional<std::string> debug_info;
+  std::optional<Sym> memory_reads;
+  std::optional<Sym> memory_writes;
 };
 
 struct CompModel {

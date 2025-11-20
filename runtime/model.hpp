@@ -14,6 +14,7 @@ struct ModelDescriptorSet {
 
 struct ModelDispatch {
   const dnx::ComputeDispatch *dispatch;
+  const dnx::DispatchInfo* info;
   std::vector<ModelDescriptorSet> descriptorSets;
   VkPipelineLayout pipelineLayout;
   VkPipeline pipeline;

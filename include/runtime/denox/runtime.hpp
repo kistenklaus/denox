@@ -33,6 +33,8 @@ void destroy_runtime_instance(RuntimeContext context, RuntimeInstance instance);
 int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
                           const void **inputs, void **outputs);
 
+int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance);
+
 int get_runtime_model_input_count(RuntimeModel model);
 int get_runtime_model_output_count(RuntimeModel model);
 

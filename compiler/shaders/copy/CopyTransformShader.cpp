@@ -314,6 +314,18 @@ void denox::compiler::shaders::CopyTransformShader::implement(
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.y));
       copySrc0Dispatch.setName("explicit-concat-copy-src0");
       copySrc0Dispatch.setSourcePath(m_srcPath);
+
+      Sym reads = symGraph.mul(src0.extent.x.asSym(), src0.extent.y.asSym(),
+                               src0.channels * src0.type.size());
+      Sym writes = symGraph.mul(src0.extent.x.asSym(), src0.extent.y.asSym(),
+                                src0.channels * dst.type.size());
+      copySrc0Dispatch.setMemoryReads(reads);
+      copySrc0Dispatch.setMemoryWrites(writes);
+      copySrc0Dispatch.setDebugInfo(fmt::format("CopyTransformShader\n"
+                                                "- IN_LAYOUT:  {}\n"
+                                                "- OUT_LAYOUT: {}\n",
+                                                src0.layout.to_string(),
+                                                dst.layout.to_string()));
     }
 
     // COPY SRC1
@@ -431,6 +443,18 @@ void denox::compiler::shaders::CopyTransformShader::implement(
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.y));
       copySrc1Dispatch.setName("explicit-concat-copy-src1");
       copySrc1Dispatch.setSourcePath(m_srcPath);
+
+      Sym reads = symGraph.mul(src1.extent.x.asSym(), src1.extent.y.asSym(),
+                               src1.channels * src1.type.size());
+      Sym writes = symGraph.mul(src1.extent.x.asSym(), src1.extent.y.asSym(),
+                                src1.channels * dst.type.size());
+      copySrc1Dispatch.setMemoryReads(reads);
+      copySrc1Dispatch.setMemoryWrites(writes);
+      copySrc1Dispatch.setDebugInfo(fmt::format("CopyTransformShader\n"
+                                                "- IN_LAYOUT:  {}\n"
+                                                "- OUT_LAYOUT: {}\n",
+                                                src1.layout.to_string(),
+                                                dst.layout.to_string()));
     }
     break;
   }

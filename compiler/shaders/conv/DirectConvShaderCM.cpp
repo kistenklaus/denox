@@ -252,11 +252,9 @@ void DirectConvShaderCM::implement(
     shader.define("NUSE_BIAS");
   }
 
-
   std::uint32_t tileX = cm_n * sg_n * wg_n;
   std::uint32_t tileY = cm_m;
   std::uint32_t tileZ = sg_m * wg_m;
-
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
   Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
@@ -298,10 +296,30 @@ void DirectConvShaderCM::implement(
   if (biasTensorId) {
     dispatch.addBinding(0, 3, AccessFlag::ReadOnly, *biasTensorId);
   }
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
+  dispatch.addPushConstant(
+      PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
+  dispatch.addPushConstant(
+      PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
   dispatch.setName(name(pattern));
   dispatch.setSourcePath(m_srcPath);
+
+  Sym inreads =
+      symGraph.mul(symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym()),
+                   in.channels * in.type.size());
+  size_t wreads = conv->W->byteSize() + (conv->B ? conv->B->byteSize() : 0ull);
+  Sym reads = symGraph.add(wreads, inreads);
+  Sym writes =
+      symGraph.mul(symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym()),
+                   in.channels * in.type.size());
+  dispatch.setMemoryReads(reads);
+  dispatch.setMemoryWrites(writes);
+
+  dispatch.setDebugInfo(fmt::format(
+      "DirectConvShader\n"
+      "- IN_LAYOUT:  {}\n"
+      "- OUT_LAYOUT: {}\n"
+      "- FILTER_LAYOUT: {}\n",
+      in.layout.to_string(), out.layout.to_string(), filterLayout.to_string()));
 }
 memory::string DirectConvShaderCM::name(unsigned int pattern) const {
   switch (pattern) {

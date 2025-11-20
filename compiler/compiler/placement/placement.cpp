@@ -22,11 +22,29 @@ CompModel placement(const ImplModel &model) {
   compModel.shaderBinaries = model.shaderBinaries;
 
   for (const auto &computeDispatch : model.dispatches) {
+    memory::optional<memory::string> debug_info;
+    memory::optional<Sym> memory_reads;
+    memory::optional<Sym> memory_writes;
+    if (computeDispatch.meta != nullptr) {
+      if (computeDispatch.meta->debug_info) {
+        debug_info = computeDispatch.meta->debug_info;
+      }
+      if (computeDispatch.meta->memory_reads) {
+        memory_reads = computeDispatch.meta->memory_reads;
+      }
+      if (computeDispatch.meta->memory_writes) {
+        memory_writes = computeDispatch.meta->memory_writes;
+      }
+    }
+
     Dispatch dispatch{
         .binaryId = computeDispatch.binaryId,
         .workgroupCount = computeDispatch.workgroupCount,
         .setBindings = {}, // <- handeled after tensor placement.
         .pushConstants = computeDispatch.pushConstants,
+        .debug_info = debug_info,
+        .memory_reads = memory_reads,
+        .memory_writes = memory_writes,
     };
     compModel.dispatches.push_back(std::move(dispatch));
   }

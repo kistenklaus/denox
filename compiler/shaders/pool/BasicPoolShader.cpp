@@ -215,6 +215,18 @@ void BasicPoolShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
   dispatch.setName(name(pattern));
   dispatch.setSourcePath(m_srcPath);
+
+  Sym reads = symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym(),
+                           in.channels * in.type.size());
+  Sym writes = symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym(),
+                            out.channels * out.type.size());
+  dispatch.setMemoryReads(reads);
+  dispatch.setMemoryWrites(writes);
+  dispatch.setDebugInfo(fmt::format("BasicPoolShader\n"
+                                    "- IN_LAYOUT:  {}\n"
+                                    "- OUT_LAYOUT: {}\n",
+                                    in.layout.to_string(),
+                                    out.layout.to_string()));
 }
 memory::string BasicPoolShader::name(unsigned int) const {
   return "basic-pool";

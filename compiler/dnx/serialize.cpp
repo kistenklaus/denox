@@ -265,6 +265,76 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   auto dispatchesVec = fbb.CreateVector(dispatches);
   auto dispatchTypesVec = fbb.CreateVector(dispatchTypes);
 
+  memory::vector<flatbuffers::Offset<DispatchInfo>> dispatchInfos;
+  dispatchInfos.reserve(compModel.dispatches.size());
+
+  constexpr bool ENABLE_DEBUG_INFO = true;
+  for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
+    const auto &dispatch = compModel.dispatches[d];
+    if (ENABLE_DEBUG_INFO) {
+      const auto &debug_info = dispatch.debug_info;
+      const auto &memory_reads = dispatch.memory_reads;
+      const auto &memory_writes = dispatch.memory_writes;
+      flatbuffers::Offset<flatbuffers::String> debug_info_str;
+      flatbuffers::Offset<void> reads;
+      ScalarSource reads_type;
+      flatbuffers::Offset<void> writes;
+      ScalarSource writes_type;
+      if (debug_info) {
+        debug_info_str = fbb.CreateString(debug_info.value());
+      }
+      if (memory_reads) {
+        if (memory_reads->isSymbolic()) {
+          reads = 
+              CreateSymRef(fbb, static_cast<uint32_t>(memory_reads->sym()))
+                  .Union();
+          reads_type = ScalarSource_symbolic;
+        } else {
+          uint64_t v = static_cast<uint64_t>(memory_reads->constant());
+          reads =
+              CreateScalarLiteral(
+                  fbb, ScalarType_U64,
+                  fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
+                                   sizeof(uint64_t)))
+                  .Union();
+          reads_type = ScalarSource_literal;
+        }
+      }
+      if (memory_writes) {
+        if (memory_writes->isSymbolic()) {
+          writes = 
+              CreateSymRef(fbb, static_cast<uint32_t>(memory_writes->sym()))
+                  .Union();
+          writes_type = ScalarSource_symbolic;
+        } else {
+          uint64_t v = static_cast<uint64_t>(memory_writes->constant());
+          writes = 
+              CreateScalarLiteral(
+                  fbb, ScalarType_U64,
+                  fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
+                                   sizeof(uint64_t)))
+                  .Union();
+          writes_type = ScalarSource_literal;
+        }
+      }
+      DispatchInfoBuilder info(fbb);
+      if (debug_info) {
+        info.add_debug_info(debug_info_str);
+      }
+      if (memory_reads) {
+        info.add_memory_reads(reads);
+        info.add_memory_reads_type(reads_type);
+      }
+      if (memory_writes) {
+        info.add_memory_writes(writes);
+        info.add_memory_writes_type(writes_type);
+      }
+      dispatchInfos.push_back(info.Finish());
+    }
+  }
+
+  auto dispatchInfosVec = fbb.CreateVector(dispatchInfos);
+
   memory::vector<dnx::SymIROp> irops;
   irops.reserve(symIR.ops.size());
   for (std::size_t o = 0; o < symIR.ops.size(); ++o) {
@@ -598,6 +668,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
   mb.add_buffers(buffersVec);
   mb.add_dispatches_type(dispatchTypesVec);
   mb.add_dispatches(dispatchesVec);
+  mb.add_dispatch_infos(dispatchInfosVec);
   mb.add_shader_binaries(shaderBinariesVec);
   mb.add_sym_ir(sym_ir);
   mb.add_initializers(initializersVec);

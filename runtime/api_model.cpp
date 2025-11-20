@@ -10,7 +10,9 @@ namespace denox {
 
 static runtime::ModelDispatch
 create_model_dispatch(runtime::Context *ctx, const dnx::Model *dnx,
-                      const dnx::ComputeDispatch *dispatch) {
+                      const dnx::ComputeDispatch *dispatch,
+                      const dnx::DispatchInfo* info) {
+
 
   std::size_t descriptorSetCount = dispatch->bindings()->size();
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts(descriptorSetCount);
@@ -51,6 +53,7 @@ create_model_dispatch(runtime::Context *ctx, const dnx::Model *dnx,
 
   return runtime::ModelDispatch{
       .dispatch = dispatch,
+      .info = info,
       .descriptorSets = std::move(descriptorSets),
       .pipelineLayout = pipelineLayout,
       .pipeline = pipeline,
@@ -211,10 +214,16 @@ int create_runtime_model(RuntimeContext context, const void *dnx_buf,
     case dnx::Dispatch_ComputeDispatch: {
       const dnx::ComputeDispatch *dispatch =
           dnx->dispatches()->GetAs<dnx::ComputeDispatch>(d);
+      const dnx::DispatchInfo* info = nullptr;
+
+      if (dnx->dispatch_infos() != nullptr) {
+        assert(d < dnx->dispatch_infos()->size());
+        info = dnx->dispatch_infos()->Get(d);
+      }
 
       // Create pipeline and layouts.
       runtime::ModelDispatch modelDispatch =
-          create_model_dispatch(ctx, dnx, dispatch);
+          create_model_dispatch(ctx, dnx, dispatch, info);
 
       // Schedule pipeline barrier cmd.
       if (std::optional<runtime::ModelBarrier> barrier =

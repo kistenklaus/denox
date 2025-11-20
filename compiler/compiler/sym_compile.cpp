@@ -62,6 +62,16 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
         symbolAdded[dispatch.workgroupCount[i].sym()] = true;
       }
     }
+    if (dispatch.memory_reads.has_value() && dispatch.memory_reads->isSymbolic()
+        && !symbolAdded[dispatch.memory_reads->sym()]) {
+      symbols.push_back(dispatch.memory_reads->sym());
+      symbolAdded[dispatch.memory_reads->sym()] = true;
+    } 
+    if (dispatch.memory_writes.has_value() && dispatch.memory_writes->isSymbolic()
+        && !symbolAdded[dispatch.memory_writes->sym()]) {
+      symbols.push_back(dispatch.memory_writes->sym());
+      symbolAdded[dispatch.memory_writes->sym()] = true;
+    } 
   }
 
   for (const auto &buffer : model.buffers) {
@@ -142,6 +152,14 @@ std::pair<SymIR, std::uint32_t> compile_sym_and_remap(CompModel &model,
     dispatch.workgroupCount[0] = remap[dispatch.workgroupCount[0]];
     dispatch.workgroupCount[1] = remap[dispatch.workgroupCount[1]];
     dispatch.workgroupCount[2] = remap[dispatch.workgroupCount[2]];
+
+    if (dispatch.memory_reads) {
+      dispatch.memory_reads = remap[*dispatch.memory_reads];
+    }
+
+    if (dispatch.memory_writes) {
+      dispatch.memory_writes = remap[*dispatch.memory_writes];
+    }
   }
 
   for (auto &buffer : model.buffers) {

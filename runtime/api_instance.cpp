@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
+#include <fmt/base.h>
 #include <forward_list>
 #include <stdexcept>
 #include <variant>
@@ -304,6 +305,22 @@ create_cmds(runtime::Context *ctx, const runtime::Model *m,
           dispatch.dispatch->workgroup_count_z_type(),
           dispatch.dispatch->workgroup_count_z(), symbolValues);
 
+      if (dispatch.info) {
+        if (dispatch.info->debug_info()) {
+          instanceDispatch.debug_info = dispatch.info->debug_info()->str();
+        }
+        if (dispatch.info->memory_reads()) {
+          instanceDispatch.memory_reads = dnx::parseUnsignedScalarSource(
+              dispatch.info->memory_reads_type(), dispatch.info->memory_reads(),
+              symbolValues);
+        }
+        if (dispatch.info->memory_writes()) {
+          instanceDispatch.memory_writes = dnx::parseUnsignedScalarSource(
+              dispatch.info->memory_writes_type(),
+              dispatch.info->memory_writes(), symbolValues);
+        }
+      }
+
       // Build push constant buffer.
       std::size_t pushConstantRange =
           dispatch.dispatch->push_constant()->size();
@@ -414,8 +431,8 @@ int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
   check_and_collect(channels, inputInfo->channels_type(),
                     inputInfo->channels());
 
-  return create_runtime_instance(context, model, extents.size(),
-                                   extents.data(), instance);
+  return create_runtime_instance(context, model, extents.size(), extents.data(),
+                                 instance);
 }
 
 int create_runtime_instance(RuntimeContext context, RuntimeModel model,

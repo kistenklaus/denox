@@ -12,6 +12,9 @@ struct InstanceDispatch {
   VkDescriptorSet *descriptorSets;
   void *pushConstantValues;
   std::uint32_t *workgroupCounts;
+  std::optional<std::string> debug_info;
+  std::optional<uint64_t> memory_reads;
+  std::optional<uint64_t> memory_writes;
 };
 
 struct InstanceBarrier {
