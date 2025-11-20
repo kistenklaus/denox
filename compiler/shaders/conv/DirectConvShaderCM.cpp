@@ -314,12 +314,11 @@ void DirectConvShaderCM::implement(
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
 
-  dispatch.setDebugInfo(fmt::format(
-      "DirectConvShader\n"
-      "- IN_LAYOUT:  {}\n"
-      "- OUT_LAYOUT: {}\n"
-      "- FILTER_LAYOUT: {}\n",
-      in.layout.to_string(), out.layout.to_string(), filterLayout.to_string()));
+  dispatch.setDebugInfo(fmt::format("{}-direct-conv-{}", in.layout.to_string(),
+                                    out.layout.to_string()));
+
+  dispatch.setInputDesc(fmt::format("{}[{}]", in.layout.to_string(), in.channels));
+  dispatch.setOutputDesc(fmt::format("{}[{}]", out.layout.to_string(), out.channels));
 }
 memory::string DirectConvShaderCM::name(unsigned int pattern) const {
   switch (pattern) {

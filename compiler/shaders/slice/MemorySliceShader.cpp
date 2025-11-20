@@ -172,6 +172,9 @@ void MemorySliceShader::implement(
                                     "- OUT_LAYOUT: {}\n",
                                     in.layout.to_string(),
                                     out.layout.to_string()));
+
+  dispatch.setInputDesc(fmt::format("{}[{}]", in.layout.to_string(), in.channels));
+  dispatch.setOutputDesc(fmt::format("{}[{}]", out.layout.to_string(), out.channels));
 }
 
 memory::string

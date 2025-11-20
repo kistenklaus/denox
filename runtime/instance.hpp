@@ -13,6 +13,9 @@ struct InstanceDispatch {
   void *pushConstantValues;
   std::uint32_t *workgroupCounts;
   std::optional<std::string> debug_info;
+  std::optional<std::string> name;
+  std::optional<std::string> input_desc;
+  std::optional<std::string> output_desc;
   std::optional<uint64_t> memory_reads;
   std::optional<uint64_t> memory_writes;
 };

@@ -23,18 +23,18 @@ CompModel placement(const ImplModel &model) {
 
   for (const auto &computeDispatch : model.dispatches) {
     memory::optional<memory::string> debug_info;
+    memory::optional<memory::string> name;
     memory::optional<Sym> memory_reads;
     memory::optional<Sym> memory_writes;
+    memory::optional<memory::string> input_desc;
+    memory::optional<memory::string> output_desc;
     if (computeDispatch.meta != nullptr) {
-      if (computeDispatch.meta->debug_info) {
-        debug_info = computeDispatch.meta->debug_info;
-      }
-      if (computeDispatch.meta->memory_reads) {
-        memory_reads = computeDispatch.meta->memory_reads;
-      }
-      if (computeDispatch.meta->memory_writes) {
-        memory_writes = computeDispatch.meta->memory_writes;
-      }
+      debug_info = computeDispatch.meta->debug_info;
+      memory_reads = computeDispatch.meta->memory_reads;
+      memory_writes = computeDispatch.meta->memory_writes;
+      name = computeDispatch.meta->name;
+      input_desc = computeDispatch.meta->input_desc;
+      output_desc = computeDispatch.meta->output_desc;
     }
 
     Dispatch dispatch{
@@ -43,6 +43,9 @@ CompModel placement(const ImplModel &model) {
         .setBindings = {}, // <- handeled after tensor placement.
         .pushConstants = computeDispatch.pushConstants,
         .debug_info = debug_info,
+        .name = name,
+        .input_desc = input_desc,
+        .output_desc = output_desc,
         .memory_reads = memory_reads,
         .memory_writes = memory_writes,
     };

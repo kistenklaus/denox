@@ -206,11 +206,11 @@ void BasicActivationShader::implement(
                    out.channels * out.type.size());
   dispatch.setMemoryWrites(writes);
 
-  dispatch.setDebugInfo(fmt::format("BasicActivationShader\n"
-                                    "- IN_LAYOUT:  {}\n"
-                                    "- OUT_LAYOUT: {}",
+  dispatch.setDebugInfo(fmt::format("{}-basic-activation-shader-{}",
                                     in.layout.to_string(),
                                     out.layout.to_string()));
+  dispatch.setInputDesc(fmt::format("{}[{}]", in.layout.to_string(), in.channels));
+  dispatch.setOutputDesc(fmt::format("{}[{}]", out.layout.to_string(), out.channels));
 }
 memory::string BasicActivationShader::name(unsigned int pattern) const {
   switch (pattern & ACTI_FUNC_TYPE_MASK) {

@@ -276,6 +276,9 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
       const auto &memory_reads = dispatch.memory_reads;
       const auto &memory_writes = dispatch.memory_writes;
       flatbuffers::Offset<flatbuffers::String> debug_info_str;
+      flatbuffers::Offset<flatbuffers::String> name_str;
+      flatbuffers::Offset<flatbuffers::String> input_desc;
+      flatbuffers::Offset<flatbuffers::String> output_desc;
       flatbuffers::Offset<void> reads;
       ScalarSource reads_type;
       flatbuffers::Offset<void> writes;
@@ -283,43 +286,58 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
       if (debug_info) {
         debug_info_str = fbb.CreateString(debug_info.value());
       }
+      if (dispatch.name) {
+        name_str = fbb.CreateString(*dispatch.name);
+      }
+      if (dispatch.input_desc) {
+        input_desc = fbb.CreateString(*dispatch.input_desc);
+      }
+      if (dispatch.output_desc) {
+        output_desc = fbb.CreateString(*dispatch.output_desc);
+      }
       if (memory_reads) {
         if (memory_reads->isSymbolic()) {
-          reads = 
-              CreateSymRef(fbb, static_cast<uint32_t>(memory_reads->sym()))
-                  .Union();
+          reads = CreateSymRef(fbb, static_cast<uint32_t>(memory_reads->sym()))
+                      .Union();
           reads_type = ScalarSource_symbolic;
         } else {
           uint64_t v = static_cast<uint64_t>(memory_reads->constant());
-          reads =
-              CreateScalarLiteral(
-                  fbb, ScalarType_U64,
-                  fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
-                                   sizeof(uint64_t)))
-                  .Union();
+          reads = CreateScalarLiteral(
+                      fbb, ScalarType_U64,
+                      fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
+                                       sizeof(uint64_t)))
+                      .Union();
           reads_type = ScalarSource_literal;
         }
       }
       if (memory_writes) {
         if (memory_writes->isSymbolic()) {
-          writes = 
+          writes =
               CreateSymRef(fbb, static_cast<uint32_t>(memory_writes->sym()))
                   .Union();
           writes_type = ScalarSource_symbolic;
         } else {
           uint64_t v = static_cast<uint64_t>(memory_writes->constant());
-          writes = 
-              CreateScalarLiteral(
-                  fbb, ScalarType_U64,
-                  fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
-                                   sizeof(uint64_t)))
-                  .Union();
+          writes = CreateScalarLiteral(
+                       fbb, ScalarType_U64,
+                       fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
+                                        sizeof(uint64_t)))
+                       .Union();
           writes_type = ScalarSource_literal;
         }
       }
       DispatchInfoBuilder info(fbb);
       if (debug_info) {
         info.add_debug_info(debug_info_str);
+      }
+      if (dispatch.name) {
+        info.add_name(name_str);
+      }
+      if (dispatch.input_desc) {
+        info.add_input_desc(input_desc);
+      }
+      if (dispatch.output_desc) {
+        info.add_output_desc(output_desc);
       }
       if (memory_reads) {
         info.add_memory_reads(reads);

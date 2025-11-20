@@ -326,6 +326,11 @@ void denox::compiler::shaders::CopyTransformShader::implement(
                                                 "- OUT_LAYOUT: {}\n",
                                                 src0.layout.to_string(),
                                                 dst.layout.to_string()));
+
+      copySrc0Dispatch.setInputDesc(
+          fmt::format("{}[{}]", src0.layout.to_string(), src0.channels));
+      copySrc0Dispatch.setOutputDesc(
+          fmt::format("{}[{}]", dst.layout.to_string(), dst.channels));
     }
 
     // COPY SRC1
@@ -455,6 +460,11 @@ void denox::compiler::shaders::CopyTransformShader::implement(
                                                 "- OUT_LAYOUT: {}\n",
                                                 src1.layout.to_string(),
                                                 dst.layout.to_string()));
+
+      copySrc1Dispatch.setInputDesc(
+          fmt::format("{}[{}]", src1.layout.to_string(), src1.channels));
+      copySrc1Dispatch.setOutputDesc(
+          fmt::format("{}[{}]", dst.layout.to_string(), dst.channels));
     }
     break;
   }

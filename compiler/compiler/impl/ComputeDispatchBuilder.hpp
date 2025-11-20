@@ -37,6 +37,20 @@ public:
     self().meta->debug_info = std::move(debugInfo);
   }
 
+  void setInputDesc(memory::string input_desc) {
+    if (self().meta == nullptr) {
+      self().meta = std::make_unique<ComputeDispatchMeta>();
+    }
+    self().meta->input_desc = std::move(input_desc);
+  }
+
+  void setOutputDesc(memory::string output_desc) {
+    if (self().meta == nullptr) {
+      self().meta = std::make_unique<ComputeDispatchMeta>();
+    }
+    self().meta->output_desc = std::move(output_desc);
+  }
+
   void setSourcePath(io::Path sourcePath) {
     if (self().meta == nullptr) {
       self().meta = std::make_unique<ComputeDispatchMeta>();

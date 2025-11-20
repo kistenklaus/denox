@@ -52,6 +52,9 @@ struct Dispatch {
   memory::vector<DescriptorSetBinding> setBindings;
   memory::vector<PushConstant> pushConstants;
   std::optional<std::string> debug_info;
+  std::optional<std::string> name;
+  std::optional<std::string> input_desc;
+  std::optional<std::string> output_desc;
   std::optional<Sym> memory_reads;
   std::optional<Sym> memory_writes;
 };

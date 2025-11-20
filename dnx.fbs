@@ -73,7 +73,10 @@ union Dispatch {
 }
 
 table DispatchInfo {
+  name:string;
   debug_info:string;
+  input_desc:string;
+  output_desc:string;
   memory_reads:ScalarSource;
   memory_writes:ScalarSource;
 }

@@ -6,7 +6,6 @@
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <stdexcept>
-#include <type_traits>
 #include <vector>
 #include <vma.hpp>
 #include <vulkan/vulkan.hpp>
@@ -324,6 +323,11 @@ Context::Context(const char *deviceName)
       assert(matches.size() == 1);
       m_physicalDevice = matches.front();
     } while (false);
+  }
+  {
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
+    m_timestampPeriod = properties.limits.timestampPeriod;
   }
 
   VkPhysicalDeviceFeatures features;
@@ -832,5 +836,115 @@ void Context::endSubmitWaitCommandBuffer(VkCommandPool cmdPool,
   submit(cmd);
   waitIdle();
   freeCommandBuffer(cmdPool, cmd);
+}
+VkDescriptorPool
+Context::createDescriptorPool(std::size_t maxSets,
+                              std::span<const VkDescriptorPoolSize> sizes) {
+  VkDescriptorPoolCreateInfo poolInfo;
+  std::memset(&poolInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
+  poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  poolInfo.maxSets = maxSets;
+  poolInfo.poolSizeCount = sizes.size();
+  poolInfo.pPoolSizes = sizes.data();
+
+  VkDescriptorPool pool;
+  VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &pool);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create descriptor pool");
+  }
+  return pool;
+}
+void Context::destroyDescriptorPool(VkDescriptorPool pool) {
+  vkDestroyDescriptorPool(m_device, pool, nullptr);
+}
+VkDescriptorSet Context::allocDescriptorSet(VkDescriptorPool pool,
+                                            VkDescriptorSetLayout layout) {
+  VkDescriptorSetAllocateInfo allocInfo;
+  std::memset(&allocInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
+  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocInfo.descriptorPool = pool;
+  allocInfo.descriptorSetCount = 1;
+  allocInfo.pSetLayouts = &layout;
+  VkDescriptorSet set;
+  VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &set);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create descriptor set");
+  }
+  return set;
+}
+void Context::allocDescriptorSets(
+    VkDescriptorPool pool, std::span<const VkDescriptorSetLayout> layouts,
+    VkDescriptorSet *sets) {
+  VkDescriptorSetAllocateInfo allocInfo;
+  std::memset(&allocInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
+  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocInfo.descriptorPool = pool;
+  allocInfo.descriptorSetCount = layouts.size();
+  allocInfo.pSetLayouts = layouts.data();
+  VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, sets);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create descriptor set");
+  }
+}
+void Context::updateDescriptorSets(
+    std::span<const VkWriteDescriptorSet> writeInfos) {
+  vkUpdateDescriptorSets(m_device, writeInfos.size(), writeInfos.data(), 0,
+                         nullptr);
+}
+void Context::copy(VmaAllocation dst, const void *src, std::size_t size) {
+  VkResult result = vmaCopyMemoryToAllocation(m_vma, src, dst, 0, size);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to copy memory to allocation.");
+  }
+}
+void Context::copy(void *dst, VmaAllocation src, std::size_t size) {
+  VkResult result = vmaCopyAllocationToMemory(m_vma, src, 0, dst, size);
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to copy memory from allocation.");
+  }
+}
+void Context::cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src,
+                      std::size_t size, std::size_t dstOffset,
+                      std::size_t srcOffset) {
+  VkBufferCopy copy;
+  copy.size = size;
+  copy.srcOffset = srcOffset;
+  copy.dstOffset = dstOffset;
+  vkCmdCopyBuffer(cmd, src.vkbuffer, dst.vkbuffer, 1, &copy);
+}
+void Context::cmdMemoryBarrier(VkCommandBuffer cmd,
+                               VkPipelineStageFlags srcStage,
+                               VkPipelineStageFlags dstStage,
+                               VkAccessFlags srcAccess,
+                               VkAccessFlags dstAccess) {
+  VkMemoryBarrier memoryBarrier;
+  std::memset(&memoryBarrier, 0, sizeof(VkMemoryBarrier));
+  memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+  memoryBarrier.srcAccessMask = srcAccess;
+  memoryBarrier.dstAccessMask = dstAccess;
+
+  vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 1, &memoryBarrier, 0,
+                       nullptr, 0, nullptr);
+}
+
+void Context::cmdBufferBarrier(VkCommandBuffer cmd, Buffer buffer,
+                               VkPipelineStageFlags srcStage,
+                               VkPipelineStageFlags dstStage,
+                               VkAccessFlags srcAccess, VkAccessFlags dstAccess,
+                               VkDeviceSize offset,
+                               VkDeviceSize size) {
+  VkBufferMemoryBarrier bufferBarrier;
+  bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  bufferBarrier.pNext = nullptr;
+  bufferBarrier.srcAccessMask = srcAccess;
+  bufferBarrier.dstAccessMask = dstAccess;
+  bufferBarrier.srcQueueFamilyIndex = m_queueFamily;
+  bufferBarrier.dstQueueFamilyIndex = m_queueFamily;
+  bufferBarrier.buffer = buffer.vkbuffer;
+  bufferBarrier.offset = offset;
+  bufferBarrier.size = size;
+
+  vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 1,
+                       &bufferBarrier, 0, nullptr);
 }
 } // namespace denox::runtime

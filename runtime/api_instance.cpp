@@ -309,6 +309,15 @@ create_cmds(runtime::Context *ctx, const runtime::Model *m,
         if (dispatch.info->debug_info()) {
           instanceDispatch.debug_info = dispatch.info->debug_info()->str();
         }
+        if (dispatch.info->name()) {
+          instanceDispatch.name = dispatch.info->name()->str();
+        }
+        if (dispatch.info->input_desc()) {
+          instanceDispatch.input_desc = dispatch.info->input_desc()->str();
+        }
+        if (dispatch.info->output_desc()) {
+          instanceDispatch.output_desc = dispatch.info->output_desc()->str();
+        }
         if (dispatch.info->memory_reads()) {
           instanceDispatch.memory_reads = dnx::parseUnsignedScalarSource(
               dispatch.info->memory_reads_type(), dispatch.info->memory_reads(),

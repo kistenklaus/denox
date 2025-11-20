@@ -13,6 +13,8 @@ struct ComputeDispatchMeta {
   memory::optional<memory::string> name;
   memory::optional<memory::string> debug_info;
   memory::optional<io::Path> sourcePath;
+  memory::optional<memory::string> input_desc;
+  memory::optional<memory::string> output_desc;
   memory::optional<Sym> memory_reads;
   memory::optional<Sym> memory_writes;
 };

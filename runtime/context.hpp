@@ -1,10 +1,12 @@
 #pragma once
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <fmt/printf.h>
 #include <span>
 #include <stdexcept>
+#include <vector>
 #include <vma.hpp>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -27,7 +29,7 @@ public:
 
   Buffer createBuffer(std::size_t size, VkBufferUsageFlags usage = 0,
                       VmaAllocationCreateFlags flags = 0);
-  void destroyBuffer(const Buffer& buffer);
+  void destroyBuffer(const Buffer &buffer);
 
   VkDescriptorSetLayout createDescriptorSetLayout(
       std::span<const VkDescriptorSetLayoutBinding> bindings);
@@ -45,62 +47,18 @@ public:
 
   VkDescriptorPool
   createDescriptorPool(std::size_t maxSets,
-                       std::span<const VkDescriptorPoolSize> sizes) {
-    VkDescriptorPoolCreateInfo poolInfo;
-    std::memset(&poolInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.maxSets = maxSets;
-    poolInfo.poolSizeCount = sizes.size();
-    poolInfo.pPoolSizes = sizes.data();
+                       std::span<const VkDescriptorPoolSize> sizes);
 
-    VkDescriptorPool pool;
-    VkResult result =
-        vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &pool);
-    if (result != VK_SUCCESS) {
-      throw std::runtime_error("Failed to create descriptor pool");
-    }
-    return pool;
-  }
-
-  void destroyDescriptorPool(VkDescriptorPool pool) {
-    vkDestroyDescriptorPool(m_device, pool, nullptr);
-  }
+  void destroyDescriptorPool(VkDescriptorPool pool);
 
   VkDescriptorSet allocDescriptorSet(VkDescriptorPool pool,
-                                     VkDescriptorSetLayout layout) {
-    VkDescriptorSetAllocateInfo allocInfo;
-    std::memset(&allocInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = pool;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &layout;
-    VkDescriptorSet set;
-    VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &set);
-    if (result != VK_SUCCESS) {
-      throw std::runtime_error("Failed to create descriptor set");
-    }
-    return set;
-  }
+                                     VkDescriptorSetLayout layout);
 
   void allocDescriptorSets(VkDescriptorPool pool,
                            std::span<const VkDescriptorSetLayout> layouts,
-                           VkDescriptorSet *sets) {
-    VkDescriptorSetAllocateInfo allocInfo;
-    std::memset(&allocInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = pool;
-    allocInfo.descriptorSetCount = layouts.size();
-    allocInfo.pSetLayouts = layouts.data();
-    VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, sets);
-    if (result != VK_SUCCESS) {
-      throw std::runtime_error("Failed to create descriptor set");
-    }
-  }
+                           VkDescriptorSet *sets);
 
-  void updateDescriptorSets(std::span<const VkWriteDescriptorSet> writeInfos) {
-    vkUpdateDescriptorSets(m_device, writeInfos.size(), writeInfos.data(), 0,
-                           nullptr);
-  }
+  void updateDescriptorSets(std::span<const VkWriteDescriptorSet> writeInfos);
 
   VkCommandPool createCommandPool();
   void destroyCommandPool(VkCommandPool cmdPool);
@@ -117,63 +75,68 @@ public:
   VkCommandBuffer allocBeginCommandBuffer(VkCommandPool cmdPool);
   void endSubmitWaitCommandBuffer(VkCommandPool cmdPool, VkCommandBuffer cmd);
 
-  void copy(VmaAllocation dst, const void *src, std::size_t size) {
-    VkResult result = vmaCopyMemoryToAllocation(m_vma, src, dst, 0, size);
-    if (result != VK_SUCCESS) {
-      throw std::runtime_error("Failed to copy memory to allocation.");
-    }
-  }
+  void copy(VmaAllocation dst, const void *src, std::size_t size);
 
-  void copy(void *dst, VmaAllocation src, std::size_t size) {
-    VkResult result = vmaCopyAllocationToMemory(m_vma, src, 0, dst, size);
-    if (result != VK_SUCCESS) {
-      throw std::runtime_error("Failed to copy memory from allocation.");
-    }
-  }
+  void copy(void *dst, VmaAllocation src, std::size_t size);
 
   void cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src, std::size_t size,
-               std::size_t dstOffset = 0, std::size_t srcOffset = 0) {
-    VkBufferCopy copy;
-    copy.size = size;
-    copy.srcOffset = srcOffset;
-    copy.dstOffset = dstOffset;
-    vkCmdCopyBuffer(cmd, src.vkbuffer, dst.vkbuffer, 1, &copy);
-  }
+               std::size_t dstOffset = 0, std::size_t srcOffset = 0);
 
   void cmdMemoryBarrier(VkCommandBuffer cmd, VkPipelineStageFlags srcStage,
                         VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
-                        VkAccessFlags dstAccess) {
-    VkMemoryBarrier memoryBarrier;
-    std::memset(&memoryBarrier, 0, sizeof(VkMemoryBarrier));
-    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    memoryBarrier.srcAccessMask = srcAccess;
-    memoryBarrier.dstAccessMask = dstAccess;
-
-    vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 1, &memoryBarrier, 0,
-                         nullptr, 0, nullptr);
-  }
+                        VkAccessFlags dstAccess);
 
   void cmdBufferBarrier(VkCommandBuffer cmd, Buffer buffer,
                         VkPipelineStageFlags srcStage,
                         VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
                         VkAccessFlags dstAccess, VkDeviceSize offset = 0,
-                        VkDeviceSize size = VK_WHOLE_SIZE) {
-    VkBufferMemoryBarrier bufferBarrier;
-    bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    bufferBarrier.pNext = nullptr;
-    bufferBarrier.srcAccessMask = srcAccess;
-    bufferBarrier.dstAccessMask = dstAccess;
-    bufferBarrier.srcQueueFamilyIndex = m_queueFamily;
-    bufferBarrier.dstQueueFamilyIndex = m_queueFamily;
-    bufferBarrier.buffer = buffer.vkbuffer;
-    bufferBarrier.offset = offset;
-    bufferBarrier.size = size;
-
-    vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 1,
-                         &bufferBarrier, 0, nullptr);
-  }
+                        VkDeviceSize size = VK_WHOLE_SIZE);
 
   std::uint32_t getQueueFamily() const { return m_queueFamily; }
+
+  VkQueryPool createTimestampQueryPool(uint32_t timestampCount) {
+    VkQueryPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    createInfo.queryCount = timestampCount;
+    VkQueryPool queryPool;
+    VkResult result =
+        vkCreateQueryPool(m_device, &createInfo, nullptr, &queryPool);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to create timestamp query pool");
+    }
+    return queryPool;
+  }
+
+  void destroyQueryPool(VkQueryPool queryPool) {
+    vkDestroyQueryPool(m_device, queryPool, nullptr);
+  }
+
+  void cmdResetQueryPool(VkCommandBuffer cmd, VkQueryPool queryPool,
+                         uint32_t first, uint32_t queryCount) {
+    vkCmdResetQueryPool(cmd, queryPool, first, queryCount);
+  }
+
+  void cmdWriteTimestamp(VkCommandBuffer cmd, VkPipelineStageFlagBits stage,
+                         VkQueryPool queryPool, uint32_t query) {
+    vkCmdWriteTimestamp(cmd, stage, queryPool, query);
+  }
+
+  std::vector<uint64_t> getQueryResults(VkQueryPool queryPool, uint32_t count) {
+    std::vector<uint64_t> timestamps(count);
+    vkGetQueryPoolResults(m_device, queryPool, 0, count,
+                          timestamps.size() * sizeof(uint64_t),
+                          timestamps.data(), sizeof(uint64_t),
+                          VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+    return timestamps;
+  }
+
+  float timestampDifference(std::span<const uint64_t> timestamps,
+                            uint32_t begin, uint32_t end) {
+    uint64_t b = timestamps[begin];
+    uint64_t e = timestamps[end];
+    return static_cast<float>(e - b) * m_timestampPeriod / 1000000.0f;
+  }
 
 private:
   VkInstance m_instance;
@@ -183,6 +146,7 @@ private:
   std::uint32_t m_queueFamily;
   VkQueue m_queue;
   VmaAllocator m_vma;
+  float m_timestampPeriod;
 };
 
 } // namespace denox::runtime
