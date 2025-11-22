@@ -20,6 +20,7 @@ public:
     return m_capabilities;
   }
 
+
   memory::optional<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
               unsigned int pattern,

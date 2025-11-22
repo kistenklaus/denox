@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.utils.dlpack
 from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
-INPUT_CHANNELS_COUNT = 3
+INPUT_CHANNELS_COUNT = 8
 OUTPUT_CHANNEL_COUNT = 16
 
 
@@ -23,8 +23,9 @@ class Net(nn.Module):
         # self.dec0 = nn.Conv2d(32, 16, 3, padding="same", padding_mode=pm)
         #
 
-        self.conv0 = nn.Conv2d(INPUT_CHANNELS_COUNT, 1, 3, padding="same", dtype=torch.float16)
-        self.conv1 = nn.Conv2d(INPUT_CHANNELS_COUNT, 2, 3, padding="same", dtype=torch.float16)
+        self.conv0 = nn.Conv2d(INPUT_CHANNELS_COUNT, INPUT_CHANNELS_COUNT, 3, padding="same", dtype=torch.float16)
+        self.conv1 = nn.Conv2d(INPUT_CHANNELS_COUNT, INPUT_CHANNELS_COUNT, 3, padding="same", dtype=torch.float16)
+        self.conv2 = nn.Conv2d(INPUT_CHANNELS_COUNT, INPUT_CHANNELS_COUNT, 3, padding="same", dtype=torch.float16)
 
         self.pool = nn.MaxPool2d(2, 2)
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
@@ -51,12 +52,13 @@ class Net(nn.Module):
         # x = self.enc3(x)
 
         x0 = self.conv0(input)
-        x1 = self.conv1(input)
-        x = torch.cat((x0, x1), 1)
+        x1 = self.conv1(x0)
+        x2 = self.conv2(x1)
+        # x = torch.cat((x0, x1), 1)
 
 
         # x = x[:,:,1:3,1:3]
-        return x
+        return x2
 
 
 example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 5, 5, dtype=torch.float16)

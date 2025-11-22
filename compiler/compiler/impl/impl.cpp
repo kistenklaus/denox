@@ -6,6 +6,7 @@
 #include "diag/failed_to_realize.hpp"
 #include "heuristic/IHeuristic.hpp"
 #include "heuristic/MemoryHeuristic.hpp"
+#include "memory/container/hashmap.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
@@ -18,6 +19,8 @@
 #include "shaders/pool/BasicPoolShader.hpp"
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
+#include <fmt/base.h>
+#include <unordered_set>
 
 namespace denox::compiler {
 
@@ -69,8 +72,11 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
     const ShaderCapabilities &caps = shader->capabilities();
     const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
     for (unsigned int p = 0; p < pn; ++p) {
-      memory::dynamic_bitset edgeExits(nodeCount * nodeCount * nodeCount,
-                                       false);
+      // memory::dynamic_bitset edgeExits(nodeCount * nodeCount * nodeCount,
+      //                                  false);
+
+      std::unordered_set<uint64_t> edgeExists;
+
       for (const auto &m :
            algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
         memory::small_vector<memory::NodeId, 2> inputs;
@@ -88,15 +94,15 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
         if (inputs.size() == 2) {
           edgeId += *inputs[1] * nodeCount * nodeCount;
         }
-        if (edgeExits[edgeId]) {
+        if (edgeExists.contains(edgeId)) {
           continue;
         }
+
         auto pattern = shader->acceptMatch(opGraph, p, m);
         if (!pattern.has_value()) {
           continue;
         }
-
-        edgeExits[edgeId] = true;
+        edgeExists.insert(edgeId);
 
         const float w =
             heuristic->eval(ins, opGraph.get(out), *pattern, m, shader);
@@ -111,6 +117,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
       }
     }
   }
+  fmt::println("edge-count: {}", supergraph.edgeCount());
   memory::ConstGraph<TensorInstance, ComputeOpImpl, float> constSupergraph{
       supergraph};
 
@@ -189,12 +196,14 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   {
     auto in = model.graph.get(model.input);
     sym_vec2 extent = in.extent;
-    implModel.inputs.emplace_back(in.channels, extent, input, in.layout, in.type);
+    implModel.inputs.emplace_back(in.channels, extent, input, in.layout,
+                                  in.type);
   }
   {
     auto out = model.graph.get(model.output);
     sym_vec2 extent = out.extent;
-    implModel.outputs.emplace_back(out.channels, extent, output, out.layout, out.type);
+    implModel.outputs.emplace_back(out.channels, extent, output, out.layout,
+                                   out.type);
   }
 
   if (!options.skipSpirvCompile) {
@@ -232,7 +241,8 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
       fmt::println("\x1B[34m\x1B[1m{}\x1B[0m: (\x1B[4m{}\x1B[0m)", dispatchName,
                    sourcePath);
       fmt::print("\u2022 Binary-Size: {}B\n",
-                 implModel.shaderBinaries[dispatch.binaryId].spv.size() * sizeof(std::uint32_t));
+                 implModel.shaderBinaries[dispatch.binaryId].spv.size() *
+                     sizeof(std::uint32_t));
       fmt::print("\u2022 TensorBindings: [");
       bool first = true;
       for (const auto &binding : dispatch.bindings) {
