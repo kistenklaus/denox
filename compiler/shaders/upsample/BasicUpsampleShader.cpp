@@ -4,6 +4,58 @@
 
 namespace denox::compiler::shaders {
 
+struct Config {
+  unsigned int invocC;
+  unsigned int invocW;
+  unsigned int invocH;
+  memory::optional<unsigned int> wgC;
+  unsigned int wgW;
+  unsigned int wgH;
+};
+
+static constexpr std::array<Config, 5> CONFIGS{
+    Config{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 8,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 4,
+        .wgW = 64,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 2,
+        .wgW = 128,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 1,
+        .wgW = 256,
+        .wgH = 1,
+    },
+};
+
 BasicUpsampleShader::BasicUpsampleShader(GlslCompiler *compiler)
     : m_compiler(compiler) {
   const auto supportedTensor = [](const TensorInstance &tensor) {
@@ -38,7 +90,7 @@ BasicUpsampleShader::BasicUpsampleShader(GlslCompiler *compiler)
                                          std::move(in), std::move(out));
   }
 }
-memory::optional<unsigned int> BasicUpsampleShader::acceptMatch(
+memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
     const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match) const {
@@ -50,24 +102,75 @@ memory::optional<unsigned int> BasicUpsampleShader::acceptMatch(
 
   if (memory::ActivationLayout::demote(outLayout, out.channels) !=
       memory::ActivationLayout::demote(inLayout, in.channels)) {
-    return memory::nullopt;
+    return {};
   }
 
   if (in.type != memory::Dtype::F16) {
-    return memory::nullopt;
+    return {};
   }
   if (out.type != memory::Dtype::F16) {
-    return memory::nullopt;
+    return {};
   }
 
-  return pattern;
+  return {0, 1, 2, 3, 4};
 }
+
+static GlslCompilerInstance
+compile(GlslCompiler *compiler, const io::Path &srcPath,
+        memory::ActivationLayout inputLayout,
+        memory::ActivationLayout outputLayout, unsigned int channels,
+        unsigned int scalingFactor, const Config &config) {
+  auto shader = compiler->read(srcPath);
+  shader.enableDenoxPreprocessor();
+  if (inputLayout == memory::ActivationLayout::HWC &&
+      outputLayout == memory::ActivationLayout::HWC && (channels % 8 != 0)) {
+    shader.define("istype", "uint16_t");
+    shader.define("ISTYPE_SIZE", 2);
+    shader.define("ostype", "uint16_t");
+    shader.define("OSTYPE_SIZE", 2);
+    shader.define("IN_LAYOUT_HWC");
+    shader.define("OUT_LAYOUT_HWC");
+  } else if (inputLayout == memory::ActivationLayout::HWC &&
+             outputLayout == memory::ActivationLayout::HWC &&
+             (channels % 8 == 0)) {
+    shader.define("istype", "uvec4");
+    shader.define("ISTYPE_SIZE", 16);
+    shader.define("ostype", "uvec4");
+    shader.define("OSTYPE_SIZE", 16);
+    shader.define("IN_LAYOUT_HWC8");
+    shader.define("OUT_LAYOUT_HWC8");
+  } else if (inputLayout == memory::ActivationLayout::CHWC8 &&
+             outputLayout == memory::ActivationLayout::CHWC8) {
+    shader.define("istype", "uvec4");
+    shader.define("ISTYPE_SIZE", 16);
+    shader.define("ostype", "uvec4");
+    shader.define("OSTYPE_SIZE", 16);
+    shader.define("IN_LAYOUT_CHWC8");
+    shader.define("OUT_LAYOUT_CHWC8");
+  } else {
+    throw std::logic_error("Invalid state");
+  }
+
+  shader.define("INVOC_C", config.invocC);
+  shader.define("INVOC_W", config.invocW);
+  shader.define("INVOC_H", config.invocH);
+  shader.define("WG_C", config.wgC.value_or(channels));
+  shader.define("WG_W", config.wgW);
+  shader.define("WG_H", config.wgH);
+
+  shader.define("CH", channels);
+  shader.define("SCALING_FACTOR", scalingFactor);
+  return shader;
+}
+
 void BasicUpsampleShader::implement(
     Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-    [[maybe_unused]] unsigned int pattern,
+    unsigned int pattern, unsigned int configKey,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
+  const Config config = CONFIGS[configKey];
+
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
@@ -76,109 +179,12 @@ void BasicUpsampleShader::implement(
   const auto &out = opGraph.get(outId);
   const auto &upsample = opGraph.get(upsampleId);
 
-  memory::ActivationLayout inLayout = in.layout;
-  memory::ActivationLayout outLayout = out.layout;
+  auto shader = compile(m_compiler, m_srcPath, in.layout, out.layout,
+                        in.channels, upsample.upsample().scalingFactor, config);
 
-  auto shader = m_compiler->read(m_srcPath);
-  shader.enableDenoxPreprocessor();
-
-  std::uint32_t invocC;
-  std::uint32_t invocW;
-  std::uint32_t invocH;
-  std::uint32_t wgC;
-  std::uint32_t wgW;
-  std::uint32_t wgH;
-
-  assert(in.channels == out.channels);
-
-  if (inLayout == memory::ActivationLayout::HWC &&
-      outLayout == memory::ActivationLayout::HWC && (in.channels % 8 != 0)) {
-    shader.define("istype", "uint16_t");
-    shader.define("ISTYPE_SIZE", 2);
-    shader.define("ostype", "uint16_t");
-    shader.define("OSTYPE_SIZE", 2);
-    shader.define("IN_LAYOUT_HWC");
-    shader.define("OUT_LAYOUT_HWC");
-    if (in.channels >= 16) {
-      invocC = 2;
-      invocW = 2;
-      invocH = 1;
-      wgC = 8;
-      wgW = 32;
-      wgH = 1;
-    } else {
-      invocC = 1;
-      invocW = 4;
-      invocH = 1;
-      wgC = in.channels;
-      wgW = 32;
-      wgH = 1;
-    }
-  } else if (inLayout == memory::ActivationLayout::HWC &&
-             outLayout == memory::ActivationLayout::HWC &&
-             (in.channels % 8 == 0 && out.channels % 8 == 0)) {
-    shader.define("istype", "uvec4");
-    shader.define("ISTYPE_SIZE", 16);
-    shader.define("ostype", "uvec4");
-    shader.define("OSTYPE_SIZE", 16);
-    shader.define("IN_LAYOUT_HWC8");
-    shader.define("OUT_LAYOUT_HWC8");
-
-    if (in.channels >= 32) {
-      invocC = 8;
-      invocW = 1;
-      invocH = 1;
-      wgC = 4;
-      wgW = 64;
-      wgH = 1;
-    } else if (in.channels >= 16) {
-      invocC = 8;
-      invocW = 1;
-      invocH = 1;
-      wgC = 2;
-      wgW = 128;
-      wgH = 1;
-    } else {
-      invocC = 8;
-      invocW = 1;
-      invocH = 1;
-      wgC = 1;
-      wgW = 256;
-      wgH = 1;
-    }
-  } else if (inLayout == memory::ActivationLayout::CHWC8 &&
-             outLayout == memory::ActivationLayout::CHWC8) {
-    shader.define("istype", "uvec4");
-    shader.define("ISTYPE_SIZE", 16);
-    shader.define("ostype", "uvec4");
-    shader.define("OSTYPE_SIZE", 16);
-    shader.define("IN_LAYOUT_CHWC8");
-    shader.define("OUT_LAYOUT_CHWC8");
-    {
-      invocC = 8;
-      invocW = 1;
-      invocH = 1;
-      wgC = 1;
-      wgW = 256;
-      wgH = 1;
-    }
-  } else {
-    throw std::logic_error("Invalid state");
-  }
-  shader.define("INVOC_C", invocC);
-  shader.define("INVOC_W", invocW);
-  shader.define("INVOC_H", invocH);
-  shader.define("WG_C", wgC);
-  shader.define("WG_W", wgW);
-  shader.define("WG_H", wgH);
-
-  assert(in.channels == out.channels);
-  shader.define("CH", in.channels);
-  shader.define("SCALING_FACTOR", upsample.upsample().scalingFactor);
-
-  std::uint32_t tileX = invocC * wgC;
-  std::uint32_t tileY = invocW * wgW;
-  std::uint32_t tileZ = invocH * wgH;
+  std::uint32_t tileX = config.invocC * config.wgC.value_or(in.channels);
+  std::uint32_t tileY = config.invocW * config.wgW;
+  std::uint32_t tileZ = config.invocH * config.wgH;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
   Sym workgroupCountY = symGraph.cdiv(out.extent.x.asSym(), tileY);
@@ -190,7 +196,7 @@ void BasicUpsampleShader::implement(
   dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
-  dispatch.setName(name(pattern));
+  dispatch.setName(name(pattern, 0));
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads = symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym(),
@@ -205,11 +211,13 @@ void BasicUpsampleShader::implement(
                                     in.layout.to_string(),
                                     out.layout.to_string()));
 
-  dispatch.setInputDesc(fmt::format("{}[{}]", in.layout.to_string(), in.channels));
-  dispatch.setOutputDesc(fmt::format("{}[{}]", out.layout.to_string(), out.channels));
+  dispatch.setInputDesc(
+      fmt::format("{}[{}]", in.layout.to_string(), in.channels));
+  dispatch.setOutputDesc(
+      fmt::format("{}[{}]", out.layout.to_string(), out.channels));
 }
 memory::string
-BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern) const {
+BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern, unsigned int) const {
   return "basic-upsample";
 }
 } // namespace denox::compiler::shaders

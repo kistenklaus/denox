@@ -72,8 +72,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
     const ShaderCapabilities &caps = shader->capabilities();
     const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
     for (unsigned int p = 0; p < pn; ++p) {
-      // memory::dynamic_bitset edgeExits(nodeCount * nodeCount * nodeCount,
-      //                                  false);
 
       std::unordered_set<uint64_t> edgeExists;
 
@@ -98,22 +96,24 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
           continue;
         }
 
-        auto pattern = shader->acceptMatch(opGraph, p, m);
-        if (!pattern.has_value()) {
+        auto configs = shader->acceptMatch(opGraph, p, m);
+        if (configs.empty()) {
           continue;
         }
+
         edgeExists.insert(edgeId);
 
-        const float w =
-            heuristic->eval(ins, opGraph.get(out), *pattern, m, shader);
-
-        supergraph.addEdge(inputs, out,
-                           ComputeOpImpl{
-                               .shader = shader,
-                               .pattern = *pattern,
-                               .match = m,
-                           },
-                           w);
+        for (const auto &config : configs) {
+          const float w = heuristic->eval(ins, opGraph.get(out), p, config, m, shader);
+          supergraph.addEdge(inputs, out,
+                             ComputeOpImpl{
+                                 .shader = shader,
+                                 .pattern = p,
+                                 .config = config,
+                                 .match = m,
+                             },
+                             w);
+        }
       }
     }
   }
@@ -155,7 +155,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
       const TensorInstance &dst = constSupergraph.get(dstId);
       totalWeight += constSupergraph.weight(oid);
       fmt::println("{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} : {}", inStr,
-                   impl.shader->name(o.pattern),
+                   impl.shader->name(o.pattern, o.config),
                    fmt::format("{}[{}]", dst.layout.to_string(), dst.channels),
                    heuristic->weight_to_string(constSupergraph.weight(oid)));
     }
@@ -189,7 +189,8 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
     if (dst == model.output) {
       output = dstTensorId;
     }
-    op.shader->implement(impl, opGraph, op.pattern, op.match, symGraph);
+    op.shader->implement(impl, opGraph, op.pattern, op.config, op.match,
+                         symGraph);
   }
   assert(input.index != TensorId::nullindex);
   assert(output.index != TensorId::nullindex);

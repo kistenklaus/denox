@@ -1,12 +1,94 @@
 #include "shaders/copy/CopyTransformShader.hpp"
-#include "diag/logging.hpp"
+#include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
+#include "memory/dtype/dtype.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
+#include "model/ComputeOp.hpp"
 #include <stdexcept>
 
-namespace denox::compiler::shader {}
-denox::compiler::shaders::CopyTransformShader::CopyTransformShader(
-    GlslCompiler *compiler, const Options &options)
+namespace denox::compiler::shaders {
+
+enum class ConcatImplementationType {
+  Explicit,
+  Implicit,
+  SingleCopy,
+};
+
+static constexpr unsigned int EXPLICIT_CONCAT_TAG = 0;
+static constexpr unsigned int IMPLICIT_CONCAT_TAG = 1;
+
+static constexpr unsigned int SINGLE_COPY_TAG = 2;
+
+static std::vector<unsigned int> explicitConfigKeys{
+    0x000000, 0x000100, 0x000200, 0x000300, 0x000400,
+
+    0x010000, 0x010100, 0x010200, 0x010300, 0x010400,
+
+    0x020000, 0x020100, 0x020200, 0x020300, 0x020400,
+
+    0x030000, 0x030100, 0x030200, 0x030300, 0x030400,
+
+    0x040000, 0x040100, 0x040200, 0x040300, 0x040400,
+};
+
+static std::vector<unsigned int> singleCopyConfigs{
+    0x000002, 0x000102, 0x000202, 0x000302, 0x000402,
+};
+
+struct Config {
+  unsigned int invocC;
+  unsigned int invocW;
+  unsigned int invocH;
+  memory::optional<unsigned int> wgC;
+  unsigned int wgW;
+  unsigned int wgH;
+};
+
+static constexpr std::array<Config, 5> CONFIGS{
+    Config{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 8,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 4,
+        .wgW = 64,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 2,
+        .wgW = 128,
+        .wgH = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 1,
+        .wgW = 256,
+        .wgH = 1,
+    },
+};
+
+CopyTransformShader::CopyTransformShader(GlslCompiler *compiler,
+                                         const Options &options)
     : m_compiler(compiler),
       m_enableImplicitConcat(options.fusionRules.enableImplicitConcat) {
 
@@ -38,8 +120,49 @@ denox::compiler::shaders::CopyTransformShader::CopyTransformShader(
   }
 }
 
-denox::memory::optional<unsigned int>
-denox::compiler::shaders::CopyTransformShader::acceptMatch(
+static ConcatImplementationType
+tryImplicitConcat(memory::ActivationLayout src0Layout,
+                  memory::ActivationLayout src1Layout,
+                  memory::ActivationLayout dstLayout, memory::Dtype src0Type,
+                  memory::Dtype src1Type, memory::Dtype dstType,
+                  const CanoModel::Graph::NodeHandle &src0,
+                  const CanoModel::Graph::NodeHandle &src1) {
+
+  if (src0Layout != memory::ActivationLayout::CHWC8 ||
+      src1Layout != memory::ActivationLayout::CHWC8 ||
+      dstLayout != memory::ActivationLayout::CHWC8) {
+    return ConcatImplementationType::Explicit;
+  }
+  if (!(src0Type == src1Type && src1Type == dstType)) {
+    return ConcatImplementationType::Explicit;
+  }
+  size_t src0ConcatFanout = 0;
+  for (const auto &e : src0->outgoing()) {
+    if (e.value().tag() == ComputeOpTag::Concat) {
+      ++src0ConcatFanout;
+    }
+  }
+
+  size_t src1ConcatFanout = 0;
+  for (const auto &e : src1->outgoing()) {
+    if (e.value().tag() == ComputeOpTag::Concat) {
+      ++src1ConcatFanout;
+    }
+  }
+  if (src0ConcatFanout > 1 && src1ConcatFanout > 1) {
+    return ConcatImplementationType::Explicit;
+  }
+
+  if (src0ConcatFanout == 1 && src1ConcatFanout == 1) {
+    return ConcatImplementationType::Implicit;
+  }
+  // see #8246379 for a unstable implementation of lifetime based implicit
+  // concat.
+
+  return ConcatImplementationType::Explicit;
+}
+
+memory::vector<unsigned int> CopyTransformShader::acceptMatch(
     const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
     [[maybe_unused]] unsigned int patternEnc,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match) const {
@@ -64,250 +187,130 @@ denox::compiler::shaders::CopyTransformShader::acceptMatch(
       memory::ActivationLayout::demote(dst.layout, dst.channels);
 
   if (!(src0Layout == src1Layout && src1Layout == dstLayout)) {
-    return memory::nullopt;
+    return {};
   }
 
-  if (!m_enableImplicitConcat) {
-    return pattern | EXPLICIT_CONCAT_MODE;
+  ConcatImplementationType implementationType =
+      tryImplicitConcat(src0Layout, src1Layout, dstLayout, src0.type, src1.type,
+                        dst.type, src0.originalNode, src1.originalNode);
+
+  switch (implementationType) {
+  case ConcatImplementationType::Explicit:
+    return explicitConfigKeys;
+  case ConcatImplementationType::Implicit:
+    return {IMPLICIT_CONCAT_TAG};
+  case ConcatImplementationType::SingleCopy:
+    throw std::runtime_error("Not implemented HERE");
+    return singleCopyConfigs;
   }
-
-  if (!(src0.layout == memory::ActivationLayout::CHWC8 &&
-        src1.layout == memory::ActivationLayout::CHWC8 &&
-        dst.layout == memory::ActivationLayout::CHWC8)) {
-    return pattern | EXPLICIT_CONCAT_MODE;
-  }
-  if (!(src0.type == src1.type && src1.type == dst.type)) {
-    return pattern | EXPLICIT_CONCAT_MODE;
-  }
-  assert(dst.channels == src0.channels + src1.channels);
-
-  std::size_t src0ConcatFanout = 0;
-  for (const auto &e : src0.originalNode->outgoing()) {
-    if (e.value().tag() == ComputeOpTag::Concat) {
-      ++src0ConcatFanout;
-    }
-  }
-
-  std::size_t src1ConcatFanout = 0;
-  for (const auto &e : src1.originalNode->outgoing()) {
-    if (e.value().tag() == ComputeOpTag::Concat) {
-      ++src1ConcatFanout;
-    }
-  }
-
-  if (src0ConcatFanout > 1 && src1ConcatFanout > 1) {
-    return pattern | EXPLICIT_CONCAT_MODE;
-  }
-  if (src0ConcatFanout == 1 && src1ConcatFanout == 1) {
-    return pattern | IMPLICIT_CONCAT_MODE;
-  }
-
-  if (ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE) {
-    const TensorInstance *aliasedSrc = nullptr;
-    if (src0ConcatFanout == 1 && src1ConcatFanout != 1) {
-      aliasedSrc = &src1;
-    } else if (src1ConcatFanout == 1 && src0ConcatFanout != 1) {
-      aliasedSrc = &src0;
-    } else {
-      compiler::diag::unreachable();
-    }
-
-    memory::vector<memory::NodeId> otherConcatDsts;
-    for (const auto &e : aliasedSrc->originalNode->outgoing()) {
-      if (e.value().tag() != ComputeOpTag::Concat)
-        continue;
-      const memory::NodeId did = e.dst().id();
-      if (did == dst.originalNode->id())
-        continue;
-      otherConcatDsts.push_back(did);
-    }
-
-    bool allDisjoint = true;
-    for (std::size_t k = 0; k < otherConcatDsts.size() && allDisjoint; ++k) {
-      const std::uint64_t otherId = *otherConcatDsts[k];
-      bool found = false;
-      Lifetime otherLife{};
-      for (std::size_t i = 0; i < graph.nodeCount(); ++i) {
-        const TensorInstance &ti = graph.get(memory::NodeId(i));
-        if (ti.originalNode->id() == memory::NodeId(otherId)) {
-          otherLife = ti.lifetime;
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        allDisjoint = false;
-        break;
-      }
-      const bool disjointLifetimes = (dst.lifetime.end <= otherLife.start) ||
-                                     (otherLife.end <= dst.lifetime.start);
-
-      if (!disjointLifetimes)
-        allDisjoint = false;
-    }
-
-    if (allDisjoint) {
-      DENOX_WARN("Using unstable Feature: Implements a concat operation "
-                 "implicitly in memory based on lifetime analysis. This may "
-                 "currently result in unimplementable memory constraints (See "
-                 "Github Issue #13)");
-      return pattern | IMPLICIT_CONCAT_MODE; // viable implicit; actual anchor
-                                             // chosen later
-    }
-  }
-
-  return pattern | SINGLE_COPY_CONCAT_MODE;
+  diag::unreachable();
 }
 
-float denox::compiler::shaders::CopyTransformShader::speedup(
-    unsigned int patternEnc) const {
-  switch (patternEnc & CONCAT_MODE_MASK) {
-  case IMPLICIT_CONCAT_MODE:
-    return 0.0f;
-  case SINGLE_COPY_CONCAT_MODE:
-    return 0.5f;
-  case EXPLICIT_CONCAT_MODE:
-    return 1.0f; // <- horrible performance
-  default:
+float CopyTransformShader::speedup(unsigned int config) const {
+  if (config & IMPLICIT_CONCAT_TAG) {
+    return 0;
+  } else {
+    return 2;
+  }
+}
+
+static GlslCompilerInstance
+compile(GlslCompiler *compiler, const io::Path &srcPath,
+        unsigned int inputChannelOffset, unsigned int inputChannels,
+        unsigned int outputChannelOffset, unsigned int outputChannels,
+        memory::ActivationLayout inputLayout,
+        memory::ActivationLayout outputLayout, const Config &config) {
+  auto shader = compiler->read(srcPath);
+
+  shader.define("IN_CH_OFFSET", inputChannelOffset);
+  shader.define("IN_CH", inputChannels);
+  shader.define("OUT_CH_OFFSET", outputChannelOffset);
+  shader.define("OUT_CH", outputChannels);
+
+  if (inputLayout == memory::ActivationLayout::HWC &&
+      outputLayout == memory::ActivationLayout::HWC &&
+      (inputChannels % 8 != 0 || outputChannels % 8 != 0)) {
+    shader.define("istype", "uint16_t");
+    shader.define("ISTYPE_SIZE", 2);
+    shader.define("ostype", "uint16_t");
+    shader.define("OSTYPE_SIZE", 2);
+    shader.define("IN_LAYOUT_HWC");
+    shader.define("OUT_LAYOUT_HWC");
+  } else if (inputLayout == memory::ActivationLayout::HWC &&
+             outputLayout == memory::ActivationLayout::HWC &&
+             (inputChannels % 8 == 0 && outputChannels % 8 == 0)) {
+    shader.define("istype", "uvec4");
+    shader.define("ISTYPE_SIZE", 16);
+    shader.define("ostype", "uvec4");
+    shader.define("OSTYPE_SIZE", 16);
+    shader.define("IN_LAYOUT_HWC8");
+    shader.define("OUT_LAYOUT_HWC8");
+  } else if (inputLayout == memory::ActivationLayout::CHWC8 &&
+             outputLayout == memory::ActivationLayout::CHWC8) {
+    shader.define("istype", "uvec4");
+    shader.define("ISTYPE_SIZE", 16);
+    shader.define("ostype", "uvec4");
+    shader.define("OSTYPE_SIZE", 16);
+    shader.define("IN_LAYOUT_CHWC8");
+    shader.define("OUT_LAYOUT_CHWC8");
+  } else {
     compiler::diag::unreachable();
   }
+
+  shader.define("INVOC_C", config.invocC);
+  shader.define("INVOC_W", config.invocW);
+  shader.define("INVOC_H", config.invocH);
+  shader.define("WG_C", config.wgC.value_or(inputChannels));
+  shader.define("WG_W", config.wgW);
+  shader.define("WG_H", config.wgH);
+  return shader;
 }
 
-void denox::compiler::shaders::CopyTransformShader::implement(
+void CopyTransformShader::implement(
     Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-    unsigned int patternEnc,
+    unsigned int pattern, unsigned int configEnc,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  unsigned int pattern = patternEnc & PATTERN_MASK;
-  unsigned int mode = patternEnc & CONCAT_MODE_MASK;
+  static_assert(sizeof(unsigned int) == 4);
+  uint8_t type = configEnc & 0xFF;
+
   const auto &patternHandles = m_patternHandles[pattern];
 
   memory::NodeId src0Id = match[patternHandles.src0];
   memory::NodeId src1Id = match[patternHandles.src1];
   memory::NodeId dstId = match[patternHandles.dst];
 
-  const auto &src0 = opGraph.get(src0Id);
-  const auto &src1 = opGraph.get(src1Id);
-  const auto &dst = opGraph.get(dstId);
-
-  switch (mode) {
-  case IMPLICIT_CONCAT_MODE: {
+  if (type == IMPLICIT_CONCAT_TAG) {
     impl.createImplicitConcatConstrain(src0Id, src1Id, dstId);
-    break;
+    return;
   }
-  case SINGLE_COPY_CONCAT_MODE: {
-    throw std::runtime_error("not implemented yet.");
-  }
-  case EXPLICIT_CONCAT_MODE: {
-    assert(src0.layout == src1.layout);
+
+  if (type == SINGLE_COPY_TAG) {
+    diag::not_implemented();
+    return;
+  } else if (type == EXPLICIT_CONCAT_TAG) {
+
+    const auto &dst = opGraph.get(dstId);
+
     {
-      // COPY SRC0
-      std::uint32_t invocC;
-      std::uint32_t invocW;
-      std::uint32_t invocH;
-      std::uint32_t wgC;
-      std::uint32_t wgW;
-      std::uint32_t wgH;
+      const auto &src0 = opGraph.get(src0Id);
+      uint8_t config0Key = (configEnc >> 8) & 0xFF;
+      const Config &config0 = CONFIGS[config0Key];
+      auto shader0 = compile(m_compiler, m_srcPath, 0, src0.channels, 0,
+                             dst.channels, src0.layout, dst.layout, config0);
 
-      auto shader = m_compiler->read(m_srcPath);
-      shader.define("IN_CH_OFFSET", 0);
-      shader.define("IN_CH", src0.channels);
-      shader.define("OUT_CH_OFFSET", 0);
-      shader.define("OUT_CH", dst.channels);
-      if (src0.layout == memory::ActivationLayout::HWC &&
-          dst.layout == memory::ActivationLayout::HWC &&
-          (src0.channels % 8 != 0 || dst.channels % 8 != 0)) {
-        shader.define("istype", "uint16_t");
-        shader.define("ISTYPE_SIZE", 2);
-        shader.define("ostype", "uint16_t");
-        shader.define("OSTYPE_SIZE", 2);
-        shader.define("IN_LAYOUT_HWC");
-        shader.define("OUT_LAYOUT_HWC");
-
-        if (src0.channels >= 16) {
-          invocC = 2;
-          invocW = 2;
-          invocH = 1;
-          wgC = 8;
-          wgW = 32;
-          wgH = 1;
-        } else {
-          invocC = 1;
-          invocW = 4;
-          invocH = 1;
-          wgC = src0.channels;
-          wgW = 32;
-          wgH = 1;
-        }
-      } else if (src0.layout == memory::ActivationLayout::HWC &&
-                 dst.layout == memory::ActivationLayout::HWC &&
-                 (src0.channels % 8 == 0 && dst.channels % 8 == 0)) {
-        shader.define("istype", "uvec4");
-        shader.define("ISTYPE_SIZE", 16);
-        shader.define("ostype", "uvec4");
-        shader.define("OSTYPE_SIZE", 16);
-        shader.define("IN_LAYOUT_HWC8");
-        shader.define("OUT_LAYOUT_HWC8");
-
-        if (src0.channels >= 32) {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 4;
-          wgW = 64;
-          wgH = 1;
-        } else if (src0.channels >= 16) {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 2;
-          wgW = 128;
-          wgH = 1;
-        } else {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 1;
-          wgW = 256;
-          wgH = 1;
-        }
-      } else if (src0.layout == memory::ActivationLayout::CHWC8 &&
-                 dst.layout == memory::ActivationLayout::CHWC8) {
-        shader.define("istype", "uvec4");
-        shader.define("ISTYPE_SIZE", 16);
-        shader.define("ostype", "uvec4");
-        shader.define("OSTYPE_SIZE", 16);
-        shader.define("IN_LAYOUT_CHWC8");
-        shader.define("OUT_LAYOUT_CHWC8");
-        {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 1;
-          wgW = 256;
-          wgH = 1;
-        }
-      } else {
-        compiler::diag::unreachable();
-      }
-
-      shader.define("INVOC_C", invocC);
-      shader.define("INVOC_W", invocW);
-      shader.define("INVOC_H", invocH);
-      shader.define("WG_C", wgC);
-      shader.define("WG_W", wgW);
-      shader.define("WG_H", wgH);
-
-      std::uint32_t tileX = invocC * wgC;
-      std::uint32_t tileY = invocW * wgW;
-      std::uint32_t tileZ = invocH * wgH;
+      std::uint32_t tileX = config0.invocC * config0.wgC.value_or(src0.channels);
+      std::uint32_t tileY =
+          config0.invocW * config0.wgW;
+      std::uint32_t tileZ = config0.invocH * config0.wgH;
 
       Sym workgroupCountX = symGraph.cdiv(src0.channels, tileX);
       Sym workgroupCountY = symGraph.cdiv(src0.extent.x.asSym(), tileY);
       Sym workgroupCountZ = symGraph.cdiv(src0.extent.y.asSym(), tileZ);
 
-      auto copySrc0Dispatch = impl.registerDispatch(
-          std::move(shader), workgroupCountX, workgroupCountY, workgroupCountZ);
+      auto copySrc0Dispatch =
+          impl.registerDispatch(std::move(shader0), workgroupCountX,
+                                workgroupCountY, workgroupCountZ);
       copySrc0Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src0Id);
       copySrc0Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.x));
@@ -333,115 +336,26 @@ void denox::compiler::shaders::CopyTransformShader::implement(
           fmt::format("{}[{}]", dst.layout.to_string(), dst.channels));
     }
 
-    // COPY SRC1
     {
-      auto shader = m_compiler->read(m_srcPath);
-      std::uint32_t invocC;
-      std::uint32_t invocW;
-      std::uint32_t invocH;
-      std::uint32_t wgC;
-      std::uint32_t wgW;
-      std::uint32_t wgH;
+      const auto &src1 = opGraph.get(src1Id);
+      uint8_t config1Key = (configEnc >> 16) & 0xFF;
+      const Config &config1 = CONFIGS[config1Key];
+      auto shader1 =
+          compile(m_compiler, m_srcPath, 0, src1.channels, src1.channels,
+                  dst.channels, src1.layout, dst.layout, config1);
 
-      shader.define("IN_CH_OFFSET", 0);
-      shader.define("IN_CH", src1.channels);
-      shader.define("OUT_CH_OFFSET", src0.channels);
-      shader.define("OUT_CH", dst.channels);
-      if (src0.layout == memory::ActivationLayout::HWC &&
-          dst.layout == memory::ActivationLayout::HWC &&
-          (src0.channels % 8 != 0 || src1.channels % 8 != 0 ||
-           dst.channels % 8 != 0)) {
-        shader.define("istype", "uint16_t");
-        shader.define("ISTYPE_SIZE", 2);
-        shader.define("ostype", "uint16_t");
-        shader.define("OSTYPE_SIZE", 2);
-        shader.define("IN_LAYOUT_HWC");
-        shader.define("OUT_LAYOUT_HWC");
-
-        if (src1.channels >= 16) {
-          invocC = 2;
-          invocW = 2;
-          invocH = 1;
-          wgC = 8;
-          wgW = 32;
-          wgH = 1;
-        } else {
-          invocC = 1;
-          invocW = 4;
-          invocH = 1;
-          wgC = src1.channels;
-          wgW = 32;
-          wgH = 1;
-        }
-      } else if (src0.layout == memory::ActivationLayout::HWC &&
-                 dst.layout == memory::ActivationLayout::HWC &&
-                 (src0.channels % 8 == 0 && src1.channels % 8 == 0 &&
-                  dst.channels % 8 == 0)) {
-        shader.define("istype", "uvec4");
-        shader.define("ISTYPE_SIZE", 16);
-        shader.define("ostype", "uvec4");
-        shader.define("OSTYPE_SIZE", 16);
-        shader.define("IN_LAYOUT_HWC8");
-        shader.define("OUT_LAYOUT_HWC8");
-
-        if (src1.channels >= 32) {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 4;
-          wgW = 64;
-          wgH = 1;
-        } else if (src1.channels >= 16) {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 2;
-          wgW = 128;
-          wgH = 1;
-        } else {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 1;
-          wgW = 256;
-          wgH = 1;
-        }
-      } else if (src0.layout == memory::ActivationLayout::CHWC8 &&
-                 dst.layout == memory::ActivationLayout::CHWC8) {
-        shader.define("istype", "uvec4");
-        shader.define("ISTYPE_SIZE", 16);
-        shader.define("ostype", "uvec4");
-        shader.define("OSTYPE_SIZE", 16);
-        shader.define("IN_LAYOUT_CHWC8");
-        shader.define("OUT_LAYOUT_CHWC8");
-        {
-          invocC = 8;
-          invocW = 1;
-          invocH = 1;
-          wgC = 1;
-          wgW = 256;
-          wgH = 1;
-        }
-      } else {
-        compiler::diag::unreachable();
-      }
-      shader.define("INVOC_C", invocC);
-      shader.define("INVOC_W", invocW);
-      shader.define("INVOC_H", invocH);
-      shader.define("WG_C", wgC);
-      shader.define("WG_W", wgW);
-      shader.define("WG_H", wgH);
-
-      std::uint32_t tileX = invocC * wgC;
-      std::uint32_t tileY = invocW * wgW;
-      std::uint32_t tileZ = invocH * wgH;
+      std::uint32_t tileX = config1.invocC * config1.wgC.value_or(src1.channels);
+      std::uint32_t tileY =
+          config1.invocW * config1.wgW;
+      std::uint32_t tileZ = config1.invocH * config1.wgH;
 
       Sym workgroupCountX = symGraph.cdiv(src1.channels, tileX);
       Sym workgroupCountY = symGraph.cdiv(src1.extent.x.asSym(), tileY);
       Sym workgroupCountZ = symGraph.cdiv(src1.extent.y.asSym(), tileZ);
 
-      auto copySrc1Dispatch = impl.registerDispatch(
-          std::move(shader), workgroupCountX, workgroupCountY, workgroupCountZ);
+      auto copySrc1Dispatch =
+          impl.registerDispatch(std::move(shader1), workgroupCountX,
+                                workgroupCountY, workgroupCountZ);
       copySrc1Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src1Id);
       copySrc1Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.x));
@@ -466,21 +380,18 @@ void denox::compiler::shaders::CopyTransformShader::implement(
       copySrc1Dispatch.setOutputDesc(
           fmt::format("{}[{}]", dst.layout.to_string(), dst.channels));
     }
-    break;
-  }
   }
 }
 
-denox::memory::string denox::compiler::shaders::CopyTransformShader::name(
-    unsigned int patternEnc) const {
-  switch (patternEnc & CONCAT_MODE_MASK) {
-  case IMPLICIT_CONCAT_MODE:
+memory::string CopyTransformShader::name(unsigned int,
+                                         unsigned int config) const {
+  if (config & IMPLICIT_CONCAT_TAG) {
     return "implicit-concat";
-  case SINGLE_COPY_CONCAT_MODE:
+  } else if (config & SINGLE_COPY_TAG) {
     return "single-copy-concat";
-  case EXPLICIT_CONCAT_MODE:
+  } else {
     return "explicit-concat";
-  default:
-    compiler::diag::unreachable();
   }
 }
+
+} // namespace denox::compiler::shaders

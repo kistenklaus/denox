@@ -35,22 +35,15 @@ public:
 
   virtual const ShaderCapabilities &capabilities() const = 0;
 
-  // virtual memory::vector<uint64_t> acceptMatch(
-  //     [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
-  //         &graph,
-  //     unsigned int pattern,
-  //     [[maybe_unused]] const algorithm::ConstGraphMatch<
-  //         TensorInstance, ComputeOp> &match) const {
-  //   return {pattern};
-  // }
-
-  virtual memory::optional<unsigned int> acceptMatch(
+  /// Returns a unsigned integer which uniquely identifies all possible shader
+  /// configurations.
+  virtual memory::vector<unsigned int> acceptMatch(
       [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
           &graph,
-      unsigned int pattern,
+      [[maybe_unused]] unsigned int pattern,
       [[maybe_unused]] const algorithm::ConstGraphMatch<
           TensorInstance, ComputeOp> &match) const {
-    return pattern;
+    return {};
   }
 
   virtual std::size_t parameterMemorySize(
@@ -62,18 +55,18 @@ public:
     return 0;
   }
 
-  virtual float speedup([[maybe_unused]] unsigned int pattern) const {
+  virtual float speedup([[maybe_unused]] unsigned int config) const {
     return 1.0f;
   }
 
   virtual void
   implement(Impl &impl,
             const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-            unsigned int pattern,
+            unsigned int pattern, unsigned int config,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             SymGraph &symGraph) const = 0;
 
-  virtual memory::string name(unsigned int pattern) const = 0;
+  virtual memory::string name(unsigned int pattern, unsigned int config) const = 0;
 };
 
 } // namespace denox::compiler

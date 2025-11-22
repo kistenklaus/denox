@@ -26,9 +26,9 @@ public:
     return m_capabilities;
   }
 
-  memory::optional<unsigned int>
+  memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
-              unsigned int patternEnc,
+              unsigned int pattern,
               const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                   &match) const final override;
 
@@ -36,11 +36,12 @@ public:
 
   void implement(Impl &impl,
                  const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-                 unsigned int patternEnc,
+                 unsigned int pattern,
+                 unsigned int config,
                  const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                      &match, SymGraph& symGraph) const final override;
 
-  memory::string name(unsigned int patternEnc) const final override;
+  memory::string name(unsigned int pattern, unsigned int config) const final override;
 
 private:
   struct Handles {

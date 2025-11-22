@@ -13,7 +13,7 @@ public:
 
   MemoryPadShader(GlslCompiler *compiler);
 
-  memory::optional<unsigned int>
+  memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
               unsigned int pattern,
               const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
@@ -26,10 +26,11 @@ public:
   void implement(Impl &impl,
                  const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
                  unsigned int pattern,
+                 unsigned int config,
                  const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                      &match, SymGraph& symGraph) const final override;
 
-  memory::string name(unsigned int pattern) const final override;
+  memory::string name(unsigned int pattern, unsigned int config) const final override;
 
 private:
 

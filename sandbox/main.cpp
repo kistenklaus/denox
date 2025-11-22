@@ -29,8 +29,8 @@ void eval() {
   assert(denox::get_runtime_model_input_count(model) == 1);
   assert(denox::get_runtime_model_output_count(model) == 1);
   denox::Extent extents[2];
-  std::size_t inW = 1920;
-  std::size_t inH = 1080;
+  std::size_t inW = 3;
+  std::size_t inH = 3;
   extents[0].name = "W";
   extents[0].value = inW;
   extents[1].name = "H";
@@ -152,5 +152,5 @@ void bench() {
 }
 
 int main() {
-  bench();
+  eval();
 }

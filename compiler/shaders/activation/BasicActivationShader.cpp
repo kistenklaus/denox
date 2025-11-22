@@ -3,9 +3,61 @@
 #include "diag/unreachable.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "model/ActivationFunction.hpp"
+#include <absl/strings/internal/str_format/extension.h>
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
+
+struct Config {
+  std::uint32_t invocC;
+  std::uint32_t invocW;
+  std::uint32_t invocH;
+  memory::optional<std::uint32_t> wgC;
+  std::uint32_t wgH;
+  std::uint32_t wgW;
+};
+
+static constexpr std::array<Config, 5> CONFIGS = {
+    Config{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 8,
+        .wgH = 32,
+        .wgW = 1,
+    },
+    Config{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt, // <- insert channel count.
+        .wgH = 32,
+        .wgW = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 4,
+        .wgH = 64,
+        .wgW = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 2,
+        .wgH = 128,
+        .wgW = 1,
+    },
+    Config{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 1,
+        .wgH = 256,
+        .wgW = 1,
+    }};
 
 BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
                                              const Options &options)
@@ -44,7 +96,8 @@ BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
                                          std::move(out));
   }
 }
-memory::optional<unsigned int> BasicActivationShader::acceptMatch(
+
+memory::vector<unsigned int> BasicActivationShader::acceptMatch(
     const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match) const {
@@ -53,34 +106,29 @@ memory::optional<unsigned int> BasicActivationShader::acceptMatch(
   const auto &out = opGraph.get(match[patternHandles.out]);
   if (memory::ActivationLayout::demote(in.layout, in.channels) !=
       memory::ActivationLayout::demote(out.layout, out.channels)) {
-    return memory::nullopt;
+    return {};
   }
-  return pattern | ACTI_FUNC_TYPE_ReLU;
+  return {0, 1, 2, 3, 4};
 }
 
-void BasicActivationShader::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-    unsigned int patternEnc,
-    const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
-    SymGraph &symGraph) const {
-  unsigned int pattern = patternEnc & ~ACTI_FUNC_TYPE_MASK;
-  const auto &patternHandles = m_patternHandles[pattern];
-  memory::NodeId inId = match[patternHandles.in];
-  memory::NodeId outId = match[patternHandles.out];
-  const auto &in = opGraph.get(inId);
-  const auto &out = opGraph.get(outId);
-  const auto &acti = opGraph.get(match[patternHandles.acti]).activation();
-
-  auto shader = m_compiler->read(m_srcPath);
-  shader.define("SG_SIZE", m_subgroupSize);
-  assert(in.channels == out.channels);
-  shader.define("CH", in.channels);
+static GlslCompilerInstance
+compile(GlslCompiler *compiler, const io::Path &srcPath,
+        unsigned int subgroupSize, memory::ActivationLayout inputLayout,
+        memory::ActivationLayout outputLayout, unsigned int channels,
+        memory::Dtype atype, ActivationFunction activationFunction,
+        const Config &config) {
+  if (atype != memory::Dtype::F16) {
+    diag::invalid_state();
+  }
+  auto shader = compiler->read(srcPath);
+  shader.define("SG_SIZE", subgroupSize);
+  shader.define("CH", channels);
   shader.define("in_atype", "float16_t");
   shader.define("IN_ATYPE_SIZE", 2);
   shader.define("out_atype", "float16_t");
   shader.define("OUT_ATYPE_SIZE", 2);
 
-  switch (acti.func) {
+  switch (activationFunction) {
   case ActivationFunction::ReLU:
     shader.define("ACTIVATION_ReLU");
     break;
@@ -88,17 +136,9 @@ void BasicActivationShader::implement(
   case ActivationFunction::SiLU:
     diag::invalid_state();
   }
-
-  std::uint32_t wgC;
-  std::uint32_t wgH;
-  std::uint32_t wgW;
-  std::uint32_t invocC;
-  std::uint32_t invocW;
-  std::uint32_t invocH;
-
-  if (in.layout == memory::ActivationLayout::HWC &&
-      out.layout == memory::ActivationLayout::HWC &&
-      (in.channels % 8 != 0 || out.channels % 8 != 0)) {
+  if (inputLayout == memory::ActivationLayout::HWC &&
+      outputLayout == memory::ActivationLayout::HWC && (channels % 8 != 0)) {
+    // HWC layout (slow path)
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
@@ -106,25 +146,9 @@ void BasicActivationShader::implement(
 
     shader.define("IN_LAYOUT_HWC");
     shader.define("OUT_LAYOUT_HWC");
-
-    if (in.channels >= 16) {
-      invocC = 2;
-      invocW = 2;
-      invocH = 1;
-      wgC = 8;
-      wgW = 32;
-      wgH = 1;
-    } else {
-      invocC = 1;
-      invocW = 4;
-      invocH = 1;
-      wgC = in.channels;
-      wgW = 32;
-      wgH = 1;
-    }
-  } else if (in.layout == memory::ActivationLayout::HWC &&
-             out.layout == memory::ActivationLayout::HWC &&
-             (in.channels % 8 == 0 && out.channels % 8 == 0)) {
+  } else if (inputLayout == memory::ActivationLayout::HWC &&
+             outputLayout == memory::ActivationLayout::HWC &&
+             (channels % 8 == 0)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -132,31 +156,8 @@ void BasicActivationShader::implement(
 
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
-
-    if (in.channels >= 32) {
-      invocC = 8;
-      invocW = 1;
-      invocH = 1;
-      wgC = 4;
-      wgW = 64;
-      wgH = 1;
-    } else if (in.channels >= 16) {
-      invocC = 8;
-      invocW = 1;
-      invocH = 1;
-      wgC = 2;
-      wgW = 128;
-      wgH = 1;
-    } else {
-      invocC = 8;
-      invocW = 1;
-      invocH = 1;
-      wgC = 1;
-      wgW = 256;
-      wgH = 1;
-    }
-  } else if (in.layout == memory::ActivationLayout::CHWC8 &&
-             out.layout == memory::ActivationLayout::CHWC8) {
+  } else if (inputLayout == memory::ActivationLayout::CHWC8 &&
+             outputLayout == memory::ActivationLayout::CHWC8) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -164,26 +165,43 @@ void BasicActivationShader::implement(
 
     shader.define("IN_LAYOUT_CHWC8");
     shader.define("OUT_LAYOUT_CHWC8");
-
-    invocC = 8;
-    invocW = 1;
-    invocH = 1;
-    wgC = 1;
-    wgW = 256;
-    wgH = 1;
   } else {
     compiler::diag::invalid_state();
   }
-  shader.define("INVOC_C", invocC);
-  shader.define("INVOC_W", invocW);
-  shader.define("INVOC_H", invocH);
-  shader.define("WG_C", wgC);
-  shader.define("WG_W", wgW);
-  shader.define("WG_H", wgH);
 
-  std::uint32_t tileC = invocC * wgC;
-  std::uint32_t tileW = invocW * wgW;
-  std::uint32_t tileH = invocH * wgH;
+  shader.define("INVOC_C", config.invocC);
+  shader.define("INVOC_W", config.invocW);
+  shader.define("INVOC_H", config.invocH);
+  shader.define("WG_C", config.wgC.value_or(channels));
+  shader.define("WG_W", config.wgW);
+  shader.define("WG_H", config.wgH);
+
+  return shader;
+}
+
+void BasicActivationShader::implement(
+    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    unsigned int pattern, unsigned int configKey,
+    const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+    SymGraph &symGraph) const {
+
+  const Config &config = CONFIGS[configKey];
+
+  const auto &patternHandles = m_patternHandles[pattern];
+  memory::NodeId inId = match[patternHandles.in];
+  memory::NodeId outId = match[patternHandles.out];
+  const auto &in = opGraph.get(inId);
+  const auto &out = opGraph.get(outId);
+  const auto &acti = opGraph.get(match[patternHandles.acti]).activation();
+
+  assert(in.channels == out.channels);
+  auto shader =
+      compile(m_compiler, m_srcPath, m_subgroupSize, in.layout, out.layout,
+              in.channels, memory::Dtype::F16, acti.func, config);
+
+  std::uint32_t tileC = config.invocC * config.wgC.value_or(in.channels);
+  std::uint32_t tileW = config.invocW * config.wgW;
+  std::uint32_t tileH = config.invocH * config.wgH;
 
   Sym workgroupCountX = symGraph.cdiv(in.channels, tileC);
   Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileW);
@@ -195,7 +213,6 @@ void BasicActivationShader::implement(
   dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
   dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
-  dispatch.setName(name(patternEnc));
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads =
@@ -207,18 +224,31 @@ void BasicActivationShader::implement(
                    out.channels * out.type.size());
   dispatch.setMemoryWrites(writes);
 
-  dispatch.setDebugInfo(fmt::format("{}-basic-activation-shader-{}",
-                                    in.layout.to_string(),
-                                    out.layout.to_string()));
-  dispatch.setInputDesc(fmt::format("{}[{}]", in.layout.to_string(), in.channels));
-  dispatch.setOutputDesc(fmt::format("{}[{}]", out.layout.to_string(), out.channels));
-}
-memory::string BasicActivationShader::name(unsigned int pattern) const {
-  switch (pattern & ACTI_FUNC_TYPE_MASK) {
-  case ACTI_FUNC_TYPE_ReLU:
-    return "relu";
-  default:
-    compiler::diag::unreachable();
+  switch (acti.func) {
+  case ActivationFunction::ReLU:
+    dispatch.setName("relu");
+    dispatch.setDebugInfo(fmt::format("{}-relu-{}", in.layout.to_string(),
+                                      out.layout.to_string()));
+    break;
+  case ActivationFunction::LeakyReLU:
+    dispatch.setName("leaky-relu");
+    dispatch.setDebugInfo(fmt::format("{}-leaky-relu-{}", in.layout.to_string(),
+                                      out.layout.to_string()));
+    break;
+  case ActivationFunction::SiLU:
+    dispatch.setName("silu");
+    dispatch.setDebugInfo(fmt::format("{}-silu-{}", in.layout.to_string(),
+                                      out.layout.to_string()));
+    break;
+    break;
   }
+  dispatch.setInputDesc(
+      fmt::format("{}[{}]", in.layout.to_string(), in.channels));
+  dispatch.setOutputDesc(
+      fmt::format("{}[{}]", out.layout.to_string(), out.channels));
+}
+
+memory::string BasicActivationShader::name(unsigned int, unsigned int) const {
+  return "basic-activation";
 }
 } // namespace denox::compiler::shaders

@@ -2,14 +2,54 @@
 #include "Options.hpp"
 #include "diag/invalid_state.hpp"
 #include "diag/unreachable.hpp"
+#include "memory/container/uvec2.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "memory/tensor/BiasDescriptor.hpp"
+#include "memory/tensor/BiasLayout.hpp"
+#include "memory/tensor/FilterLayout.hpp"
 #include "memory/tensor/FilterTensor.hpp"
 #include "memory/tensor/FitlerDescriptor.hpp"
 #include "model/ActivationFunction.hpp"
 
 namespace denox::compiler::shaders {
+
+struct Config {
+  unsigned int cm_m;
+  unsigned int cm_k;
+  unsigned int cm_n;
+  unsigned int wg_m;
+  unsigned int wg_n;
+  unsigned int sg_m;
+  unsigned int sg_k;
+  unsigned int sg_n;
+  bool async;
+};
+
+static constexpr std::array<Config, 2> CONFIGS{
+    Config{
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+        .wg_m = 8,
+        .wg_n = 1,
+        .sg_m = 2,
+        .sg_k = 2,
+        .sg_n = 2,
+        .async = true,
+    },
+    Config{
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+        .wg_m = 4,
+        .wg_n = 2,
+        .sg_m = 2,
+        .sg_k = 2,
+        .sg_n = 2,
+        .async = true,
+    },
+};
 
 DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
                                        const Options &options)
@@ -99,24 +139,28 @@ std::size_t DirectConvShaderCM::parameterMemorySize(
   }
   return elemCount * memory::Dtype::F16.size();
 }
-void DirectConvShaderCM::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+
+memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
+    [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
     [[maybe_unused]] unsigned int pattern,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-        &match,
-    SymGraph &symGraph) const {
-  const auto &patternHandles = m_patternHandles[pattern];
-  memory::EdgeId convId = match[patternHandles.conv];
-  memory::NodeId inId = match[patternHandles.in];
-  memory::NodeId outId = match[patternHandles.out];
-  const ComputeOp &op = opGraph.get(convId);
-  const auto &in = opGraph.get(inId);
-  const auto &out = opGraph.get(outId);
-  assert(op.tag() == ComputeOpTag::Conv);
-  const ComputeOpConv &conv = op.conv();
-  auto shader = m_compiler->read(m_srcPath);
+        &match) const {
+  return {0, 1};
+}
 
-  if (in.channels % 8 == 0) {
+static GlslCompilerInstance
+compile(GlslCompiler *compiler, const io::Path &srcPath,
+        unsigned int subgroupSize, unsigned int C, unsigned int K,
+        memory::ActivationLayout inputLayout,
+        memory::ActivationLayout outputLayout,
+        memory::optional<ActivationFunction> activationFunction,
+        memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
+        bool bias, const Config &config,
+        //
+        memory::FilterLayout *out_filterLayout,
+        memory::BiasLayout *out_biasLayout) {
+  auto shader = compiler->read(srcPath);
+  if (C % 8 == 0) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
   } else {
@@ -124,7 +168,7 @@ void DirectConvShaderCM::implement(
     shader.define("ISTYPE_SIZE", 2);
   }
 
-  if (out.channels % 8 == 0) {
+  if (K % 8 == 0) {
     shader.define("ostype", "uvec4");
     shader.define("OSTYPE_SIZE", 16);
   } else {
@@ -132,32 +176,27 @@ void DirectConvShaderCM::implement(
     shader.define("OSTYPE_SIZE", 2);
   }
 
-  if (in.layout == memory::ActivationLayout::HWC && in.channels % 8 == 0) {
+  if (inputLayout == memory::ActivationLayout::HWC && C % 8 == 0) {
     shader.define("IN_LAYOUT_HWC8");
-  } else if (in.layout == memory::ActivationLayout::HWC &&
-             in.channels % 8 != 0) {
+  } else if (inputLayout == memory::ActivationLayout::HWC && C % 8 != 0) {
     shader.define("IN_LAYOUT_HWC");
-  } else if (in.layout == memory::ActivationLayout::CHWC8) {
+  } else if (inputLayout == memory::ActivationLayout::CHWC8) {
     shader.define("IN_LAYOUT_CHWC8");
   } else {
     diag::invalid_state();
   }
 
-  if (out.layout == memory::ActivationLayout::HWC && out.channels % 8 == 0) {
+  if (outputLayout == memory::ActivationLayout::HWC && K % 8 == 0) {
     shader.define("OUT_LAYOUT_HWC8");
-  } else if (out.layout == memory::ActivationLayout::HWC &&
-             out.channels % 8 != 0) {
+  } else if (outputLayout == memory::ActivationLayout::HWC && K % 8 != 0) {
     shader.define("OUT_LAYOUT_HWC");
-  } else if (out.layout == memory::ActivationLayout::CHWC8) {
+  } else if (outputLayout == memory::ActivationLayout::CHWC8) {
     shader.define("OUT_LAYOUT_CHWC8");
   } else {
     diag::invalid_state();
   }
-
-  if (pattern == CONV_ACTIVATION_PATTERN) {
-    const auto &activation =
-        opGraph.get(match[*m_patternHandles[pattern].relu]).activation();
-    switch (activation.func) {
+  if (activationFunction) {
+    switch (*activationFunction) {
     case ActivationFunction::ReLU:
       shader.define("ACTIVATION_ReLU");
       break;
@@ -169,36 +208,15 @@ void DirectConvShaderCM::implement(
   } else {
     shader.define("ACTIVATION_NONE");
   }
-  // TODO Properly select coopmat shape.
-  unsigned int cm_m = 16;
-  unsigned int cm_k = 8;
-  unsigned int cm_n = 8;
-  shader.define("CM_M", cm_m);
-  shader.define("CM_K", cm_k);
-  shader.define("CM_N", cm_n);
-
-  unsigned int wg_m = 8;
-  unsigned int wg_n = 1;
-  shader.define("WG_M", wg_m);
-  shader.define("WG_N", wg_n);
-  unsigned int subgroupCount = wg_n * wg_m;
-  shader.define("SG_COUNT", subgroupCount);
-
-  unsigned int sg_m = 2;
-  unsigned int sg_k = 2;
-  unsigned int sg_n = 2;
-  shader.define("SG_M", sg_m);
-  shader.define("SG_K", sg_k);
-  shader.define("SG_N", sg_n);
 
   memory::FilterLayout filterLayout = memory::FilterLayout::RSCK;
-  if (in.channels % cm_k == 0 && (cm_k == 8 || cm_k == 16)) {
-    if (cm_k == 8) {
+  if (C % config.cm_k == 0 && (config.cm_k == 8 || config.cm_k == 16)) {
+    if (config.cm_k == 8) {
       filterLayout = memory::FilterLayout::RSCKC8;
       shader.define("FILTER_LAYOUT_RSCKC8");
       shader.define("fstype", "uvec4");
       shader.define("FSTYPE_SIZE", 16);
-    } else if (cm_k == 16) {
+    } else if (config.cm_k == 16) {
       filterLayout = memory::FilterLayout::RSCKC16;
       shader.define("FILTER_LAYOUT_RSCKC16");
       shader.define("fstype", "uvec4");
@@ -206,13 +224,13 @@ void DirectConvShaderCM::implement(
     } else {
       diag::invalid_state();
     }
-  } else if (out.channels % cm_n == 0 && (cm_n == 8 || cm_n == 16)) {
-    if (cm_n == 8) {
+  } else if (K % config.cm_n == 0 && (config.cm_n == 8 || config.cm_n == 16)) {
+    if (config.cm_n == 8) {
       filterLayout = memory::FilterLayout::KRSCK8;
       shader.define("FILTER_LAYOUT_KRSCK8");
       shader.define("fstype", "uvec4");
       shader.define("FSTYPE_SIZE", 16);
-    } else if (cm_n == 16) {
+    } else if (config.cm_n == 16) {
       filterLayout = memory::FilterLayout::KRSCK16;
       shader.define("FILTER_LAYOUT_KRSCK16");
       shader.define("fstype", "uvec4");
@@ -226,8 +244,12 @@ void DirectConvShaderCM::implement(
     shader.define("fstype", "uint16_t");
     shader.define("FSTYPE_SIZE", 2);
   }
-
-  shader.define("ASYNC_READ");
+  if (config.async) {
+    shader.define("ASYNC_READ");
+  } else {
+    shader.define("NASYNC_READ");
+  }
+  *out_filterLayout = filterLayout;
   // if (in.channels >= 128 || out.channels >= 128) {
   // } else {
   //   shader.define("NASYNC_READ");
@@ -235,26 +257,84 @@ void DirectConvShaderCM::implement(
 
   shader.define("atype", "float16_t");
   shader.define("ATYPE_SIZE", 2);
-  shader.define("IN_CH", in.channels);
-  shader.define("OUT_CH", out.channels);
+  shader.define("IN_CH", C);
+  shader.define("OUT_CH", K);
 
-  shader.define("SG_SIZE", m_subgroupSize);
-  shader.define("KERNEL_X", conv->W->shape().s);
-  shader.define("KERNEL_Y", conv->W->shape().r);
-  shader.define("STRIDE_X", conv->stride.x);
-  shader.define("STRIDE_Y", conv->stride.y);
-  shader.define("PADDING_X", conv->padding.x);
-  shader.define("PADDING_Y", conv->padding.y);
+  shader.define("SG_SIZE", subgroupSize);
+  unsigned int subgroupCount = config.wg_n * config.wg_m;
+  shader.define("SG_COUNT", subgroupCount);
 
-  if (conv->B != nullptr) {
+  shader.define("KERNEL_X", kernelSize.x);
+  shader.define("KERNEL_Y", kernelSize.y);
+  shader.define("STRIDE_X", stride.x);
+  shader.define("STRIDE_Y", stride.y);
+  shader.define("PADDING_X", padding.x);
+  shader.define("PADDING_Y", padding.y);
+
+  shader.define("SG_M", config.sg_m);
+  shader.define("SG_K", config.sg_k);
+  shader.define("SG_N", config.sg_n);
+
+  shader.define("WG_M", config.wg_m);
+  shader.define("WG_N", config.wg_n);
+
+  shader.define("CM_M", config.cm_m);
+  shader.define("CM_K", config.cm_k);
+  shader.define("CM_N", config.cm_n);
+
+  if (bias) {
     shader.define("USE_BIAS");
+    if (config.cm_n == 8) {
+      *out_biasLayout = memory::BiasLayout::C8;
+    } else if (config.cm_n == 16) {
+      *out_biasLayout = memory::BiasLayout::C16;
+    } else {
+      *out_biasLayout = memory::BiasLayout::C;
+    }
+
   } else {
     shader.define("NUSE_BIAS");
   }
+  return shader;
+}
 
-  std::uint32_t tileX = cm_n * sg_n * wg_n;
-  std::uint32_t tileY = cm_m;
-  std::uint32_t tileZ = sg_m * wg_m;
+void DirectConvShaderCM::implement(
+    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    [[maybe_unused]] unsigned int pattern, unsigned int configKey,
+    [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+        &match,
+    SymGraph &symGraph) const {
+  const Config &config = CONFIGS[configKey];
+
+  const auto &patternHandles = m_patternHandles[pattern];
+  memory::EdgeId convId = match[patternHandles.conv];
+  memory::NodeId inId = match[patternHandles.in];
+  memory::NodeId outId = match[patternHandles.out];
+  const ComputeOp &op = opGraph.get(convId);
+  const auto &in = opGraph.get(inId);
+  const auto &out = opGraph.get(outId);
+  assert(op.tag() == ComputeOpTag::Conv);
+  const ComputeOpConv &conv = op.conv();
+
+  memory::optional<ActivationFunction> activationFunction;
+
+  if (pattern == CONV_ACTIVATION_PATTERN) {
+    activationFunction =
+        opGraph.get(match[*m_patternHandles[pattern].relu]).activation().func;
+  }
+
+  memory::FilterLayout filterLayout = memory::FilterLayout::KCRS;
+  memory::BiasLayout biasLayout = memory::BiasLayout::C;
+  auto shader = compile(m_compiler, m_srcPath, m_subgroupSize, in.channels,
+                        out.channels, in.layout, out.layout, activationFunction,
+                        memory::uvec2(3, 3), memory::uvec2(1, 1),
+                        memory::uvec2(1, 1), conv->B != nullptr, config,
+                        //
+                        &filterLayout, &biasLayout);
+
+  std::uint32_t tileX = config.cm_n * config.sg_n * config.wg_n;
+  std::uint32_t tileY = config.cm_m;
+  std::uint32_t tileZ = config.sg_m * config.wg_m;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
   Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
@@ -275,12 +355,6 @@ void DirectConvShaderCM::implement(
   memory::optional<TensorId> biasTensorId = memory::nullopt;
 
   if (conv->B != nullptr) {
-    memory::BiasLayout biasLayout = memory::BiasLayout::C16;
-    if (cm_n == 8) {
-      biasLayout = memory::BiasLayout::C8;
-    } else if (cm_n == 16) {
-      biasLayout = memory::BiasLayout::C16;
-    }
     memory::BiasTensor biasWeights{memory::BiasDescriptor{
                                        .shape = conv->B->shape(),
                                        .layout = biasLayout,
@@ -300,7 +374,7 @@ void DirectConvShaderCM::implement(
       PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
-  dispatch.setName(name(pattern));
+  dispatch.setName(name(pattern, 0));
   dispatch.setSourcePath(m_srcPath);
 
   Sym inreads =
@@ -317,10 +391,12 @@ void DirectConvShaderCM::implement(
   dispatch.setDebugInfo(fmt::format("{}-direct-conv-{}", in.layout.to_string(),
                                     out.layout.to_string()));
 
-  dispatch.setInputDesc(fmt::format("{}[{}]", in.layout.to_string(), in.channels));
-  dispatch.setOutputDesc(fmt::format("{}[{}]", out.layout.to_string(), out.channels));
+  dispatch.setInputDesc(
+      fmt::format("{}[{}]", in.layout.to_string(), in.channels));
+  dispatch.setOutputDesc(
+      fmt::format("{}[{}]", out.layout.to_string(), out.channels));
 }
-memory::string DirectConvShaderCM::name(unsigned int pattern) const {
+memory::string DirectConvShaderCM::name(unsigned int pattern, unsigned int) const {
   switch (pattern) {
   case CONV_PATTERN:
     return "direct-conv";

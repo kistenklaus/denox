@@ -14,6 +14,7 @@ public:
   virtual float
   eval(std::span<const TensorInstance *> in, const TensorInstance &out,
             unsigned int pattern,
+            unsigned int config,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             const IShader* shader) const = 0;
 

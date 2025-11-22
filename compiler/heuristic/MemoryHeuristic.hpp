@@ -31,6 +31,7 @@ public:
 
   float eval(std::span<const TensorInstance *> ins, const TensorInstance &out,
              unsigned int pattern,
+             unsigned int config,
              const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
              const IShader *shader) const final override {
 
@@ -53,7 +54,7 @@ public:
     byteSize += n;
 
     return static_cast<float>(static_cast<double>(byteSize) * 1e-6 *
-                              static_cast<double>(shader->speedup(pattern)));
+                              static_cast<double>(shader->speedup(config)));
   }
 
   memory::string weight_to_string(float weight) const final override {

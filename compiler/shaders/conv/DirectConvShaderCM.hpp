@@ -26,6 +26,12 @@ public:
     return m_capabilities;
   }
 
+  memory::vector<unsigned int>
+  acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
+              unsigned int pattern,
+              const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+                  &match) const final override;
+
   std::size_t parameterMemorySize(
       const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
       unsigned int pattern,
@@ -35,10 +41,11 @@ public:
   void implement(Impl &impl,
                  const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
                  unsigned int pattern,
+                 unsigned int config,
                  const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                      &match, SymGraph& symGraph) const final override;
 
-  memory::string name(unsigned int pattern) const final override;
+  memory::string name(unsigned int pattern, unsigned int config) const final override;
 
 private:
   struct Handles {
