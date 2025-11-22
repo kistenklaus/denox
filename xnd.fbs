@@ -1,0 +1,16 @@
+namespace denox.xnd;
+
+table Entry {
+  key:string;
+  sample_count:uint64;
+  latency_ms:float;
+  std_derivation:float;
+  width:uint64;
+  height:uint16;
+}
+
+table Heuristic {
+  entries:[Entry]
+}
+
+root_type Model;

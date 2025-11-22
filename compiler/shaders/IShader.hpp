@@ -35,6 +35,15 @@ public:
 
   virtual const ShaderCapabilities &capabilities() const = 0;
 
+  // virtual memory::vector<uint64_t> acceptMatch(
+  //     [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
+  //         &graph,
+  //     unsigned int pattern,
+  //     [[maybe_unused]] const algorithm::ConstGraphMatch<
+  //         TensorInstance, ComputeOp> &match) const {
+  //   return {pattern};
+  // }
+
   virtual memory::optional<unsigned int> acceptMatch(
       [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
           &graph,

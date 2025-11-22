@@ -64,6 +64,8 @@ int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance) {
       ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
                              end);
 
+      fmt::println("debug = {}", dispatch.memory_writes.value_or(0));
+
       timings.push_back(TimingResult{
           .input_desc = dispatch.input_desc.value_or(""),
           .output_desc = dispatch.output_desc.value_or(""),
@@ -118,9 +120,9 @@ int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance) {
     totalAccesses += t.memory_accesses;
 
     fmt::println("{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
-                 "\x1B[90m({:>4} GB/s)\x1B[0m",
+                 "\x1B[90m({:>4} GB/s)\x1B[0m    {:.3f}MB",
                  t.input_desc, t.name, t.output_desc, int_part, frac_part,
-                 static_cast<uint32_t>(std::round(throughput)));
+                 static_cast<uint32_t>(std::round(throughput)), t.memory_accesses * 1e-6);
   }
   float totalDuration =
       ctx->timestampDifference(timestamps, 0, previousTimestamp - 1);

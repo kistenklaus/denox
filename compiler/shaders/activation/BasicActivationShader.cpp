@@ -57,6 +57,7 @@ memory::optional<unsigned int> BasicActivationShader::acceptMatch(
   }
   return pattern | ACTI_FUNC_TYPE_ReLU;
 }
+
 void BasicActivationShader::implement(
     Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int patternEnc,

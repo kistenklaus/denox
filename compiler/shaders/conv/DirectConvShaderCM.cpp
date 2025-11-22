@@ -310,7 +310,7 @@ void DirectConvShaderCM::implement(
   Sym reads = symGraph.add(wreads, inreads);
   Sym writes =
       symGraph.mul(symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym()),
-                   in.channels * in.type.size());
+                   out.channels * out.type.size());
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
 
