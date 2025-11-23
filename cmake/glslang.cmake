@@ -21,7 +21,7 @@ function(_denox_collect_targets out_var)
 endfunction()
 
 # ---- 1) Try system static libglslang.a (+ headers) ------------------------
-if (NOT DENOX_GLSLANG_FORCE_FETCH)
+if (NOT DENOX_GLSLANG_FORCE_FETCH AND NOT DENOX_SAN)
   # Prefer .a
   set(_save_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -67,6 +67,8 @@ set(ENABLE_OPT              OFF CACHE BOOL "" FORCE)  # keep OFF to avoid pullin
 set(SKIP_GLSLANG_INSTALL     ON CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS        OFF CACHE BOOL "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE BUILD_PIL)
+
+set(ENABLE_RTTI ON CACHE BOOL "" DENOX_SAN)
 
 set(_GLSLANG_URL "https://github.com/KhronosGroup/glslang/archive/refs/tags/${DENOX_GLSLANG_VERSION}.tar.gz")
 

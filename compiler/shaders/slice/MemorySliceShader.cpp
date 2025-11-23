@@ -5,7 +5,7 @@
 
 namespace denox::compiler::shaders {
 
-struct Config {
+struct MemorySliceConfig {
   unsigned int invocC;
   unsigned int invocW;
   unsigned int invocH;
@@ -14,8 +14,8 @@ struct Config {
   unsigned int wgH;
 };
 
-static constexpr std::array<Config, 5> CONFIGS{
-    Config{
+static std::array<MemorySliceConfig, 5> CONFIGS{
+    MemorySliceConfig{
         .invocC = 2,
         .invocW = 2,
         .invocH = 1,
@@ -23,7 +23,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    Config{
+    MemorySliceConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
@@ -31,7 +31,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    Config{
+    MemorySliceConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -39,7 +39,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 64,
         .wgH = 1,
     },
-    Config{
+    MemorySliceConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -47,7 +47,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 128,
         .wgH = 1,
     },
-    Config{
+    MemorySliceConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -98,7 +98,15 @@ memory::vector<unsigned int> MemorySliceShader::acceptMatch(
       memory::ActivationLayout::demote(out.layout, out.channels)) {
     return {};
   }
-  return {0, 1, 2, 3, 4};
+  auto inLayout = memory::ActivationLayout::promote(in.layout, in.channels);
+  memory::vector<unsigned int> configs;
+  configs.reserve(CONFIGS.size());
+  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
+    if (CONFIGS[c].invocC % inLayout.vectorBlockSize() == 0) {
+      configs.push_back(c);
+    }
+  }
+  return configs;
 }
 
 static GlslCompilerInstance compile(GlslCompiler *compiler,
@@ -106,7 +114,7 @@ static GlslCompilerInstance compile(GlslCompiler *compiler,
                                     memory::ActivationLayout inputLayout,
                                     memory::ActivationLayout outputLayout,
                                     unsigned int channels,
-                                    const Config &config) {
+                                    const MemorySliceConfig &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("CH", channels);
@@ -149,7 +157,7 @@ void MemorySliceShader::implement(
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
 
-  const Config &config = CONFIGS[configKey];
+  const MemorySliceConfig &config = CONFIGS[configKey];
 
   const auto &patternHandle = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandle.in];

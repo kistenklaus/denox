@@ -4,7 +4,7 @@
 
 namespace denox::compiler::shaders {
 
-struct Config {
+struct BasicUpsampleConfig {
   unsigned int invocC;
   unsigned int invocW;
   unsigned int invocH;
@@ -13,8 +13,8 @@ struct Config {
   unsigned int wgH;
 };
 
-static constexpr std::array<Config, 5> CONFIGS{
-    Config{
+static std::array<BasicUpsampleConfig, 5> CONFIGS{
+    BasicUpsampleConfig{
         .invocC = 2,
         .invocW = 2,
         .invocH = 1,
@@ -22,7 +22,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    Config{
+    BasicUpsampleConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
@@ -30,7 +30,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    Config{
+    BasicUpsampleConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -38,7 +38,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 64,
         .wgH = 1,
     },
-    Config{
+    BasicUpsampleConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -46,7 +46,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 128,
         .wgH = 1,
     },
-    Config{
+    BasicUpsampleConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -111,15 +111,22 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   if (out.type != memory::Dtype::F16) {
     return {};
   }
-
-  return {0, 1, 2, 3, 4};
+  inLayout = memory::ActivationLayout::promote(inLayout, in.channels);
+  memory::vector<unsigned int> configs;
+  configs.reserve(CONFIGS.size());
+  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
+    if (CONFIGS[c].invocC % inLayout.vectorBlockSize() == 0) {
+      configs.push_back(c);
+    }
+  }
+  return configs;
 }
 
 static GlslCompilerInstance
 compile(GlslCompiler *compiler, const io::Path &srcPath,
         memory::ActivationLayout inputLayout,
         memory::ActivationLayout outputLayout, unsigned int channels,
-        unsigned int scalingFactor, const Config &config) {
+        unsigned int scalingFactor, const BasicUpsampleConfig &config) {
   auto shader = compiler->read(srcPath);
   shader.enableDenoxPreprocessor();
   if (inputLayout == memory::ActivationLayout::HWC &&
@@ -169,7 +176,7 @@ void BasicUpsampleShader::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-  const Config config = CONFIGS[configKey];
+  const BasicUpsampleConfig config = CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
@@ -216,8 +223,8 @@ void BasicUpsampleShader::implement(
   dispatch.setOutputDesc(
       fmt::format("{}[{}]", out.layout.to_string(), out.channels));
 }
-memory::string
-BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern, unsigned int) const {
+memory::string BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern,
+                                         unsigned int) const {
   return "basic-upsample";
 }
 } // namespace denox::compiler::shaders

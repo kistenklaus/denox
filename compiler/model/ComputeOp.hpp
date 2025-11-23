@@ -243,8 +243,7 @@ private:
   void release() {
     switch (m_tag) {
     case ComputeOpTag::Conv:
-      // TODO remove with explicit destructor calls. (only since c++17)
-      std::destroy_at(&m_uni.concat);
+      std::destroy_at(&m_uni.conv);
       break;
     case ComputeOpTag::Activation:
       std::destroy_at(&m_uni.activation);

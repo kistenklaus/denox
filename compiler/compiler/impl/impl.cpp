@@ -19,7 +19,6 @@
 #include "shaders/pool/BasicPoolShader.hpp"
 #include "shaders/slice/MemorySliceShader.hpp"
 #include "shaders/upsample/BasicUpsampleShader.hpp"
-#include <fmt/base.h>
 #include <unordered_set>
 
 namespace denox::compiler {
@@ -101,9 +100,9 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
           continue;
         }
 
-        edgeExists.insert(edgeId);
+        // edgeExists.insert(edgeId);
 
-        for (const auto &config : configs) {
+        for (const unsigned int config : configs) {
           const float w = heuristic->eval(ins, opGraph.get(out), p, config, m, shader);
           supergraph.addEdge(inputs, out,
                              ComputeOpImpl{

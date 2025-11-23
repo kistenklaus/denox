@@ -65,7 +65,7 @@ memory::string ShaderPreprocessor::preprocess(const memory::string& src) {
   for (std::size_t i = 0; i < n; ++i) {
     const memory::string& L = lines[i];
     if (std::regex_match(L, m, m_rxBegin)) {
-      stack.push_back(Beg{memory::string(m[1].str()), i});
+      stack.push_back(Beg{m[1].str(), i});
     } else if (std::regex_match(L, m, m_rxEnd)) {
       if (stack.empty()) {
         throw std::runtime_error(
@@ -165,7 +165,7 @@ memory::string ShaderPreprocessor::preprocess(const memory::string& src) {
                         blk.id, blk.start_ln + k));
         }
         // Resync after the nested end: next original line = (blk.start_ln + t)
-        append_resync(out, blk.start_ln + static_cast<int>(t) + 1);
+        append_resync(out, blk.start_ln + static_cast<size_t>(t) + 1);
         k = t; // skip the whole nested region
         continue;
       }
@@ -176,14 +176,14 @@ memory::string ShaderPreprocessor::preprocess(const memory::string& src) {
         const Block& nb = find_block(nestedId);
         expand_block(nb);
         // Resume mapping at the next original line after the inline directive
-        append_resync(out, blk.start_ln + static_cast<int>(k) + 1);
+        append_resync(out, blk.start_ln + static_cast<size_t>(k) + 1);
         continue;
       }
 
       // Unroll pragma translation (optional)
       if (m_enableUnroll && std::regex_match(L2, m, m_rxUnroll)) {
         out += "#ifdef GL_EXT_control_flow_attributes\n[[unroll]]\n#endif\n";
-        append_resync(out, blk.start_ln + static_cast<int>(k) + 1);
+        append_resync(out, blk.start_ln + static_cast<size_t>(k) + 1);
         continue;
       }
 

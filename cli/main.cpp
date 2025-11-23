@@ -93,12 +93,12 @@ static denox::Extent parseExtent(const std::string &extentDef) {
       std::string g2 = match[2].str();
       int v = std::stoi(g2);
       extent.value = static_cast<unsigned int>(std::abs(v));
-      void *name = calloc(sizeof(std::string::value_type), g1.size() + 1);
+      void *name = calloc(g1.size() + 1, sizeof(std::string::value_type));
       std::memcpy(name, g1.data(), g1.size());
       g_deleteMe.push_back(name);
       extent.name = static_cast<const char *>(name);
     } else {
-      void *name = calloc(sizeof(std::string::value_type), g1.size() + 1);
+      void *name = calloc(g1.size() + 1, sizeof(std::string::value_type));
       std::memcpy(name, g1.data(), g1.size());
       g_deleteMe.push_back(name);
       extent.name = static_cast<const char *>(name);
@@ -205,8 +205,8 @@ denox::Storage parseStorage(const std::string &storage) {
   }
 }
 
-int main(int argc, char **argv) {
 
+int main(int argc, char **argv) {
   CLI::App app;
   denox::CompileOptions options;
 
@@ -466,7 +466,7 @@ int main(int argc, char **argv) {
         fmt::println("\x1B[31m[Error:]\x1B[0m Failed to write dnx to \"{}\"",
                      opath.string());
       }
-      fstream.write(static_cast<const char *>(result.dnx), result.dnxSize);
+      fstream.write(static_cast<const char *>(result.dnx), static_cast<long long>(result.dnxSize));
       fstream.close();
     }
     denox::destroy_compilation_result(&result);

@@ -14,7 +14,7 @@
 
 namespace denox::compiler::shaders {
 
-struct Config {
+struct DirectConvConfig {
   unsigned int cm_m;
   unsigned int cm_k;
   unsigned int cm_n;
@@ -26,24 +26,15 @@ struct Config {
   bool async;
 };
 
-static constexpr std::array<Config, 2> CONFIGS{
-    Config{
+static constexpr std::array<DirectConvConfig, 1> CONFIGS = {
+    DirectConvConfig{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
+
         .wg_m = 8,
         .wg_n = 1,
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    Config{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-        .wg_m = 4,
-        .wg_n = 2,
+
         .sg_m = 2,
         .sg_k = 2,
         .sg_n = 2,
@@ -119,7 +110,7 @@ DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
     in->matchValue(tensorSupported);
     out->matchValue(tensorSupported);
 
-    m_patternHandles.emplace_back(in, std::move(conv), std::move(relu), out);
+    m_patternHandles.emplace_back(in, conv, relu, out);
     m_capabilities.patterns.emplace_back(std::move(conv_relu_pattern),
                                          std::move(in), std::move(out));
   }
@@ -145,7 +136,7 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     [[maybe_unused]] unsigned int pattern,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match) const {
-  return {0, 1};
+  return {0};
 }
 
 static GlslCompilerInstance
@@ -155,7 +146,7 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
         memory::ActivationLayout outputLayout,
         memory::optional<ActivationFunction> activationFunction,
         memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
-        bool bias, const Config &config,
+        bool bias, const DirectConvConfig &config,
         //
         memory::FilterLayout *out_filterLayout,
         memory::BiasLayout *out_biasLayout) {
@@ -304,7 +295,7 @@ void DirectConvShaderCM::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-  const Config &config = CONFIGS[configKey];
+  const DirectConvConfig &config = CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::EdgeId convId = match[patternHandles.conv];

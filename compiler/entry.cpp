@@ -69,11 +69,11 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
   CompModel compModel = compiler::placement(implModel);
-
+  
   SymTable symTable = compiler::sym_table(model, options);
 
   auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel, symTable);
-
+  
   auto dnx = dnx::serialize(compModel, symIR, symTable, model.getInputName(), model.getOutputName());
 
   if (options.summarize) {

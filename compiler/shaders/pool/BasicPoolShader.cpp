@@ -6,18 +6,18 @@
 
 namespace denox::compiler::shaders {
 
-struct Config {
-  unsigned int cdiv;
-  memory::optional<unsigned int> invocC;
-  unsigned int invocW;
-  unsigned int invocH;
-  unsigned int wgC;
-  unsigned int wgW;
-  unsigned int wgH;
+struct BasicPoolConfig {
+  const unsigned int cdiv;
+  const memory::optional<unsigned int> invocC;
+  const unsigned int invocW;
+  const unsigned int invocH;
+  const unsigned int wgC;
+  const unsigned int wgW;
+  const unsigned int wgH;
 };
 
-static constexpr std::array<Config, 5> CONFIGS{
-    Config{
+static std::array<BasicPoolConfig, 5> CONFIGS = {
+    BasicPoolConfig{
         .cdiv = 4,
         .invocC = memory::nullopt,
         .invocW = 1,
@@ -26,7 +26,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 64,
         .wgH = 1,
     },
-    Config{
+    BasicPoolConfig{
         .cdiv = 8,
         .invocC = memory::nullopt,
         .invocW = 1,
@@ -35,7 +35,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    Config{
+    BasicPoolConfig{
         .cdiv = 0,
         .invocC = 8,
         .invocW = 1,
@@ -44,7 +44,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 64,
         .wgH = 1,
     },
-    Config{
+    BasicPoolConfig{
         .cdiv = 0,
         .invocC = 8,
         .invocW = 1,
@@ -53,7 +53,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 128,
         .wgH = 1,
     },
-    Config{
+    BasicPoolConfig{
         .cdiv = 0,
         .invocC = 8,
         .invocW = 1,
@@ -127,7 +127,23 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
   if (out.type != memory::Dtype::F16) {
     return {};
   }
-  return {0, 1, 2, 3, 4};
+
+  outLayout = memory::ActivationLayout::promote(in.layout, in.channels);
+  memory::vector<unsigned int> configs;
+  configs.reserve(CONFIGS.size());
+  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
+    unsigned int invocC;
+    if (CONFIGS[c].invocC.has_value()) {
+      invocC = CONFIGS[c].invocC.value();
+    } else {
+      assert(CONFIGS[c].cdiv != 0);
+      invocC = (in.channels + CONFIGS[c].cdiv - 1) / CONFIGS[c].cdiv;
+    }
+    if (invocC % outLayout.vectorBlockSize() == 0) {
+      configs.push_back(c);
+    }
+  }
+  return configs;
 }
 
 static GlslCompilerInstance
@@ -135,7 +151,7 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
         memory::ActivationLayout inputLayout,
         memory::ActivationLayout outputLayout, unsigned int channels,
         memory::uvec2 kernelSize, memory::uvec2 stride, memory::uvec2 padding,
-        const Config &config) {
+        const BasicPoolConfig &config) {
   auto shader = compiler->read(srcPath);
 
   if (inputLayout == memory::ActivationLayout::HWC &&
@@ -171,7 +187,7 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
     shader.define("INVOC_C", *config.invocC);
   } else {
     assert(config.cdiv != 0);
-    unsigned int ix = (channels + config.cdiv - 1) / config.cdiv;
+    const unsigned int ix = (channels + config.cdiv - 1) / config.cdiv;
     shader.define("INVOC_C", ix);
   }
   shader.define("INVOC_W", config.invocW);
@@ -196,7 +212,7 @@ void BasicPoolShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  const Config &config = CONFIGS[configKey];
+  const BasicPoolConfig &config = CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];

@@ -439,7 +439,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
 
     auto data = fbb.CreateVector(
         reinterpret_cast<const std::uint8_t *>(initializer.data.data()),
-        static_cast<std::size_t>(initializer.data.size()));
+        initializer.data.size());
 
     auto tensorInitializer =
         CreateTensorInitializer(fbb, initializer.tensor, data);
@@ -501,6 +501,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     case memory::ActivationLayoutKind::CHW:
       layout = dnx::TensorLayout_CHW;
       break;
+    case memory::ActivationLayoutKind::HWC8:
     case memory::ActivationLayoutKind::HWC:
       layout = dnx::TensorLayout_HWC;
       break;
@@ -607,6 +608,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     case memory::ActivationLayoutKind::CHW:
       layout = dnx::TensorLayout_CHW;
       break;
+    case memory::ActivationLayoutKind::HWC8:
     case memory::ActivationLayoutKind::HWC:
       layout = dnx::TensorLayout_HWC;
       break;

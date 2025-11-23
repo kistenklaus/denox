@@ -1,14 +1,12 @@
 #include "shaders/activation/BasicActivationShader.hpp"
 #include "diag/invalid_state.hpp"
-#include "diag/unreachable.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "model/ActivationFunction.hpp"
 #include <absl/strings/internal/str_format/extension.h>
-#include <stdexcept>
 
 namespace denox::compiler::shaders {
 
-struct Config {
+struct BasicActivationConfig {
   std::uint32_t invocC;
   std::uint32_t invocW;
   std::uint32_t invocH;
@@ -17,8 +15,8 @@ struct Config {
   std::uint32_t wgW;
 };
 
-static constexpr std::array<Config, 5> CONFIGS = {
-    Config{
+static constexpr std::array<BasicActivationConfig, 5> CONFIGS = {
+    BasicActivationConfig{
         .invocC = 2,
         .invocW = 2,
         .invocH = 1,
@@ -26,7 +24,7 @@ static constexpr std::array<Config, 5> CONFIGS = {
         .wgH = 32,
         .wgW = 1,
     },
-    Config{
+    BasicActivationConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
@@ -34,7 +32,7 @@ static constexpr std::array<Config, 5> CONFIGS = {
         .wgH = 32,
         .wgW = 1,
     },
-    Config{
+    BasicActivationConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -42,7 +40,7 @@ static constexpr std::array<Config, 5> CONFIGS = {
         .wgH = 64,
         .wgW = 1,
     },
-    Config{
+    BasicActivationConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -50,7 +48,7 @@ static constexpr std::array<Config, 5> CONFIGS = {
         .wgH = 128,
         .wgW = 1,
     },
-    Config{
+    BasicActivationConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -108,7 +106,15 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
       memory::ActivationLayout::demote(out.layout, out.channels)) {
     return {};
   }
-  return {0, 1, 2, 3, 4};
+  auto layout = memory::ActivationLayout::promote(in.layout, in.channels);
+  std::vector<unsigned int> configs;
+  configs.reserve(CONFIGS.size());
+  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
+    if (CONFIGS[c].invocC % layout.vectorBlockSize() == 0) {
+      configs.push_back(c);
+    }
+  }
+  return configs;
 }
 
 static GlslCompilerInstance
@@ -116,7 +122,7 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int subgroupSize, memory::ActivationLayout inputLayout,
         memory::ActivationLayout outputLayout, unsigned int channels,
         memory::Dtype atype, ActivationFunction activationFunction,
-        const Config &config) {
+        const BasicActivationConfig &config) {
   if (atype != memory::Dtype::F16) {
     diag::invalid_state();
   }
@@ -184,8 +190,7 @@ void BasicActivationShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-
-  const Config &config = CONFIGS[configKey];
+  const BasicActivationConfig &config = CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];

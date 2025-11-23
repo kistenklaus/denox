@@ -69,8 +69,8 @@ def run_module_test(
         input_layout=input_layout,
         output_layout=output_layout,
         quiet=True,
-        # verbose=True,
-        # summary=True,
+        verbose=True,
+        summary=True,
     )
     output = torch.utils.dlpack.from_dlpack(dnx(input))
     eval_model = net.eval()

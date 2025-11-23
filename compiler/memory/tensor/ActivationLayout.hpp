@@ -8,7 +8,7 @@
 
 namespace denox::memory {
 
-enum class ActivationLayoutKind { CHW, HWC, CHWC4, CHWC8, CHWC16 };
+enum class ActivationLayoutKind { CHW, HWC, HWC8, CHWC4, CHWC8, CHWC16 };
 
 namespace details::memory::tensors {
 class ActivationLayout {
@@ -26,6 +26,7 @@ public:
     const std::size_t C = static_cast<std::size_t>(c);
 
     switch (m_tag) {
+    case ActivationLayoutKind::HWC8:
     case ActivationLayoutKind::HWC:
       return H * (SW * SC) + W * SC + C;
 
@@ -62,6 +63,8 @@ public:
       return true;
     case ActivationLayoutKind::HWC:
       return true;
+    case ActivationLayoutKind::HWC8:
+      return channels % 8 == 0;
     case ActivationLayoutKind::CHWC4:
       return channels % 4 == 0;
     case ActivationLayoutKind::CHWC8:
@@ -79,6 +82,8 @@ public:
       return "CHW";
     case ActivationLayoutKind::HWC:
       return "HWC";
+    case ActivationLayoutKind::HWC8:
+      return "HWC8";
     case ActivationLayoutKind::CHWC4:
       return "CHWC4";
     case ActivationLayoutKind::CHWC8:
@@ -95,10 +100,28 @@ public:
     case ActivationLayoutKind::CHW:
     case ActivationLayoutKind::HWC:
       return false;
+    case ActivationLayoutKind::HWC8:
     case ActivationLayoutKind::CHWC4:
     case ActivationLayoutKind::CHWC8:
     case ActivationLayoutKind::CHWC16:
       return true;
+    default:
+      compiler::diag::unreachable();
+    }
+  }
+
+  unsigned int vectorBlockSize() const {
+    switch (m_tag) {
+    case ActivationLayoutKind::CHW:
+    case ActivationLayoutKind::HWC:
+      return 1;
+    case ActivationLayoutKind::CHWC4:
+      return 4;
+    case ActivationLayoutKind::HWC8:
+    case ActivationLayoutKind::CHWC8:
+      return 8;
+    case ActivationLayoutKind::CHWC16:
+      return 16;
     default:
       compiler::diag::unreachable();
     }
@@ -171,13 +194,21 @@ public:
 
   bool isVectorized() const { return m_layout.isVectorized(); }
 
+  unsigned int vectorBlockSize() const { return m_layout.vectorBlockSize(); }
+
   static ActivationLayout promote(ActivationLayout layout,
                                   [[maybe_unused]] unsigned int channels) {
     switch (layout.kind()) {
     case ActivationLayoutKind::CHW:
       return ActivationLayout::CHW;
     case ActivationLayoutKind::HWC:
-      return ActivationLayout::HWC;
+      if (channels % 8 == 0) {
+        return ActivationLayout(ActivationLayoutKind::HWC8);
+      } else {
+        return ActivationLayout::HWC;
+      }
+    case ActivationLayoutKind::HWC8:
+      return ActivationLayout(ActivationLayoutKind::HWC8);
     case ActivationLayoutKind::CHWC4:
       return ActivationLayout::CHWC4;
     case ActivationLayoutKind::CHWC8:
@@ -195,6 +226,8 @@ public:
     case ActivationLayoutKind::CHW:
       return ActivationLayout::CHW;
     case ActivationLayoutKind::HWC:
+      return ActivationLayout::HWC;
+    case ActivationLayoutKind::HWC8:
       return ActivationLayout::HWC;
     case ActivationLayoutKind::CHWC4:
       return ActivationLayout::CHWC4;

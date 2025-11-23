@@ -12,13 +12,18 @@ option(DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
   "Exposes vulkan as a public dependency and allows passing a vulkan instance and device, which will be used for device queries" 
   ON)
 
+option(DENOX_SAN "Enables sanitizers" OFF)
+
 set(BUILD_PIL BUILD_PYTHON_BINDING)
 
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "") 
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-set(FETCHCONTENT_QUIET FALSE)
+
+# set(FETCHCONTENT_QUIET FALSE) <- super unstable
+# set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+# set(FETCHCONTENT_FULLY_DISCONNECTED ON) 
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -165,6 +170,11 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/entry.cpp
 )
 
+if (DENOX_SAN) 
+  target_compile_options(denox_compiler PRIVATE -fsanitize=undefined -fsanitize=address)
+  target_link_options(denox_compiler PRIVATE -fsanitize=undefined -fsanitize=address)
+endif()
+
 
 target_compile_features(denox_compiler PUBLIC cxx_std_20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
@@ -269,6 +279,11 @@ if (NOT BUILD_PYTHON_BINDING)
   add_executable(denox
     cli/main.cpp
   )
+
+  if (DENOX_SAN) 
+    target_compile_options(denox PRIVATE -fsanitize=undefined -fsanitize=address)
+    target_link_options(denox PRIVATE -fsanitize=undefined -fsanitize=address)
+  endif()
 
   set_target_properties(denox PROPERTIES POSITION_INDEPENDENT_CODE BUILD_PIL)
 

@@ -152,5 +152,5 @@ void bench() {
 }
 
 int main() {
-  eval();
+  bench();
 }

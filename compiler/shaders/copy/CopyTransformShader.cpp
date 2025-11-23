@@ -16,26 +16,9 @@ enum class ConcatImplementationType {
 
 static constexpr unsigned int EXPLICIT_CONCAT_TAG = 0;
 static constexpr unsigned int IMPLICIT_CONCAT_TAG = 1;
-
 static constexpr unsigned int SINGLE_COPY_TAG = 2;
 
-static std::vector<unsigned int> explicitConfigKeys{
-    0x000000, 0x000100, 0x000200, 0x000300, 0x000400,
-
-    0x010000, 0x010100, 0x010200, 0x010300, 0x010400,
-
-    0x020000, 0x020100, 0x020200, 0x020300, 0x020400,
-
-    0x030000, 0x030100, 0x030200, 0x030300, 0x030400,
-
-    0x040000, 0x040100, 0x040200, 0x040300, 0x040400,
-};
-
-static std::vector<unsigned int> singleCopyConfigs{
-    0x000002, 0x000102, 0x000202, 0x000302, 0x000402,
-};
-
-struct Config {
+struct CopyTransformConfig {
   unsigned int invocC;
   unsigned int invocW;
   unsigned int invocH;
@@ -44,8 +27,8 @@ struct Config {
   unsigned int wgH;
 };
 
-static constexpr std::array<Config, 5> CONFIGS{
-    Config{
+static std::array<CopyTransformConfig, 5> CONFIGS{
+    CopyTransformConfig{
         .invocC = 2,
         .invocW = 2,
         .invocH = 1,
@@ -53,7 +36,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    Config{
+    CopyTransformConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
@@ -61,7 +44,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    Config{
+    CopyTransformConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -69,7 +52,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 64,
         .wgH = 1,
     },
-    Config{
+    CopyTransformConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -77,7 +60,7 @@ static constexpr std::array<Config, 5> CONFIGS{
         .wgW = 128,
         .wgH = 1,
     },
-    Config{
+    CopyTransformConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -194,16 +177,27 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
       tryImplicitConcat(src0Layout, src1Layout, dstLayout, src0.type, src1.type,
                         dst.type, src0.originalNode, src1.originalNode);
 
+  std::vector<unsigned int> configs;
   switch (implementationType) {
   case ConcatImplementationType::Explicit:
-    return explicitConfigKeys;
+    configs.reserve(CONFIGS.size() * CONFIGS.size());
+    for (unsigned int c0 = 0; c0 < CONFIGS.size(); ++c0) {
+      if (CONFIGS[c0].invocC % src0Layout.vectorBlockSize() != 0) {
+        continue;
+      }
+      for (unsigned int c1 = 0; c1 < CONFIGS.size(); ++c1) {
+        if (CONFIGS[c1].invocC % src1Layout.vectorBlockSize() == 0) {
+          configs.push_back((c1 << 16) | (c0 << 8) | EXPLICIT_CONCAT_TAG);
+        }
+      }
+    }
+    break;
   case ConcatImplementationType::Implicit:
     return {IMPLICIT_CONCAT_TAG};
   case ConcatImplementationType::SingleCopy:
     throw std::runtime_error("Not implemented HERE");
-    return singleCopyConfigs;
   }
-  diag::unreachable();
+  return configs;
 }
 
 float CopyTransformShader::speedup(unsigned int config) const {
@@ -219,7 +213,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int inputChannelOffset, unsigned int inputChannels,
         unsigned int outputChannelOffset, unsigned int outputChannels,
         memory::ActivationLayout inputLayout,
-        memory::ActivationLayout outputLayout, const Config &config) {
+        memory::ActivationLayout outputLayout, bool allowVectorization,
+        const CopyTransformConfig &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("IN_CH_OFFSET", inputChannelOffset);
@@ -229,7 +224,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
 
   if (inputLayout == memory::ActivationLayout::HWC &&
       outputLayout == memory::ActivationLayout::HWC &&
-      (inputChannels % 8 != 0 || outputChannels % 8 != 0)) {
+      (inputChannels % 8 != 0 || outputChannels % 8 != 0 ||
+       !allowVectorization)) {
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
@@ -238,7 +234,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
     shader.define("OUT_LAYOUT_HWC");
   } else if (inputLayout == memory::ActivationLayout::HWC &&
              outputLayout == memory::ActivationLayout::HWC &&
-             (inputChannels % 8 == 0 && outputChannels % 8 == 0)) {
+             (inputChannels % 8 == 0 && outputChannels % 8 == 0 &&
+              allowVectorization)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -292,16 +289,17 @@ void CopyTransformShader::implement(
 
     const auto &dst = opGraph.get(dstId);
 
+    const auto &src0 = opGraph.get(src0Id);
     {
-      const auto &src0 = opGraph.get(src0Id);
       uint8_t config0Key = (configEnc >> 8) & 0xFF;
-      const Config &config0 = CONFIGS[config0Key];
-      auto shader0 = compile(m_compiler, m_srcPath, 0, src0.channels, 0,
-                             dst.channels, src0.layout, dst.layout, config0);
+      const CopyTransformConfig &config0 = CONFIGS[config0Key];
+      auto shader0 =
+          compile(m_compiler, m_srcPath, 0, src0.channels, 0, dst.channels,
+                  src0.layout, dst.layout, true, config0);
 
-      std::uint32_t tileX = config0.invocC * config0.wgC.value_or(src0.channels);
-      std::uint32_t tileY =
-          config0.invocW * config0.wgW;
+      std::uint32_t tileX =
+          config0.invocC * config0.wgC.value_or(src0.channels);
+      std::uint32_t tileY = config0.invocW * config0.wgW;
       std::uint32_t tileZ = config0.invocH * config0.wgH;
 
       Sym workgroupCountX = symGraph.cdiv(src0.channels, tileX);
@@ -339,14 +337,14 @@ void CopyTransformShader::implement(
     {
       const auto &src1 = opGraph.get(src1Id);
       uint8_t config1Key = (configEnc >> 16) & 0xFF;
-      const Config &config1 = CONFIGS[config1Key];
-      auto shader1 =
-          compile(m_compiler, m_srcPath, 0, src1.channels, src1.channels,
-                  dst.channels, src1.layout, dst.layout, config1);
+      const CopyTransformConfig &config1 = CONFIGS[config1Key];
+      auto shader1 = compile(m_compiler, m_srcPath, 0, src1.channels,
+                             src0.channels, dst.channels, src1.layout,
+                             dst.layout, src0.channels % 8 == 0, config1);
 
-      std::uint32_t tileX = config1.invocC * config1.wgC.value_or(src1.channels);
-      std::uint32_t tileY =
-          config1.invocW * config1.wgW;
+      std::uint32_t tileX =
+          config1.invocC * config1.wgC.value_or(src1.channels);
+      std::uint32_t tileY = config1.invocW * config1.wgW;
       std::uint32_t tileZ = config1.invocH * config1.wgH;
 
       Sym workgroupCountX = symGraph.cdiv(src1.channels, tileX);
@@ -390,7 +388,7 @@ memory::string CopyTransformShader::name(unsigned int,
   } else if (config & SINGLE_COPY_TAG) {
     return "single-copy-concat";
   } else {
-    return "explicit-concat";
+    return fmt::format("explicit-concat-{}", config);
   }
 }
 

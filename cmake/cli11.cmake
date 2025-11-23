@@ -5,7 +5,7 @@ include(cmake/colorful.cmake)
 include(FetchContent)
 
 # Allow pin override from the cache/CLI: -Ddenox_CLI11_TAG=v2.4.2 (or a commit)
-set(denox_CLI11_TAG 6c7b07a878ad834957b98d0f9ce1dbe0cb204fc9 CACHE STRING "CLI11 version/commit to fetch")
+set(denox_CLI11_TAG bfffd37e1f804ca4fae1caae106935791696b6a9 CACHE STRING "CLI11 version/commit to fetch")
 
 # Progress + deterministic static builds for anything this dependency might build
 # set(FETCHCONTENT_QUIET OFF CACHE BOOL "" FORCE)
@@ -19,9 +19,7 @@ set(CLI11_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(CLI11_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(CLI11
-  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-  GIT_TAG        ${denox_CLI11_TAG}
-  GIT_SHALLOW    TRUE
+  URL https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.6.1.tar.gz
   EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(CLI11)

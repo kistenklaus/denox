@@ -292,7 +292,7 @@ int compile(const char *cpath, const CompileOptions *options,
   } catch (const std::runtime_error &e) {
     result->dnx = nullptr;
     result->dnxSize = 0;
-    int msgLen = std::strlen(e.what());
+    size_t msgLen = std::strlen(e.what());
     char *msg = static_cast<char *>(calloc(msgLen + 1, sizeof(char)));
     std::memcpy(msg, e.what(), msgLen);
     result->message = msg;
@@ -398,7 +398,7 @@ int compile(const void *data, std::size_t dataSize,
   } catch (const std::runtime_error &e) {
     result->dnx = nullptr;
     result->dnxSize = 0;
-    int msgLen = std::strlen(e.what());
+    size_t msgLen = std::strlen(e.what());
     char *msg = static_cast<char *>(calloc(msgLen + 1, sizeof(char)));
     std::memcpy(msg, e.what(), msgLen);
     result->message = msg;

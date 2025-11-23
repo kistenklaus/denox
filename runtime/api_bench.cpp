@@ -4,7 +4,6 @@
 #include "instance.hpp"
 #include "vma.hpp"
 #include <cmath>
-#include <fmt/base.h>
 #include <iterator>
 #include <variant>
 #include <vector>

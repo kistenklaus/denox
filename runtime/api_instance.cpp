@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
-#include <fmt/base.h>
 #include <forward_list>
 #include <stdexcept>
 #include <variant>

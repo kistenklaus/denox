@@ -71,8 +71,9 @@ private:
   GlslCompilerInstance(GlslCompiler *compiler,
                        std::unique_ptr<glslang::TShader> shader,
                        memory::vector<std::byte> src, io::Path sourcePath)
-      : m_compiler(compiler), m_shader(std::move(shader)),
-        m_src(std::move(src)), m_sourcePath(std::move(sourcePath)) {}
+      : m_compiler(compiler), m_shader(std::move(shader)), m_preamble(),
+        m_denoxPreprocessor(true), m_src(std::move(src)),
+        m_sourcePath(std::move(sourcePath)) {}
 
 private:
   GlslCompiler *m_compiler;

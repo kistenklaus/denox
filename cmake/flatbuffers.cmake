@@ -2,7 +2,6 @@ include_guard(GLOBAL)
 include(cmake/colorful.cmake)
 
 # --- Fetch upstream exactly (always) ---
-set(DENOX_FLATBUFFERS_GIT_TAG "187240970746d00bbd26b0f5873ed54d2477f9f3" CACHE STRING "FlatBuffers tag")
 set(FLATBUFFERS_BUILD_FLATC     ON  CACHE BOOL "" FORCE)
 set(FLATBUFFERS_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
 set(FLATBUFFERS_INSTALL         OFF CACHE BOOL "" FORCE)
@@ -11,9 +10,7 @@ set(FLATBUFFERS_BUILD_GRPCTEST  OFF CACHE BOOL "" FORCE)
 include(FetchContent)
 FetchContent_Declare(
   flatbuffers
-  GIT_REPOSITORY https://github.com/google/flatbuffers.git
-  GIT_TAG        ${DENOX_FLATBUFFERS_GIT_TAG}
-  GIT_PROGRESS TRUE
+  URL "https://github.com/google/flatbuffers/archive/refs/tags/v23.5.26.tar.gz"
   EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(flatbuffers)
@@ -147,7 +144,7 @@ function(denox_add_fbs_lib tgt)
   # Header-only lib exposing generated includes
   add_library(${_tgt_real} INTERFACE)
   add_dependencies(${_tgt_real} "${_gen_tgt}")
-  target_include_directories(${_tgt_real} INTERFACE "${FBS_OUT_DIR}")
+  target_include_directories(${_tgt_real} SYSTEM INTERFACE "${FBS_OUT_DIR}")
   target_link_libraries(${_tgt_real} INTERFACE denox::flatbuffers)
   set_target_properties(${_tgt_real} PROPERTIES POSITION_INDEPENDENT_CODE BUILD_PIL)
 
