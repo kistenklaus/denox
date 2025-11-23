@@ -16,6 +16,7 @@
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -54,10 +55,9 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
     compiler::diag::invalid_argument();
   }
 
-
   CanoModel canoModel = compiler::canonicalize(model, options);
 
-  SymGraph& symGraph = canoModel.symGraph;
+  SymGraph &symGraph = canoModel.symGraph;
 
   Lifetimes lifetimes = compiler::lifeness(canoModel);
 
@@ -69,12 +69,13 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
   ImplModel implModel = compiler::implement(opModel, symGraph, options);
 
   CompModel compModel = compiler::placement(implModel);
-  
+
   SymTable symTable = compiler::sym_table(model, options);
 
   auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel, symTable);
-  
-  auto dnx = dnx::serialize(compModel, symIR, symTable, model.getInputName(), model.getOutputName());
+
+  auto dnx = dnx::serialize(compModel, symIR, symTable, model.getInputName(),
+                            model.getOutputName());
 
   if (options.summarize) {
     diag::print_summary(model, implModel, compModel, symIR, symCount, dnx);
@@ -82,4 +83,51 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
 
   return dnx;
 }
+
+void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
+              const Options &options) {
+  Model model = frontend(raw, options);
+  assert(model.getInput().type().has_value());
+
+  if (options.verbose) {
+    fmt::println("\x1B[32m\x1B[1m{:=^40}\x1B[0m", "Imported=Model");
+    fmt::println("{}", model.to_string());
+  }
+  if (!options.inputLayout.supports(model.getInput().channels())) {
+    compiler::diag::invalid_argument();
+  }
+  if (!options.outputLayout.supports(model.getOutput().channels())) {
+    compiler::diag::invalid_argument();
+  }
+
+  CanoModel canoModel = compiler::canonicalize(model, options);
+
+  SymGraph &symGraph = canoModel.symGraph;
+
+  Lifetimes lifetimes = compiler::lifeness(canoModel);
+
+  SpecModel specModel = compiler::specialize(
+      canoModel, lifetimes, memory::ActivationLayout::supported());
+
+  OpModel opModel = compiler::dce(specModel);
+
+  compiler::implement_all(opModel, symGraph, options);
+  //
+  // CompModel compModel = compiler::placement(implModel);
+  //
+  // SymTable symTable = compiler::sym_table(model, options);
+  //
+  // auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel,
+  // symTable);
+  //
+  // auto dnx = dnx::serialize(compModel, symIR, symTable, model.getInputName(),
+  //                           model.getOutputName());
+  //
+  // if (options.summarize) {
+  //   diag::print_summary(model, implModel, compModel, symIR, symCount, dnx);
+  // }
+  //
+  // return dnx;
+}
+
 } // namespace denox::compiler

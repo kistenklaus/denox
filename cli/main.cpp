@@ -205,37 +205,45 @@ denox::Storage parseStorage(const std::string &storage) {
   }
 }
 
+bool showVersion = false;
+std::optional<std::string> modelFile;
+std::optional<std::string> dbFile;
+bool verbose = false;
+bool quite = false;
+bool summarize = false;
+std::optional<std::string> artifactPath;
+std::string features = "Features";
+std::string spirvOptions = "SPIRV compilation flags";
+denox::CompileOptions options;
 
-int main(int argc, char **argv) {
-  CLI::App app;
-  denox::CompileOptions options;
+std::string deviceInfo = "Target properties";
+std::optional<std::string> deviceName = std::nullopt;
+std::string targetEnv = "vulkan1.1";
+std::string inputOutputGroup = "Input & Output";
+std::string input_shape;
+std::string inputType = "auto";
+std::string inputLayout = "HWC";
+std::string inputStorage = "SSBO";
+std::string output_shape;
+std::string outputType = "auto";
+std::string outputLayout = "HWC";
+std::string outputStorage = "SSBO";
 
-  bool showVersion = false;
-  app.add_flag("--version", showVersion, "Print version information");
+std::optional<std::string> optimizeFor;
 
-  std::optional<std::string> modelFile;
-  app.add_option("model", modelFile, "Path to ONNX model file")
+static void add_compile_options(CLI::App *app) {
+  app->add_flag("--version", showVersion, "Print version information");
+  app->add_option("model", modelFile, "Path to ONNX model file")
       ->check(CLI::ExistingFile)
       ->type_name("");
-
-  bool verbose = false;
-  app.add_flag("--verbose,-v", verbose, "Print verbose log messages");
-  bool quite = false;
-  app.add_flag("--quite,-q", quite,
-               "Disable all logging to the console. Errors are still shown");
-  bool summarize = false;
-  app.add_flag("--summarize", summarize,
-               "Prints a summary of the execution plan");
-  std::optional<std::string> artifactPath;
-  app.add_option("-o", artifactPath, "Path to the produced dnx artifact.")
+  app->add_flag("--verbose,-v", verbose, "Print verbose log messages");
+  app->add_flag("--quite,-q", quite,
+                "Disable all logging to the console. Errors are still shown");
+  app->add_flag("--summarize", summarize,
+                "Prints a summary of the execution plan");
+  app->add_option("-o", artifactPath, "Path to the produced dnx artifact.")
       ->type_name("");
-
-  options.dnxVersion = 0;
-
-  std::string features = "Features";
-
-  options.features.coopmat = denox::Enable;
-  app.add_flag(
+  app->add_flag(
          "--fcoopmat,!--fno-coopmat",
          [&](int x) {
            if (x > 0) {
@@ -250,9 +258,7 @@ int main(int argc, char **argv) {
          "specified we "
          "query the driver for cooperative matrix support.")
       ->group(features);
-
-  options.features.fusion = denox::Enable;
-  app.add_flag(
+  app->add_flag(
          "--ffusion,!--fno-fusion",
          [&](int x) {
            if (x > 0) {
@@ -268,9 +274,7 @@ int main(int argc, char **argv) {
          "drastically "
          "decreases\nperformance; only disable for debugging reasons.")
       ->group(features);
-
-  options.features.memory_concat = denox::Enable;
-  app.add_flag(
+  app->add_flag(
          "--fmemory-concat,!--fno-memory-concat",
          [&](int x) {
            if (x > 0) {
@@ -289,11 +293,7 @@ int main(int argc, char **argv) {
          "debugging "
          "reasons.")
       ->group(features);
-
-  std::string spirvOptions = "SPIRV compilation flags";
-
-  options.spirvOptions.debugInfo = false;
-  app.add_flag(
+  app->add_flag(
          "--spirv-debug-info,!--spirv-no-debug-info",
          options.spirvOptions.debugInfo,
          "Emit \"debugInfo\" within the shader compiler frontends and within "
@@ -303,9 +303,7 @@ int main(int argc, char **argv) {
          "interessting\n."
          "for profiling. By default debug info is stripped from the shaders.")
       ->group(spirvOptions);
-
-  options.spirvOptions.nonSemanticDebugInfo = false;
-  app.add_flag(
+  app->add_flag(
          "--spirv-non-semantic-debug-info,!--no-spirv-non-semantic-debug-info",
          options.spirvOptions.nonSemanticDebugInfo,
          "Emit non semantic SPIR-V debug info within the shader compilers "
@@ -313,24 +311,19 @@ int main(int argc, char **argv) {
          "Sometimes this is useful for profiling tools like NVIDIA Nsight.\n"
          "If not specified no non-semantic debug info is generated.")
       ->group(spirvOptions);
-
-  options.spirvOptions.optimize = false;
-  app.add_flag("--spirv-optimize,!--spirv-no-optimize",
-               options.spirvOptions.optimize,
-               "Enables/Disables spirv optimizations powered by spirv-tools.\n"
-               "Specifically we run the spirv-tools optimizer until the spirv "
-               "binary converges.\n"
-               "By default no optimization passes are performed.")
+  app->add_flag("--spirv-optimize,!--spirv-no-optimize",
+                options.spirvOptions.optimize,
+                "Enables/Disables spirv optimizations powered by spirv-tools.\n"
+                "Specifically we run the spirv-tools optimizer until the spirv "
+                "binary converges.\n"
+                "By default no optimization passes are performed.")
+      ->group(spirvOptions);
+  app->add_flag("--spirv-skip-compilation",
+                options.spirvOptions.skipCompilation,
+                "Skip all shader compilation.")
       ->group(spirvOptions);
 
-  options.spirvOptions.skipCompilation = false;
-  app.add_flag("--spirv-skip-compilation", options.spirvOptions.skipCompilation,
-               "Skip all shader compilation.")
-      ->group(spirvOptions);
-
-  std::string deviceInfo = "Target properties";
-  std::optional<std::string> deviceName = std::nullopt;
-  app.add_option(
+  app->add_option(
          "--device", deviceName,
          "Device name pattern, which is used to query device capabilities.\n"
          "The pattern may contain .gitignore like expressions.\n"
@@ -339,32 +332,26 @@ int main(int argc, char **argv) {
       ->type_name("")
       ->group(deviceInfo);
 
-  std::string targetEnv = "vulkan1.1";
-  app.add_option("--target-env", targetEnv,
-                 "We require currently require vulkan1.1 to query subgroup "
-                 "properties,\n"
-                 "therefor we default to the api version 1.1")
+  app->add_option("--target-env", targetEnv,
+                  "We require currently require vulkan1.1 to query subgroup "
+                  "properties,\n"
+                  "therefor we default to the api version 1.1")
       ->check(targetEnv_validator)
       ->type_name("")
       ->group(deviceInfo);
-  options.outputDescription.storage = denox::Storage::StorageBuffer;
 
-  std::string inputOutputGroup = "Input & Output";
-
-  std::string input_shape;
-  app.add_option("--input-shape", input_shape,
-                 "Defines names for dynamic or specializes constant input "
-                 "dimensions.\nEach extent seperated by \":\" can be either,"
-                 "a C-style name,\na unsigned integral constant or a "
-                 "assignment expression.\n"
-                 "If not specified all dynamic extents are unnamed and \n"
-                 "constant extents are inferred from the model file.")
+  app->add_option("--input-shape", input_shape,
+                  "Defines names for dynamic or specializes constant input "
+                  "dimensions.\nEach extent seperated by \":\" can be either,"
+                  "a C-style name,\na unsigned integral constant or a "
+                  "assignment expression.\n"
+                  "If not specified all dynamic extents are unnamed and \n"
+                  "constant extents are inferred from the model file.")
       ->check(shape_pattern)
       ->group(inputOutputGroup)
       ->type_name("H:W:C");
 
-  std::string inputType = "auto";
-  app.add_option(
+  app->add_option(
          "--input-type", inputType,
          "Overwrites the input type, if not specified the input type is\n"
          "inferred from the model. Supported types are: [f16, f32, u8, i8].")
@@ -372,8 +359,7 @@ int main(int argc, char **argv) {
       ->type_name("")
       ->group(inputOutputGroup);
 
-  std::string inputLayout = "HWC";
-  app.add_option(
+  app->add_option(
          "--input-layout", inputLayout,
          "Specifies the input memory layout. Supported layouts are: [HWC, \n"
          "CHW, CHWC8]. HWC is the default layout, if not specified.")
@@ -381,26 +367,23 @@ int main(int argc, char **argv) {
       ->type_name("")
       ->group(inputOutputGroup);
 
-  std::string inputStorage = "SSBO";
-  app.add_option("--input-storage", inputStorage,
-                 "Specifies the storage class of the input. Supported storage "
-                 "classes are:\n"
-                 "[SSBO]. In not specified SSBO is chosen.")
+  app->add_option("--input-storage", inputStorage,
+                  "Specifies the storage class of the input. Supported storage "
+                  "classes are:\n"
+                  "[SSBO]. In not specified SSBO is chosen.")
       ->check(storage_validator)
       ->type_name("")
       ->group(inputOutputGroup);
 
-  std::string output_shape;
-  app.add_option("--output-shape", output_shape,
-                 "Defines names for dynamic or specializes "
-                 "constant output dimensions.\nSemantic rules are equivalent "
-                 "to \"--input-shape\"")
+  app->add_option("--output-shape", output_shape,
+                  "Defines names for dynamic or specializes "
+                  "constant output dimensions.\nSemantic rules are equivalent "
+                  "to \"--input-shape\"")
       ->check(shape_pattern)
       ->group(inputOutputGroup)
       ->type_name("H:W:C");
 
-  std::string outputType = "auto";
-  app.add_option(
+  app->add_option(
          "--output-type", outputType,
          "Overwrites the output type, if not specified the output type is\n"
          "inferred from the model. Supported types are: [f16, f32, u8, i8].")
@@ -408,8 +391,7 @@ int main(int argc, char **argv) {
       ->type_name("")
       ->group(inputOutputGroup);
 
-  std::string outputLayout = "HWC";
-  app.add_option(
+  app->add_option(
          "--output-layout", outputLayout,
          "Specifies the output memory layout. Supported layouts are: [HWC, \n"
          "CHW, CHWC8]. HWC is the default layout, if not specified.")
@@ -417,14 +399,37 @@ int main(int argc, char **argv) {
       ->type_name("")
       ->group(inputOutputGroup);
 
-  std::string outputStorage = "SSBO";
-  app.add_option("--output-storage", outputStorage,
-                 "Specifies the storage class of the input. Supported storage "
-                 "classes are:\n"
-                 "[SSBO]. In not specified SSBO is chosen.")
+  app->add_option("--output-storage", outputStorage,
+                  "Specifies the storage class of the input. Supported storage "
+                  "classes are:\n"
+                  "[SSBO]. In not specified SSBO is chosen.")
       ->check(storage_validator)
       ->type_name("")
       ->group(inputOutputGroup);
+
+  app->add_option("--populate", dbFile,
+                  "Populates a denox database with all possible shader "
+                  "binaries, that could occur during compialtion");
+
+  app->add_option("--optimize-for", optimizeFor,
+                  "A comma seperated list of specialization of value constants."
+                  "The network will be optimized assumging these values.");
+}
+
+int main(int argc, char **argv) {
+  CLI::App app;
+
+  options.dnxVersion = 0;
+  options.features.coopmat = denox::Enable;
+  options.features.fusion = denox::Enable;
+  options.features.memory_concat = denox::Enable;
+  options.spirvOptions.debugInfo = false;
+  options.spirvOptions.nonSemanticDebugInfo = false;
+  options.spirvOptions.optimize = false;
+  options.spirvOptions.skipCompilation = false;
+  options.outputDescription.storage = denox::Storage::StorageBuffer;
+
+  add_compile_options(&app);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -449,27 +454,34 @@ int main(int argc, char **argv) {
     fmt::println("denox version: 0.0.0");
   }
   if (modelFile.has_value()) {
-    denox::CompilationResult result;
-    if (denox::compile(modelFile->data(), &options, &result) < 0) {
-      fmt::println("\x1B[31m[Error:]\x1B[0m {}", result.message);
-    } else if (!options.spirvOptions.skipCompilation) {
-      std::filesystem::path opath;
-      if (artifactPath.has_value()) {
-        opath = std::filesystem::current_path() / artifactPath.value();
-      } else {
-        opath = std::filesystem::path(modelFile.value());
-        opath.replace_extension("dnx");
+
+    if (dbFile.has_value()) {
+      const char* dbCPath = dbFile->c_str();
+      denox::populate(dbCPath, modelFile->c_str(), &options);
+    } else {
+      denox::CompilationResult result;
+      if (denox::compile(modelFile->c_str(), &options, &result) < 0) {
+        fmt::println("\x1B[31m[Error:]\x1B[0m {}", result.message);
+      } else if (!options.spirvOptions.skipCompilation) {
+        std::filesystem::path opath;
+        if (artifactPath.has_value()) {
+          opath = std::filesystem::current_path() / artifactPath.value();
+        } else {
+          opath = std::filesystem::path(modelFile.value());
+          opath.replace_extension("dnx");
+        }
+        auto fstream = std::fstream(
+            opath.string(), std::ios::out | std::ios::binary | std::ios::trunc);
+        if (!fstream.is_open()) {
+          fmt::println("\x1B[31m[Error:]\x1B[0m Failed to write dnx to \"{}\"",
+                       opath.string());
+        }
+        fstream.write(static_cast<const char *>(result.dnx),
+                      static_cast<long long>(result.dnxSize));
+        fstream.close();
       }
-      auto fstream = std::fstream(
-          opath.string(), std::ios::out | std::ios::binary | std::ios::trunc);
-      if (!fstream.is_open()) {
-        fmt::println("\x1B[31m[Error:]\x1B[0m Failed to write dnx to \"{}\"",
-                     opath.string());
-      }
-      fstream.write(static_cast<const char *>(result.dnx), static_cast<long long>(result.dnxSize));
-      fstream.close();
+      denox::destroy_compilation_result(&result);
     }
-    denox::destroy_compilation_result(&result);
   }
   if (!showVersion && !modelFile.has_value()) {
     fmt::println("no input model provided");

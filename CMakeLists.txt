@@ -165,6 +165,7 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/shaders/compiler/GlslCompilerInstance.cpp
   compiler/shaders/compiler/ShaderPreprocessor.cpp
   compiler/shaders/compiler/global_glslang_runtime.cpp
+  compiler/shaders/shaders.cpp
 
   compiler/api.cpp
   compiler/entry.cpp

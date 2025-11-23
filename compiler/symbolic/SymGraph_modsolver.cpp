@@ -1,11 +1,15 @@
 #include "symbolic/SymGraph.hpp"
 #include "algorithm/lcm.hpp"
+#include <limits>
 
 namespace denox::compiler {
 
   denox::memory::optional<SymGraph::value_type> SymGraph::modsolve_resume(symbol lhs,
                                                               Sym m) {
   if (m.isSymbolic()) {
+    return denox::memory::nullopt;
+  }
+  if (m.isConstant() && m.constant() >= std::numeric_limits<int16_t>::max()) {
     return denox::memory::nullopt;
   }
   const auto &solver = require_modsolver(m);
@@ -427,6 +431,10 @@ denox::memory::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, 
     const value_type lifted_mod = m * d;
     modsolve_resume(lhs.sym(), Sym::Const(lifted_mod));
     const auto liftedSolver = require_modsolver(Sym::Const(lifted_mod));
+    if (lhs.sym() >= liftedSolver->expressions.size()) {
+      // failed to solve lifted expression.
+      return memory::nullopt;
+    }
     ModExpr lifted = liftedSolver->expressions[lhs.sym()];
     if (lifted.affine.isPureConstant()) {
       value_type r = lifted.affine.constant;

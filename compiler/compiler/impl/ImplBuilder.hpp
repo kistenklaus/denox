@@ -11,6 +11,7 @@
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/tensor/FilterTensor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
+#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -161,6 +162,7 @@ public:
                      "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
                      percentage, instance.getSourcePath().str(),
                      instance.hashPreamble());
+        // fmt::println("{}", instance.getPreamble());
       }
       m_impl->shaderBinaries[binaryId] = *instance.compile();
       ++c;

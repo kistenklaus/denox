@@ -3,6 +3,7 @@
 #include "algorithm/pattern_matching/match.hpp"
 #include "algorithm/shortest_dag_hyperpath.hpp"
 #include "compiler/impl/ComputeOpImpl.hpp"
+#include "compiler/ir/populate/ImplDb.hpp"
 #include "diag/failed_to_realize.hpp"
 #include "heuristic/IHeuristic.hpp"
 #include "heuristic/MemoryHeuristic.hpp"
@@ -11,14 +12,9 @@
 #include "memory/hypergraph/AdjGraph.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
 #include "shaders/IShader.hpp"
-#include "shaders/activation/BasicActivationShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
-#include "shaders/conv/DirectConvShaderCM.hpp"
-#include "shaders/copy/CopyTransformShader.hpp"
-#include "shaders/pad/MemoryPadShader.hpp"
-#include "shaders/pool/BasicPoolShader.hpp"
-#include "shaders/slice/MemorySliceShader.hpp"
-#include "shaders/upsample/BasicUpsampleShader.hpp"
+#include "shaders/shaders.hpp"
+#include <fmt/base.h>
 #include <unordered_set>
 
 namespace denox::compiler {
@@ -40,23 +36,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
   GlslCompiler glslCompiler(options);
 
-  shaders::DirectConvShaderCM directConvCM{&glslCompiler, options};
-  shaders::BasicPoolShader basicPool{&glslCompiler};
-  shaders::BasicUpsampleShader basicUpsample{&glslCompiler};
-  shaders::MemoryPadShader memoryPad{&glslCompiler};
-  shaders::MemorySliceShader memorySlice{&glslCompiler};
-  shaders::BasicActivationShader basicActivation{&glslCompiler, options};
-  shaders::CopyTransformShader copyTransform{&glslCompiler, options};
-
-  const IShader *shaders[]{
-      &directConvCM,    //
-      &basicPool,       //
-      &basicUpsample,   //
-      &memoryPad,       //
-      &memorySlice,     //
-      &basicActivation, //
-      &copyTransform,
-  };
+  const auto shaders = shaders::get_all_shaders(&glslCompiler, options);
 
   MemoryHeuristic memoryHeuristic{shaders, &opGraph, symGraphRef, model.input};
 
@@ -64,10 +44,10 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
   std::size_t nodeCount = opGraph.nodeCount();
 
-  constexpr std::size_t sn = sizeof(shaders) / sizeof(IShader *);
+  std::size_t sn = shaders.size();
   for (std::size_t s = 0; s < sn; ++s) {
 
-    const IShader *shader = shaders[s];
+    const IShader *shader = shaders[s].get();
     const ShaderCapabilities &caps = shader->capabilities();
     const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
     for (unsigned int p = 0; p < pn; ++p) {
@@ -80,7 +60,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
         memory::small_vector<const TensorInstance *, 2> ins;
         for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
           memory::NodeId in = m[caps.patterns[p].inputs[i]];
-
           inputs.push_back(in);
           ins.push_back(&opGraph.get(in));
         }
@@ -100,10 +79,12 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
           continue;
         }
 
-        // edgeExists.insert(edgeId);
+        edgeExists.insert(edgeId);
 
         for (const unsigned int config : configs) {
-          const float w = heuristic->eval(ins, opGraph.get(out), p, config, m, shader);
+          const float w =
+              heuristic->eval(ins, opGraph.get(out), p, config, m, shader);
+
           supergraph.addEdge(inputs, out,
                              ComputeOpImpl{
                                  .shader = shader,
@@ -265,4 +246,169 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   return implModel;
 }
 
+void implement_all(const OpModel &model, const SymGraph &symGraphRef,
+                   const Options &options) {
+  const auto &opGraph = model.graph;
+
+  SuperGraph supergraph{};
+
+  // NOTE: Supergraph has compatible nodeIds with OpModel!
+  for (std::uint64_t n = 0; n < opGraph.nodeCount(); ++n) {
+    memory::NodeId nid{n};
+    supergraph.addNode(opGraph.get(nid));
+  }
+
+  GlslCompiler glslCompiler(options);
+
+  const auto shaders = shaders::get_all_shaders(&glslCompiler, options);
+
+  ImplModel implModel;
+  implModel.symGraph = symGraphRef;
+  SymGraph &symGraph = implModel.symGraph;
+  Impl impl{&implModel};
+
+  ImplDb db;
+
+  std::size_t nodeCount = opGraph.nodeCount();
+  std::size_t sn = shaders.size();
+  for (std::size_t s = 0; s < sn; ++s) {
+
+    const IShader *shader = shaders[s].get();
+    const ShaderCapabilities &caps = shader->capabilities();
+    const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
+    for (unsigned int p = 0; p < pn; ++p) {
+
+      std::unordered_set<uint64_t> edgeExists;
+
+      for (const auto &m :
+           algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
+        memory::small_vector<memory::NodeId, 2> inputs;
+        memory::small_vector<const TensorInstance *, 2> ins;
+
+        memory::small_vector<TensorId, 2> inputTensors;
+
+        for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
+          memory::NodeId in = m[caps.patterns[p].inputs[i]];
+          inputs.push_back(in);
+          ins.push_back(&opGraph.get(in));
+          inputTensors.push_back(
+              impl.createTensor(symGraph, opGraph.get(in), in));
+        }
+        memory::NodeId out = m[caps.patterns[p].output];
+        std::uint64_t edgeId =
+            static_cast<std::uint64_t>(inputs[0]) * nodeCount +
+            static_cast<std::uint64_t>(out);
+        if (inputs.size() == 2) {
+          edgeId += *inputs[1] * nodeCount * nodeCount;
+        }
+        if (edgeExists.contains(edgeId)) {
+          continue;
+        }
+        TensorId outputTensor =
+            impl.createTensor(symGraph, opGraph.get(out), out);
+
+        auto configs = shader->acceptMatch(opGraph, p, m);
+        if (configs.empty()) {
+          continue;
+        }
+
+        edgeExists.insert(edgeId);
+
+        for (const unsigned int config : configs) {
+          size_t begin = implModel.dispatches.size();
+          shader->implement(impl, opGraph, p, config, m, symGraph);
+          size_t end = implModel.dispatches.size();
+          DbOp op;
+          op.shaderName = shader->name(p, config);
+          op.pattern = p;
+          op.config = config;
+          for (uint64_t i = begin; i < end; ++i) {
+            op.dispatches.push_back(i);
+          }
+          db.ops.push_back(op);
+        }
+      }
+    }
+  }
+  impl.compileAll(!options.quite);
+
+  db.tensors.reserve(implModel.tensors.size());
+  for (size_t i = 0; i < implModel.tensors.size(); ++i) {
+    const auto &tensor = implModel.tensors[i];
+    db.tensors.push_back(TensorStorageRequirements(
+        tensor.byteSize, tensor.minAlignment, nullptr));
+  }
+
+  db.dispatches.reserve(implModel.dispatches.size());
+  for (size_t i = 0; i < implModel.dispatches.size(); ++i) {
+    const auto &dispatch = implModel.dispatches[i];
+    db.dispatches.push_back(
+        ComputeDispatch(dispatch.workgroupCount, dispatch.binaryId,
+                        dispatch.bindings, dispatch.pushConstants));
+  }
+  db.shaderBinaries = implModel.shaderBinaries;
+
+  for (size_t i = 0; i < db.ops.size(); ++i) {
+    const auto& op = db.ops[i];
+    fmt::print("{}-{}-{}\n -> ", op.shaderName, op.pattern,
+        op.config);
+    for (size_t i = 0; i < op.dispatches.size(); ++i) {
+      fmt::print("{}({}) ", op.dispatches[i], db.dispatches[op.dispatches[i]].binaryId);
+    }
+    fmt::print("\n");
+  }
+
+
+  // auto opthyperpath =
+  //     algorithm::shortest_dag_hyperpath<TensorInstance, ComputeOpImpl,
+  //     float>(
+  //         constSupergraph, starts, ends);
+  // if (!opthyperpath.has_value()) {
+  //   compiler::diag::failed_to_realize(model, constSupergraph);
+  // }
+  // const memory::vector<memory::EdgeId> &hyperpath = *opthyperpath;
+  //
+  //
+  // // 1. Collect all intermediate tensors.
+  // TensorId input;
+  // TensorId output;
+  // for (const auto &opId : hyperpath) {
+  //   const ComputeOpImpl &op = constSupergraph.get(opId);
+  //
+  //   memory::span<const memory::NodeId> srcs = constSupergraph.src(opId);
+  //   for (const memory::NodeId src : srcs) {
+  //     TensorId tensorId =
+  //         impl.createTensor(symGraph, constSupergraph.get(src), src);
+  //     if (src == model.input) {
+  //       input = tensorId;
+  //     }
+  //   }
+  //   memory::NodeId dst = constSupergraph.dst(opId);
+  //   TensorId dstTensorId =
+  //       impl.createTensor(symGraph, constSupergraph.get(dst), dst);
+  //   if (dst == model.output) {
+  //     output = dstTensorId;
+  //   }
+  //   op.shader->implement(impl, opGraph, op.pattern, op.config, op.match,
+  //                        symGraph);
+  // }
+  // assert(input.index != TensorId::nullindex);
+  // assert(output.index != TensorId::nullindex);
+  // {
+  //   auto in = model.graph.get(model.input);
+  //   sym_vec2 extent = in.extent;
+  //   implModel.inputs.emplace_back(in.channels, extent, input, in.layout,
+  //                                 in.type);
+  // }
+  // {
+  //   auto out = model.graph.get(model.output);
+  //   sym_vec2 extent = out.extent;
+  //   implModel.outputs.emplace_back(out.channels, extent, output, out.layout,
+  //                                  out.type);
+  // }
+  //
+  // if (!options.skipSpirvCompile) {
+  //   impl.compileAll(!options.quite);
+  // }
+}
 } // namespace denox::compiler

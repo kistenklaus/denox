@@ -11,8 +11,8 @@ struct BasicActivationConfig {
   std::uint32_t invocW;
   std::uint32_t invocH;
   memory::optional<std::uint32_t> wgC;
-  std::uint32_t wgH;
   std::uint32_t wgW;
+  std::uint32_t wgH;
 };
 
 static constexpr std::array<BasicActivationConfig, 5> CONFIGS = {
@@ -21,41 +21,42 @@ static constexpr std::array<BasicActivationConfig, 5> CONFIGS = {
         .invocW = 2,
         .invocH = 1,
         .wgC = 8,
-        .wgH = 32,
-        .wgW = 1,
+        .wgW = 32,
+        .wgH = 1,
     },
     BasicActivationConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
         .wgC = memory::nullopt, // <- insert channel count.
-        .wgH = 32,
-        .wgW = 1,
+        .wgW = 32,
+        .wgH = 1,
     },
     BasicActivationConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
         .wgC = 4,
-        .wgH = 64,
-        .wgW = 1,
+        .wgW = 64,
+        .wgH = 1,
     },
     BasicActivationConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
         .wgC = 2,
-        .wgH = 128,
-        .wgW = 1,
+        .wgW = 128,
+        .wgH = 1,
     },
     BasicActivationConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
         .wgC = 1,
-        .wgH = 256,
-        .wgW = 1,
-    }};
+        .wgW = 256,
+        .wgH = 1,
+    }
+};
 
 BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
                                              const Options &options)
@@ -110,7 +111,9 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
   std::vector<unsigned int> configs;
   configs.reserve(CONFIGS.size());
   for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    if (CONFIGS[c].invocC % layout.vectorBlockSize() == 0) {
+    if ((CONFIGS[c].invocC % layout.vectorBlockSize() == 0) &&
+        ((CONFIGS[c].wgC.value_or(in.channels) * CONFIGS[c].wgH *
+          CONFIGS[c].wgW) <= 512)) {
       configs.push_back(c);
     }
   }

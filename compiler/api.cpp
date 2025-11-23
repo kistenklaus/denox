@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
@@ -413,6 +414,212 @@ void destroy_compilation_result(CompilationResult *result) {
   if (result->message != nullptr) {
     void *msg = const_cast<void *>(static_cast<const void *>(result->message));
     free(msg);
+  }
+}
+
+int populate(const char *dbpath, const char *cpath,
+             const CompileOptions *options) {
+  try {
+
+    if (options->externally_managed_glslang_runtime) {
+      compiler::global_glslang_runtime::assume_externally_managed();
+    }
+
+    compiler::DeviceInfo deviceInfo = query_driver(*options);
+
+    if (options->features.coopmat == Require &&
+        deviceInfo.coopmat.supported == false) {
+      DENOX_ERROR(
+          "Feature coopmat required, but not supported for device \"{}\"",
+          deviceInfo.name);
+      std::terminate();
+    }
+    if (options->features.coopmat == Disable) {
+      deviceInfo.coopmat.supported = false;
+    }
+
+    compiler::FusionRules fusionRules;
+    if (options->features.fusion != Disable) {
+      fusionRules.enableSliceSliceFusion = true;
+      fusionRules.enableConvReluFusion = true;
+    }
+
+    if (options->features.memory_concat != Disable) {
+      fusionRules.enableImplicitConcat = true;
+    }
+
+    std::size_t pathLen = std::strlen(cpath);
+    memory::string_view pathView{cpath, pathLen};
+    io::Path path{pathView};
+
+    if (path.empty()) {
+      throw std::runtime_error("empty path to source");
+    }
+    if (!path.exists()) {
+      throw std::runtime_error(
+          fmt::format("source-file: {} does not exist.", path.str()));
+    }
+
+    auto dnxVersion = infer_dnxVersion(*options);
+    auto srcType = infer_srctype(path, *options);
+    auto cwd = infer_cwd(*options);
+    memory::ActivationLayout inputLayout =
+        parse_layout(options->inputDescription.layout);
+    memory::ActivationLayout outputLayout =
+        parse_layout(options->outputDescription.layout);
+    memory::optional<memory::Dtype> inputType =
+        parse_dtype(options->inputDescription.dtype);
+    memory::optional<memory::Dtype> outputType =
+        parse_dtype(options->outputDescription.dtype);
+
+    compiler::TensorShapeDesc inputShape =
+        parse_shape(options->inputDescription.shape);
+    compiler::TensorShapeDesc outputShape =
+        parse_shape(options->outputDescription.shape);
+
+    compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
+        compiler::ShaderDebugInfoLevel::Strip;
+    if (options->spirvOptions.debugInfo &&
+        options->spirvOptions.nonSemanticDebugInfo) {
+      spirvDebugInfoLevel =
+          compiler::ShaderDebugInfoLevel::ForceNonSemanticDebugInfo;
+    } else if (options->spirvOptions.debugInfo) {
+      spirvDebugInfoLevel = compiler::ShaderDebugInfoLevel::Enable;
+    } else {
+      spirvDebugInfoLevel = compiler::ShaderDebugInfoLevel::Strip;
+    }
+
+    compiler::Features features;
+    features.coopmat = parseFeatureState(options->features.coopmat);
+
+    compiler::Options opt{
+        .dnxVersion = dnxVersion,
+        .srcType = srcType,
+        .features = features,
+        .inputLayout = inputLayout,
+        .inputType = inputType,
+        .inputShape = inputShape,
+        .outputLayout = outputLayout,
+        .outputType = outputType,
+        .outputShape = outputShape,
+        .deviceInfo = std::move(deviceInfo),
+        .fusionRules = fusionRules,
+        .shaderDebugInfo = spirvDebugInfoLevel,
+        .optimizeSpirv = options->spirvOptions.optimize,
+        .skipSpirvCompile = options->spirvOptions.skipCompilation,
+        .cwd = cwd,
+        .srcPath = path,
+        .verbose = options->verbose,
+        .quite = options->quiet,
+        .summarize = options->summarize,
+    };
+
+    auto file = io::File::open(path, io::File::OpenMode::Read);
+    memory::vector<std::byte> buf{file.size()};
+    file.read_exact(buf);
+
+    compiler::populate(io::Path::cwd() / dbpath, buf, opt);
+    //
+    return 0;
+  } catch (const std::runtime_error &e) {
+    fmt::println("ERROR: {}", e.what());
+    return -1;
+  }
+}
+
+int populate(const char *dbpath, const void *data, std::size_t dataSize,
+             const CompileOptions *options) {
+  try {
+
+    if (options->externally_managed_glslang_runtime) {
+      compiler::global_glslang_runtime::assume_externally_managed();
+    }
+
+    compiler::DeviceInfo deviceInfo = query_driver(*options);
+
+    if (options->features.coopmat == Require &&
+        deviceInfo.coopmat.supported == false) {
+      DENOX_ERROR(
+          "Feature coopmat required, but not supported for device \"{}\"",
+          deviceInfo.name);
+      std::terminate();
+    }
+    if (options->features.coopmat == Disable) {
+      deviceInfo.coopmat.supported = false;
+    }
+
+    compiler::FusionRules fusionRules;
+    if (options->features.fusion != Disable) {
+      fusionRules.enableSliceSliceFusion = true;
+      fusionRules.enableConvReluFusion = true;
+    }
+
+    if (options->features.memory_concat != Disable) {
+      fusionRules.enableImplicitConcat = true;
+    }
+
+    auto dnxVersion = infer_dnxVersion(*options);
+    compiler::SrcType srcType = infer_srctype(memory::nullopt, *options);
+    auto cwd = infer_cwd(*options);
+    memory::ActivationLayout inputLayout =
+        parse_layout(options->inputDescription.layout);
+    memory::ActivationLayout outputLayout =
+        parse_layout(options->outputDescription.layout);
+    memory::optional<memory::Dtype> inputType =
+        parse_dtype(options->inputDescription.dtype);
+    memory::optional<memory::Dtype> outputType =
+        parse_dtype(options->outputDescription.dtype);
+
+    compiler::TensorShapeDesc inputShape =
+        parse_shape(options->inputDescription.shape);
+    compiler::TensorShapeDesc outputShape =
+        parse_shape(options->outputDescription.shape);
+
+    compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
+        compiler::ShaderDebugInfoLevel::Strip;
+    if (options->spirvOptions.debugInfo &&
+        options->spirvOptions.nonSemanticDebugInfo) {
+      spirvDebugInfoLevel =
+          compiler::ShaderDebugInfoLevel::ForceNonSemanticDebugInfo;
+    } else if (options->spirvOptions.debugInfo) {
+      spirvDebugInfoLevel = compiler::ShaderDebugInfoLevel::Enable;
+    } else {
+      spirvDebugInfoLevel = compiler::ShaderDebugInfoLevel::Strip;
+    }
+
+    compiler::Features features;
+    features.coopmat = parseFeatureState(options->features.coopmat);
+
+    compiler::Options opt{
+        .dnxVersion = dnxVersion,
+        .srcType = srcType,
+        .features = features,
+        .inputLayout = inputLayout,
+        .inputType = inputType,
+        .inputShape = inputShape,
+        .outputLayout = outputLayout,
+        .outputType = outputType,
+        .outputShape = outputShape,
+        .deviceInfo = std::move(deviceInfo),
+        .fusionRules = fusionRules,
+        .shaderDebugInfo = spirvDebugInfoLevel,
+        .optimizeSpirv = options->spirvOptions.optimize,
+        .skipSpirvCompile = options->spirvOptions.skipCompilation,
+        .cwd = cwd,
+        .srcPath = memory::nullopt,
+        .verbose = options->verbose,
+        .quite = options->quiet,
+        .summarize = options->summarize,
+    };
+    std::span<const std::byte> buf(reinterpret_cast<const std::byte *>(data),
+                                   dataSize);
+
+    compiler::populate(io::Path::cwd() / dbpath, buf, opt);
+
+    return 0;
+  } catch (const std::runtime_error &e) {
+    fmt::println("ERROR: {}", e.what());
+    return -1;
   }
 }
 

@@ -13,7 +13,7 @@ namespace denox::compiler {
 class MemoryHeuristic : public IHeuristic {
 public:
   explicit MemoryHeuristic(
-      std::span<const IShader *> shaders,
+      std::span<const std::unique_ptr<IShader>> shaders,
       const memory::ConstGraph<TensorInstance, ComputeOp> *opGraph,
       const SymGraph &symGraph, memory::NodeId inputId)
       : m_shaders(shaders), m_opGraph(opGraph) {
@@ -30,8 +30,7 @@ public:
   }
 
   float eval(std::span<const TensorInstance *> ins, const TensorInstance &out,
-             unsigned int pattern,
-             unsigned int config,
+             unsigned int pattern, unsigned int config,
              const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
              const IShader *shader) const final override {
 
@@ -74,7 +73,7 @@ public:
   }
 
 private:
-  std::span<const IShader *> m_shaders;
+  std::span<const std::unique_ptr<IShader>> m_shaders;
   const memory::ConstGraph<TensorInstance, ComputeOp> *m_opGraph;
   SymGraphEval m_eval;
 };

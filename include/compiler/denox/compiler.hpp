@@ -91,4 +91,10 @@ int compile(const void *data, std::size_t dataSize,
 
 void destroy_compilation_result(CompilationResult *result);
 
+int populate(const char *dbpath, const char *path,
+             const CompileOptions *options);
+
+int populate(const char *dbpath, const void *data, std::size_t dataSize,
+             const CompileOptions *options);
+
 } // namespace denox

@@ -8,4 +8,6 @@ namespace denox::compiler {
 
 ImplModel implement(const OpModel &model, const SymGraph& symGraph, const Options& options);
 
+void implement_all(const OpModel &model, const SymGraph &symGraph,
+                   const Options &options);
 }
