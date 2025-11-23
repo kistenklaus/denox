@@ -5,10 +5,11 @@
 #include "memory/tensor/ActivationShape.hpp"
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 
 namespace denox::memory {
 
-enum class ActivationLayoutKind { CHW, HWC, HWC8, CHWC4, CHWC8, CHWC16 };
+enum class ActivationLayoutKind : uint64_t { CHW, HWC, HWC8, CHWC4, CHWC8, CHWC16 };
 
 namespace details::memory::tensors {
 class ActivationLayout {

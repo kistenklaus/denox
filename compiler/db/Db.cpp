@@ -13,6 +13,10 @@ denox::compiler::Db denox::compiler::Db::open(const io::Path &path) {
 
   con->path = path;
 
+  if (path.empty()) {
+    return out;
+  }
+
   if (!path.exists()) {
     return out;
   }
@@ -106,9 +110,7 @@ denox::compiler::Db denox::compiler::Db::open(const io::Path &path) {
   return out;
 }
 
-denox::compiler::db::details::Db::~Db() { close(); }
-
-void denox::compiler::db::details::Db::close() {
+void denox::compiler::db::details::Db::write_back() {
   if (path.empty()) {
     return;
   }
@@ -154,11 +156,11 @@ void denox::compiler::db::details::Db::close() {
         fbb, dispatch.time.samples, dispatch.time.latency_ns,
         dispatch.time.std_derivation_ns);
 
-    denox::db::CreateComputeDispatch(
+    dispatches.push_back(denox::db::CreateComputeDispatch(
         fbb, dispatch.binaryId, dispatch.workgroupCountX,
         dispatch.workgroupCountY, dispatch.workgroupCountZ,
         fbb.CreateVector<uint8_t>(dispatch.pushConstant),
-        fbb.CreateVector(bindings), timing);
+        fbb.CreateVector(bindings), timing));
   }
 
   auto dispatchesVec = fbb.CreateVector(dispatches);
@@ -321,7 +323,7 @@ uint64_t denox::compiler::Db::addComputeDispatch(
 uint64_t
 denox::compiler::db::details::Db::addOp(const denox::compiler::DbOp &op) {
   for (uint64_t o = 0; o < operations.size(); ++o) {
-    const auto &rhs = operations[o];
+    auto &rhs = operations[o];
     if (rhs.shaderName != op.shaderName) {
       continue;
     }
@@ -336,11 +338,13 @@ denox::compiler::db::details::Db::addOp(const denox::compiler::DbOp &op) {
     }
     bool matches = rhs.dispatches.size() == op.dispatches.size();
     for (size_t i = 0; i < op.dispatches.size() && matches; ++i) {
-      matches = op.dispatches[i] != op.dispatches[i];
+      matches = rhs.dispatches[i] == op.dispatches[i];
     }
-    if (matches) {
-      return o;
+    if (!matches) {
+
+      rhs.dispatches = op.dispatches;
     }
+    return o;
   }
 
   uint64_t o = operations.size();

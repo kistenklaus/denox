@@ -268,7 +268,7 @@ void CopyTransformShader::implement(
     unsigned int pattern, unsigned int configEnc,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  static_assert(sizeof(unsigned int) == 4);
+  static_assert(sizeof(decltype(configEnc)) == 4);
   uint8_t type = configEnc & 0xFF;
 
   const auto &patternHandles = m_patternHandles[pattern];

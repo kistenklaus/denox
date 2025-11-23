@@ -14,6 +14,7 @@
 #include "diag/unreachable.hpp"
 #include "dnx/serialize.hpp"
 #include "frontend/onnx/onnx.hpp"
+#include "heuristic/DbHeuristic.hpp"
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
@@ -40,6 +41,7 @@ static Model frontend(memory::span<const std::byte> raw,
 }
 
 flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
+                                  const io::Path &dbpath,
                                   const Options &options) {
   Model model = frontend(raw, options);
   assert(model.getInput().type().has_value());
@@ -66,7 +68,11 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
 
   OpModel opModel = compiler::dce(specModel);
 
-  ImplModel implModel = compiler::implement(opModel, symGraph, options);
+  auto db = Db::open(dbpath);
+  DbHeuristic heuristic{db};
+
+  ImplModel implModel =
+      compiler::implement(opModel, symGraph, &heuristic, options);
 
   CompModel compModel = compiler::placement(implModel);
 
@@ -114,6 +120,9 @@ void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
   ImplDb implDb = compiler::implement_all(opModel, symGraph, options);
 
   auto db = compiler::Db::open(dbpath);
+  size_t previousBinaryCount = db.get()->binaries.size();
+  size_t previousDispatchCount = db.get()->dispatches.size();
+  size_t previousOpCount = db.get()->operations.size();
 
   std::vector<uint64_t> binaryRemap(implDb.shaderBinaries.size());
   for (size_t i = 0; i < implDb.shaderBinaries.size(); ++i) {
@@ -123,22 +132,37 @@ void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
 
   std::vector<uint64_t> dispatchRemap(implDb.dispatches.size());
   for (size_t i = 0; i < implDb.dispatches.size(); ++i) {
-    auto& dispatch = implDb.dispatches[i];
+    auto &dispatch = implDb.dispatches[i];
     dispatch.binaryId = static_cast<uint32_t>(binaryRemap[dispatch.binaryId]);
     uint64_t id = db.addComputeDispatch(dispatch);
     dispatchRemap[i] = id;
   }
 
   for (size_t i = 0; i < implDb.ops.size(); ++i) {
-    auto& op = implDb.ops[i];   
+    auto &op = implDb.ops[i];
     for (size_t i = 0; i < op.dispatches.size(); ++i) {
       op.dispatches[i] = static_cast<uint32_t>(dispatchRemap[op.dispatches[i]]);
     }
     db.addOp(op);
   }
 
+  size_t binaryCount = db.get()->binaries.size();
+  size_t dispatchCount = db.get()->dispatches.size();
+  size_t opCount = db.get()->operations.size();
 
-  db.close();
+  db.write_back();
+
+
+  if (!options.quite) {
+    size_t binaryCountDelta = binaryCount - previousBinaryCount;
+    size_t dispatchCountDelta = dispatchCount - previousDispatchCount;
+    size_t opCountDelta = opCount - previousOpCount;
+    if (!(binaryCountDelta == 0 && dispatchCountDelta == 0 && opCountDelta == 0)) {
+      fmt::println("Added {} shader binaries to {}", binaryCountDelta, dbpath.str());
+      fmt::println("Added {} compute dispatches to {}", dispatchCountDelta, dbpath.str());
+      fmt::println("Added {} operations to {}", opCountDelta, dbpath.str());
+    }
+  }
 
   // CompModel compModel = compiler::placement(implModel);
   //

@@ -3,7 +3,6 @@
 #include "device_info/ApiVersion.hpp"
 #include "device_info/DeviceInfo.hpp"
 #include "device_info/query/query_driver_device_info.hpp"
-#include "diag/invalid_argument.hpp"
 #include "diag/logging.hpp"
 #include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
@@ -180,7 +179,7 @@ static compiler::DeviceInfo query_driver(const CompileOptions &options) {
                                                          deviceName);
 }
 
-int compile(const char *cpath, const CompileOptions *options,
+int compile(const char *cpath, const CompileOptions *options, const char *db,
             CompilationResult *result) {
   try {
 
@@ -281,7 +280,12 @@ int compile(const char *cpath, const CompileOptions *options,
     memory::vector<std::byte> buf{file.size()};
     file.read_exact(buf);
 
-    flatbuffers::DetachedBuffer dnxBuffer = compiler::entry(buf, opt);
+    io::Path dbpath;
+    if (db != nullptr) {
+      dbpath = io::Path::cwd() / db;
+    }
+
+    flatbuffers::DetachedBuffer dnxBuffer = compiler::entry(buf, dbpath, opt);
 
     void *dnx = malloc(dnxBuffer.size());
     std::memcpy(dnx, dnxBuffer.data(), dnxBuffer.size());
@@ -301,7 +305,8 @@ int compile(const char *cpath, const CompileOptions *options,
 }
 
 int compile(const void *data, std::size_t dataSize,
-            const CompileOptions *options, CompilationResult *result) {
+            const CompileOptions *options, const char *db,
+            CompilationResult *result) {
   try {
 
     if (options->externally_managed_glslang_runtime) {
@@ -387,7 +392,12 @@ int compile(const void *data, std::size_t dataSize,
     std::span<const std::byte> buf(reinterpret_cast<const std::byte *>(data),
                                    dataSize);
 
-    flatbuffers::DetachedBuffer dnxBuffer = compiler::entry(buf, opt);
+    io::Path dbpath;
+    if (db != nullptr) {
+      dbpath = io::Path::cwd() / dbpath;
+    }
+
+    flatbuffers::DetachedBuffer dnxBuffer = compiler::entry(buf, dbpath, opt);
 
     void *dnx = malloc(dnxBuffer.size());
     std::memcpy(dnx, dnxBuffer.data(), dnxBuffer.size());

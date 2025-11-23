@@ -84,10 +84,12 @@ struct CompilationResult {
 };
 
 int compile(const char *path, const CompileOptions *options,
+    const char* db,
             CompilationResult *result);
 
 int compile(const void *data, std::size_t dataSize,
-            const CompileOptions *options, CompilationResult *result);
+            const CompileOptions *options, 
+            const char* db, CompilationResult *result);
 
 void destroy_compilation_result(CompilationResult *result);
 

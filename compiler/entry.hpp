@@ -6,7 +6,7 @@
 namespace denox::compiler {
 
 [[nodiscard]] flatbuffers::DetachedBuffer
-entry(memory::span<const std::byte> raw, const Options &options);
+entry(memory::span<const std::byte> raw, const io::Path& dbpath, const Options &options);
 
 void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
               const Options &options);

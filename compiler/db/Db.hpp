@@ -58,13 +58,12 @@ struct Db {
 
   uint64_t addShaderBinary(const denox::compiler::ShaderBinary &shaderBinary);
 
-  uint64_t addComputeDispatch(const denox::compiler::DbComputeDispatch &dispatch);
+  uint64_t
+  addComputeDispatch(const denox::compiler::DbComputeDispatch &dispatch);
 
   uint64_t addOp(const denox::compiler::DbOp &op);
 
-  ~Db();
-
-  void close();
+  void write_back();
 };
 
 }; // namespace db::details
@@ -75,15 +74,18 @@ public:
 
   uint64_t addShaderBinary(const denox::compiler::ShaderBinary &shaderBinary);
 
-  uint64_t addComputeDispatch(const denox::compiler::DbComputeDispatch &dispatch);
+  uint64_t
+  addComputeDispatch(const denox::compiler::DbComputeDispatch &dispatch);
 
   uint64_t addOp(const denox::compiler::DbOp &op);
 
-  void close() { 
-    if (m_db != nullptr) {
-      m_db->close();
-    }
-    m_db = nullptr;
+  const db::details::Db *get() const {
+    assert(m_db != nullptr);
+    return m_db.get();
+  }
+
+  void write_back() {
+    m_db->write_back();
   }
 
 private:

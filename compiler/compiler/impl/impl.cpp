@@ -7,10 +7,8 @@
 #include "compiler/impl/ComputeOpImpl.hpp"
 #include "compiler/ir/populate/ImplDb.hpp"
 #include "diag/failed_to_realize.hpp"
-#include "diag/invalid_state.hpp"
 #include "diag/not_implemented.hpp"
 #include "heuristic/IHeuristic.hpp"
-#include "heuristic/MemoryHeuristic.hpp"
 #include "memory/container/hashmap.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/AdjGraph.hpp"
@@ -19,8 +17,6 @@
 #include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/shaders.hpp"
 #include "symbolic/SymGraphEval.hpp"
-#include <limits>
-#include <type_traits>
 #include <unordered_set>
 
 namespace denox::compiler {
@@ -33,7 +29,7 @@ using ComputeOpImpl = impl::details::ComputeOpImpl;
 using SuperGraph = memory::AdjGraph<TensorInstance, ComputeOpImpl, float>;
 
 ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
-                    const Options &options) {
+                    IHeuristic *heuristic, const Options &options) {
   const auto &opGraph = model.graph;
   SuperGraph supergraph{};
 
@@ -46,10 +42,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   GlslCompiler glslCompiler(options);
 
   const auto shaders = shaders::get_all_shaders(&glslCompiler, options);
-
-  MemoryHeuristic memoryHeuristic{shaders, &opGraph, symGraphRef, model.input};
-
-  IHeuristic *heuristic = &memoryHeuristic;
 
   std::size_t nodeCount = opGraph.nodeCount();
 
@@ -80,15 +72,18 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
       std::unordered_set<uint64_t> edgeExists;
 
-      std::uint64_t hash = 0xBBD224F354ADF788;
-
       for (const auto &m :
            algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
+
+        std::uint64_t hash = 0xBBD224F354ADF788;
+
+        hash = algorithm::hash_combine(hash, caps.patterns[p].inputs.size());
+
         memory::small_vector<memory::NodeId, 2> inputs;
         memory::small_vector<const TensorInstance *, 2> ins;
         for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
           memory::NodeId in = m[caps.patterns[p].inputs[i]];
-          const auto &input = opGraph.get(in);
+          auto input = opGraph.get(in);
           inputs.push_back(in);
           ins.push_back(&input);
 
@@ -136,7 +131,8 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
         edgeExists.insert(edgeId);
 
         for (const unsigned int config : configs) {
-          const float w = heuristic->eval(ins, opGraph.get(out), p, config,
+
+          float w = heuristic->eval(ins, opGraph.get(out), p, config,
                                           hash, m, shader);
 
           supergraph.addEdge(inputs, out,
@@ -151,7 +147,6 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
       }
     }
   }
-  fmt::println("edge-count: {}", supergraph.edgeCount());
   memory::ConstGraph<TensorInstance, ComputeOpImpl, float> constSupergraph{
       supergraph};
 
@@ -386,9 +381,9 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
         if (inputs.size() == 2) {
           edgeId += *inputs[1] * nodeCount * nodeCount;
         }
-        if (edgeExists.contains(edgeId)) {
-          continue;
-        }
+        // if (edgeExists.contains(edgeId)) {
+        //   continue;
+        // }
         auto output = opGraph.get(out);
         impl.createTensor(symGraph, output, out);
         {

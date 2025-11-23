@@ -208,6 +208,7 @@ denox::Storage parseStorage(const std::string &storage) {
 bool showVersion = false;
 std::optional<std::string> modelFile;
 std::optional<std::string> dbFile;
+bool populate = false;
 bool verbose = false;
 bool quite = false;
 bool summarize = false;
@@ -407,8 +408,13 @@ static void add_compile_options(CLI::App *app) {
       ->type_name("")
       ->group(inputOutputGroup);
 
-  app->add_option("--populate", dbFile,
-                  "Populates a denox database with all possible shader "
+
+  app->add_flag("--populate", populate,
+                  "populate denox database with all possible shader "
+                  "binaries, that could occur during compialtion");
+
+  app->add_option("--db,--database", dbFile,
+                  "denox database with all possible shader "
                   "binaries, that could occur during compialtion");
 
   app->add_option("--optimize-for", optimizeFor,
@@ -455,13 +461,22 @@ int main(int argc, char **argv) {
   }
   if (modelFile.has_value()) {
 
-    if (dbFile.has_value()) {
+    if (populate) {
+      if (!dbFile.has_value()) {
+        fmt::println("\x1B[31m[Error:]\x1B[0m {}", "no database specified");
+      }
       const char* dbCPath = dbFile->c_str();
       denox::populate(dbCPath, modelFile->c_str(), &options);
     } else {
       denox::CompilationResult result;
-      if (denox::compile(modelFile->c_str(), &options, &result) < 0) {
+      const char* dbCPath = nullptr;
+      if (dbFile.has_value()) {
+        dbCPath = dbFile->c_str();
+      }
+
+      if (denox::compile(modelFile->c_str(), &options, dbCPath, &result) < 0) {
         fmt::println("\x1B[31m[Error:]\x1B[0m {}", result.message);
+
       } else if (!options.spirvOptions.skipCompilation) {
         std::filesystem::path opath;
         if (artifactPath.has_value()) {
