@@ -10,21 +10,31 @@ struct DbOp {
   memory::string shaderName;
   unsigned int pattern;
   unsigned int config;
-  memory::vector<uint64_t> dispatches;
+  memory::vector<uint32_t> dispatches;
+};
+
+struct DbTensorBinding {
+  uint32_t set;
+  uint32_t binding;
+  AccessFlag access;
+
+  uint64_t tensorByteSize;
+  unsigned int tensorMinAlignment;
 };
 
 struct DbComputeDispatch {
-  
+  uint32_t workgroupCountX;
+  uint32_t workgroupCountY;
+  uint32_t workgroupCountZ;
+  uint32_t binaryId;
+  memory::vector<DbTensorBinding> bindings;
+  memory::vector<std::uint8_t> pushConstant;
 };
 
 struct ImplDb {
-  memory::vector<TensorStorageRequirements> tensors; // TODO should not
-                                                     // contain dynamic sizes.
-  memory::vector<ComputeDispatch> dispatches; // TODO should not contain 
-                                              // dynamic workgroup sizes or push constants.
-  memory::vector<ShaderBinary> shaderBinaries;
-
-  memory::vector<DbOp> ops; // <- may be more than one dispatch.
+  memory::vector<ShaderBinary> shaderBinaries;  // <- what is executed.
+  memory::vector<DbComputeDispatch> dispatches; // <- what is benchmarked.
+  memory::vector<DbOp> ops;                     // <- what is queried.
 };
 
 } // namespace denox::compiler

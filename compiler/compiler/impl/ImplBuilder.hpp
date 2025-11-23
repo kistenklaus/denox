@@ -11,7 +11,6 @@
 #include "memory/hypergraph/NodeId.hpp"
 #include "memory/tensor/FilterTensor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
-#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {

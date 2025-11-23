@@ -2,7 +2,6 @@
 #include "diag/invalid_state.hpp"
 #include "memory/dtype/dtype.hpp"
 #include "model/ActivationFunction.hpp"
-#include <absl/strings/internal/str_format/extension.h>
 
 namespace denox::compiler::shaders {
 

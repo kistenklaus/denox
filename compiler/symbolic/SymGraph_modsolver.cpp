@@ -9,7 +9,7 @@ namespace denox::compiler {
   if (m.isSymbolic()) {
     return denox::memory::nullopt;
   }
-  if (m.isConstant() && m.constant() >= std::numeric_limits<int16_t>::max()) {
+  if (m.isConstant() && m.constant() >= std::numeric_limits<uint32_t>::max()) {
     return denox::memory::nullopt;
   }
   const auto &solver = require_modsolver(m);

@@ -46,3 +46,4 @@ cmake-debug-build
 *.pth
 *.pt
 *.tza
+*.db

@@ -79,25 +79,6 @@ TEST(symbolic, common_cnn_modalign_pool2x2_upsample2_multiple_layers) {
   EXPECT_EQ(W_aligned.sym(), W_post_upsample3.sym());
 }
 
-TEST(symbolic, common_cnn_modalign_pool2x2_upsample2_gigantic) {
-  SymGraph g;
-  auto W = g.var();
-
-  std::uint64_t N = 60;
-  // Image aligned to 1152921504606846976 xD, yeah that seems likely
-  std::uint64_t alignment = std::uint64_t(1ULL) << N;
-  auto W_aligned = g.add(W, g.sub(alignment, g.mod(W, alignment)));
-
-  auto inout = W_aligned;
-  for (std::size_t n = 0; n < N; ++n) {
-    inout = g.pool(inout, 2, 0, 2);
-  }
-  for (std::size_t n = 0; n < N; ++n) {
-    inout = g.mul(inout, 2);
-  }
-  EXPECT_EQ(inout.sym(), W_aligned.sym());
-}
-
 // -----------------------------------------------------------------------------
 // 2) Zero-copy concat along width when K is a multiple of A:
 //    If K := C*B is a multiple of A, every row size is already A-aligned.

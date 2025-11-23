@@ -1,10 +1,13 @@
 #include "compiler/impl/impl.hpp"
+#include "algorithm/align_up.hpp"
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/match.hpp"
 #include "algorithm/shortest_dag_hyperpath.hpp"
 #include "compiler/impl/ComputeOpImpl.hpp"
 #include "compiler/ir/populate/ImplDb.hpp"
 #include "diag/failed_to_realize.hpp"
+#include "diag/invalid_state.hpp"
+#include "diag/not_implemented.hpp"
 #include "heuristic/IHeuristic.hpp"
 #include "heuristic/MemoryHeuristic.hpp"
 #include "memory/container/hashmap.hpp"
@@ -14,7 +17,8 @@
 #include "shaders/IShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/shaders.hpp"
-#include <fmt/base.h>
+#include "symbolic/SymGraphEval.hpp"
+#include <limits>
 #include <unordered_set>
 
 namespace denox::compiler {
@@ -246,7 +250,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
   return implModel;
 }
 
-void implement_all(const OpModel &model, const SymGraph &symGraphRef,
+ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
                    const Options &options) {
   const auto &opGraph = model.graph;
 
@@ -271,6 +275,7 @@ void implement_all(const OpModel &model, const SymGraph &symGraphRef,
 
   std::size_t nodeCount = opGraph.nodeCount();
   std::size_t sn = shaders.size();
+
   for (std::size_t s = 0; s < sn; ++s) {
 
     const IShader *shader = shaders[s].get();
@@ -283,16 +288,11 @@ void implement_all(const OpModel &model, const SymGraph &symGraphRef,
       for (const auto &m :
            algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
         memory::small_vector<memory::NodeId, 2> inputs;
-        memory::small_vector<const TensorInstance *, 2> ins;
-
         memory::small_vector<TensorId, 2> inputTensors;
 
         for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
           memory::NodeId in = m[caps.patterns[p].inputs[i]];
-          inputs.push_back(in);
-          ins.push_back(&opGraph.get(in));
-          inputTensors.push_back(
-              impl.createTensor(symGraph, opGraph.get(in), in));
+          impl.createTensor(symGraph, opGraph.get(in), in);
         }
         memory::NodeId out = m[caps.patterns[p].output];
         std::uint64_t edgeId =
@@ -304,8 +304,7 @@ void implement_all(const OpModel &model, const SymGraph &symGraphRef,
         if (edgeExists.contains(edgeId)) {
           continue;
         }
-        TensorId outputTensor =
-            impl.createTensor(symGraph, opGraph.get(out), out);
+        impl.createTensor(symGraph, opGraph.get(out), out);
 
         auto configs = shader->acceptMatch(opGraph, p, m);
         if (configs.empty()) {
@@ -332,83 +331,104 @@ void implement_all(const OpModel &model, const SymGraph &symGraphRef,
   }
   impl.compileAll(!options.quite);
 
-  db.tensors.reserve(implModel.tensors.size());
-  for (size_t i = 0; i < implModel.tensors.size(); ++i) {
-    const auto &tensor = implModel.tensors[i];
-    db.tensors.push_back(TensorStorageRequirements(
-        tensor.byteSize, tensor.minAlignment, nullptr));
+  constexpr size_t DEFAULT_INPUT_WIDTH = 1920;
+  constexpr size_t DEFAULT_INPUT_HEIGHT = 1080;
+
+  // specialize symbolic graph.
+  std::vector<SymSpec> specs;
+  auto in = model.graph.get(model.input);
+  if (in.extent.x.isSymbolic()) {
+    specs.push_back(SymSpec{
+        .symbol = in.extent.x.symbol(),
+        .value = DEFAULT_INPUT_WIDTH,
+    });
+  }
+  if (in.extent.y.isSymbolic()) {
+    specs.push_back(SymSpec{
+        .symbol = in.extent.y.symbol(),
+        .value = DEFAULT_INPUT_HEIGHT,
+    });
   }
 
+  SymGraphEval symEval = symGraph.eval(specs);
+
+  db.shaderBinaries = implModel.shaderBinaries;
   db.dispatches.reserve(implModel.dispatches.size());
   for (size_t i = 0; i < implModel.dispatches.size(); ++i) {
     const auto &dispatch = implModel.dispatches[i];
-    db.dispatches.push_back(
-        ComputeDispatch(dispatch.workgroupCount, dispatch.binaryId,
-                        dispatch.bindings, dispatch.pushConstants));
-  }
-  db.shaderBinaries = implModel.shaderBinaries;
-
-  for (size_t i = 0; i < db.ops.size(); ++i) {
-    const auto& op = db.ops[i];
-    fmt::print("{}-{}-{}\n -> ", op.shaderName, op.pattern,
-        op.config);
-    for (size_t i = 0; i < op.dispatches.size(); ++i) {
-      fmt::print("{}({}) ", op.dispatches[i], db.dispatches[op.dispatches[i]].binaryId);
+    DbComputeDispatch dbDispatch;
+    dbDispatch.workgroupCountX =
+        static_cast<uint32_t>(symEval[dispatch.workgroupCount[0]].value());
+    dbDispatch.workgroupCountY =
+        static_cast<uint32_t>(symEval[dispatch.workgroupCount[1]].value());
+    dbDispatch.workgroupCountZ =
+        static_cast<uint32_t>(symEval[dispatch.workgroupCount[2]].value());
+    dbDispatch.binaryId = dispatch.binaryId;
+    for (const TensorBinding &binding : dispatch.bindings) {
+      DbTensorBinding dbbinding;
+      dbbinding.set = binding.set;
+      dbbinding.binding = binding.binding;
+      dbbinding.access = binding.accessFlag;
+      const TensorStorageRequirements &tensor =
+          implModel.tensors[binding.tensorId.index];
+      dbbinding.tensorByteSize =
+          static_cast<uint64_t>(*symEval[tensor.byteSize]);
+      dbbinding.tensorMinAlignment = tensor.minAlignment;
+      dbDispatch.bindings.push_back(dbbinding);
     }
-    fmt::print("\n");
+
+    uint64_t offset = 0;
+    for (const PushConstant &pc : dispatch.pushConstants) {
+      offset = algorithm::align_up(offset, pc.type().alignment());
+      offset += pc.type().size();
+    }
+    memory::vector<uint8_t> pushConstant(offset);
+    offset = 0;
+    for (const PushConstant &pc : dispatch.pushConstants) {
+      offset = algorithm::align_up(offset, pc.type().alignment());
+      if (pc.isDynamic()) {
+        int64_t v = *symEval[Sym::Symbol(pc.dynamic())];
+        switch (pc.type().kind()) {
+        case memory::DtypeKind::F16:
+        case memory::DtypeKind::F32:
+        case memory::DtypeKind::F64:
+          diag::not_implemented(); // <- floating point push constants are not
+                                   // implemented.
+        case memory::DtypeKind::U32: {
+          uint32_t x = static_cast<uint32_t>(v);
+          std::memcpy(pushConstant.data() + offset, &x, sizeof(uint32_t));
+          break;
+        }
+        case memory::DtypeKind::I32: {
+          int32_t x = static_cast<int32_t>(v);
+          std::memcpy(pushConstant.data() + offset, &x, sizeof(int32_t));
+          break;
+        }
+        }
+      } else {
+        switch (pc.type().kind()) {
+        case memory::DtypeKind::F16:
+        case memory::DtypeKind::F32:
+        case memory::DtypeKind::F64:
+          diag::not_implemented(); // <- floating point push constants are not
+                                   // implemented.
+        case memory::DtypeKind::U32: {
+          uint32_t x = pc.u32();
+          std::memcpy(pushConstant.data() + offset, &x, sizeof(uint32_t));
+          break;
+        }
+        case memory::DtypeKind::I32: {
+          int32_t x = pc.i32();
+          std::memcpy(pushConstant.data() + offset, &x, sizeof(int32_t));
+          break;
+        }
+        }
+      }
+      offset += pc.type().size();
+    }
+    dbDispatch.pushConstant = std::move(pushConstant);
+    db.dispatches.push_back(std::move(dbDispatch));
   }
-
-
-  // auto opthyperpath =
-  //     algorithm::shortest_dag_hyperpath<TensorInstance, ComputeOpImpl,
-  //     float>(
-  //         constSupergraph, starts, ends);
-  // if (!opthyperpath.has_value()) {
-  //   compiler::diag::failed_to_realize(model, constSupergraph);
-  // }
-  // const memory::vector<memory::EdgeId> &hyperpath = *opthyperpath;
-  //
-  //
-  // // 1. Collect all intermediate tensors.
-  // TensorId input;
-  // TensorId output;
-  // for (const auto &opId : hyperpath) {
-  //   const ComputeOpImpl &op = constSupergraph.get(opId);
-  //
-  //   memory::span<const memory::NodeId> srcs = constSupergraph.src(opId);
-  //   for (const memory::NodeId src : srcs) {
-  //     TensorId tensorId =
-  //         impl.createTensor(symGraph, constSupergraph.get(src), src);
-  //     if (src == model.input) {
-  //       input = tensorId;
-  //     }
-  //   }
-  //   memory::NodeId dst = constSupergraph.dst(opId);
-  //   TensorId dstTensorId =
-  //       impl.createTensor(symGraph, constSupergraph.get(dst), dst);
-  //   if (dst == model.output) {
-  //     output = dstTensorId;
-  //   }
-  //   op.shader->implement(impl, opGraph, op.pattern, op.config, op.match,
-  //                        symGraph);
-  // }
-  // assert(input.index != TensorId::nullindex);
-  // assert(output.index != TensorId::nullindex);
-  // {
-  //   auto in = model.graph.get(model.input);
-  //   sym_vec2 extent = in.extent;
-  //   implModel.inputs.emplace_back(in.channels, extent, input, in.layout,
-  //                                 in.type);
-  // }
-  // {
-  //   auto out = model.graph.get(model.output);
-  //   sym_vec2 extent = out.extent;
-  //   implModel.outputs.emplace_back(out.channels, extent, output, out.layout,
-  //                                  out.type);
-  // }
-  //
-  // if (!options.skipSpirvCompile) {
-  //   impl.compileAll(!options.quite);
-  // }
+  return db;
 }
 } // namespace denox::compiler

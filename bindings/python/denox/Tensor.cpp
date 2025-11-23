@@ -2,7 +2,6 @@
 #include "denox/common/types.hpp"
 #include "dlpack/dlpack.h"
 #include "f16.hpp"
-#include <absl/strings/internal/str_format/extension.h>
 #include <dlpack/dlpack.h>
 #include <fmt/format.h>
 #include <memory>

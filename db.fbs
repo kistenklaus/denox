@@ -1,0 +1,52 @@
+namespace denox.db;
+
+file_extension "db";
+
+table ShaderBinary {
+  spirv:[uint32];
+}
+
+enum Access:ubyte { ReadOnly=0,
+  WriteOnly=1, 
+  ReadWrite=2 
+}
+
+table TensorBinding {
+  set:uint32;
+  binding:uint32;
+  access:Access;
+
+  tensor_byte_size:uint64;
+  tensor_min_align:uint32;
+}
+
+table Timing {
+  samples:uint64;
+  latency_ns:uint64;
+  std_derivation_ns:uint64;
+}
+
+table ComputeDispatch {
+  binary_id:uint32;
+  workgroup_count_x:uint32;
+  workgroup_count_y:uint32;
+  workgroup_count_z:uint32;
+  push_constant:[uint8];
+  bindings:[TensorBinding];
+  time:Timing;
+}
+
+table Operation {
+  shader_name:string;
+  pattern:uint32;
+  config:uint32;
+  dispatches:[uint32];
+}
+
+table Db {
+  shader_binaries:[ShaderBinary];
+  dispatch:[ComputeDispatch];
+  operations:[Operation];
+}
+
+root_type Db;

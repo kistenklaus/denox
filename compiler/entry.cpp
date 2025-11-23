@@ -8,6 +8,7 @@
 #include "compiler/spec.hpp"
 #include "compiler/sym_compile.hpp"
 #include "compiler/sym_table.hpp"
+#include "db/Db.hpp"
 #include "diag/invalid_argument.hpp"
 #include "diag/summary.hpp"
 #include "diag/unreachable.hpp"
@@ -16,7 +17,6 @@
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
-#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -111,8 +111,35 @@ void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
 
   OpModel opModel = compiler::dce(specModel);
 
-  compiler::implement_all(opModel, symGraph, options);
-  //
+  ImplDb implDb = compiler::implement_all(opModel, symGraph, options);
+
+  auto db = compiler::Db::open(dbpath);
+
+  std::vector<uint64_t> binaryRemap(implDb.shaderBinaries.size());
+  for (size_t i = 0; i < implDb.shaderBinaries.size(); ++i) {
+    uint64_t id = db.addShaderBinary(implDb.shaderBinaries[i]);
+    binaryRemap[i] = id;
+  }
+
+  std::vector<uint64_t> dispatchRemap(implDb.dispatches.size());
+  for (size_t i = 0; i < implDb.dispatches.size(); ++i) {
+    auto& dispatch = implDb.dispatches[i];
+    dispatch.binaryId = static_cast<uint32_t>(binaryRemap[dispatch.binaryId]);
+    uint64_t id = db.addComputeDispatch(dispatch);
+    dispatchRemap[i] = id;
+  }
+
+  for (size_t i = 0; i < implDb.ops.size(); ++i) {
+    auto& op = implDb.ops[i];   
+    for (size_t i = 0; i < op.dispatches.size(); ++i) {
+      op.dispatches[i] = static_cast<uint32_t>(dispatchRemap[op.dispatches[i]]);
+    }
+    db.addOp(op);
+  }
+
+
+  db.close();
+
   // CompModel compModel = compiler::placement(implModel);
   //
   // SymTable symTable = compiler::sym_table(model, options);

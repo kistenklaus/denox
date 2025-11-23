@@ -19,7 +19,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>

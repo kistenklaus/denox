@@ -38,6 +38,7 @@ include(cmake/onnx.cmake)
 include(cmake/generator.cmake)
 include(cmake/flatbuffers.cmake)
 include(cmake/dnx.cmake)
+include(cmake/db.cmake)
 include(cmake/vma.cmake)
 
 include(cmake/warnings.cmake)
@@ -137,6 +138,8 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/io/fs/File.cpp
   compiler/io/fs/Path.cpp
 
+  compiler/db/Db.cpp
+
 
   compiler/frontend/onnx/details/values/Attribute.cpp
   compiler/frontend/onnx/details/values/DeviceTensor.cpp
@@ -169,6 +172,7 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
 
   compiler/api.cpp
   compiler/entry.cpp
+
 )
 
 if (DENOX_SAN) 
@@ -202,6 +206,7 @@ target_link_libraries(denox_compiler
     denox::vulkan
     denox::spirv-tools
     denox::dnx
+    denox::db
     denox::glslang
 
 )
