@@ -4,8 +4,8 @@
 #include "memory/container/vector.hpp"
 #include <dnx.h>
 #include <filesystem>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 denox::compiler::Db denox::compiler::Db::open(const io::Path &path) {
   auto out = Db{std::make_shared<db::details::Db>()};
@@ -98,6 +98,7 @@ denox::compiler::Db denox::compiler::Db::open(const io::Path &path) {
           .shaderName = op->shader_name()->str(),
           .pattern = op->pattern(),
           .config = op->config(),
+          .hash = op->hash(),
           .dispatches = {op->dispatches()->begin(), op->dispatches()->end()}});
     }
   }
@@ -163,13 +164,11 @@ void denox::compiler::db::details::Db::close() {
   auto dispatchesVec = fbb.CreateVector(dispatches);
 
   std::vector<flatbuffers::Offset<denox::db::Operation>> operations;
-  for (const auto& op : this->operations) {
-    operations.push_back(denox::db::CreateOperation(fbb,
-          fbb.CreateString(op.shaderName),
-          op.pattern,
-          op.config,
-          fbb.CreateVector<uint32_t>(op.dispatches.data(), op.dispatches.size())
-          ));
+  for (const auto &op : this->operations) {
+    operations.push_back(denox::db::CreateOperation(
+        fbb, fbb.CreateString(op.shaderName), op.pattern, op.config, op.hash,
+        fbb.CreateVector<uint32_t>(op.dispatches.data(),
+                                   op.dispatches.size())));
   }
 
   auto operationsVec = fbb.CreateVector(operations);
@@ -178,7 +177,6 @@ void denox::compiler::db::details::Db::close() {
   builder.add_shader_binaries(binariesVec);
   builder.add_dispatch(dispatchesVec);
   builder.add_operations(operationsVec);
-
 
   auto db = builder.Finish();
   denox::db::FinishDbBuffer(fbb, db);
@@ -333,6 +331,9 @@ denox::compiler::db::details::Db::addOp(const denox::compiler::DbOp &op) {
     if (rhs.config != op.config) {
       continue;
     }
+    if (rhs.hash != op.hash) {
+      continue;
+    }
     bool matches = rhs.dispatches.size() == op.dispatches.size();
     for (size_t i = 0; i < op.dispatches.size() && matches; ++i) {
       matches = op.dispatches[i] != op.dispatches[i];
@@ -347,6 +348,7 @@ denox::compiler::db::details::Db::addOp(const denox::compiler::DbOp &op) {
       .shaderName = op.shaderName,
       .pattern = op.pattern,
       .config = op.config,
+      .hash = op.hash,
       .dispatches = op.dispatches,
   });
   return o;

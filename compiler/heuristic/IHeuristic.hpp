@@ -15,6 +15,7 @@ public:
   eval(std::span<const TensorInstance *> in, const TensorInstance &out,
             unsigned int pattern,
             unsigned int config,
+            uint64_t hash,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             const IShader* shader) const = 0;
 

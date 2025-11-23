@@ -10,6 +10,7 @@ struct DbOp {
   memory::string shaderName;
   unsigned int pattern;
   unsigned int config;
+  uint64_t hash;
   memory::vector<uint32_t> dispatches;
 };
 

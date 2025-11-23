@@ -46,6 +46,7 @@ struct Operation {
   std::string shaderName;
   uint32_t pattern;
   uint32_t config;
+  uint64_t hash;
   std::vector<uint32_t> dispatches;
 };
 

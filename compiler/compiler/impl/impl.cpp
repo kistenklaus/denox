@@ -1,5 +1,6 @@
 #include "compiler/impl/impl.hpp"
 #include "algorithm/align_up.hpp"
+#include "algorithm/hash_combine.hpp"
 #include "algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "algorithm/pattern_matching/match.hpp"
 #include "algorithm/shortest_dag_hyperpath.hpp"
@@ -19,9 +20,13 @@
 #include "shaders/shaders.hpp"
 #include "symbolic/SymGraphEval.hpp"
 #include <limits>
+#include <type_traits>
 #include <unordered_set>
 
 namespace denox::compiler {
+
+static constexpr size_t DEFAULT_INPUT_WIDTH = 1920;
+static constexpr size_t DEFAULT_INPUT_HEIGHT = 1080;
 
 using ComputeOpImpl = impl::details::ComputeOpImpl;
 
@@ -48,6 +53,23 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
   std::size_t nodeCount = opGraph.nodeCount();
 
+  std::vector<SymSpec> specs;
+  auto in = model.graph.get(model.input);
+  if (in.extent.x.isSymbolic()) {
+    specs.push_back(SymSpec{
+        .symbol = in.extent.x.symbol(),
+        .value = DEFAULT_INPUT_WIDTH,
+    });
+  }
+  if (in.extent.y.isSymbolic()) {
+    specs.push_back(SymSpec{
+        .symbol = in.extent.y.symbol(),
+        .value = DEFAULT_INPUT_HEIGHT,
+    });
+  }
+
+  SymGraphEval symEval0 = symGraphRef.eval(specs);
+
   std::size_t sn = shaders.size();
   for (std::size_t s = 0; s < sn; ++s) {
 
@@ -58,16 +80,31 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
       std::unordered_set<uint64_t> edgeExists;
 
+      std::uint64_t hash = 0xBBD224F354ADF788;
+
       for (const auto &m :
            algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
         memory::small_vector<memory::NodeId, 2> inputs;
         memory::small_vector<const TensorInstance *, 2> ins;
         for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
           memory::NodeId in = m[caps.patterns[p].inputs[i]];
+          const auto &input = opGraph.get(in);
           inputs.push_back(in);
-          ins.push_back(&opGraph.get(in));
+          ins.push_back(&input);
+
+          hash = algorithm::hash_combine(hash, input.channels);
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[input.extent.x.asSym()]));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[input.extent.y.asSym()]));
+
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(input.layout.kind()));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(input.type.kind()));
         }
         memory::NodeId out = m[caps.patterns[p].output];
+        const auto &output = opGraph.get(out);
         std::uint64_t edgeId =
             static_cast<std::uint64_t>(inputs[0]) * nodeCount +
             static_cast<std::uint64_t>(out);
@@ -83,11 +120,24 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
           continue;
         }
 
+        {
+          hash = algorithm::hash_combine(hash, output.channels);
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[output.extent.x.asSym()]));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[output.extent.y.asSym()]));
+
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(output.layout.kind()));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(output.type.kind()));
+        }
+
         edgeExists.insert(edgeId);
 
         for (const unsigned int config : configs) {
-          const float w =
-              heuristic->eval(ins, opGraph.get(out), p, config, m, shader);
+          const float w = heuristic->eval(ins, opGraph.get(out), p, config,
+                                          hash, m, shader);
 
           supergraph.addEdge(inputs, out,
                              ComputeOpImpl{
@@ -251,7 +301,7 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 }
 
 ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
-                   const Options &options) {
+                     const Options &options) {
   const auto &opGraph = model.graph;
 
   SuperGraph supergraph{};
@@ -276,6 +326,25 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
   std::size_t nodeCount = opGraph.nodeCount();
   std::size_t sn = shaders.size();
 
+  // specialize symbolic graph.
+
+  std::vector<SymSpec> specs;
+  auto in = model.graph.get(model.input);
+  if (in.extent.x.isSymbolic()) {
+    specs.push_back(SymSpec{
+        .symbol = in.extent.x.symbol(),
+        .value = DEFAULT_INPUT_WIDTH,
+    });
+  }
+  if (in.extent.y.isSymbolic()) {
+    specs.push_back(SymSpec{
+        .symbol = in.extent.y.symbol(),
+        .value = DEFAULT_INPUT_HEIGHT,
+    });
+  }
+
+  SymGraphEval symEval0 = symGraphRef.eval(specs);
+
   for (std::size_t s = 0; s < sn; ++s) {
 
     const IShader *shader = shaders[s].get();
@@ -290,9 +359,25 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
         memory::small_vector<memory::NodeId, 2> inputs;
         memory::small_vector<TensorId, 2> inputTensors;
 
+        uint64_t hash = 0xBBD224F354ADF788;
+
+        hash = algorithm::hash_combine(hash, caps.patterns[p].inputs.size());
+
         for (std::size_t i = 0; i < caps.patterns[p].inputs.size(); ++i) {
           memory::NodeId in = m[caps.patterns[p].inputs[i]];
-          impl.createTensor(symGraph, opGraph.get(in), in);
+          auto input = opGraph.get(in);
+          impl.createTensor(symGraph, input, in);
+
+          hash = algorithm::hash_combine(hash, input.channels);
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[input.extent.x.asSym()]));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[input.extent.y.asSym()]));
+
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(input.layout.kind()));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(input.type.kind()));
         }
         memory::NodeId out = m[caps.patterns[p].output];
         std::uint64_t edgeId =
@@ -304,7 +389,20 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
         if (edgeExists.contains(edgeId)) {
           continue;
         }
-        impl.createTensor(symGraph, opGraph.get(out), out);
+        auto output = opGraph.get(out);
+        impl.createTensor(symGraph, output, out);
+        {
+          hash = algorithm::hash_combine(hash, output.channels);
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[output.extent.x.asSym()]));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(*symEval0[output.extent.y.asSym()]));
+
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(output.layout.kind()));
+          hash = algorithm::hash_combine(
+              hash, static_cast<uint64_t>(output.type.kind()));
+        }
 
         auto configs = shader->acceptMatch(opGraph, p, m);
         if (configs.empty()) {
@@ -321,8 +419,9 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
           op.shaderName = shader->name(p, config);
           op.pattern = p;
           op.config = config;
+          op.hash = hash;
           for (uint64_t i = begin; i < end; ++i) {
-            op.dispatches.push_back(i);
+            op.dispatches.push_back(static_cast<uint32_t>(i));
           }
           db.ops.push_back(op);
         }
@@ -330,25 +429,6 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
     }
   }
   impl.compileAll(!options.quite);
-
-  constexpr size_t DEFAULT_INPUT_WIDTH = 1920;
-  constexpr size_t DEFAULT_INPUT_HEIGHT = 1080;
-
-  // specialize symbolic graph.
-  std::vector<SymSpec> specs;
-  auto in = model.graph.get(model.input);
-  if (in.extent.x.isSymbolic()) {
-    specs.push_back(SymSpec{
-        .symbol = in.extent.x.symbol(),
-        .value = DEFAULT_INPUT_WIDTH,
-    });
-  }
-  if (in.extent.y.isSymbolic()) {
-    specs.push_back(SymSpec{
-        .symbol = in.extent.y.symbol(),
-        .value = DEFAULT_INPUT_HEIGHT,
-    });
-  }
 
   SymGraphEval symEval = symGraph.eval(specs);
 

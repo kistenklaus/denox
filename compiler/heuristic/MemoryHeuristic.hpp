@@ -31,6 +31,7 @@ public:
 
   float eval(std::span<const TensorInstance *> ins, const TensorInstance &out,
              unsigned int pattern, unsigned int config,
+             uint64_t,
              const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
              const IShader *shader) const final override {
 
