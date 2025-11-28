@@ -138,6 +138,14 @@ public:
     return static_cast<float>(e - b) * m_timestampPeriod / 1000000.0f;
   }
 
+  uint64_t timestampNanoDifference(std::span<const uint64_t> timestamps,
+                                   uint32_t begin, uint32_t end) {
+    uint64_t b = timestamps[begin];
+    uint64_t e = timestamps[end];
+    return static_cast<uint64_t>(
+        std::round(static_cast<float>(e - b) * m_timestampPeriod));
+  }
+
 private:
   VkInstance m_instance;
   VkDebugUtilsMessengerEXT m_debugMessenger;

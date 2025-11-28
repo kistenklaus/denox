@@ -151,6 +151,19 @@ void bench() {
   denox::destroy_runtime_context(context);
 }
 
+void bench2() {
+  denox::RuntimeContext context;
+  if (denox::create_runtime_context("*RTX*", &context) < 0) {
+    throw std::runtime_error("Failed to create context.");
+  }
+
+  denox::bench_runtime_instance(context, "gpu.db");
+
+  denox::destroy_runtime_context(context);
+}
+
 int main() {
-  bench();
+  // eval();
+  // bench();
+  bench2();
 }

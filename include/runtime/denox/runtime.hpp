@@ -35,6 +35,9 @@ int eval_runtime_instance(RuntimeContext context, RuntimeInstance instance,
 
 int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance);
 
+int bench_runtime_instance(RuntimeContext context, const char *dbfile,
+                           size_t min_samples = 0);
+
 int get_runtime_model_input_count(RuntimeModel model);
 int get_runtime_model_output_count(RuntimeModel model);
 
