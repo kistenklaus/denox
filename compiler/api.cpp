@@ -3,6 +3,7 @@
 #include "device_info/ApiVersion.hpp"
 #include "device_info/DeviceInfo.hpp"
 #include "device_info/query/query_driver_device_info.hpp"
+#include "diag/invalid_argument.hpp"
 #include "diag/logging.hpp"
 #include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
@@ -394,7 +395,7 @@ int compile(const void *data, std::size_t dataSize,
 
     io::Path dbpath;
     if (db != nullptr) {
-      dbpath = io::Path::cwd() / dbpath;
+      dbpath = io::Path::cwd() / db;
     }
 
     flatbuffers::DetachedBuffer dnxBuffer = compiler::entry(buf, dbpath, opt);

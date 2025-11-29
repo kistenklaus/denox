@@ -115,9 +115,10 @@ Module Module::compile(pybind11::object model,
     // Case 1: path to ONNX file
     std::string path = pybind11::cast<std::string>(model);
     pybind11::gil_scoped_release release;
-    if (denox::compile(path.c_str(), &opt, &result) < 0)
+    if (denox::compile(path.c_str(), &opt, "gpu.db", &result) < 0) {
       throw std::runtime_error(
           fmt::format("Failed to compile:\n{}", result.message));
+    }
   } else if (pybind11::hasattr(model, "save")) {
     opt.srcType = denox::SrcType::Onnx;
     // Case 2: ONNXProgram
@@ -135,7 +136,7 @@ Module Module::compile(pybind11::object model,
     std::memcpy(optr, ptr, size);
 
     pybind11::gil_scoped_release release;
-    if (denox::compile(optr, size, &opt, &result) < 0) {
+    if (denox::compile(optr, size, &opt, "gpu.db", &result) < 0) {
       std::free(optr);
       throw std::runtime_error(
           fmt::format("Failed to compile:\n{}", result.message));
@@ -159,7 +160,7 @@ Module Module::compile(pybind11::object model,
     std::memcpy(optr, ptr, size);
 
     pybind11::gil_scoped_release release;
-    if (denox::compile(optr, size, &opt, &result) < 0) {
+    if (denox::compile(optr, size, &opt, "gpu.db", &result) < 0) {
       std::free(optr);
       throw std::runtime_error(
           fmt::format("Failed to compile:\n{}", result.message));
