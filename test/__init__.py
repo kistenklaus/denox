@@ -95,6 +95,7 @@ def run_module_test(
     # print(torch.max(torch.abs(output - expected)))
 
     if not torch.allclose(output, expected, rtol=rtol, atol=atol):
-        print(output)
+        # print(output)
+        print(output - expected)
         tensor_error_report(output, expected)
         assert False

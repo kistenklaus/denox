@@ -70,6 +70,22 @@ def test_upsample_nearest_64hwc():
         output_layout=Layout.HWC,
     )
 
+def test_upsample_nearest_96hwc():
+    run_module_test(
+        nn.Upsample(scale_factor=2),
+        torch.rand(1, 96, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
+
+def test_upsample_nearest_112hwc():
+    run_module_test(
+        nn.Upsample(scale_factor=2),
+        torch.rand(1, 112, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
+
 def test_upsample_nearest_8chwc8():
     run_module_test(
         nn.Upsample(scale_factor=2),
@@ -118,3 +134,18 @@ def test_upsample_nearest_64chwc8():
         output_layout=Layout.CHWC8,
     )
 
+def test_upsample_nearest_96chwc8():
+    run_module_test(
+        nn.Upsample(scale_factor=2),
+        torch.rand(1, 96, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+def test_upsample_nearest_112chwc8():
+    run_module_test(
+        nn.Upsample(scale_factor=2),
+        torch.rand(1, 112, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )

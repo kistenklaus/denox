@@ -11,6 +11,7 @@
 #include "memory/tensor/FilterTensor.hpp"
 #include "memory/tensor/FitlerDescriptor.hpp"
 #include "model/ActivationFunction.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler::shaders {
 
@@ -26,7 +27,7 @@ struct DirectConvConfig {
   bool async;
 };
 
-static constexpr std::array<DirectConvConfig, 1> CONFIGS = {
+static std::vector<DirectConvConfig> CONFIGS = {
     DirectConvConfig{
         .cm_m = 16,
         .cm_k = 16,
@@ -40,13 +41,161 @@ static constexpr std::array<DirectConvConfig, 1> CONFIGS = {
         .sg_n = 2,
         .async = true,
     },
+    DirectConvConfig{
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 2,
+        .sg_k = 2,
+        .sg_n = 2,
+        .async = true,
+    },
+    DirectConvConfig{
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 2,
+        .sg_k = 2,
+        .sg_n = 2,
+        .async = false,
+    },
+
+    DirectConvConfig{
+        // <- FIXME
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 4,
+        .wg_n = 2,
+
+        .sg_m = 2,
+        .sg_k = 2,
+        .sg_n = 2,
+        .async = true,
+    },
+    DirectConvConfig{
+        // <- FIXME
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 4,
+        .wg_n = 2,
+
+        .sg_m = 2,
+        .sg_k = 2,
+        .sg_n = 2,
+        .async = false,
+    },
+
+    DirectConvConfig{
+        // TESTED
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 1,
+        .sg_k = 1,
+        .sg_n = 6,
+        .async = true,
+    },
+    DirectConvConfig{
+        // TESTED
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 1,
+        .sg_k = 1,
+        .sg_n = 6,
+        .async = false,
+    },
+
+    DirectConvConfig{
+        // TESTED
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 1,
+        .sg_k = 1,
+        .sg_n = 7,
+        .async = true,
+    },
+    DirectConvConfig{
+        // PROBABLY FINE.
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 1,
+        .sg_k = 1,
+        .sg_n = 7,
+        .async = false,
+    },
+
+    DirectConvConfig{
+        // FIXME: Very very blurry.
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 1,
+        .sg_k = 3,
+        .sg_n = 6,
+        .async = true,
+    },
+    DirectConvConfig{
+        // PROBABLY ALSO Very very blurry.
+        .cm_m = 16,
+        .cm_k = 16,
+        .cm_n = 16,
+
+        .wg_m = 8,
+        .wg_n = 1,
+
+        .sg_m = 1,
+        .sg_k = 3,
+        .sg_n = 7,
+        .async = false,
+    },
 };
 
 DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
                                        const Options &options)
     : m_compiler(compiler),
       m_enableConvReluFusion(options.fusionRules.enableConvReluFusion),
-      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize) {
+      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
+      m_maxComputeWorkGroupInvocations(
+          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
+      m_maxComputeWorkGroupSize(
+          options.deviceInfo.limits.maxComputeWorkGroupSize)
+
+{
 
   if (m_subgroupSize == 0) {
     return;
@@ -132,11 +281,34 @@ std::size_t DirectConvShaderCM::parameterMemorySize(
 }
 
 memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
-    [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
+    [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
+        &opGraph,
     [[maybe_unused]] unsigned int pattern,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match) const {
-  return {0};
+  // const auto &patternHandles = m_patternHandles[pattern];
+  // const auto &in = opGraph.get(match[patternHandles.in]);
+  // const auto &out = opGraph.get(match[patternHandles.out]);
+
+  if (m_subgroupSize > m_maxComputeWorkGroupSize[0]) {
+    return {};
+  }
+
+  std::vector<unsigned int> configs;
+  configs.reserve(CONFIGS.size());
+  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
+    const auto &config = CONFIGS[c];
+    uint32_t sgCount = config.wg_n * config.wg_m;
+    if (sgCount > m_maxComputeWorkGroupSize[1]) {
+      continue;
+    }
+    uint32_t workgroupInvocations = sgCount * m_subgroupSize;
+    if (workgroupInvocations > m_maxComputeWorkGroupInvocations) {
+      continue;
+    }
+    configs.push_back(c);
+  }
+  return configs;
 }
 
 static GlslCompilerInstance
@@ -201,7 +373,7 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
   }
 
   memory::FilterLayout filterLayout = memory::FilterLayout::RSCK;
-  if (C % config.cm_k == 0 && (config.cm_k == 8 || config.cm_k == 16)) {
+  if ((C % config.cm_k == 0) && ((config.cm_k == 8) || (config.cm_k == 16))) {
     if (config.cm_k == 8) {
       filterLayout = memory::FilterLayout::RSCKC8;
       shader.define("FILTER_LAYOUT_RSCKC8");
@@ -316,12 +488,12 @@ void DirectConvShaderCM::implement(
 
   memory::FilterLayout filterLayout = memory::FilterLayout::KCRS;
   memory::BiasLayout biasLayout = memory::BiasLayout::C;
-  auto shader = compile(m_compiler, m_srcPath, m_subgroupSize, in.channels,
-                        out.channels, in.layout, out.layout, activationFunction,
-                        memory::uvec2(3, 3), memory::uvec2(1, 1),
-                        memory::uvec2(1, 1), conv->B != nullptr, config,
-                        //
-                        &filterLayout, &biasLayout);
+  auto shader =
+      compile(m_compiler, m_srcPath, m_subgroupSize, in.channels, out.channels,
+              in.layout, out.layout, activationFunction,
+              memory::uvec2(conv->W->shape().r, conv->W->shape().s),
+              conv->padding, conv->stride, conv->B != nullptr, config, //
+              &filterLayout, &biasLayout);
 
   std::uint32_t tileX = config.cm_n * config.sg_n * config.wg_n;
   std::uint32_t tileY = config.cm_m;
@@ -365,7 +537,7 @@ void DirectConvShaderCM::implement(
       PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
-  dispatch.setName(name(pattern, 0));
+  dispatch.setName(name(pattern, configKey));
   dispatch.setSourcePath(m_srcPath);
 
   Sym inreads =
@@ -387,7 +559,8 @@ void DirectConvShaderCM::implement(
   dispatch.setOutputDesc(
       fmt::format("{}[{}]", out.layout.to_string(), out.channels));
 }
-memory::string DirectConvShaderCM::name(unsigned int pattern, unsigned int) const {
+memory::string DirectConvShaderCM::name(unsigned int pattern,
+                                        unsigned int) const {
   switch (pattern) {
   case CONV_PATTERN:
     return "direct-conv";

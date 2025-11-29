@@ -69,6 +69,14 @@ def test_max_pool_2x2_64hwc():
         output_layout=Layout.HWC,
     )
 
+def test_max_pool_2x2_80hwc():
+    run_module_test(
+        nn.MaxPool2d(2,2),
+        torch.rand(1, 80, 100, 100, dtype=torch.float16),
+        input_layout=Layout.HWC,
+        output_layout=Layout.HWC,
+    )
+
 def test_max_pool_2x2_8chwc8():
     run_module_test(
         nn.MaxPool2d(2,2),
@@ -113,6 +121,14 @@ def test_max_pool_2x2_64chwc8():
     run_module_test(
         nn.MaxPool2d(2,2),
         torch.rand(1, 64, 100, 100, dtype=torch.float16),
+        input_layout=Layout.CHWC8,
+        output_layout=Layout.CHWC8,
+    )
+
+def test_max_pool_2x2_80chwc8():
+    run_module_test(
+        nn.MaxPool2d(2,2),
+        torch.rand(1, 80, 100, 100, dtype=torch.float16),
         input_layout=Layout.CHWC8,
         output_layout=Layout.CHWC8,
     )

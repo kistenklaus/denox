@@ -62,7 +62,11 @@ private:
   io::Path m_srcPath =
       io::Path::cwd() / "compiler/shaders/conv/direct_conv_cm.comp";
   bool m_enableConvReluFusion;
+
   unsigned int m_subgroupSize;
+  uint32_t m_maxComputeWorkGroupInvocations;
+  std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
+
 };
 
 } // namespace denox::compiler::shaders

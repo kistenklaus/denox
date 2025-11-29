@@ -11,7 +11,6 @@
 #include <map>
 #include <random>
 #include <set>
-#include <thread>
 #include <vulkan/vulkan_core.h>
 using namespace std::chrono_literals;
 
@@ -19,23 +18,44 @@ namespace denox {
 
 static constexpr std::chrono::duration SYNC_INTERVAL = 100ms;
 static constexpr uint64_t SAMPLE_SIZE = 1;
-static constexpr uint64_t PIPELINE_WARMUP_ITERATIONS = 50;
+static constexpr uint64_t PIPELINE_WARMUP_ITERATIONS = 1000;
 static constexpr size_t MEMORY_WARMUP_SIZE = 48000000; // 8MB
 static constexpr bool WARMUP_CACHES = true;
 static constexpr bool RANDOMIZED_INPUT = false;
 
 static runtime::ComputeDispatch &select_target(runtime::Db &db) {
-  uint64_t min_samples = std::numeric_limits<uint64_t>::max();
-  size_t target_index = 0;
+  constexpr uint64_t INITIAL_SAMPLES = 1;
 
-  for (size_t i = 0; i < db.dispatches.size(); ++i) {
-    const auto &target = db.dispatches[i];
-    if (target.time.samples < min_samples) {
-      target_index = i;
-      min_samples = target.time.samples;
+  // Phase 1: uniform warm-up sampling
+  for (size_t d = 0; d < db.dispatches.size(); ++d) {
+    auto &dispatch = db.dispatches[d];
+    if (dispatch.time.samples < INITIAL_SAMPLES) {
+      fmt::println("selected {} <- sample-count", d);
+      return dispatch;
     }
   }
-  return db.dispatches[target_index];
+
+  // Phase 2: sample where uncertainty is highest
+  double best_priority = -1.0;
+  size_t best_index = 0;
+  runtime::ComputeDispatch *best = nullptr;
+
+  for (size_t d = 0; d < db.dispatches.size(); ++d) {
+    auto& dispatch = db.dispatches[d];
+    double n = double(dispatch.time.samples);
+    double sigma = double(dispatch.time.std_derivation_ns);
+
+    double sem = sigma / std::sqrt(n); // standard error of mean
+    if (sem > best_priority) {
+      best_priority = sem;
+      best = &dispatch;
+      best_index = d;
+    }
+  }
+  fmt::println("selected {} <- SEM  (samples = {})", best_index,
+      best->time.samples);
+
+  return *best;
 }
 
 static std::pair<VkPipelineLayout, std::map<uint32_t, VkDescriptorSetLayout>>
@@ -319,11 +339,6 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
                             VK_ACCESS_SHADER_READ_BIT);
     }
 
-    // ctx->cmdMemoryBarrier(
-    //     cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-    //     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-
     ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
                            0);
     for (size_t it = 0; it < SAMPLE_SIZE; ++it) {
@@ -352,7 +367,8 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
 
       float duration = ctx->timestampDifference(timestamps, 0, 1);
       if (totalLatency > 1e11) {
-        fmt::println("Timestamps wrapped trying again");
+        fmt::println("\x1B[33m[WARNING]\x1B[0m Timestamps wrapped. Skipping "
+                     "Measurement");
         continue; // just retry.
       }
       double mean_new = double(totalLatency) / double(SAMPLE_SIZE);
@@ -381,18 +397,14 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
 
         target.time.latency_ns = uint64_t(mean_total + 0.5);
         target.time.std_derivation_ns = uint64_t(std::sqrt(var_total) + 0.5);
-        // fmt::println("std_derivation  {}ms",
-        //              target.time.std_derivation_ns / 1e6);
-        //
-        // fmt::println("latency  {}ms", target.time.latency_ns / 1e6);
-
       } else {
         target.time.samples = 1;
         target.time.latency_ns = uint64_t(mean_new + 0.5);
         target.time.std_derivation_ns = 0;
       }
     } else {
-      fmt::println("WARNING: Wrapping timestamps. trying again");
+      fmt::println(
+          "\x1B[33m[WARNING]\x1B[0m Timestamps wrapped skipping Measurement.");
     }
 
     { // cleanup

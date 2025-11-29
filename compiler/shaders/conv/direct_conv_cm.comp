@@ -697,8 +697,7 @@ void main() {
       if (zk < RSC) {
         // KRSCK(CM_N)
         // => sgn = RSC
-        // const uint o = (sgn) * (RSC * CM_N8) + zk * CM_N8 + zn8;
-        const uint o = (wgni / CM_N + sgn) * (RSC * CM_N8) + zk * CM_N8 + zn8;
+        const uint o = ((wgni) / CM_N + sgn + sgni * SG_N) * (RSC * CM_N8) + zk * CM_N8 + zn8;
         v = filter_blob[o];
       }
     }

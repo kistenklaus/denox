@@ -370,6 +370,7 @@ dnx = Module.compile(
     program,
     input_shape=Shape(H="H", W="W"),
     summary=True,
+    verbose=True,
 )
 dnx.save("net.dnx")
 
