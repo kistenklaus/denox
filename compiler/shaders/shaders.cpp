@@ -18,7 +18,7 @@ std::vector<std::unique_ptr<IShader>> get_all_shaders(GlslCompiler *compiler,
   shaders.push_back(std::make_unique<compiler::shaders::BasicPoolShader>(
       compiler));
   shaders.push_back(std::make_unique<compiler::shaders::BasicUpsampleShader>(
-      compiler));
+      compiler, options));
   shaders.push_back(std::make_unique<compiler::shaders::MemoryPadShader>(
       compiler));
   shaders.push_back(std::make_unique<compiler::shaders::MemorySliceShader>(

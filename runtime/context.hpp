@@ -27,7 +27,7 @@ public:
   Context &operator=(const Context &) = delete;
   Context &operator=(Context &&) = delete;
 
-  Buffer createBuffer(std::size_t size, VkBufferUsageFlags usage = 0,
+  Buffer createBuffer(std::size_t size, VkBufferUsageFlags usage,
                       VmaAllocationCreateFlags flags = 0);
   void destroyBuffer(const Buffer &buffer);
 

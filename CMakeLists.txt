@@ -252,6 +252,7 @@ target_include_directories(denox_runtime PUBLIC
 target_compile_definitions(denox_runtime 
   PUBLIC
     DENOX_VERSION=0
+    DENOX_QUIET=1
 )
 
 target_link_libraries(denox_runtime

@@ -2,24 +2,27 @@
 #include "Db.hpp"
 #include "context.hpp"
 #include "denox/runtime.hpp"
-#include <algorithm>
+#include "vma.hpp"
 #include <alloca.h>
 #include <chrono>
-#include <cmath>
 #include <fmt/base.h>
 #include <forward_list>
 #include <limits>
 #include <map>
+#include <random>
 #include <set>
-#include <stdexcept>
-#include <unordered_map>
+#include <thread>
 #include <vulkan/vulkan_core.h>
 using namespace std::chrono_literals;
 
 namespace denox {
 
-static constexpr std::chrono::duration SYNC_INTERVAL = 5s;
-static constexpr size_t SAMPLE_BATCH = 100;
+static constexpr std::chrono::duration SYNC_INTERVAL = 100ms;
+static constexpr uint64_t SAMPLE_SIZE = 1;
+static constexpr uint64_t PIPELINE_WARMUP_ITERATIONS = 50;
+static constexpr size_t MEMORY_WARMUP_SIZE = 48000000; // 8MB
+static constexpr bool WARMUP_CACHES = true;
+static constexpr bool RANDOMIZED_INPUT = false;
 
 static runtime::ComputeDispatch &select_target(runtime::Db &db) {
   uint64_t min_samples = std::numeric_limits<uint64_t>::max();
@@ -90,9 +93,18 @@ allocate_buffers(runtime::Context *ctx,
   std::vector<runtime::Buffer> buffers;
   buffers.reserve(dispatch.bindings.size());
   for (const runtime::TensorBinding &tensorBinding : dispatch.bindings) {
-    runtime::Buffer buffer = ctx->createBuffer(
-        tensorBinding.byteSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    buffers.push_back(buffer);
+    if (tensorBinding.access == runtime::Access::ReadOnly ||
+        tensorBinding.access == runtime::Access::WriteOnly) {
+      runtime::Buffer buffer = ctx->createBuffer(
+          tensorBinding.byteSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+      buffers.push_back(buffer);
+    } else {
+      runtime::Buffer buffer = ctx->createBuffer(
+          tensorBinding.byteSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+      buffers.push_back(buffer);
+    }
   }
   return buffers;
 }
@@ -143,34 +155,33 @@ static std::vector<VkDescriptorSet> create_and_update_descriptor_sets(
   return setVec;
 }
 
-/// Rounded interger square root.
-static uint64_t irsqrt(uint64_t x) {
-  uint64_t left = 0;
-  uint64_t right = uint64_t(1) << 32;
-
-  while (left < right) {
-    uint64_t mid = (left + right + 1) >> 1;
-    if ((unsigned __int128)mid * mid <= x)
-      left = mid;
-    else
-      right = mid - 1;
+static void print_state(const runtime::Db &db) {
+  uint64_t minSampleCount = std::numeric_limits<uint64_t>::max();
+  uint64_t totalSampleCount = 0;
+  uint64_t maxStdDerivation = 0;
+  for (const auto &target : db.dispatches) {
+    totalSampleCount += target.time.samples;
+    if (target.time.samples < minSampleCount) {
+      minSampleCount = target.time.samples;
+    }
+    if (target.time.samples > 0 &&
+        target.time.std_derivation_ns > maxStdDerivation) {
+      maxStdDerivation = target.time.std_derivation_ns;
+    }
   }
-
-  uint64_t r = left;
-  uint64_t r2 = r * r;
-  uint64_t rp = r + 1;
-  uint64_t rp2 = (rp > r) ? rp * rp : UINT64_MAX;
-  uint64_t err_r = x - r2;
-  uint64_t err_rp = (rp2 > x) ? (rp2 - x) : (x - rp2);
-
-  if (err_rp < err_r)
-    return rp;
-  else
-    return r;
+  fmt::println("Min-Sample-Count : {}", minSampleCount);
+  fmt::println("Mean-Sample-Count: {:.3f}",
+               static_cast<float>(totalSampleCount) / db.dispatches.size());
+  fmt::println("Max-StdDerivation: ±{:.3f}ms", maxStdDerivation / 1e6f);
 }
 
 int bench_runtime_instance(RuntimeContext context, const char *dbfile,
                            size_t minSamples) {
+
+  if (minSamples == 0) {
+    minSamples = std::numeric_limits<uint32_t>::max();
+  }
+
   auto *ctx = reinterpret_cast<denox::runtime::Context *>(context);
 
   if (dbfile == nullptr) {
@@ -187,11 +198,60 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
 
   auto cmdPool = ctx->createCommandPool();
 
+  runtime::Buffer warmup0, warmup1;
+  if (MEMORY_WARMUP_SIZE != 0) {
+    warmup0 = ctx->createBuffer(MEMORY_WARMUP_SIZE,
+                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    warmup1 = ctx->createBuffer(MEMORY_WARMUP_SIZE,
+                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+  }
+
+  size_t maxBufferSize = 0;
+  for (const auto &target : db.dispatches) {
+    for (const auto &buffer : target.bindings) {
+      maxBufferSize = std::max(maxBufferSize, buffer.byteSize);
+    }
+  }
+  runtime::Buffer warmupInputs;
+  if (WARMUP_CACHES) {
+    warmupInputs = ctx->createBuffer(
+        maxBufferSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    if (RANDOMIZED_INPUT) {
+      runtime::Buffer stage = ctx->createBuffer(
+          maxBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+      std::vector<uint8_t> bytes(maxBufferSize);
+      std::random_device rng;
+      std::mt19937 prng{rng()};
+      std::uniform_int_distribution<uint8_t> dist;
+      for (auto &b : bytes) {
+        b = dist(prng);
+      }
+
+      ctx->copy(stage.allocation, bytes.data(), bytes.size());
+
+      VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
+      ctx->cmdCopy(cmd, warmupInputs, stage, maxBufferSize);
+      ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
+      ctx->destroyBuffer(stage);
+    }
+  }
+  print_state(db);
+
   while (true) {
     // Select benchmark target
     runtime::ComputeDispatch &target = select_target(db);
-    fmt::println("Benchmarking Shader-ID: {}", target.binaryId);
+    // runtime::ComputeDispatch &target = db.dispatches[2];
 
+    if (target.time.samples >= minSamples) {
+      break;
+    }
 
     // Initalize vulkan resources.
     auto [pipelineLayout, descriptorSetLayouts] =
@@ -207,99 +267,133 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
     auto descriptorSets = create_and_update_descriptor_sets(
         ctx, descriptorPool, descriptorSetLayouts, target, buffers);
 
-    uint32_t samples = SAMPLE_BATCH;
-
-    uint32_t queryCount = samples + 1;
+    uint32_t queryCount = 2;
     VkQueryPool queryPool = ctx->createTimestampQueryPool(queryCount);
 
     // Record GPU execution.
     auto cmd = ctx->allocBeginCommandBuffer(cmdPool);
     ctx->cmdResetQueryPool(cmd, queryPool, 0, queryCount);
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-    vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
-                       target.pushConstant.size(), target.pushConstant.data());
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout,
-                            0, descriptorSets.size(), descriptorSets.data(), 0,
-                            nullptr);
+    if (MEMORY_WARMUP_SIZE > 0) { // warmup memory. (big memcpy, to warm memory
+                                  // clock and flush caches)
+      ctx->cmdCopy(cmd, warmup0, warmup1, MEMORY_WARMUP_SIZE);
+      ctx->cmdMemoryBarrier(
+          cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+          VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+      std::swap(warmup0, warmup1);
+    }
 
-    uint32_t query = 0;
+    if (PIPELINE_WARMUP_ITERATIONS > 0) { // compute warmup.
+      for (size_t it = 0; it < PIPELINE_WARMUP_ITERATIONS; ++it) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                           target.pushConstant.size(),
+                           target.pushConstant.data());
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipelineLayout, 0, descriptorSets.size(),
+                                descriptorSets.data(), 0, nullptr);
+        vkCmdDispatch(cmd, target.workgroupCountX, target.workgroupCountY,
+                      target.workgroupCountZ);
+      }
+      ctx->cmdMemoryBarrier(
+          cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+          VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    }
+
+    if (WARMUP_CACHES) { // warmup caches
+      for (size_t b = 0; b < target.bindings.size(); ++b) {
+        const auto &tensorBinding = target.bindings[b];
+        if (tensorBinding.access == runtime::Access::ReadOnly ||
+            tensorBinding.access == runtime::Access::ReadWrite) {
+          ctx->cmdCopy(cmd, buffers[b], warmupInputs, tensorBinding.byteSize);
+        }
+      }
+    }
+    if (WARMUP_CACHES || MEMORY_WARMUP_SIZE > 0) {
+
+      ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                            VK_ACCESS_TRANSFER_WRITE_BIT,
+                            VK_ACCESS_SHADER_READ_BIT);
+    }
+
+    // ctx->cmdMemoryBarrier(
+    //     cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    //     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+    //     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+
     ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
-                           query++);
-    for (size_t it = 0; it < samples; ++it) {
+                           0);
+    for (size_t it = 0; it < SAMPLE_SIZE; ++it) {
+
+      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+      vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                         target.pushConstant.size(),
+                         target.pushConstant.data());
+
+      vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+                              pipelineLayout, 0, descriptorSets.size(),
+                              descriptorSets.data(), 0, nullptr);
       vkCmdDispatch(cmd, target.workgroupCountX, target.workgroupCountY,
                     target.workgroupCountZ);
-      ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
-                             query++);
     }
+    ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
+                           1);
 
     ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
 
     // Interpret results.
-    std::vector<uint64_t> timestamps =
-        ctx->getQueryResults(queryPool, queryCount);
+    std::vector<uint64_t> timestamps = ctx->getQueryResults(queryPool, 2);
+    if (timestamps[1] > timestamps[0]) {
 
-    std::vector<uint64_t> latencies(samples);
-    for (size_t i = 0; i < samples; ++i) {
-      latencies[i] = ctx->timestampNanoDifference(timestamps, i, i + 1);
+      uint64_t totalLatency = ctx->timestampNanoDifference(timestamps, 0, 1);
+
+      float duration = ctx->timestampDifference(timestamps, 0, 1);
+      if (totalLatency > 1e11) {
+        fmt::println("Timestamps wrapped trying again");
+        continue; // just retry.
+      }
+      double mean_new = double(totalLatency) / double(SAMPLE_SIZE);
+      constexpr double var_new = 0.0;
+      constexpr double std_new = 0.0;
+      constexpr double m = 1.0; // new samples.
+
+      uint64_t old_samples = target.time.samples;
+
+      if (old_samples > 0) {
+        double n = double(old_samples);
+
+        double mean_old = double(target.time.latency_ns);
+        double std_old = double(target.time.std_derivation_ns);
+        double var_old = std_old * std_old;
+
+        double mean_total = (n * mean_old + m * mean_new) / (n + m);
+
+        double var_total =
+            (n * (var_old + (mean_old - mean_total) * (mean_old - mean_total)) +
+             m * (var_new +
+                  (mean_new - mean_total) * (mean_new - mean_total))) /
+            (n + m);
+
+        target.time.samples = uint64_t(n + m);
+
+        target.time.latency_ns = uint64_t(mean_total + 0.5);
+        target.time.std_derivation_ns = uint64_t(std::sqrt(var_total) + 0.5);
+        // fmt::println("std_derivation  {}ms",
+        //              target.time.std_derivation_ns / 1e6);
+        //
+        // fmt::println("latency  {}ms", target.time.latency_ns / 1e6);
+
+      } else {
+        target.time.samples = 1;
+        target.time.latency_ns = uint64_t(mean_new + 0.5);
+        target.time.std_derivation_ns = 0;
+      }
+    } else {
+      fmt::println("WARNING: Wrapping timestamps. trying again");
     }
-    uint64_t total_latency = 0;
-    for (const auto &sample : latencies) {
-      total_latency += sample;
-    }
-    uint64_t mean_latency = total_latency / samples;
-    uint64_t variance_acc = 0;
-    for (const auto &sample : latencies) {
-      int64_t diff =
-          static_cast<int64_t>(sample) - static_cast<int64_t>(mean_latency);
-      variance_acc += diff * diff;
-    }
-    uint64_t variance = variance_acc / samples;
-    uint64_t std_derivation = irsqrt(variance);
-
-    uint64_t old_sample_count = target.time.samples;
-    uint64_t old_latency = target.time.latency_ns;
-    uint64_t old_std_derivation = target.time.std_derivation_ns;
-
-    uint64_t new_sample_count = old_sample_count + samples;
-    uint64_t new_mean_latency =
-        (old_sample_count * old_latency + total_latency) / new_sample_count;
-
-    uint64_t new_std_derivation;
-    {
-      int64_t n = static_cast<int64_t>(old_sample_count);
-      int64_t m = static_cast<int64_t>(samples);
-      int64_t uo = static_cast<int64_t>(old_latency);
-      int64_t un = static_cast<int64_t>(mean_latency);
-      int64_t u = static_cast<int64_t>(new_mean_latency);
-      int64_t so = static_cast<int64_t>(old_std_derivation);
-      int64_t sn = static_cast<int64_t>(std_derivation);
-      int64_t vo = so * so;
-      int64_t vn = sn * sn;
-
-      int64_t r0 = uo - u;
-      int64_t r1 = r0 * r0;
-      int64_t r2 = vo + r1;
-      int64_t r3 = n * r2;
-
-      int64_t r4 = un - u;
-      int64_t r5 = r4 * r4;
-      int64_t r6 = vn * vn;
-      int64_t r7 = m * r6;
-
-      int64_t num = r7 + r3;
-      int64_t denom = n + m;
-
-      // rounding integer division.
-      int64_t v = (num + denom / 2) / denom;
-      new_std_derivation = irsqrt(v);
-    }
-    target.time.samples = new_sample_count;
-    target.time.latency_ns = new_mean_latency;
-    target.time.std_derivation_ns = new_std_derivation;
-
-    fmt::println("  samples: {}", new_sample_count);
-    fmt::println("  latency: {:.3f}ms", new_mean_latency / 1e6f);
 
     { // cleanup
       ctx->destroyQueryPool(queryPool);
@@ -317,18 +411,29 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
       }
     }
 
+    // fmt::println("");
+
     auto time_since_last_sync =
         std::chrono::high_resolution_clock::now() - last_sync;
     if (time_since_last_sync > SYNC_INTERVAL) {
       db.write_back();
-      fmt::println("Writing results back");
+      print_state(db);
       last_sync = std::chrono::high_resolution_clock::now();
     }
   }
+  print_state(db);
+
+  if (WARMUP_CACHES) {
+    ctx->destroyBuffer(warmupInputs);
+  }
+  if (MEMORY_WARMUP_SIZE != 0) {
+    ctx->destroyBuffer(warmup0);
+    ctx->destroyBuffer(warmup1);
+  }
+  ctx->destroyCommandPool(cmdPool);
 
   db.write_back();
 
-  ctx->destroyCommandPool(cmdPool);
   return 0;
 }
 

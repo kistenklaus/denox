@@ -73,7 +73,11 @@ static std::array<CopyTransformConfig, 5> CONFIGS{
 CopyTransformShader::CopyTransformShader(GlslCompiler *compiler,
                                          const Options &options)
     : m_compiler(compiler),
-      m_enableImplicitConcat(options.fusionRules.enableImplicitConcat) {
+      m_enableImplicitConcat(options.fusionRules.enableImplicitConcat),
+      m_maxComputeWorkGroupInvocations(
+          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
+      m_maxComputeWorkGroupSize(
+          options.deviceInfo.limits.maxComputeWorkGroupSize) {
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != memory::Dtype::F16) {
@@ -177,16 +181,42 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
       tryImplicitConcat(src0Layout, src1Layout, dstLayout, src0.type, src1.type,
                         dst.type, src0.originalNode, src1.originalNode);
 
+  auto supported = [&](uint32_t wgC, uint32_t wgW, uint32_t wgH,
+                       uint32_t invocC,
+                       memory::ActivationLayout layout) -> bool {
+    uint32_t workgroupInvocationCount = wgC * wgW * wgH;
+    if (workgroupInvocationCount >= m_maxComputeWorkGroupInvocations) {
+      return false;
+    }
+    if (wgC >= m_maxComputeWorkGroupSize[0]) {
+      return false;
+    }
+    if (wgW >= m_maxComputeWorkGroupSize[1]) {
+      return false;
+    }
+    if (wgH >= m_maxComputeWorkGroupSize[2]) {
+      return false;
+    }
+    if (invocC % layout.vectorBlockSize() != 0) {
+      return false;
+    }
+    return true;
+  };
+
   std::vector<unsigned int> configs;
   switch (implementationType) {
   case ConcatImplementationType::Explicit:
     configs.reserve(CONFIGS.size() * CONFIGS.size());
     for (unsigned int c0 = 0; c0 < CONFIGS.size(); ++c0) {
-      if (CONFIGS[c0].invocC % src0Layout.vectorBlockSize() != 0) {
+      const auto &config0 = CONFIGS[c0];
+      if (!supported(config0.wgC.value_or(src0.channels), config0.wgW,
+                     config0.wgH, config0.invocC, src0Layout)) {
         continue;
       }
       for (unsigned int c1 = 0; c1 < CONFIGS.size(); ++c1) {
-        if (CONFIGS[c1].invocC % src1Layout.vectorBlockSize() == 0) {
+        const auto &config1 = CONFIGS[c1];
+        if (supported(config1.wgC.value_or(src1.channels), config1.wgW,
+                      config1.wgH, config1.invocC, src1Layout)) {
           configs.push_back((c1 << 16) | (c0 << 8) | EXPLICIT_CONCAT_TAG);
         }
       }

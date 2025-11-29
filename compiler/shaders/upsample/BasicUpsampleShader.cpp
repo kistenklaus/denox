@@ -15,6 +15,7 @@ struct BasicUpsampleConfig {
 
 static std::array<BasicUpsampleConfig, 5> CONFIGS{
     BasicUpsampleConfig{
+        // not supported
         .invocC = 2,
         .invocW = 2,
         .invocH = 1,
@@ -23,6 +24,7 @@ static std::array<BasicUpsampleConfig, 5> CONFIGS{
         .wgH = 1,
     },
     BasicUpsampleConfig{
+        // not supported
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
@@ -31,6 +33,7 @@ static std::array<BasicUpsampleConfig, 5> CONFIGS{
         .wgH = 1,
     },
     BasicUpsampleConfig{
+        // 0.383ms
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -39,6 +42,7 @@ static std::array<BasicUpsampleConfig, 5> CONFIGS{
         .wgH = 1,
     },
     BasicUpsampleConfig{
+        // 0.319ms
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -47,6 +51,7 @@ static std::array<BasicUpsampleConfig, 5> CONFIGS{
         .wgH = 1,
     },
     BasicUpsampleConfig{
+        // 0.318ms
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -54,10 +59,16 @@ static std::array<BasicUpsampleConfig, 5> CONFIGS{
         .wgW = 256,
         .wgH = 1,
     },
+
 };
 
-BasicUpsampleShader::BasicUpsampleShader(GlslCompiler *compiler)
-    : m_compiler(compiler) {
+BasicUpsampleShader::BasicUpsampleShader(GlslCompiler *compiler,
+                                         const Options &options)
+    : m_compiler(compiler),
+      m_maxComputeWorkGroupInvocations(
+          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
+      m_maxComputeWorkGroupSize(
+          options.deviceInfo.limits.maxComputeWorkGroupSize) {
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != memory::Dtype::F16) {
       return false;
@@ -111,13 +122,29 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   if (out.type != memory::Dtype::F16) {
     return {};
   }
-  inLayout = memory::ActivationLayout::promote(inLayout, in.channels);
+  inLayout = memory::ActivationLayout::demote(inLayout, in.channels);
   memory::vector<unsigned int> configs;
   configs.reserve(CONFIGS.size());
   for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    if (CONFIGS[c].invocC % inLayout.vectorBlockSize() == 0) {
-      configs.push_back(c);
+    const auto &config = CONFIGS[c];
+    uint32_t wgC = config.wgC.value_or(in.channels);
+    uint32_t workgroupInvocations = wgC * config.wgW * config.wgH;
+    if (workgroupInvocations > m_maxComputeWorkGroupInvocations) {
+      continue;
     }
+    if (wgC > m_maxComputeWorkGroupSize[0]) {
+      continue;
+    }
+    if (config.wgW > m_maxComputeWorkGroupSize[1]) {
+      continue;
+    }
+    if (config.wgH > m_maxComputeWorkGroupSize[2]) {
+      continue;
+    }
+    if (config.invocC % inLayout.vectorBlockSize() != 0) {
+      continue;
+    }
+    configs.push_back(c);
   }
   return configs;
 }
@@ -129,8 +156,9 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int scalingFactor, const BasicUpsampleConfig &config) {
   auto shader = compiler->read(srcPath);
   shader.enableDenoxPreprocessor();
+
   if (inputLayout == memory::ActivationLayout::HWC &&
-      outputLayout == memory::ActivationLayout::HWC && (channels % 8 != 0)) {
+      outputLayout == memory::ActivationLayout::HWC && (channels % 8 != 0 || config.invocC % 8 != 0)) {
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
@@ -139,7 +167,7 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
     shader.define("OUT_LAYOUT_HWC");
   } else if (inputLayout == memory::ActivationLayout::HWC &&
              outputLayout == memory::ActivationLayout::HWC &&
-             (channels % 8 == 0)) {
+             (channels % 8 == 0 && config.invocC % 8 == 0)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");

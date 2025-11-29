@@ -157,13 +157,13 @@ void bench2() {
     throw std::runtime_error("Failed to create context.");
   }
 
-  denox::bench_runtime_instance(context, "gpu.db");
+  denox::bench_runtime_instance(context, "gpu.db", 0);
 
   denox::destroy_runtime_context(context);
 }
 
 int main() {
   // eval();
-  // bench();
-  bench2();
+  bench();
+  // bench2();
 }

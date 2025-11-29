@@ -54,13 +54,18 @@ static constexpr std::array<BasicActivationConfig, 5> CONFIGS = {
         .wgC = 1,
         .wgW = 256,
         .wgH = 1,
-    }
-};
+    }};
 
 BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
                                              const Options &options)
     : m_compiler(compiler),
-      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize) {
+      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
+      m_maxComputeWorkGroupInvocations(
+          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
+      m_maxComputeWorkGroupSize(
+          options.deviceInfo.limits.maxComputeWorkGroupSize)
+
+{
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != memory::Dtype::F16) {
       return false;
@@ -110,11 +115,25 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
   std::vector<unsigned int> configs;
   configs.reserve(CONFIGS.size());
   for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    if ((CONFIGS[c].invocC % layout.vectorBlockSize() == 0) &&
-        ((CONFIGS[c].wgC.value_or(in.channels) * CONFIGS[c].wgH *
-          CONFIGS[c].wgW) <= 512)) {
-      configs.push_back(c);
+    const auto& config = CONFIGS[c];
+    uint32_t wgC = CONFIGS[c].wgC.value_or(in.channels);
+    uint32_t workGroupInvocations = wgC * config.wgH * config.wgW;
+    if (workGroupInvocations >= m_maxComputeWorkGroupInvocations) {
+      continue;
     }
+    if (wgC >= m_maxComputeWorkGroupSize[0]) {
+      continue;
+    }
+    if (config.wgW >= m_maxComputeWorkGroupSize[1]) {
+      continue;
+    }
+    if (config.wgH >= m_maxComputeWorkGroupSize[2]) {
+      continue;
+    }
+    if (config.invocC % layout.vectorBlockSize() != 0) {
+      continue;
+    }
+    configs.push_back(c);
   }
   return configs;
 }

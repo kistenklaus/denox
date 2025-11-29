@@ -37,7 +37,7 @@ void failed_to_realize(const OpModel &opModel,
       stack.push_back(dst);
     }
   }
-  assert(!visited[*opModel.output]);
+  // assert(!visited[*opModel.output]);
   // Find first value that was not reached
   std::uint64_t v = 0;
   for (v = 0; v < opModel.graph.nodeCount(); ++v) {

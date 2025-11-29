@@ -10,11 +10,11 @@ ResourceLimits query_resource_limits([[maybe_unused]] vk::Instance instance,
 
   vk::PhysicalDeviceLimits deviceLimits = physicalDevice.getProperties().limits;
 
-  std::memcpy(limits.maxComputeWorkGroupCount,
+  std::memcpy(limits.maxComputeWorkGroupCount.data(),
               deviceLimits.maxComputeWorkGroupCount.data(),
               deviceLimits.maxComputeWorkGroupCount.size() *
                   sizeof(std::uint32_t));
-  std::memcpy(limits.maxComputeWorkGroupSize,
+  std::memcpy(limits.maxComputeWorkGroupSize.data(),
               deviceLimits.maxComputeWorkGroupSize.data(),
               deviceLimits.maxComputeWorkGroupSize.size() *
                   sizeof(std::uint32_t));

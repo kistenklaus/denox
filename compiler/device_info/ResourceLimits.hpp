@@ -1,11 +1,12 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 namespace denox::compiler {
 
 struct ResourceLimits {
-  std::uint32_t maxComputeWorkGroupCount[3];
-  std::uint32_t maxComputeWorkGroupSize[3];
+  std::array<std::uint32_t, 3> maxComputeWorkGroupCount;
+  std::array<std::uint32_t, 3> maxComputeWorkGroupSize;
   std::uint32_t maxComputeWorkGroupInvocations;
   std::uint32_t maxComputeSharedMemory;
 

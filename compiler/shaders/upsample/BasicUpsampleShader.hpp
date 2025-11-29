@@ -9,7 +9,7 @@ class BasicUpsampleShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicUpsampleShader(GlslCompiler *compiler);
+  BasicUpsampleShader(GlslCompiler *compiler, const Options& options);
 
   memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
@@ -43,6 +43,9 @@ private:
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
       io::Path::cwd() / "compiler/shaders/upsample/basic_upsample.comp";
+
+  uint32_t m_maxComputeWorkGroupInvocations;
+  std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
 };
 
 } // namespace denox::compiler::shaders

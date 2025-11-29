@@ -2,9 +2,8 @@
 #include "context.hpp"
 #include "denox/runtime.hpp"
 #include "instance.hpp"
-#include "vma.hpp"
 #include <cmath>
-#include <iterator>
+#include <fmt/base.h>
 #include <variant>
 #include <vector>
 #include <vulkan/vulkan_core.h>
@@ -15,7 +14,7 @@ int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance) {
   auto *ctx = static_cast<runtime::Context *>(context);
   const auto *mi = static_cast<runtime::Instance *>(instance);
 
-  uint32_t queryCount = mi->cmds.size() * 2;
+  uint32_t queryCount = mi->cmds.size() * 2 + 1;
   VkQueryPool queryPool = ctx->createTimestampQueryPool(queryCount);
 
   VkCommandPool cmdPool = ctx->createCommandPool();
@@ -37,6 +36,11 @@ int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance) {
   ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
                          previousTimestamp);
 
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_SHADER_READ_BIT,
+                        VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT);
+
   for (std::size_t pc = 0; pc < mi->cmds.size(); ++pc) {
     const auto &op = mi->cmds[pc];
     if (std::holds_alternative<runtime::InstanceDispatch>(op)) {
@@ -57,13 +61,13 @@ int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance) {
 
       vkCmdDispatch(cmd, dispatch.workgroupCounts[0],
                     dispatch.workgroupCounts[1], dispatch.workgroupCounts[2]);
+      fmt::println("wg-size : {}, {}, {}", dispatch.workgroupCounts[0],
+                   dispatch.workgroupCounts[1], dispatch.workgroupCounts[2]);
 
       uint32_t start = previousTimestamp;
       uint32_t end = ++previousTimestamp;
       ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
                              end);
-
-      fmt::println("debug = {}", dispatch.memory_writes.value_or(0));
 
       timings.push_back(TimingResult{
           .input_desc = dispatch.input_desc.value_or(""),
@@ -84,13 +88,19 @@ int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance) {
     }
   }
 
-  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                        VK_PIPELINE_STAGE_HOST_BIT,
-                        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_SHADER_READ_BIT,
+                        VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT);
 
   ++previousTimestamp;
   ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
                          previousTimestamp);
+
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_HOST_BIT,
+                        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+
   ++previousTimestamp;
 
   ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
@@ -121,12 +131,14 @@ int bench_runtime_instance(RuntimeContext context, RuntimeInstance instance) {
     fmt::println("{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
                  "\x1B[90m({:>4} GB/s)\x1B[0m    {:.3f}MB",
                  t.input_desc, t.name, t.output_desc, int_part, frac_part,
-                 static_cast<uint32_t>(std::round(throughput)), t.memory_accesses * 1e-6);
+                 static_cast<uint32_t>(std::round(throughput)),
+                 t.memory_accesses * 1e-6);
   }
   float totalDuration =
       ctx->timestampDifference(timestamps, 0, previousTimestamp - 1);
   fmt::println("\x1B[31m{:>89} {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
-               "Total time :", totalDuration, (totalAccesses / (totalDuration*1e-3)) * 1e-9);
+               "Total time :", totalDuration,
+               (totalAccesses / (totalDuration * 1e-3)) * 1e-9);
 
   return 0;
 }

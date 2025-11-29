@@ -2,6 +2,7 @@
 
 #include "algorithm/pattern_matching/GraphPattern.hpp"
 #include "compiler/ir/TensorInstance.hpp"
+#include "device_info/DeviceInfo.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 
@@ -30,7 +31,8 @@ public:
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             SymGraph &symGraph) const final override;
 
-  memory::string name(unsigned int pattern, unsigned int config) const final override;
+  memory::string name(unsigned int pattern,
+                      unsigned int config) const final override;
 
 private:
   struct Handles {
@@ -47,7 +49,9 @@ private:
   io::Path m_srcPath =
       io::Path::cwd() / "compiler/shaders/activation/basic_activation.comp";
 
-  unsigned m_subgroupSize;
+  uint32_t m_subgroupSize;
+  uint32_t m_maxComputeWorkGroupInvocations;
+  std::array<std::uint32_t, 3> m_maxComputeWorkGroupSize;
 };
 
 } // namespace denox::compiler::shaders

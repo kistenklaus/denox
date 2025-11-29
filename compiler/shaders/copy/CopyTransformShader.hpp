@@ -2,8 +2,8 @@
 
 #include "Options.hpp"
 #include "algorithm/pattern_matching/GraphPattern.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
+#include "shaders/compiler/GlslCompiler.hpp"
 
 namespace denox::compiler::shaders {
 
@@ -20,7 +20,7 @@ public:
   static constexpr bool
       ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
 
-  CopyTransformShader(GlslCompiler *compiler, const Options& options);
+  CopyTransformShader(GlslCompiler *compiler, const Options &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -34,14 +34,15 @@ public:
 
   float speedup(unsigned int patternEnc) const final override;
 
-  void implement(Impl &impl,
-                 const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-                 unsigned int pattern,
-                 unsigned int config,
-                 const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-                     &match, SymGraph& symGraph) const final override;
+  void
+  implement(Impl &impl,
+            const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+            unsigned int pattern, unsigned int config,
+            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+            SymGraph &symGraph) const final override;
 
-  memory::string name(unsigned int pattern, unsigned int config) const final override;
+  memory::string name(unsigned int pattern,
+                      unsigned int config) const final override;
 
 private:
   struct Handles {
@@ -58,6 +59,9 @@ private:
       io::Path::cwd() / "compiler/shaders/copy/copy_transform.comp";
 
   bool m_enableImplicitConcat;
+
+  uint32_t m_maxComputeWorkGroupInvocations;
+  std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
 };
 
 } // namespace denox::compiler::shaders

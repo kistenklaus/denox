@@ -45,20 +45,20 @@ class Net(nn.Module):
         #
         # x = self.enc1(x)
         #
-        # x = self.upsample(x)
+        x = self.upsample(input)
         #
         # x = torch.cat((x,pool1), 1)
         #
         # x = self.enc3(x)
 
-        x0 = self.conv0(input)
-        x1 = self.conv1(x0)
-        x2 = self.conv2(x1)
+        # x0 = self.conv0(input)
+        # x1 = self.conv1(x0)
+        # x2 = self.conv2(x1)
         # x = torch.cat((x0, x1), 1)
 
 
         # x = x[:,:,1:3,1:3]
-        return x2
+        return x
 
 
 example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 5, 5, dtype=torch.float16)
