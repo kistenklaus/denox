@@ -173,12 +173,18 @@ void main() {
   // simply load the bias directly from global memory.
   // The memory overhead is very close to zero.
   for (uint zn = 0; zn < SG_N; zn++) {
-    coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > bias;
-    coopMatLoad(bias,
-      bias_blob,
-      (wgni + (sgni * SG_N + zn) * CM_N) / (VSTYPE_SIZE / ATYPE_SIZE),
-      0,
-      gl_CooperativeMatrixLayoutRowMajor);
+    coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > bias = 
+      coopmat<atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator>(0.0f);
+    // 16 / 2 == 8
+    const uint offset = (wgni + (sgni * SG_N + zn) * CM_N) / (VSTYPE_SIZE / ATYPE_SIZE);
+    const uint OUT_CH_PADDED = (OUT_CH + CM_N - 1) / CM_N * CM_N;
+    if (offset < (OUT_CH_PADDED / (VSTYPE_SIZE / ATYPE_SIZE))) {
+      coopMatLoad(bias,
+        bias_blob,
+        offset,
+        0,
+        gl_CooperativeMatrixLayoutRowMajor);
+    }
 
     for (uint zm = 0; zm < SG_M; zm++) {
       sum[zn][zm] = bias;
@@ -187,7 +193,7 @@ void main() {
   #else
   for (uint zn = 0; zn < SG_N; zn++) {
     for (uint zm = 0; zm < SG_M; zm++) {
-      sum[zn][zm] = coopmat < float16_t, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > (0.0f);
+      sum[zn][zm] = coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > (0.0f);
     }
   }
   #endif
