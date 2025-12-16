@@ -50,6 +50,7 @@ private:
 class Dtype {
 public:
   constexpr Dtype(details::dtype::Dtype type) : m_type(type) {}
+  constexpr Dtype() : m_type(DtypeKind::F16) {}
 
   static constexpr details::dtype::Dtype F16{DtypeKind::F16};
   static constexpr details::dtype::Dtype F32{DtypeKind::F32};

@@ -67,9 +67,7 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .sg_n = 2,
         .async = false,
     },
-
     DirectConvConfig{
-        // <- FIXME
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -83,7 +81,6 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .async = true,
     },
     DirectConvConfig{
-        // <- FIXME
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -96,9 +93,7 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .sg_n = 2,
         .async = false,
     },
-
     DirectConvConfig{
-        // TESTED
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -112,7 +107,6 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .async = true,
     },
     DirectConvConfig{
-        // TESTED
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -127,7 +121,6 @@ static std::vector<DirectConvConfig> CONFIGS = {
     },
 
     DirectConvConfig{
-        // TESTED
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -141,7 +134,6 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .async = true,
     },
     DirectConvConfig{
-        // PROBABLY FINE.
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -154,9 +146,7 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .sg_n = 7,
         .async = false,
     },
-
     DirectConvConfig{
-        // FIXME: Very very blurry.
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -170,7 +160,6 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .async = true,
     },
     DirectConvConfig{
-        // PROBABLY ALSO Very very blurry.
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -193,9 +182,8 @@ DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
-          options.deviceInfo.limits.maxComputeWorkGroupSize)
-
-{
+          options.deviceInfo.limits.maxComputeWorkGroupSize),
+      m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes) {
 
   if (m_subgroupSize == 0) {
     return;
@@ -306,6 +294,21 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     if (workgroupInvocations > m_maxComputeWorkGroupInvocations) {
       continue;
     }
+    bool coopmatShapeSupported = false;
+    for (const auto &shape : m_supportedCoopmatShapes) {
+      if (shape.subgroupScope && shape.atype == memory::Dtype::F16 &&
+          shape.btype == memory::Dtype::F16 &&
+          shape.ctype == memory::Dtype::F16 &&
+          shape.acctype == memory::Dtype::F16 && shape.M == config.cm_m &&
+          shape.K == config.cm_k && shape.N == config.cm_n) {
+        coopmatShapeSupported = true;
+        break;
+      }
+    }
+    if (!coopmatShapeSupported) {
+      continue;
+    }
+
     configs.push_back(c);
   }
   return configs;

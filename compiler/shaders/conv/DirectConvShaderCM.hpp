@@ -5,9 +5,10 @@
 #include "io/fs/Path.hpp"
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
+#include "memory/dtype/dtype.hpp"
 #include "memory/hypergraph/ConstGraph.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
+#include "shaders/compiler/GlslCompiler.hpp"
 #include <cassert>
 
 namespace denox::compiler::shaders {
@@ -20,7 +21,7 @@ private:
   static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
 public:
-  DirectConvShaderCM(GlslCompiler *compiler, const Options& options);
+  DirectConvShaderCM(GlslCompiler *compiler, const Options &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -38,14 +39,15 @@ public:
       const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match)
       const final override;
 
-  void implement(Impl &impl,
-                 const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-                 unsigned int pattern,
-                 unsigned int config,
-                 const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-                     &match, SymGraph& symGraph) const final override;
+  void
+  implement(Impl &impl,
+            const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+            unsigned int pattern, unsigned int config,
+            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+            SymGraph &symGraph) const final override;
 
-  memory::string name(unsigned int pattern, unsigned int config) const final override;
+  memory::string name(unsigned int pattern,
+                      unsigned int config) const final override;
 
 private:
   struct Handles {
@@ -66,7 +68,7 @@ private:
   unsigned int m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
-
+  std::span<const CoopmatShape> m_supportedCoopmatShapes;
 };
 
 } // namespace denox::compiler::shaders
