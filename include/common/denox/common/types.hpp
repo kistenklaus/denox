@@ -3,6 +3,15 @@
 #include <cstdint>
 namespace denox {
 
+enum class VulkanApiVersion {
+  Vulkan_1_0,
+  Vulkan_1_1,
+  Vulkan_1_2,
+  Vulkan_1_3,
+  Vulkan_1_4,
+};
+
+
 enum class Storage {
   StorageBuffer,
 };

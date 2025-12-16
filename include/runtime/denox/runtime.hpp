@@ -12,7 +12,9 @@ typedef void *RuntimeModel;
 typedef void *RuntimeInstance;
 typedef void *RuntimeBuffer;
 
-int create_runtime_context(const char *deviceName, RuntimeContext *context);
+int create_runtime_context(
+    const char *deviceName, RuntimeContext *context,
+    VulkanApiVersion target_env = VulkanApiVersion::Vulkan_1_4);
 
 void destroy_runtime_context(RuntimeContext context);
 

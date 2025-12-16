@@ -192,7 +192,7 @@ pick_best_compute_queue_family(VkPhysicalDevice phys) {
   return {bestIdx};
 }
 
-Context::Context(const char *deviceName)
+Context::Context(const char *deviceName, VulkanApiVersion target_env)
     : m_instance(VK_NULL_HANDLE), m_device(VK_NULL_HANDLE),
       m_physicalDevice(VK_NULL_HANDLE), m_queue(VK_NULL_HANDLE) {
 
@@ -201,13 +201,53 @@ Context::Context(const char *deviceName)
     VkApplicationInfo appInfo;
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pNext = nullptr;
+
 #ifdef VK_API_VERSION_1_4
-    appInfo.apiVersion = VK_API_VERSION_1_4;
+#define VK_API_VERSION_LATEST VK_API_VERSION_1_4;
 #elif defined(VK_API_VERSION_1_3)
-    appInfo.apiVersion = VK_API_VERSION_1_3;
+#define VK_API_VERSION_LATEST VK_API_VERSION_1_3;
 #else
-    appInfo.apiVersion = VK_API_VERSION_1_1;
+#define VK_API_VERSION_LATEST VK_API_VERSION_1_1;
 #endif
+
+    switch (target_env) {
+    case VulkanApiVersion::Vulkan_1_0:
+#ifdef VK_API_VERSION_1_0
+      appInfo.apiVersion = VK_API_VERSION_1_0;
+#else
+      appInfo.apiVersion = VK_API_VERSION_LATEST;
+#endif
+      break;
+    case VulkanApiVersion::Vulkan_1_1:
+#ifdef VK_API_VERSION_1_1
+      appInfo.apiVersion = VK_API_VERSION_1_1;
+#else
+      appInfo.apiVersion = VK_API_VERSION_LATEST;
+#endif
+      break;
+    case VulkanApiVersion::Vulkan_1_2:
+#ifdef VK_API_VERSION_1_2
+      appInfo.apiVersion = VK_API_VERSION_1_2;
+#else
+      appInfo.apiVersion = VK_API_VERSION_LATEST;
+#endif
+      break;
+    case VulkanApiVersion::Vulkan_1_3:
+#ifdef VK_API_VERSION_1_3
+      appInfo.apiVersion = VK_API_VERSION_1_3;
+#else
+      appInfo.apiVersion = VK_API_VERSION_LATEST;
+#endif
+      break;
+    case VulkanApiVersion::Vulkan_1_4:
+#ifdef VK_API_VERSION_1_4
+      appInfo.apiVersion = VK_API_VERSION_1_4;
+#else
+      appInfo.apiVersion = VK_API_VERSION_LATEST;
+#endif
+      break;
+    }
+
     vulkanApiVersion = appInfo.apiVersion;
     appInfo.applicationVersion = DENOX_VERSION;
     appInfo.pApplicationName = "denox-runtime";

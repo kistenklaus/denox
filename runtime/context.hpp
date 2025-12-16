@@ -1,4 +1,5 @@
 #pragma once
+#include "denox/common/types.hpp"
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -21,7 +22,7 @@ struct Buffer {
 
 class Context {
 public:
-  explicit Context(const char *deviceName);
+  explicit Context(const char *deviceName, VulkanApiVersion target_env);
   ~Context();
   Context(const Context &) = delete;
   Context(Context &&) = delete;

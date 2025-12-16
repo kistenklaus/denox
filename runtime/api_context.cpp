@@ -3,9 +3,9 @@
 
 namespace denox {
 
-int create_runtime_context(const char *deviceName, RuntimeContext *context) {
+int create_runtime_context(const char *deviceName, RuntimeContext *context, VulkanApiVersion target_env) {
   assert(context);
-  auto *ctx = new runtime::Context(deviceName);
+  auto *ctx = new runtime::Context(deviceName, target_env);
   *context = static_cast<void *>(ctx);
   return 0;
 }
