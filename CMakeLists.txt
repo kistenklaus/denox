@@ -204,9 +204,9 @@ target_link_libraries(denox_compiler
     denox::onnx
     denox::generator
     denox::vulkan
-    denox::spirv-tools
     denox::dnx
     denox::db
+    denox::spirv-tools
     denox::glslang
 
 )
@@ -237,6 +237,9 @@ add_library(denox_runtime EXCLUDE_FROM_ALL
   runtime/context.cpp
   runtime/dnx_parse_helpers.cpp
   runtime/vma_impl.cpp
+
+  runtime/shader/GlslCompiler.cpp
+  runtime/shader/GlslCompilerInstance.cpp
 )
 
 target_include_directories(denox_runtime PUBLIC
@@ -262,6 +265,8 @@ target_link_libraries(denox_runtime
     denox::dnx
     denox::db
     denox::vma
+    denox::spirv-tools
+    denox::glslang
 )
 
 target_compile_features(denox_runtime PUBLIC cxx_std_20)

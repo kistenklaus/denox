@@ -1,0 +1,17 @@
+#version 450
+layout(local_size_x = 256) in;
+
+layout(set = 0, binding = 0) buffer Out {
+    float data[];
+};
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    float x = float(id) + data[id];
+
+    for (int i = 0; i < 20000; ++i) {
+        x = x * 1.000001 + 0.000001;
+    }
+
+    data[id] = x;   // <-- side-effect prevents dead-code-elimination
+}

@@ -76,27 +76,26 @@ context.set_tensor_address(output_name, int(d_out))
 
 stream = cuda.Stream()
 
-# ---------------------------------------------------
+# GPU-only timing events
+start = cuda.Event()
+end = cuda.Event()
+
+# One-time transfer
+cuda.memcpy_htod_async(d_in, host_in, stream)
+
 # Warmup
-# ---------------------------------------------------
 for _ in range(WARMUP):
-    cuda.memcpy_htod_async(d_in, host_in, stream)
     context.execute_async_v3(stream.handle)
-    cuda.memcpy_dtoh_async(host_out, d_out, stream)
     stream.synchronize()
 
-# ---------------------------------------------------
 # Benchmark
-# ---------------------------------------------------
 times = []
 for _ in range(ITER):
-    t0 = time.perf_counter()
-    cuda.memcpy_htod_async(d_in, host_in, stream)
+    start.record(stream)
     context.execute_async_v3(stream.handle)
-    cuda.memcpy_dtoh_async(host_out, d_out, stream)
-    stream.synchronize()
-    t1 = time.perf_counter()
-    times.append((t1 - t0) * 1000)
+    end.record(stream)
+    end.synchronize()
+    times.append(start.time_till(end))  # ms
 
 # ---------------------------------------------------
 # Stats

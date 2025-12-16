@@ -164,6 +164,6 @@ void bench2() {
 
 int main() {
   // eval();
-  // bench();
-  bench2();
+  bench();
+  // bench2();
 }

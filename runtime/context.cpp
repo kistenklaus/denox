@@ -677,7 +677,7 @@ void Context::destroyDescriptorSetLayout(VkDescriptorSetLayout layout) {
 VkPipelineLayout Context::createPipelineLayout(
     std::span<const VkDescriptorSetLayout> descriptorLayouts,
     std::uint32_t pushConstantRange) {
-  VkPipelineLayoutCreateInfo layoutInfo;
+  VkPipelineLayoutCreateInfo layoutInfo{};
   std::memset(&layoutInfo, 0, sizeof(VkPipelineLayoutCreateInfo));
   layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   layoutInfo.setLayoutCount = descriptorLayouts.size();
@@ -686,8 +686,10 @@ VkPipelineLayout Context::createPipelineLayout(
   pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   pushConstant.size = pushConstantRange;
   pushConstant.offset = 0;
-  layoutInfo.pPushConstantRanges = &pushConstant;
-  layoutInfo.pushConstantRangeCount = 1;
+  if (pushConstantRange > 0) {
+    layoutInfo.pPushConstantRanges = &pushConstant;
+    layoutInfo.pushConstantRangeCount = 1;
+  }
 
   VkPipelineLayout layout;
   {
@@ -756,7 +758,6 @@ VkCommandPool Context::createCommandPool() {
   poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   poolInfo.queueFamilyIndex = m_queueFamily;
-
   VkCommandPool pool;
   {
     VkResult result = vkCreateCommandPool(m_device, &poolInfo, nullptr, &pool);
@@ -927,12 +928,18 @@ void Context::cmdMemoryBarrier(VkCommandBuffer cmd,
                        nullptr, 0, nullptr);
 }
 
+void Context::cmdMemoryBarrierComputeShader(VkCommandBuffer cmd) {
+  cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                   VK_ACCESS_SHADER_READ_BIT,
+                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+}
+
 void Context::cmdBufferBarrier(VkCommandBuffer cmd, Buffer buffer,
                                VkPipelineStageFlags srcStage,
                                VkPipelineStageFlags dstStage,
                                VkAccessFlags srcAccess, VkAccessFlags dstAccess,
-                               VkDeviceSize offset,
-                               VkDeviceSize size) {
+                               VkDeviceSize offset, VkDeviceSize size) {
   VkBufferMemoryBarrier bufferBarrier;
   bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
   bufferBarrier.pNext = nullptr;

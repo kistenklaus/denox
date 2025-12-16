@@ -3,7 +3,7 @@
 #include "denox/runtime.hpp"
 #include "instance.hpp"
 #include <cmath>
-#include <fmt/base.h>
+#include <fmt/format.h>
 #include <variant>
 #include <vector>
 #include <vulkan/vulkan_core.h>

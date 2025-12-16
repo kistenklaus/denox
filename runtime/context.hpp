@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fmt/printf.h>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <vector>
@@ -86,6 +87,8 @@ public:
                         VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
                         VkAccessFlags dstAccess);
 
+  void cmdMemoryBarrierComputeShader(VkCommandBuffer cmd);
+
   void cmdBufferBarrier(VkCommandBuffer cmd, Buffer buffer,
                         VkPipelineStageFlags srcStage,
                         VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
@@ -144,6 +147,60 @@ public:
     uint64_t e = timestamps[end];
     return static_cast<uint64_t>(
         std::round(static_cast<float>(e - b) * m_timestampPeriod));
+  }
+
+  VkFence createFence(bool signaled) {
+    VkFenceCreateInfo createInfo;
+    createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+    if (signaled) {
+      createInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    } else {
+      createInfo.flags = 0;
+    }
+    VkFence fence;
+    {
+      VkResult result = vkCreateFence(m_device, &createInfo, nullptr, &fence);
+      if (result != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create fence.");
+      }
+    }
+    return fence;
+  }
+
+  void waitFence(VkFence fence) {
+    VkResult result = vkWaitForFences(m_device, 1, &fence, VK_FALSE,
+                                      std::numeric_limits<uint64_t>::max());
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to wait for fence or timed out.");
+    }
+  }
+
+  void resetFence(VkFence fence) {
+    VkResult result = vkResetFences(m_device, 1, &fence);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to reset fence.");
+    }
+  }
+
+  void submit(VkCommandBuffer cmd, VkFence fence) {
+    VkSubmitInfo submitInfo;
+    std::memset(&submitInfo, 0, sizeof(VkSubmitInfo));
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    submitInfo.pSignalSemaphores = nullptr;
+    submitInfo.signalSemaphoreCount = 0;
+    submitInfo.pWaitSemaphores = nullptr;
+    submitInfo.waitSemaphoreCount = 0;
+    submitInfo.pWaitDstStageMask = nullptr;
+
+    {
+      VkResult result = vkQueueSubmit(m_queue, 1, &submitInfo, fence);
+      if (result != VK_SUCCESS) {
+        throw std::runtime_error("Failed to submit to queue.");
+      }
+    }
   }
 
 private:
