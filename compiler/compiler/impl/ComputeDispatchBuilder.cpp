@@ -1,6 +1,7 @@
 #include "compiler/impl/ComputeDispatchBuilder.hpp"
 #include "compiler/impl/ImplBuilder.hpp"
 #include "diag/unreachable.hpp"
+#include <fmt/base.h>
 #include <fmt/format.h>
 
 denox::compiler::ComputeDispatch &
@@ -22,6 +23,11 @@ void denox::compiler::ComputeDispatchBuilder::setName(memory::string name) {
   if (self().meta == nullptr) {
     self().meta = std::make_unique<ComputeDispatchMeta>();
   }
+  if (m_fast) {
+    self().meta->name = name;
+    return;
+  }
+  return;
 
   memory::span<ComputeDispatch> dispatches = m_impl->m_impl->dispatches;
   bool duplicatesExist = false;

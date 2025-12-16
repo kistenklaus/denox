@@ -9,7 +9,9 @@
 #include "memory/container/optional.hpp"
 #include "memory/container/vector.hpp"
 #include "memory/hypergraph/NodeId.hpp"
+#include "memory/tensor/BiasDescriptor.hpp"
 #include "memory/tensor/FilterTensor.hpp"
+#include "memory/tensor/FitlerDescriptor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
 #include <stdexcept>
 
@@ -18,7 +20,8 @@ namespace denox::compiler {
 class Impl {
 public:
   friend class ComputeDispatchBuilder;
-  Impl(ImplModel *impl) : m_impl(impl) {}
+  Impl(ImplModel *impl, bool fast = false)
+      : m_impl(impl), m_fast(fast) {}
 
   Impl(const Impl &) = delete;
   Impl(Impl &&) = delete;
@@ -68,40 +71,53 @@ public:
         byteSize, static_cast<unsigned int>(instance.type.alignment()), nodeId);
   }
 
-  TensorId createParameter(memory::vector<std::byte> data,
-                           unsigned int minAlignment) {
-    TensorId id = createTensor(Sym::Const(data.size()), minAlignment);
-    m_impl->parameters.emplace_back(id, std::move(data));
+  TensorId createParameter(const memory::FilterDescriptor &descriptor,
+                           memory::FilterTensorConstView data) {
+    auto bytes = descriptor.byteSize();
+    unsigned int minAlignment;
+    if (descriptor.layout.isVectorized()) {
+      minAlignment = 16;
+    } else {
+      minAlignment = static_cast<unsigned int>(descriptor.type.alignment());
+    }
+    TensorId id = createTensor(Sym::Const(bytes), minAlignment);
+    if (!m_fast) {
+      memory::FilterTensor tensor{
+          descriptor,
+          data,
+      };
+      std::vector<std::byte> data(tensor.span().begin(), tensor.span().end());
+      m_impl->parameters.emplace_back(id, std::move(data));
+    }
     return id;
   }
 
-  TensorId createParameter(memory::FilterTensorConstView filterTensor) {
-    auto bytes = filterTensor.span();
+  TensorId createParameter(const memory::BiasDescriptor &descriptor,
+                           memory::BiasTensorConstView data) {
+    auto bytes = descriptor.byteSize();
     unsigned int minAlignment;
-    if (filterTensor.layout().isVectorized()) {
+    if (descriptor.layout.isVectorized()) {
       minAlignment = 16;
     } else {
-      minAlignment = static_cast<unsigned int>(filterTensor.type().alignment());
+      minAlignment = static_cast<unsigned int>(descriptor.type.alignment());
     }
-    return createParameter({bytes.begin(), bytes.end()}, minAlignment);
-  }
-
-  TensorId createParameter(memory::BiasTensorConstView biasTensor) {
-    auto bytes = biasTensor.span();
-    unsigned int minAlignment;
-    if (biasTensor.layout().isVectorized()) {
-      minAlignment = 16;
-    } else {
-      minAlignment = static_cast<unsigned int>(biasTensor.type().alignment());
+    TensorId id = createTensor(Sym::Const(bytes), minAlignment);
+    if (!m_fast) {
+      memory::BiasTensor tensor{
+          descriptor,
+          data,
+      };
+      std::vector<std::byte> data(tensor.span().begin(), tensor.span().end());
+      m_impl->parameters.emplace_back(id, std::move(data));
     }
-    return createParameter({bytes.begin(), bytes.end()}, minAlignment);
+    return id;
   }
 
   ComputeDispatchBuilder registerDispatch(GlslCompilerInstance shader, Sym wgX,
                                           Sym wgY = Sym::Const(1),
                                           Sym wgZ = Sym::Const(1)) {
     std::size_t index = m_impl->dispatches.size();
-    auto builder = ComputeDispatchBuilder(index, this);
+    auto builder = ComputeDispatchBuilder(index, this, m_fast);
     m_impl->dispatches.emplace_back();
     m_impl->dispatches.back().workgroupCount[0] = wgX;
     m_impl->dispatches.back().workgroupCount[1] = wgY;
@@ -187,6 +203,7 @@ private:
     GlslCompilerInstance instance;
   };
   memory::vector<LazyCompilationUnit> m_compilationUnits;
+  bool m_fast;
 };
 
 } // namespace denox::compiler

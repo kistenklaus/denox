@@ -173,7 +173,6 @@ static std::vector<DirectConvConfig> CONFIGS = {
         .async = false,
     },
 
-
     // 16x8x8 coop shape.
     DirectConvConfig{
         .cm_m = 16,
@@ -763,6 +762,8 @@ void DirectConvShaderCM::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
+
+  const auto start = std::chrono::high_resolution_clock::now();
   const DirectConvConfig &config = CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
@@ -802,25 +803,33 @@ void DirectConvShaderCM::implement(
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
   // Convert to expected layout!
-  memory::FilterTensor filterWeights{
+  // memory::FilterTensor filterWeights{
+  //     memory::FilterDescriptor{
+  //         .shape = conv->W->shape(),
+  //         .layout = filterLayout,
+  //         .type = memory::Dtype::F16,
+  //     },
+  //     memory::FilterTensorConstView(conv->W.get())};
+
+
+  TensorId weightTensorId = impl.createParameter(
       memory::FilterDescriptor{
           .shape = conv->W->shape(),
           .layout = filterLayout,
           .type = memory::Dtype::F16,
       },
-      memory::FilterTensorConstView(conv->W.get())};
+      *conv->W);
 
-  TensorId weightTensorId = impl.createParameter(filterWeights);
   memory::optional<TensorId> biasTensorId = memory::nullopt;
 
   if (conv->B != nullptr) {
-    memory::BiasTensor biasWeights{memory::BiasDescriptor{
-                                       .shape = conv->B->shape(),
-                                       .layout = biasLayout,
-                                       .type = memory::Dtype::F16,
-                                   },
-                                   memory::BiasTensorConstView(conv->B.get())};
-    biasTensorId = impl.createParameter(biasWeights);
+    biasTensorId = impl.createParameter(
+        memory::BiasDescriptor{
+            .shape = conv->B->shape(),
+            .layout = biasLayout,
+            .type = memory::Dtype::F16,
+        },
+        *conv->B);
   }
 
   dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
@@ -829,12 +838,16 @@ void DirectConvShaderCM::implement(
   if (biasTensorId) {
     dispatch.addBinding(0, 3, AccessFlag::ReadOnly, *biasTensorId);
   }
+
+
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
   dispatch.setName(name(pattern, configKey));
   dispatch.setSourcePath(m_srcPath);
+
+
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym()),

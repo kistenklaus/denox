@@ -17,6 +17,8 @@
 #include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/shaders.hpp"
 #include "symbolic/SymGraphEval.hpp"
+#include <chrono>
+#include <fmt/base.h>
 #include <unordered_set>
 
 namespace denox::compiler {
@@ -132,8 +134,8 @@ ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
 
         for (const unsigned int config : configs) {
 
-          float w = heuristic->eval(ins, opGraph.get(out), p, config,
-                                          hash, m, shader);
+          float w = heuristic->eval(ins, opGraph.get(out), p, config, hash, m,
+                                    shader);
 
           supergraph.addEdge(inputs, out,
                              ComputeOpImpl{
@@ -314,7 +316,7 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
   ImplModel implModel;
   implModel.symGraph = symGraphRef;
   SymGraph &symGraph = implModel.symGraph;
-  Impl impl{&implModel};
+  Impl impl{&implModel, true};
 
   ImplDb db;
 
@@ -337,7 +339,6 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
         .value = DEFAULT_INPUT_HEIGHT,
     });
   }
-
   SymGraphEval symEval0 = symGraphRef.eval(specs);
 
   for (std::size_t s = 0; s < sn; ++s) {
@@ -346,9 +347,7 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
     const ShaderCapabilities &caps = shader->capabilities();
     const unsigned int pn = static_cast<unsigned int>(caps.patterns.size());
     for (unsigned int p = 0; p < pn; ++p) {
-
       std::unordered_set<uint64_t> edgeExists;
-
       for (const auto &m :
            algorithm::match_all(caps.patterns[p].pattern, opGraph)) {
         memory::small_vector<memory::NodeId, 2> inputs;
@@ -423,6 +422,7 @@ ImplDb implement_all(const OpModel &model, const SymGraph &symGraphRef,
       }
     }
   }
+
   impl.compileAll(!options.quite);
 
   SymGraphEval symEval = symGraph.eval(specs);

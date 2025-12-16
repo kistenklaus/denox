@@ -75,10 +75,11 @@ public:
 private:
   ComputeDispatch &self();
 
-  ComputeDispatchBuilder(std::size_t index, Impl *impl)
-      : m_index(index), m_impl(impl) {}
+  ComputeDispatchBuilder(std::size_t index, Impl *impl, bool fast)
+      : m_index(index), m_impl(impl), m_fast(fast) {}
   std::size_t m_index;
   Impl *m_impl;
+  bool m_fast;
 };
 
 } // namespace denox::compiler

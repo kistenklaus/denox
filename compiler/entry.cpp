@@ -152,7 +152,6 @@ void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
 
   db.write_back();
 
-
   if (!options.quite) {
     size_t binaryCountDelta = binaryCount - previousBinaryCount;
     size_t dispatchCountDelta = dispatchCount - previousDispatchCount;
@@ -163,22 +162,6 @@ void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
       fmt::println("Added {} operations to {}", opCountDelta, dbpath.str());
     }
   }
-
-  // CompModel compModel = compiler::placement(implModel);
-  //
-  // SymTable symTable = compiler::sym_table(model, options);
-  //
-  // auto [symIR, symCount] = compiler::compile_sym_and_remap(compModel,
-  // symTable);
-  //
-  // auto dnx = dnx::serialize(compModel, symIR, symTable, model.getInputName(),
-  //                           model.getOutputName());
-  //
-  // if (options.summarize) {
-  //   diag::print_summary(model, implModel, compModel, symIR, symCount, dnx);
-  // }
-  //
-  // return dnx;
 }
 
 } // namespace denox::compiler
