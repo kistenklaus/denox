@@ -37,7 +37,8 @@ void eval() {
   extents[1].value = inH;
   denox::RuntimeInstance instance;
 
-  if (denox::create_runtime_instance(context, model, 2, extents, &instance)) {
+  if (denox::create_runtime_instance_with_resolved_symbols(
+          context, model, 2, extents, &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
   denox::Extent checkInCh;
@@ -133,13 +134,15 @@ void bench() {
   denox::Extent extents[2];
   std::size_t inW = 1920;
   std::size_t inH = 1080;
+  std::size_t inC = 3;
   extents[0].name = "W";
   extents[0].value = inW;
   extents[1].name = "H";
   extents[1].value = inH;
   denox::RuntimeInstance instance;
 
-  if (denox::create_runtime_instance(context, model, 2, extents, &instance)) {
+  if (denox::create_runtime_instance(context, model, inW, inH, inC,
+                                     &instance)) {
     throw std::runtime_error("Failed to create runtime model instance.");
   }
   denox::bench_runtime_instance(context, instance);

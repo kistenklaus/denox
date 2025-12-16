@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
+#include <fmt/base.h>
 #include <forward_list>
 #include <stdexcept>
 #include <variant>
@@ -16,28 +17,16 @@
 namespace denox {
 
 static std::vector<std::int64_t>
-interpret_symir(const dnx::Model *dnx, std::span<const Extent> dynamicExtents) {
+interpret_symir(const dnx::Model *dnx, std::span<const int64_t> variables) {
   std::size_t varCount = dnx->sym_ir()->var_count();
   std::size_t opCount = dnx->sym_ir()->ops()->size();
   std::vector<std::int64_t> dp(varCount + opCount);
+  assert(varCount == variables.size());
 
   // Variable initialization:
-  for (std::size_t i = 0; i < dynamicExtents.size(); ++i) {
-
-    const auto [scalar_type, scalar_source] =
-        dnx::getScalarSourceOfValueName(dnx, dynamicExtents[i].name);
-    if (scalar_type == dnx::ScalarSource_NONE) {
-      throw std::runtime_error(fmt::format(
-          "dynamic extent \"{}\" does not exist.", dynamicExtents[i].name));
-    }
-    if (scalar_type != dnx::ScalarSource_symbolic) {
-      continue;
-    }
-    std::uint32_t sid = static_cast<const dnx::SymRef *>(scalar_source)->sid();
-    if (sid >= varCount) {
-      continue;
-    }
-    dp[sid] = dynamicExtents[i].value;
+  for (uint32_t sid = 0; sid < variables.size(); ++sid) {
+    assert(variables[sid] != -1);
+    dp[sid] = variables[sid];
   }
 
   for (std::uint64_t pc = 0; pc < opCount; ++pc) {
@@ -396,56 +385,99 @@ void update_descriptor_sets(runtime::Context *ctx,
   ctx->updateDescriptorSets(writeInfos);
 }
 
-int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
-                             std::uint64_t height, std::uint64_t width,
-                             std::uint64_t channels,
-                             RuntimeInstance *instance) {
+int create_runtime_instance(RuntimeContext context, RuntimeModel model,
+                            std::uint64_t width, std::uint64_t height,
+                            std::uint64_t channels, RuntimeInstance *instance) {
   assert(context);
   assert(model);
   runtime::Context *ctx = reinterpret_cast<runtime::Context *>(context);
   const runtime::Model *m = reinterpret_cast<runtime::Model *>(model);
   const dnx::Model *dnx = m->dnx;
-  std::vector<Extent> extents;
 
   std::size_t inputCount = m->dnx->inputs()->size();
   if (inputCount != 1) {
     return -1;
   }
-  const dnx::TensorInfo *inputInfo = m->dnx->inputs()->Get(0);
-  auto check_and_collect = [&](std::uint64_t extent,
-                               dnx::ScalarSource source_type,
-                               const void *source) {
-    switch (source_type) {
-    case dnx::ScalarSource_NONE:
-      throw std::runtime_error("invalid dnx format");
-    case dnx::ScalarSource_literal: {
-      std::uint64_t expected = dnx::parseUnsignedScalarLiteral(
-          static_cast<const dnx::ScalarLiteral *>(source));
-      if (expected != extent) {
-        throw std::runtime_error("Mismatched input dimension");
-      }
-      break;
-    }
-    case dnx::ScalarSource_symbolic: {
-      const char *name = dnx::reverse_value_name_search(
-          dnx, dnx::ScalarSource_symbolic, source);
-      extents.emplace_back(name, extent);
-      break;
-    }
-    }
-  };
-  check_and_collect(height, inputInfo->height_type(), inputInfo->height());
-  check_and_collect(width, inputInfo->width_type(), inputInfo->width());
-  check_and_collect(channels, inputInfo->channels_type(),
-                    inputInfo->channels());
 
-  return create_runtime_instance(context, model, extents.size(), extents.data(),
-                                 instance);
+  runtime::Instance *mi = new runtime::Instance(m);
+
+  // 1. Interpret symbolic ir, based on the dynamicExtent specializations.
+  {
+    std::vector<int64_t> variables(dnx->sym_ir()->var_count(), -1);
+    for (int i = 0; i < dnx->inputs()->size(); ++i) {
+      const auto &input = dnx->inputs()->Get(i);
+      if (input->height_type() == dnx::ScalarSource_symbolic) {
+        const dnx::SymRef *symref = input->height_as_symbolic();
+        if (symref->sid() < variables.size()) {
+          variables[symref->sid()] = height;
+        }
+      } else {
+        uint64_t h =
+            dnx::parseUnsignedScalarLiteral(input->height_as_literal());
+        if (h != height) {
+          throw std::invalid_argument(fmt::format(
+              "Got height {}, expected non symbolic height {}", height, h));
+        }
+      }
+      if (input->width_type() == dnx::ScalarSource_symbolic) {
+        const dnx::SymRef *symref = input->width_as_symbolic();
+        if (symref->sid() < variables.size()) {
+          variables[symref->sid()] = width;
+        }
+      } else {
+        uint64_t w = dnx::parseUnsignedScalarLiteral(input->width_as_literal());
+        if (w != width) {
+          throw std::invalid_argument(fmt::format(
+              "Got width {}, expected non symbolic width {}", width, w));
+        }
+      }
+      if (input->channels_type() == dnx::ScalarSource_symbolic) {
+        const dnx::SymRef *symref = input->channels_as_symbolic();
+        if (symref->sid() < variables.size()) {
+          variables[symref->sid()] = channels;
+        }
+        uint64_t c =
+            dnx::parseUnsignedScalarLiteral(input->channels_as_literal());
+        if (c != channels) {
+          throw std::invalid_argument(
+              fmt::format("Got channels {}, expected non symbolic channels {}",
+                          channels, c));
+        }
+      }
+    }
+    mi->symbolValues = interpret_symir(dnx, variables);
+  }
+
+  // 2. Collect input & outputs.
+  for (std::size_t i = 0; i < dnx->inputs()->size(); ++i) {
+    mi->inputs.push_back(
+        parse_tensor_info(dnx, dnx->inputs()->Get(i), mi->symbolValues));
+  }
+  for (std::size_t o = 0; o < dnx->outputs()->size(); ++o) {
+    mi->outputs.push_back(
+        parse_tensor_info(dnx, dnx->outputs()->Get(o), mi->symbolValues));
+  }
+
+  // 3. Create buffers and parse tensor views.
+  mi->tensors = create_tensors(m, mi);
+  mi->buffers = create_buffers(ctx, m, mi);
+  upload_initalizers(ctx, mi);
+
+  mi->descriptorPool = create_descriptor_pool(ctx, m);
+
+  mi->cmds = create_cmds(ctx, m, mi);
+
+  update_descriptor_sets(ctx, mi);
+
+  *instance = mi;
+  return 0;
 }
 
-int create_runtime_instance(RuntimeContext context, RuntimeModel model,
-                            int dynamicExtentCount, Extent *dynamicExtents,
-                            RuntimeInstance *instance) {
+int create_runtime_instance_with_resolved_symbols(RuntimeContext context,
+                                                  RuntimeModel model,
+                                                  int dynamicExtentCount,
+                                                  Extent *dynamicExtents,
+                                                  RuntimeInstance *instance) {
   assert(context);
   assert(model);
   runtime::Context *ctx = reinterpret_cast<runtime::Context *>(context);
@@ -455,9 +487,43 @@ int create_runtime_instance(RuntimeContext context, RuntimeModel model,
   runtime::Instance *mi = new runtime::Instance(m);
 
   // 1. Interpret symbolic ir, based on the dynamicExtent specializations.
-  mi->symbolValues = interpret_symir(
-      dnx,
-      std::span{dynamicExtents, static_cast<std::size_t>(dynamicExtentCount)});
+  {
+    std::vector<int64_t> variables(dnx->sym_ir()->var_count(), -1);
+
+    for (uint32_t i = 0; i < dynamicExtentCount; ++i) {
+      const std::string_view name = dynamicExtents[i].name;
+      const uint64_t value = dynamicExtents[i].value;
+
+      bool found = false;
+      for (uint32_t v = 0; v < dnx->value_names()->size(); ++v) {
+        const auto &value_name = dnx->value_names()->Get(v);
+        if (value_name->name()->string_view() == name) {
+          found = true;
+
+          if (value_name->value_type() == dnx::ScalarSource_symbolic) {
+            const dnx::SymRef *symref = value_name->value_as_symbolic();
+            variables[symref->sid()] = value;
+          } else {
+            uint64_t v =
+                dnx::parseUnsignedScalarLiteral(value_name->value_as_literal());
+            if (v != value) {
+              throw std::runtime_error(
+                  fmt::format("Model contains value {}, but values mismatched. "
+                              "Expected {}, Got {}.",
+                              name, v, value));
+            }
+          }
+          break;
+        }
+      }
+      if (!found) {
+        throw std::runtime_error(
+            fmt::format("Model does not contain a dynamic extent {}.", name));
+      }
+    }
+
+    mi->symbolValues = interpret_symir(dnx, variables);
+  }
 
   // 2. Collect input & outputs.
   for (std::size_t i = 0; i < dnx->inputs()->size(); ++i) {
@@ -486,6 +552,7 @@ int create_runtime_instance(RuntimeContext context, RuntimeModel model,
 
 void destroy_runtime_instance(RuntimeContext context,
                               RuntimeInstance instance) {
+
   assert(context);
   assert(instance);
   runtime::Context *ctx = static_cast<runtime::Context *>(context);
@@ -501,6 +568,7 @@ void destroy_runtime_instance(RuntimeContext context,
       free(dispatch.pushConstantValues);
     }
   }
+
 
   ctx->destroyDescriptorPool(mi->descriptorPool);
 

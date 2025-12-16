@@ -25,8 +25,14 @@ int create_runtime_instance2(RuntimeContext context, RuntimeModel model,
                              std::uint64_t channels, RuntimeInstance *instance);
 
 int create_runtime_instance(RuntimeContext context, RuntimeModel model,
-                            int dynamicExtentCount, Extent *dynamicExtents,
-                            RuntimeInstance *instance);
+                            std::uint64_t width, std::uint64_t height,
+                            std::uint64_t channels, RuntimeInstance *instance);
+
+int create_runtime_instance_with_resolved_symbols(RuntimeContext context,
+                                                  RuntimeModel model,
+                                                  int dynamicExtentCount,
+                                                  Extent *dynamicExtents,
+                                                  RuntimeInstance *instance);
 
 void destroy_runtime_instance(RuntimeContext context, RuntimeInstance instance);
 

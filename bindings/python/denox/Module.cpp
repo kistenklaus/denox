@@ -241,8 +241,8 @@ std::optional<pydenox::Tensor> Module::infer(pybind11::object input,
   inputTensor = inputTensor.transform(inputType, inputLayout);
 
   denox::RuntimeInstance instance;
-  if (denox::create_runtime_instance2(ctx, model, inputTensor.height(),
-                                      inputTensor.width(), inputTensor.channels(),
+  if (denox::create_runtime_instance(ctx, model, inputTensor.width(),
+                                      inputTensor.height(), inputTensor.channels(),
                                       &instance) < 0) {
     throw std::runtime_error("Failed to create denox runtime instance.");
   }
