@@ -14,7 +14,6 @@
 #include "memory/tensor/FitlerDescriptor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
 #include <chrono>
-#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {

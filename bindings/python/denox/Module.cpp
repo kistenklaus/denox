@@ -88,8 +88,10 @@ void Module::define(pybind11::module_ &m) {
           py::arg("memory_concat") = py::none(),
           py::arg("spirv_debug_info") = false,
           py::arg("spirv_non_semantic_debug_info") = false,
-          py::arg("spirv_optimize") = true, py::arg("verbose") = false,
-          py::arg("summary") = false, py::arg("quiet") = false,
+          py::arg("spirv_optimize") = false, 
+          py::arg("verbose") = false,
+          py::arg("summary") = false, 
+          py::arg("quiet") = false,
           "Compile an ONNX model or file into a DNX runtime module.\n"
           "\n"
           "Args:\n"
@@ -114,7 +116,7 @@ void Module::define(pybind11::module_ &m) {
       .def("__call__", &Module::infer,                                  //
            py::arg("input"), py::kw_only(),                             //
            py::arg("device") = py::none(),                              //
-           py::arg("target_env") = denox::VulkanApiVersion::Vulkan_1_1, //
+           py::arg("target_env") = denox::VulkanApiVersion::Vulkan_1_4, //
            py::arg("dtype") = denox::DataType::Auto,                    //
            py::arg("layout") = denox::Layout::CHW                       //
       );

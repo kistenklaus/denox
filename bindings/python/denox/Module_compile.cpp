@@ -108,8 +108,6 @@ Module Module::compile(pybind11::object model,
   opt.inputDescription.storage = input_storage;
   opt.outputDescription.storage = output_storage;
 
-  // TODO parse options. later.
-
   denox::CompilationResult result;
   if (pybind11::isinstance<pybind11::str>(model)) {
     // Case 1: path to ONNX file

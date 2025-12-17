@@ -18,7 +18,6 @@
 #include "shaders/shaders.hpp"
 #include "symbolic/SymGraphEval.hpp"
 #include <chrono>
-#include <fmt/base.h>
 #include <unordered_set>
 
 namespace denox::compiler {

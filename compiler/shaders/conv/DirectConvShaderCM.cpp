@@ -762,8 +762,6 @@ void DirectConvShaderCM::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-
-  const auto start = std::chrono::high_resolution_clock::now();
   const DirectConvConfig &config = CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];

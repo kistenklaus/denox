@@ -10,7 +10,6 @@
 #include <alloca.h>
 #include <chrono>
 #include <cmath>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <forward_list>
 #include <glslang/SPIRV/GlslangToSpv.h>
