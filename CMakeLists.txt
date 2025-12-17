@@ -49,6 +49,7 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
 
   compiler/compiler/cano/cano.cpp
   compiler/compiler/placement/placement.cpp
+  compiler/compiler/rebind_descriptors/rebind_descriptors.cpp
   compiler/compiler/dce.cpp
   compiler/compiler/impl/ComputeDispatchBuilder.cpp
   compiler/compiler/impl/impl.cpp
@@ -167,6 +168,7 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/shaders/compiler/GlslCompiler.cpp
   compiler/shaders/compiler/GlslCompilerInstance.cpp
   compiler/shaders/compiler/ShaderPreprocessor.cpp
+  compiler/shaders/compiler/spirv_rebind.cpp
   compiler/shaders/compiler/global_glslang_runtime.cpp
   compiler/shaders/shaders.cpp
 

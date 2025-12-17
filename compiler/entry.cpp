@@ -5,6 +5,7 @@
 #include "compiler/impl/impl.hpp"
 #include "compiler/lifeness.hpp"
 #include "compiler/placement/placement.hpp"
+#include "compiler/rebind_descriptors/rebind_descriptors.hpp"
 #include "compiler/spec.hpp"
 #include "compiler/sym_compile.hpp"
 #include "compiler/sym_table.hpp"
@@ -18,6 +19,7 @@
 #include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
+#include <fmt/base.h>
 
 namespace denox::compiler {
 
@@ -75,6 +77,8 @@ flatbuffers::DetachedBuffer entry(memory::span<const std::byte> raw,
       compiler::implement(opModel, symGraph, &heuristic, options);
 
   CompModel compModel = compiler::placement(implModel);
+
+  compiler::rebind_descriptors(compModel, options);
 
   SymTable symTable = compiler::sym_table(model, options);
 

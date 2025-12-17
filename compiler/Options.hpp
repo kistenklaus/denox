@@ -34,31 +34,41 @@ struct TensorShapeDesc {
   TensorShapeExtent width;
 };
 
-enum class FeatureState {
-  Disable,
-  Enable,
-  Require
-};
+enum class FeatureState { Disable, Enable, Require };
 
-inline auto operator<(const FeatureState& lhs, const FeatureState& rhs) {
+inline auto operator<(const FeatureState &lhs, const FeatureState &rhs) {
   using underlying = std::underlying_type_t<FeatureState>;
   return static_cast<underlying>(lhs) < static_cast<underlying>(rhs);
 }
-inline auto operator<=(const FeatureState& lhs, const FeatureState& rhs) {
+inline auto operator<=(const FeatureState &lhs, const FeatureState &rhs) {
   using underlying = std::underlying_type_t<FeatureState>;
   return static_cast<underlying>(lhs) <= static_cast<underlying>(rhs);
 }
-inline auto operator>(const FeatureState& lhs, const FeatureState& rhs) {
+inline auto operator>(const FeatureState &lhs, const FeatureState &rhs) {
   using underlying = std::underlying_type_t<FeatureState>;
   return static_cast<underlying>(lhs) > static_cast<underlying>(rhs);
 }
-inline auto operator>=(const FeatureState& lhs, const FeatureState& rhs) {
+inline auto operator>=(const FeatureState &lhs, const FeatureState &rhs) {
   using underlying = std::underlying_type_t<FeatureState>;
   return static_cast<underlying>(lhs) >= static_cast<underlying>(rhs);
 }
 
 struct Features {
   FeatureState coopmat;
+};
+
+struct DescriptorPolicy {
+  // sets should be selected in order.
+  uint32_t set;
+};
+
+struct DescriptorPolicies {
+  // policy is selected in order, i.e. first check input then output and so on.
+  DescriptorPolicy inputPolicy;
+  DescriptorPolicy outputPolicy;
+  DescriptorPolicy paramPolicy;
+  DescriptorPolicy readPolicy;
+  DescriptorPolicy writePolicy;
 };
 
 struct Options {
@@ -81,6 +91,8 @@ struct Options {
   ShaderDebugInfoLevel shaderDebugInfo;
   bool optimizeSpirv;
   bool skipSpirvCompile;
+
+  DescriptorPolicies descriptorPolicies;
 
   io::Path cwd;
   memory::optional<io::Path> srcPath;

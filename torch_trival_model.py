@@ -86,13 +86,7 @@ class Net(nn.Module):
         # x1 = self.conv1(x0)
         # x2 = self.conv2(x1)
         # x = torch.cat((x0, x1), 1)
-        x0 = self.conv0(input)
-        x1 = self.conv1(x0)
-        x01 = torch.cat([x0, x1], 1)
-        x = self.conv2(x01)
-
-        # x = x[:,:,1:3,1:3]
-        return x
+        return self.conv0(self.conv0(input))
 
 
 example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 5, 5, dtype=torch.float16)

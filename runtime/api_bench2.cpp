@@ -10,6 +10,7 @@
 #include <alloca.h>
 #include <chrono>
 #include <cmath>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <forward_list>
 #include <glslang/SPIRV/GlslangToSpv.h>
@@ -536,6 +537,11 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
 
     if (!batches[next].targets.empty()) {
       read_batch(ctx, batches[next]);
+      uint64_t total_samples = 0;
+      for (const auto& dispatch : db.dispatches) {
+        total_samples += dispatch.time.samples;
+      }
+
       db.write_back();
 
       uint64_t maxVar = 0;
@@ -551,7 +557,7 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
         maxSEM = std::max(maxSEM, SEM);
       }
       fmt::println("max-std: {}ms", maxVar * 1e-6);
-      fmt::println("samples: {} / {}", minSamples, maxSamples);
+      fmt::println("samples: {} / {}", total_samples, db.dispatches.size() * 6);
       fmt::println("SEM    : {}", static_cast<uint64_t>(maxSEM));
 
       destroy_batch(ctx, batches[next]);

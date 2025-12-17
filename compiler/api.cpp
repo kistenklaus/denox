@@ -3,7 +3,6 @@
 #include "device_info/ApiVersion.hpp"
 #include "device_info/DeviceInfo.hpp"
 #include "device_info/query/query_driver_device_info.hpp"
-#include "diag/invalid_argument.hpp"
 #include "diag/logging.hpp"
 #include "diag/not_implemented.hpp"
 #include "diag/unreachable.hpp"
@@ -180,6 +179,32 @@ static compiler::DeviceInfo query_driver(const CompileOptions &options) {
                                                          deviceName);
 }
 
+static compiler::DescriptorPolicies default_descriptor_policies() {
+    compiler::DescriptorPolicies descriptorPolicies = {
+        .inputPolicy =
+            compiler::DescriptorPolicy{
+                .set = 1,
+            },
+        .outputPolicy =
+            compiler::DescriptorPolicy{
+                .set = 1,
+            },
+        .paramPolicy =
+            compiler::DescriptorPolicy{
+                .set = 1,
+            },
+        .readPolicy =
+            compiler::DescriptorPolicy{
+                .set = 1,
+            },
+        .writePolicy =
+            compiler::DescriptorPolicy{
+                .set = 1,
+            },
+    };
+    return descriptorPolicies;
+}
+
 int compile(const char *cpath, const CompileOptions *options, const char *db,
             CompilationResult *result) {
   try {
@@ -255,6 +280,8 @@ int compile(const char *cpath, const CompileOptions *options, const char *db,
     compiler::Features features;
     features.coopmat = parseFeatureState(options->features.coopmat);
 
+
+
     compiler::Options opt{
         .dnxVersion = dnxVersion,
         .srcType = srcType,
@@ -270,6 +297,7 @@ int compile(const char *cpath, const CompileOptions *options, const char *db,
         .shaderDebugInfo = spirvDebugInfoLevel,
         .optimizeSpirv = options->spirvOptions.optimize,
         .skipSpirvCompile = options->spirvOptions.skipCompilation,
+        .descriptorPolicies = default_descriptor_policies(),
         .cwd = cwd,
         .srcPath = path,
         .verbose = options->verbose,
@@ -384,6 +412,7 @@ int compile(const void *data, std::size_t dataSize,
         .shaderDebugInfo = spirvDebugInfoLevel,
         .optimizeSpirv = options->spirvOptions.optimize,
         .skipSpirvCompile = options->spirvOptions.skipCompilation,
+        .descriptorPolicies = default_descriptor_policies(),
         .cwd = cwd,
         .srcPath = memory::nullopt,
         .verbose = options->verbose,
@@ -502,6 +531,7 @@ int populate(const char *dbpath, const char *cpath,
     compiler::Features features;
     features.coopmat = parseFeatureState(options->features.coopmat);
 
+
     compiler::Options opt{
         .dnxVersion = dnxVersion,
         .srcType = srcType,
@@ -517,6 +547,7 @@ int populate(const char *dbpath, const char *cpath,
         .shaderDebugInfo = spirvDebugInfoLevel,
         .optimizeSpirv = options->spirvOptions.optimize,
         .skipSpirvCompile = options->spirvOptions.skipCompilation,
+        .descriptorPolicies = default_descriptor_policies(),
         .cwd = cwd,
         .srcPath = path,
         .verbose = options->verbose,
@@ -600,6 +631,7 @@ int populate(const char *dbpath, const void *data, std::size_t dataSize,
     compiler::Features features;
     features.coopmat = parseFeatureState(options->features.coopmat);
 
+
     compiler::Options opt{
         .dnxVersion = dnxVersion,
         .srcType = srcType,
@@ -615,6 +647,7 @@ int populate(const char *dbpath, const void *data, std::size_t dataSize,
         .shaderDebugInfo = spirvDebugInfoLevel,
         .optimizeSpirv = options->spirvOptions.optimize,
         .skipSpirvCompile = options->spirvOptions.skipCompilation,
+        .descriptorPolicies = default_descriptor_policies(),
         .cwd = cwd,
         .srcPath = memory::nullopt,
         .verbose = options->verbose,
