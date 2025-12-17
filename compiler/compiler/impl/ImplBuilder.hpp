@@ -13,6 +13,8 @@
 #include "memory/tensor/FilterTensor.hpp"
 #include "memory/tensor/FitlerDescriptor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
+#include <chrono>
+#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -20,8 +22,7 @@ namespace denox::compiler {
 class Impl {
 public:
   friend class ComputeDispatchBuilder;
-  Impl(ImplModel *impl, bool fast = false)
-      : m_impl(impl), m_fast(fast) {}
+  Impl(ImplModel *impl, bool fast = false) : m_impl(impl), m_fast(fast) {}
 
   Impl(const Impl &) = delete;
   Impl(Impl &&) = delete;
@@ -148,7 +149,6 @@ public:
   }
 
   void compileAll(bool logging) {
-
     memory::hash_map<std::string,
                      std::pair<std::uint32_t, GlslCompilerInstance>>
         binaryCache;
@@ -177,8 +177,8 @@ public:
                      "\x1B[4m{}\x1B[0m \x1B[90m[{:X}]\x1B[0m",
                      percentage, instance.getSourcePath().str(),
                      instance.hashPreamble());
-        // fmt::println("{}", instance.getPreamble());
       }
+
       m_impl->shaderBinaries[binaryId] = *instance.compile();
       ++c;
     }

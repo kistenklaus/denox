@@ -1,233 +1,386 @@
 #include "shaders/compiler/ShaderPreprocessor.hpp"
-#include <algorithm>
+#include <charconv>
+#include <cstdint>
+#include <cstring>       // memchr
 #include <fmt/format.h>
-#include <stdexcept>
-#include <string_view>
+#include <unordered_map>
+#include <vector>
 
 namespace denox::compiler {
 
-void ShaderPreprocessor::split_lines(const memory::string& s,
-                                     memory::vector<memory::string>& out) {
-  out.clear();
-  std::string_view v{s.c_str(), s.size()};
-  std::size_t start = 0;
-  while (start <= v.size()) {
-    std::size_t nl = v.find('\n', start);
-    std::size_t len = (nl == std::string_view::npos) ? v.size() - start : nl - start;
-    memory::string line(v.substr(start, len));
-    if (!line.empty() && line.back() == '\r') line.pop_back();
-    out.push_back(std::move(line));
-    if (nl == std::string_view::npos) break;
-    start = nl + 1;
+namespace {
+
+// --- small ASCII helpers ---
+static inline bool is_space(char c) noexcept { return c == ' ' || c == '\t'; }
+
+static inline std::string_view ltrim(std::string_view s) noexcept {
+  while (!s.empty() && is_space(s.front())) s.remove_prefix(1);
+  return s;
+}
+
+static inline bool is_ident_char(char c) noexcept {
+  return (c >= 'a' && c <= 'z') ||
+         (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') ||
+         (c == '_');
+}
+
+static inline bool is_ident_first(char c) noexcept {
+  return (c >= 'a' && c <= 'z') ||
+         (c >= 'A' && c <= 'Z') ||
+         (c == '_');
+}
+
+static inline std::string_view parse_ident(std::string_view& s) noexcept {
+  std::string_view t = s;
+  if (t.empty() || !is_ident_first(t.front())) return {};
+  std::size_t n = 1;
+  while (n < t.size() && is_ident_char(t[n])) ++n;
+  std::string_view out = t.substr(0, n);
+  s.remove_prefix(n);
+  return out;
+}
+
+static inline bool consume_char(std::string_view& s, char ch) noexcept {
+  if (!s.empty() && s.front() == ch) {
+    s.remove_prefix(1);
+    return true;
   }
+  return false;
 }
 
-void ShaderPreprocessor::append_resync(memory::string& out,
-                                       std::size_t next_original_line) const {
-  // #line uses 1-based line numbers; next_original_line is already 1-based
-  out += fmt::format("#line {}\n", next_original_line);
+static inline bool tail_ok(std::string_view s) noexcept {
+  s = ltrim(s);
+  if (s.empty()) return true;
+  return (s.size() >= 2 && s[0] == '/' && s[1] == '/');
 }
 
-void ShaderPreprocessor::capture_block(const memory::vector<memory::string>& lines,
-                                       std::size_t begin_idx, std::size_t end_idx,
-                                       const memory::string& id) {
-  // begin_idx points at '#pragma begin_block', end_idx at '#pragma end_block'
-  // Block body is (begin_idx+1) .. (end_idx-1), both 0-based
-  Block b;
-  b.id = id;
-  b.start_ln = begin_idx + 2; // first line AFTER begin_... (1-based)
-  b.end_ln   = end_idx + 1;   // line of end_block itself (1-based)
-  for (std::size_t i = begin_idx + 1; i < end_idx; ++i) {
-    b.src += lines[i];
-    b.src.push_back('\n');
+enum class PragmaKind : std::uint8_t { None, Begin, End, Inline, Unroll };
+
+struct ParsedPragma {
+  PragmaKind kind = PragmaKind::None;
+  std::string_view id{}; // begin/inline: required; end: optional/ignored
+};
+
+// Parser that mirrors your regexes:
+//
+//  ^\s*#\s*pragma\s+(?:denox\s+)?KW ... ;?\s*(?://.*)?$
+//
+// begin_block / inline_block require: \(\s*(ID)\s*\)
+// end_block allows optional: ( \(\s*(ID)\s*\) )?
+// unroll allows: \bunroll\b with optional ; and comment
+//
+static inline ParsedPragma parse_pragma(std::string_view line) noexcept {
+  line = ltrim(line);
+  if (line.empty() || line.front() != '#') return {};
+  line.remove_prefix(1);
+  line = ltrim(line);
+
+  // parse "pragma" as an identifier token (must be exactly "pragma")
+  {
+    std::string_view tmp = line;
+    std::string_view tok = parse_ident(tmp);
+    if (tok != "pragma") return {};
+    // regex requires at least one whitespace after 'pragma': \s+
+    if (tmp.empty() || !is_space(tmp.front())) return {};
+    line = tmp;
   }
-  m_blocks.push_back(std::move(b));
+
+  line = ltrim(line);
+
+  // optional "denox" token, requires at least one whitespace after it if present: (?:denox\s+)?
+  {
+    std::string_view tmp = line;
+    std::string_view tok = parse_ident(tmp);
+    if (tok == "denox") {
+      if (tmp.empty() || !is_space(tmp.front())) return {}; // must be \s+ after denox
+      line = ltrim(tmp);
+    }
+  }
+
+  // directive keyword
+  std::string_view kw = parse_ident(line);
+  if (kw.empty()) return {};
+  line = ltrim(line);
+
+  // Helpers for parsing "( ID )"
+  auto parse_paren_id = [&](std::string_view& s, std::string_view& out_id) noexcept -> bool {
+    std::string_view t = ltrim(s);
+    if (!consume_char(t, '(')) return false;
+    t = ltrim(t);
+    std::string_view id = parse_ident(t);
+    if (id.empty()) return false;
+    t = ltrim(t);
+    if (!consume_char(t, ')')) return false;
+    s = t;
+    out_id = id;
+    return true;
+  };
+
+  // optional ";"
+  auto consume_optional_semicolon = [&](std::string_view& s) noexcept {
+    s = ltrim(s);
+    if (!s.empty() && s.front() == ';') {
+      s.remove_prefix(1);
+    }
+  };
+
+  if (kw == "begin_block") {
+    std::string_view id{};
+    if (!parse_paren_id(line, id)) return {};
+    consume_optional_semicolon(line);
+    if (!tail_ok(line)) return {};
+    return {PragmaKind::Begin, id};
+  }
+
+  if (kw == "inline_block") {
+    std::string_view id{};
+    if (!parse_paren_id(line, id)) return {};
+    consume_optional_semicolon(line);
+    if (!tail_ok(line)) return {};
+    return {PragmaKind::Inline, id};
+  }
+
+  if (kw == "end_block") {
+    // optional "(ID)" — captured by your regex but your logic ignores it
+    std::string_view maybe_id{};
+    {
+      std::string_view tmp = line;
+      if (parse_paren_id(tmp, maybe_id)) {
+        line = tmp; // accept it, but ignore id
+      }
+    }
+    consume_optional_semicolon(line);
+    if (!tail_ok(line)) return {};
+    return {PragmaKind::End, {}};
+  }
+
+  if (kw == "unroll") {
+    consume_optional_semicolon(line);
+    if (!tail_ok(line)) return {};
+    return {PragmaKind::Unroll, {}};
+  }
+
+  return {};
 }
 
-memory::string ShaderPreprocessor::preprocess(const memory::string& src) {
+} // namespace
+
+memory::string ShaderPreprocessor::preprocess(const memory::string &src) {
   m_blocks.clear();
 
-  // -------- Pass 0: split to lines --------
-  memory::vector<memory::string> lines;
-  split_lines(src, lines);
-  const std::size_t n = lines.size();
+  const char* const data = src.c_str();
+  const std::size_t sz = src.size();
 
-  // -------- Pass 1: capture all blocks (supports nesting) --------
-  struct Beg {
-    memory::string id;
-    std::size_t begin_idx; // line index of '#pragma begin_block'
+  // -------- Build line table as views into src (no per-line allocations) --------
+  memory::vector<std::uint32_t> line_start;
+  memory::vector<std::uint32_t> line_len;
+  line_start.reserve(512);
+  line_len.reserve(512);
+
+  const char* p = data;
+  const char* const end = data + sz;
+
+  while (true) {
+    const char* nl = static_cast<const char*>(
+        memchr(p, '\n', static_cast<std::size_t>(end - p)));
+    const char* line_end = nl ? nl : end;
+
+    if (line_end > p && line_end[-1] == '\r') --line_end;
+
+    line_start.push_back(static_cast<std::uint32_t>(p - data));
+    line_len.push_back(static_cast<std::uint32_t>(line_end - p));
+
+    if (!nl) break;
+    p = nl + 1;
+
+    // match your old split_lines: if ends with '\n', append final empty line
+    if (p == end) {
+      line_start.push_back(static_cast<std::uint32_t>(end - data));
+      line_len.push_back(0);
+      break;
+    }
+  }
+
+  const std::uint32_t n_lines = static_cast<std::uint32_t>(line_start.size());
+
+  auto line_view = [&](std::uint32_t i) noexcept -> std::string_view {
+    return std::string_view{data + line_start[i], line_len[i]};
   };
-  memory::vector<Beg> stack;
-  // map begin -> end (for skipping regions later)
-  std::vector<long long> end_for_begin(n, -1);
 
-  std::smatch m;
-  for (std::size_t i = 0; i < n; ++i) {
-    const memory::string& L = lines[i];
-    if (std::regex_match(L, m, m_rxBegin)) {
-      stack.push_back(Beg{m[1].str(), i});
-    } else if (std::regex_match(L, m, m_rxEnd)) {
+  // -------- Pass 1: capture blocks + build begin->end jump table --------
+  struct Beg { memory::string id; std::uint32_t begin_idx; };
+
+  memory::vector<Beg> stack;
+  stack.reserve(16);
+
+  std::vector<std::int32_t> end_for_begin(n_lines, -1);
+
+  for (std::uint32_t i = 0; i < n_lines; ++i) {
+    const ParsedPragma pp = parse_pragma(line_view(i));
+
+    if (pp.kind == PragmaKind::Begin) {
+      stack.push_back(Beg{memory::string(pp.id), i});
+      continue;
+    }
+
+    if (pp.kind == PragmaKind::End) {
       if (stack.empty()) {
         throw std::runtime_error(
-          fmt::format("Stray '#pragma end_block' at line {}", i + 1));
+            fmt::format("Stray '#pragma end_block' at line {}", i + 1));
       }
+
       Beg beg = std::move(stack.back());
       stack.pop_back();
 
-      // Capture this block [beg.begin_idx .. i]
-      capture_block(lines, beg.begin_idx, i, beg.id);
-      end_for_begin[beg.begin_idx] = static_cast<long long>(i);
+      Block b;
+      b.id         = std::move(beg.id);
+      b.begin_idx  = beg.begin_idx;
+      b.end_idx    = i;
+      b.body_begin = b.begin_idx + 1;
+      b.body_end   = b.end_idx;
+      b.start_ln   = b.body_begin + 1; // 1-based
+
+      m_blocks.push_back(std::move(b));
+      end_for_begin[static_cast<std::size_t>(beg.begin_idx)] = static_cast<std::int32_t>(i);
+      continue;
     }
   }
+
   if (!stack.empty()) {
-    // Report the first unterminated block for clarity
-    const Beg& b = stack.back();
+    const Beg &b = stack.back();
     throw std::runtime_error(
-      fmt::format("Unterminated block \"{}\" starting at line {}", b.id, b.begin_idx + 1));
+        fmt::format("Unterminated block \"{}\" starting at line {}", b.id, b.begin_idx + 1));
   }
 
-  // Helper: find a captured block by id
-  auto find_block = [&](const memory::string& id) -> const Block& {
-    auto it = std::find_if(m_blocks.begin(), m_blocks.end(),
-                           [&](const Block& b){ return b.id == id; });
-    if (it == m_blocks.end()) {
-      throw std::runtime_error(
-        fmt::format("#pragma inline_block references unknown block \"{}\"", id));
+  // id -> block index (first captured wins, matching your find_if-on-vector order)
+  std::unordered_map<std::string_view, std::uint32_t> block_index;
+  block_index.reserve(m_blocks.size() * 2 + 1);
+
+  for (std::uint32_t bi = 0; bi < static_cast<std::uint32_t>(m_blocks.size()); ++bi) {
+    const auto& b = m_blocks[bi];
+    std::string_view key{b.id.data(), b.id.size()};
+    if (block_index.find(key) == block_index.end()) {
+      block_index.emplace(key, bi);
     }
-    return *it;
+  }
+
+  auto get_block_index = [&](std::string_view id) -> std::uint32_t {
+    auto it = block_index.find(id);
+    if (it == block_index.end()) {
+      throw std::runtime_error(fmt::format(
+          "#pragma inline_block references unknown block \"{}\"", id));
+    }
+    return it->second;
   };
 
-  // Inline recursion guard (per-expansion path)
-  struct InlineGuard {
-    std::vector<memory::string>& stack;
-    memory::string name;
-    InlineGuard(std::vector<memory::string>& s, memory::string n)
-      : stack(s), name(std::move(n)) { stack.push_back(name); }
-    ~InlineGuard() {
-      if (!stack.empty() && stack.back() == name) stack.pop_back();
-    }
-  };
-  std::vector<memory::string> inline_stack;
-
-  // Expands a block, skipping nested definitions inside it,
-  // expanding nested inline_block pragmas, and maintaining #line.
-  std::function<void(const Block&)> expand_block = [&](const Block& blk) {
-    // Cycle check
-    auto it = std::find(inline_stack.begin(), inline_stack.end(), blk.id);
-    if (it != inline_stack.end()) {
-      // Build a nice chain for diagnostics
-      memory::string chain;
-      for (const auto& n : inline_stack) {
-        if (!chain.empty()) chain += " -> ";
-        chain += n;
-      }
-      if (!chain.empty()) chain += " -> ";
-      chain += blk.id;
-      throw std::runtime_error("Recursive #pragma inline_block expansion detected: " + std::string(chain));
-    }
-    InlineGuard guard{inline_stack, blk.id};
-
-    // Resync to the first line of the block body in the ORIGINAL source
-    append_resync(/*out*/ *(new memory::string()), 0); // placeholder to satisfy compiler (will be optimized out)
-  };
-
-  // We can't write into a placeholder; re-create expand_block correctly with 'out' captured by reference.
+  // -------- Output helpers --------
   memory::string out;
   out.reserve(src.size() + 256);
 
-  expand_block = [&](const Block& blk) {
-    InlineGuard guard{inline_stack, blk.id};
-    // Resync logical line numbers to the block's original first body line
-    append_resync(out, blk.start_ln);
+  auto append_resync = [&](std::uint32_t next_original_line_1based) {
+    out.append("#line ");
+    char buf[32];
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), next_original_line_1based);
+    (void)ec;
+    out.append(buf, static_cast<std::size_t>(ptr - buf));
+    out.push_back('\n');
+  };
 
-    // Walk the block source line-by-line
-    memory::vector<memory::string> blines;
-    split_lines(blk.src, blines);
+  static constexpr std::string_view kUnrollSnippet =
+      "#ifdef GL_EXT_control_flow_attributes\n[[unroll]]\n#endif\n";
 
-    // We'll need local scanning to skip nested begin/end pairs that were captured separately.
-    // Track depth to find matching end inside this block text.
-    for (std::size_t k = 0; k < blines.size(); ++k) {
-      const memory::string& L2 = blines[k];
+  // -------- Recursive expansion by block index (cycle guard) --------
+  std::vector<std::uint32_t> inline_stack;
+  inline_stack.reserve(16);
 
-      // BEGIN inside block body → skip until matching END (nested definition)
-      if (std::regex_match(L2, m, m_rxBegin)) {
-        int depth = 1;
-        std::size_t t = k;
-        for (++t; t < blines.size(); ++t) {
-          if (std::regex_match(blines[t], m, m_rxBegin)) ++depth;
-          else if (std::regex_match(blines[t], m, m_rxEnd)) {
-            if (--depth == 0) break;
-          }
-        }
-        if (depth != 0) {
-          throw std::runtime_error(
-            fmt::format("Unterminated nested block inside \"{}\" starting at original line {}",
-                        blk.id, blk.start_ln + k));
-        }
-        // Resync after the nested end: next original line = (blk.start_ln + t)
-        append_resync(out, blk.start_ln + static_cast<size_t>(t) + 1);
-        k = t; // skip the whole nested region
+  auto throw_cycle = [&](std::uint32_t next_idx) {
+    memory::string chain;
+    for (std::uint32_t idx : inline_stack) {
+      if (!chain.empty()) chain += " -> ";
+      chain += m_blocks[idx].id;
+    }
+    if (!chain.empty()) chain += " -> ";
+    chain += m_blocks[next_idx].id;
+
+    throw std::runtime_error(
+        "Recursive #pragma inline_block expansion detected: " + std::string(chain));
+  };
+
+  auto expand_block = [&](auto&& self, std::uint32_t blk_idx) -> void {
+    if (std::find(inline_stack.begin(), inline_stack.end(), blk_idx) != inline_stack.end()) {
+      throw_cycle(blk_idx);
+    }
+    inline_stack.push_back(blk_idx);
+
+    const Block& blk = m_blocks[blk_idx];
+
+    append_resync(blk.start_ln);
+
+    for (std::uint32_t i = blk.body_begin; i < blk.body_end; ++i) {
+      // skip nested definitions using global begin->end table
+      const std::int32_t end_idx = end_for_begin[static_cast<std::size_t>(i)];
+      if (end_idx != -1) {
+        const std::uint32_t j = static_cast<std::uint32_t>(end_idx);
+        append_resync(j + 2);
+        i = j;
         continue;
       }
 
-      // INLINE inside block body → expand recursively
-      if (std::regex_match(L2, m, m_rxInline)) {
-        const memory::string nestedId = m[1].str();
-        const Block& nb = find_block(nestedId);
-        expand_block(nb);
-        // Resume mapping at the next original line after the inline directive
-        append_resync(out, blk.start_ln + static_cast<size_t>(k) + 1);
+      const std::string_view L = line_view(i);
+      const ParsedPragma pp = parse_pragma(L);
+
+      if (pp.kind == PragmaKind::Inline) {
+        const std::uint32_t nb_idx = get_block_index(pp.id);
+        self(self, nb_idx);
+        append_resync(i + 2);
         continue;
       }
 
-      // Unroll pragma translation (optional)
-      if (m_enableUnroll && std::regex_match(L2, m, m_rxUnroll)) {
-        out += "#ifdef GL_EXT_control_flow_attributes\n[[unroll]]\n#endif\n";
-        append_resync(out, blk.start_ln + static_cast<size_t>(k) + 1);
+      if (m_enableUnroll && pp.kind == PragmaKind::Unroll) {
+        out.append(kUnrollSnippet.data(), kUnrollSnippet.size());
+        append_resync(i + 2);
         continue;
       }
 
-      // Normal line
-      out += L2;
+      out.append(L.data(), L.size());
       out.push_back('\n');
     }
+
+    inline_stack.pop_back();
   };
 
   // -------- Pass 2: emit file (skip definitions; expand inlines) --------
-  for (std::size_t i = 0; i < n; ++i) {
-    const memory::string& L = lines[i];
-
-    // If this line is a begin of a captured block, skip the whole region and resync
-    if (end_for_begin[i] != -1) {
-      std::size_t j = static_cast<std::size_t>(end_for_begin[i]);
-      append_resync(out, /*next original line*/ j + 2);
-      i = j; // jump to end; loop ++ will move to the next line
+  for (std::uint32_t i = 0; i < n_lines; ++i) {
+    const std::int32_t end_idx = end_for_begin[static_cast<std::size_t>(i)];
+    if (end_idx != -1) {
+      const std::uint32_t j = static_cast<std::uint32_t>(end_idx);
+      append_resync(j + 2);
+      i = j;
       continue;
     }
 
-    // Inline directive at top level
-    if (std::regex_match(L, m, m_rxInline)) {
-      const memory::string targetId = m[1].str();
-      const Block& b = find_block(targetId);
-      expand_block(b);
-      // Resume mapping at the next original line after this inline
-      append_resync(out, i + 2);
+    const std::string_view L = line_view(i);
+    const ParsedPragma pp = parse_pragma(L);
+
+    if (pp.kind == PragmaKind::Inline) {
+      const std::uint32_t b_idx = get_block_index(pp.id);
+      expand_block(expand_block, b_idx);
+      append_resync(i + 2);
       continue;
     }
 
-    // Unroll pragma translation at top level
-    if (m_enableUnroll && std::regex_match(L, m, m_rxUnroll)) {
-      out += "#ifdef GL_EXT_control_flow_attributes\n[[unroll]]\n#endif\n";
-      append_resync(out, i + 2);
+    if (m_enableUnroll && pp.kind == PragmaKind::Unroll) {
+      out.append(kUnrollSnippet.data(), kUnrollSnippet.size());
+      append_resync(i + 2);
       continue;
     }
 
-    // All other lines pass through
-    out += L;
+    out.append(L.data(), L.size());
     out.push_back('\n');
   }
 
   return out;
 }
 
-} // namespace denox::compiler::shaders
+} // namespace denox::compiler

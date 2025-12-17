@@ -1,6 +1,7 @@
 #pragma once
 #include "memory/container/string.hpp"
 #include "memory/container/vector.hpp"
+#include <cstdint>
 #include <regex>
 #include <string>
 #include <string_view>
@@ -11,9 +12,11 @@ class ShaderPreprocessor {
 public:
   struct Block {
     memory::string id;
-    memory::string src;   // original lines of the block (joined with '\n')
-    std::size_t start_ln; // 1-based line of first line inside the block body
-    std::size_t end_ln;   // 1-based line of the closing #pragma end_block
+    std::uint32_t begin_idx;  // '#pragma ... begin_block(...)' line (0-based)
+    std::uint32_t end_idx;    // '#pragma ... end_block(...)'   line (0-based)
+    std::uint32_t body_begin; // begin_idx + 1
+    std::uint32_t body_end;   // end_idx (one past last body line)
+    std::uint32_t start_ln;   // 1-based original line number of body_begin
   };
 
   explicit ShaderPreprocessor(memory::string filename)
@@ -29,14 +32,6 @@ public:
   void set_enable_unroll_translation(bool v) { m_enableUnroll = v; }
 
 private:
-  // Helpers (impl in .cpp)
-  static void split_lines(const memory::string &s,
-                          memory::vector<memory::string> &out);
-  void append_resync(memory::string &out, std::size_t next_original_line) const;
-  void capture_block(const memory::vector<memory::string> &lines,
-                     std::size_t begin_idx, std::size_t end_idx,
-                     const memory::string &id);
-
 private:
   memory::string m_filename;
   memory::vector<Block> m_blocks;

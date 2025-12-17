@@ -5,6 +5,7 @@
 #include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/compiler/ShaderDebugInfoLevel.hpp"
 #include "shaders/compiler/ShaderPreprocessor.hpp"
+#include <chrono>
 #include <cstring>
 #include <diag/logging.hpp>
 #include <glslang/MachineIndependent/Versions.h>
@@ -20,8 +21,6 @@ namespace denox::compiler {
 CompilationResult GlslCompilerInstance::compile() {
 
   const char *preambleCStr = m_preamble.data();
-
-
 
   unsigned int vulkanApiVersionOrd;
   switch (m_compiler->m_deviceInfo.apiVersion) {
@@ -73,10 +72,13 @@ CompilationResult GlslCompilerInstance::compile() {
 
   //  =============GLSLANG-FRONTEND-STAGE==============
   if (!m_shader->parse(&buildInResource, 450, false, messages)) {
-    return CompilationError{
-        CompilationStage::GlslangParse,
-        fmt::format("[glslang-parse]: {}\n{}", m_sourcePath.str(), m_shader->getInfoLog())};
+    return CompilationError{CompilationStage::GlslangParse,
+                            fmt::format("[glslang-parse]: {}\n{}",
+                                        m_sourcePath.str(),
+                                        m_shader->getInfoLog())};
   }
+
+
   {
     const char *w1 = m_shader->getInfoLog();
     if (w1 && *w1) { // <- check if empty string.
@@ -282,7 +284,6 @@ CompilationResult GlslCompilerInstance::compile() {
   spvLog.clear();
 
   if (!m_compiler->m_optimize) {
-
     return ShaderBinary{
         .spv = std::move(spirv),
     };
