@@ -183,23 +183,23 @@ static compiler::DescriptorPolicies default_descriptor_policies() {
     compiler::DescriptorPolicies descriptorPolicies = {
         .inputPolicy =
             compiler::DescriptorPolicy{
-                .set = 1,
+                .set = 0,
             },
         .outputPolicy =
             compiler::DescriptorPolicy{
-                .set = 1,
+                .set = 0,
             },
         .paramPolicy =
             compiler::DescriptorPolicy{
-                .set = 1,
+                .set = 0,
             },
         .readPolicy =
             compiler::DescriptorPolicy{
-                .set = 1,
+                .set = 0,
             },
         .writePolicy =
             compiler::DescriptorPolicy{
-                .set = 1,
+                .set = 0,
             },
     };
     return descriptorPolicies;

@@ -8,7 +8,7 @@ import torch.utils.dlpack
 import denox
 # from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
-INPUT_CHANNELS_COUNT = 8
+INPUT_CHANNELS_COUNT = 3
 OUTPUT_CHANNEL_COUNT = 16
 
 

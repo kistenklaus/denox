@@ -293,26 +293,27 @@ void denox::compiler::rebind_descriptors(CompModel &compModel,
       return lhs.binding < rhs.binding;
     });
 
-    dispatch.setBindings.clear();
+    uint32_t maxSet = 0;
     for (const auto &binding : bindings) {
-      auto setIt = std::ranges::find_if(dispatch.setBindings,
-                                        [&](const auto &setBinding) {
-                                          return setBinding.set == binding.set;
-                                        });
-      if (setIt == dispatch.setBindings.end()) {
-        dispatch.setBindings.push_back(DescriptorSetBinding{
-            .set = binding.set,
-            .bindings = {},
-        });
-        setIt = dispatch.setBindings.end() - 1;
-      }
+      maxSet = std::max(maxSet, binding.set);
+    }
+
+    dispatch.setBindings.clear();
+    dispatch.setBindings.resize(maxSet + 1);
+    for (uint32_t i = 0; i < maxSet + 1; ++i) {
+      dispatch.setBindings[i].set = i;
+      dispatch.setBindings[i].bindings.clear();
+    }
+
+    for (const auto &binding : bindings) {
+      auto &setBindings = dispatch.setBindings[binding.set];
       // checks for duplicate bindings.
-      auto bindingIt =
-          std::ranges::find_if(setIt->bindings, [&](const auto &tensorBinding) {
+      auto bindingIt = std::ranges::find_if(
+          setBindings.bindings, [&](const auto &tensorBinding) {
             return tensorBinding.binding == binding.binding;
           });
-      assert(bindingIt == setIt->bindings.end());
-      setIt->bindings.push_back(DescriptorBinding{
+      assert(bindingIt == setBindings.bindings.end());
+      setBindings.bindings.push_back(DescriptorBinding{
           .binding = binding.binding,
           .access = binding.access,
           .tensor = binding.tensor,
