@@ -1,6 +1,7 @@
 namespace denox.dnx;
 
 file_extension "dnx";
+file_identifier "dnxx";
 
 enum ScalarType:ubyte { 
   I16=0, 

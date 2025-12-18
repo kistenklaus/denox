@@ -14,6 +14,8 @@ enum class VulkanApiVersion {
 
 enum class Storage {
   StorageBuffer,
+  StorageImage,
+  Sampler,
 };
 
 enum class Layout {
@@ -21,6 +23,10 @@ enum class Layout {
   HWC,
   CHW,
   CHWC8,
+  RGBA,
+  RGB,
+  RG,
+  R
 };
 
 enum DataType {
