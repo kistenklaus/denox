@@ -295,7 +295,20 @@ endif()
 if (NOT BUILD_PYTHON_BINDING)
   add_executable(denox
     cli/main.cpp
+    cli/io/File.cpp
+    cli/io/Path.cpp
+    cli/parser/lex/tokens/literal.cpp
+    cli/parser/lex/tokens/command.cpp
+    cli/parser/lex/tokens/option.cpp
+    cli/parser/lex/lex.cpp
+    cli/parser/parse.cpp
+    cli/parser/parse_commands.cpp
+    cli/parser/parse_artefact.cpp
   )
+
+  target_include_directories(denox 
+    PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/cli)
 
   if (DENOX_SAN) 
     target_compile_options(denox PRIVATE -fsanitize=undefined -fsanitize=address)
@@ -310,6 +323,9 @@ if (NOT BUILD_PYTHON_BINDING)
       PRIVATE
         denox::glslang
         denox::cli11
+        denox::dnx
+        denox::db
+        denox::onnx
         
   )
   install(TARGETS denox DESTINATION bin)

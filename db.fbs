@@ -1,6 +1,7 @@
 namespace denox.db;
 
 file_extension "db";
+file_identifier "dbdb";
 
 file_identifier "dbdb";
 
