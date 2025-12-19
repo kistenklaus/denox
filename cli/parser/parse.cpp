@@ -4,19 +4,21 @@
 #include "parser/action.hpp"
 #include "parser/lex/lex.hpp"
 #include "parser/parse_commands.hpp"
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <iterator>
 #include <optional>
 #include <span>
 
-
-
 Action parse_argv(int argc, char **argv) {
   std::vector<Token> tokens = lex(argc, argv);
 
-  for (const auto &token : tokens) {
-    fmt::println("{}", token);
-  }
+  // fmt::println("\n");
+  // for (const auto &token : tokens) {
+  //   fmt::println("{}", token);
+  // }
+  // fmt::println(
+  //     "\n\n[kistenklaus@kiste denox]$ denox compile net.onnx -o net.dnx");
 
   if (tokens.empty()) {
     return HelpAction(HelpScope::Global);
@@ -26,25 +28,15 @@ Action parse_argv(int argc, char **argv) {
   if (first.kind() != TokenKind::Command) {
     switch (first.kind()) {
     case TokenKind::Option:
-      throw std::runtime_error(
-          "expected command, found option '" +
-          fmt::format("--{}", first.option()) +
-          "'\n"
-          "hint: commands must come first (e.g. 'denox compile ...')");
+      throw std::runtime_error("expected command, found option '" +
+                               fmt::format("--{}", first.option()));
 
     case TokenKind::Literal:
       throw std::runtime_error("expected command, found positional argument '" +
-                               fmt::format("{}", first.literal().view()) +
-                               "'\n"
-                               "hint: denox requires an explicit command "
-                               "(e.g. 'denox compile', 'denox infer')");
+                               fmt::format("{}", first.literal().view()));
 
     case TokenKind::Pipe:
-      throw std::runtime_error(
-          "expected command, found pipe '-'\n"
-          "hint: pipes may only appear as inputs or outputs, "
-          "not as commands");
-
+      throw std::runtime_error("expected command, found pipe '-'");
     case TokenKind::Command:
       throw std::runtime_error("invalid state");
 

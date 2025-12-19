@@ -19,7 +19,7 @@ enum class Storage {
 };
 
 enum class Layout {
-  Undefined,
+  Undefined = 0,
   HWC,
   CHW,
   CHWC8,
@@ -38,8 +38,8 @@ enum DataType {
 };
 
 struct Extent {
-  const char *name;
-  uint64_t value;
+  const char *name = nullptr;
+  uint64_t value = 0;
 };
 
 struct Shape {
@@ -49,10 +49,11 @@ struct Shape {
 };
 
 struct BufferDescription {
+  char* name;
   Shape shape;
-  Storage storage;
-  Layout layout;
-  DataType dtype;
+  Storage storage = Storage::StorageBuffer;
+  Layout layout = Layout::Undefined;
+  DataType dtype = DataType::Auto;
 };
 
 }

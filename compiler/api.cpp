@@ -34,6 +34,12 @@ static memory::ActivationLayout parse_layout(Layout layout) {
     return memory::ActivationLayout::CHWC8;
   case Layout::Undefined:
     return memory::ActivationLayout::HWC;
+  case Layout::RGBA:
+  case Layout::RGB:
+  case Layout::RG:
+  case Layout::R:
+    throw std::runtime_error("texture layouts are not implemented");
+    break;
   }
   compiler::diag::unreachable();
 }
@@ -180,29 +186,29 @@ static compiler::DeviceInfo query_driver(const CompileOptions &options) {
 }
 
 static compiler::DescriptorPolicies default_descriptor_policies() {
-    compiler::DescriptorPolicies descriptorPolicies = {
-        .inputPolicy =
-            compiler::DescriptorPolicy{
-                .set = 0,
-            },
-        .outputPolicy =
-            compiler::DescriptorPolicy{
-                .set = 0,
-            },
-        .paramPolicy =
-            compiler::DescriptorPolicy{
-                .set = 0,
-            },
-        .readPolicy =
-            compiler::DescriptorPolicy{
-                .set = 0,
-            },
-        .writePolicy =
-            compiler::DescriptorPolicy{
-                .set = 0,
-            },
-    };
-    return descriptorPolicies;
+  compiler::DescriptorPolicies descriptorPolicies = {
+      .inputPolicy =
+          compiler::DescriptorPolicy{
+              .set = 0,
+          },
+      .outputPolicy =
+          compiler::DescriptorPolicy{
+              .set = 0,
+          },
+      .paramPolicy =
+          compiler::DescriptorPolicy{
+              .set = 0,
+          },
+      .readPolicy =
+          compiler::DescriptorPolicy{
+              .set = 0,
+          },
+      .writePolicy =
+          compiler::DescriptorPolicy{
+              .set = 0,
+          },
+  };
+  return descriptorPolicies;
 }
 
 int compile(const char *cpath, const CompileOptions *options, const char *db,
@@ -252,18 +258,18 @@ int compile(const char *cpath, const CompileOptions *options, const char *db,
     auto srcType = infer_srctype(path, *options);
     auto cwd = infer_cwd(*options);
     memory::ActivationLayout inputLayout =
-        parse_layout(options->inputDescription.layout);
+        parse_layout(options->inputDescriptions->layout);
     memory::ActivationLayout outputLayout =
-        parse_layout(options->outputDescription.layout);
+        parse_layout(options->outputDescriptions->layout);
     memory::optional<memory::Dtype> inputType =
-        parse_dtype(options->inputDescription.dtype);
+        parse_dtype(options->inputDescriptions->dtype);
     memory::optional<memory::Dtype> outputType =
-        parse_dtype(options->outputDescription.dtype);
+        parse_dtype(options->outputDescriptions->dtype);
 
     compiler::TensorShapeDesc inputShape =
-        parse_shape(options->inputDescription.shape);
+        parse_shape(options->inputDescriptions->shape);
     compiler::TensorShapeDesc outputShape =
-        parse_shape(options->outputDescription.shape);
+        parse_shape(options->outputDescriptions->shape);
 
     compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
         compiler::ShaderDebugInfoLevel::Strip;
@@ -279,8 +285,6 @@ int compile(const char *cpath, const CompileOptions *options, const char *db,
 
     compiler::Features features;
     features.coopmat = parseFeatureState(options->features.coopmat);
-
-
 
     compiler::Options opt{
         .dnxVersion = dnxVersion,
@@ -369,18 +373,18 @@ int compile(const void *data, std::size_t dataSize,
     compiler::SrcType srcType = infer_srctype(memory::nullopt, *options);
     auto cwd = infer_cwd(*options);
     memory::ActivationLayout inputLayout =
-        parse_layout(options->inputDescription.layout);
+        parse_layout(options->inputDescriptions->layout);
     memory::ActivationLayout outputLayout =
-        parse_layout(options->outputDescription.layout);
+        parse_layout(options->outputDescriptions->layout);
     memory::optional<memory::Dtype> inputType =
-        parse_dtype(options->inputDescription.dtype);
+        parse_dtype(options->inputDescriptions->dtype);
     memory::optional<memory::Dtype> outputType =
-        parse_dtype(options->outputDescription.dtype);
+        parse_dtype(options->outputDescriptions->dtype);
 
     compiler::TensorShapeDesc inputShape =
-        parse_shape(options->inputDescription.shape);
+        parse_shape(options->inputDescriptions->shape);
     compiler::TensorShapeDesc outputShape =
-        parse_shape(options->outputDescription.shape);
+        parse_shape(options->outputDescriptions->shape);
 
     compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
         compiler::ShaderDebugInfoLevel::Strip;
@@ -503,18 +507,18 @@ int populate(const char *dbpath, const char *cpath,
     auto srcType = infer_srctype(path, *options);
     auto cwd = infer_cwd(*options);
     memory::ActivationLayout inputLayout =
-        parse_layout(options->inputDescription.layout);
+        parse_layout(options->inputDescriptions->layout);
     memory::ActivationLayout outputLayout =
-        parse_layout(options->outputDescription.layout);
+        parse_layout(options->outputDescriptions->layout);
     memory::optional<memory::Dtype> inputType =
-        parse_dtype(options->inputDescription.dtype);
+        parse_dtype(options->inputDescriptions->dtype);
     memory::optional<memory::Dtype> outputType =
-        parse_dtype(options->outputDescription.dtype);
+        parse_dtype(options->outputDescriptions->dtype);
 
     compiler::TensorShapeDesc inputShape =
-        parse_shape(options->inputDescription.shape);
+        parse_shape(options->inputDescriptions->shape);
     compiler::TensorShapeDesc outputShape =
-        parse_shape(options->outputDescription.shape);
+        parse_shape(options->outputDescriptions->shape);
 
     compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
         compiler::ShaderDebugInfoLevel::Strip;
@@ -530,7 +534,6 @@ int populate(const char *dbpath, const char *cpath,
 
     compiler::Features features;
     features.coopmat = parseFeatureState(options->features.coopmat);
-
 
     compiler::Options opt{
         .dnxVersion = dnxVersion,
@@ -603,18 +606,18 @@ int populate(const char *dbpath, const void *data, std::size_t dataSize,
     compiler::SrcType srcType = infer_srctype(memory::nullopt, *options);
     auto cwd = infer_cwd(*options);
     memory::ActivationLayout inputLayout =
-        parse_layout(options->inputDescription.layout);
+        parse_layout(options->inputDescriptions->layout);
     memory::ActivationLayout outputLayout =
-        parse_layout(options->outputDescription.layout);
+        parse_layout(options->outputDescriptions->layout);
     memory::optional<memory::Dtype> inputType =
-        parse_dtype(options->inputDescription.dtype);
+        parse_dtype(options->inputDescriptions->dtype);
     memory::optional<memory::Dtype> outputType =
-        parse_dtype(options->outputDescription.dtype);
+        parse_dtype(options->outputDescriptions->dtype);
 
     compiler::TensorShapeDesc inputShape =
-        parse_shape(options->inputDescription.shape);
+        parse_shape(options->inputDescriptions->shape);
     compiler::TensorShapeDesc outputShape =
-        parse_shape(options->outputDescription.shape);
+        parse_shape(options->outputDescriptions->shape);
 
     compiler::ShaderDebugInfoLevel spirvDebugInfoLevel =
         compiler::ShaderDebugInfoLevel::Strip;
@@ -630,7 +633,6 @@ int populate(const char *dbpath, const void *data, std::size_t dataSize,
 
     compiler::Features features;
     features.coopmat = parseFeatureState(options->features.coopmat);
-
 
     compiler::Options opt{
         .dnxVersion = dnxVersion,

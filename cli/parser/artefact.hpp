@@ -5,6 +5,7 @@
 #include "parser/artefact/OnnxArtefact.hpp"
 
 #include <cassert>
+#include <fmt/core.h>
 #include <variant>
 
 enum class ArtefactKind { Onnx, Dnx, Database };
@@ -45,4 +46,46 @@ public:
 
 private:
   std::variant<OnnxArtefact, DnxArtefact, DbArtefact> m_value;
+};
+
+template <>
+struct fmt::formatter<ArtefactKind> : fmt::formatter<std::string_view> {
+  template <typename FormatContext>
+  auto format(ArtefactKind kind, FormatContext& ctx) const {
+    std::string_view name;
+
+    switch (kind) {
+      case ArtefactKind::Onnx:
+        name = "onnx model";
+        break;
+      case ArtefactKind::Dnx:
+        name = "dnx model";
+        break;
+      case ArtefactKind::Database:
+        name = "database";
+        break;
+    }
+
+    return fmt::formatter<std::string_view>::format(name, ctx);
+  }
+};
+
+template <>
+struct fmt::formatter<Artefact> {
+  constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const Artefact& artefact, FormatContext& ctx) const {
+    switch (artefact.kind()) {
+      case ArtefactKind::Onnx:
+        return fmt::format_to(ctx.out(), "onnx model");
+      case ArtefactKind::Dnx:
+        return fmt::format_to(ctx.out(), "dnx model");
+      case ArtefactKind::Database:
+        return fmt::format_to(
+          ctx.out(), "database ({})",
+          artefact.database().endpoint);
+    }
+    std::abort();
+  }
 };

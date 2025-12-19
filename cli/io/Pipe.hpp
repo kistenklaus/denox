@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <fmt/core.h>
+#include <span>
 #include <stdexcept>
 #include <vector>
 
@@ -33,7 +34,7 @@ struct Pipe {
   }
 
   // Write all bytes to stdout
-  static void write_all(const std::vector<std::byte> &data) {
+  static void write_all(std::span<const std::byte> data) {
     const std::byte *ptr = data.data();
     std::size_t remaining = data.size();
 

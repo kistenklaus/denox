@@ -63,6 +63,22 @@ public:
   bool is_path() const noexcept;
   Path as_path() const;
 
+  bool is_bool() const noexcept {
+    auto sv = view();
+    return sv == "true" || sv == "false" || sv == "1" || sv == "0" ||
+           sv == "yes" || sv == "no";
+  }
+
+  bool as_bool() const {
+    auto sv = view();
+    if (sv == "true" || sv == "1" || sv == "yes")
+      return true;
+    if (sv == "false" || sv == "0" || sv == "no")
+      return false;
+    assert(false && "Literal::as_bool called on non-bool literal");
+    return false;
+  }
+
 private:
   std::optional<std::uint64_t> parse_unsigned() const noexcept;
 
@@ -79,7 +95,8 @@ private:
   std::string m_value;
 };
 
-template <> struct fmt::formatter<LiteralToken> : fmt::formatter<std::string_view> {
+template <>
+struct fmt::formatter<LiteralToken> : fmt::formatter<std::string_view> {
   template <typename FormatContext>
   auto format(const LiteralToken &lit, FormatContext &ctx) const {
     return fmt::formatter<std::string_view>::format(lit.view(), ctx);

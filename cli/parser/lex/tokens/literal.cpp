@@ -180,8 +180,15 @@ bool LiteralToken::is_path() const noexcept {
   if (is_signed_int() || is_unsigned_int())
     return false;
 
-  // Attempt to construct a Path
-  // Path construction should not touch the filesystem
+  // Reject NUL bytes and control newlines
+  for (char c : m_value) {
+    if (c == '\0')
+      return false;
+    if (c == '\n' || c == '\r')
+      return false;
+  }
+
+  // Attempt to construct a Path (purely syntactic)
   try {
     Path p{view()};
     return !p.empty();

@@ -34,13 +34,18 @@ enum class Heuristic {
 struct SpirvOptions {
   bool debugInfo = false;
   bool nonSemanticDebugInfo = false;
-  bool optimize = true;
-  bool skipCompilation;
+  bool optimize = false;
+  bool skipCompilation = false;
 };
 
 struct Device {
   const char *deviceName; // <- allows of patterns like *AMD*
   VulkanApiVersion apiVersion = VulkanApiVersion::Vulkan_1_3;
+};
+
+struct OptimizationAssumption {
+  const char *valueName;
+  uint64_t value;
 };
 
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
@@ -54,15 +59,23 @@ struct CompileOptions {
   unsigned int dnxVersion = 0; // <- 0 "auto" picks stable version.
   SrcType srcType = SrcType::Auto;
   Features features;
-  Heuristic heuristic = Heuristic::MemoryBandwidth;
-  BufferDescription inputDescription;
-  BufferDescription outputDescription;
+  Heuristic heuristic = Heuristic::MemoryBandwidth; // TODO: Remove this.
+
+  uint32_t inputDescriptionCount = 0;
+  BufferDescription *inputDescriptions;
+
+  uint32_t outputDescriptionCount = 0;
+  BufferDescription *outputDescriptions;
+
+  uint32_t optimizationAssumptionCount = 0;
+  OptimizationAssumption *optimizationAssumptions;
+
   Device device;
   SpirvOptions spirvOptions;
   const char *cwd = nullptr;
-  bool verbose;
-  bool quiet;
-  bool summarize;
+  bool verbose = false;
+  bool quiet = false;
+  bool summarize = false;
   bool externally_managed_glslang_runtime = false;
 #ifdef DENOX_EXTERNALLY_MANAGED_VULKAN_CONTEXT
   ExternallyManagedVulkanContext *externally_managed_vulkan_context = nullptr;
@@ -75,12 +88,12 @@ struct CompilationResult {
   const char *message;
 };
 
-int compile(const char *path, const CompileOptions *options,
-    const char* db, CompilationResult *result);
+int compile(const char *path, const CompileOptions *options, const char *db,
+            CompilationResult *result);
 
 int compile(const void *data, std::size_t dataSize,
-            const CompileOptions *options, 
-            const char* db, CompilationResult *result);
+            const CompileOptions *options, const char *db,
+            CompilationResult *result);
 
 void destroy_compilation_result(CompilationResult *result);
 
