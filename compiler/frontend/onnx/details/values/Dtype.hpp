@@ -1,12 +1,11 @@
 #pragma once
 
-#include "diag/unreachable.hpp"
-#include "memory/container/optional.hpp"
-#include "memory/container/string_view.hpp"
-#include "memory/dtype/dtype.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/string_view.hpp"
+#include "denox/memory/dtype/dtype.hpp"
 
 #include <cstdint>
-#include <tuple>
+
 namespace denox::onnx::details {
 
 enum class DtypeKind {

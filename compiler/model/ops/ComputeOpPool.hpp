@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/container/uvec2.hpp"
+#include "denox/memory/container/uvec2.hpp"
 #include "model/PoolFunction.hpp"
 #include <memory>
 #include <utility>

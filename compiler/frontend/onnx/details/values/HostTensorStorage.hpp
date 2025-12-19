@@ -1,11 +1,11 @@
 #pragma once
 
-#include "memory/container/span.hpp"
-#include "memory/container/string.hpp"
-#include "memory/dtype/f16.hpp"
-#include "memory/dtype/f32.hpp"
-#include "memory/dtype/f64.hpp"
-#include "symbolic/Sym.hpp"
+#include "denox/memory/container/span.hpp"
+#include "denox/memory/container/string.hpp"
+#include "denox/memory/dtype/f16.hpp"
+#include "denox/memory/dtype/f32.hpp"
+#include "denox/memory/dtype/f64.hpp"
+#include "denox/symbolic/Sym.hpp"
 
 #include "frontend/onnx/details/values/Dtype.hpp"
 
@@ -34,7 +34,7 @@ public:
   static HostTensorStorage Uint16(memory::span<const std::uint16_t> values);
   static HostTensorStorage Uint32(memory::span<const std::uint32_t> values);
   static HostTensorStorage Uint64(memory::span<const std::uint64_t> values);
-  static HostTensorStorage Sym(memory::span<const compiler::Sym> values);
+  static HostTensorStorage Sym(memory::span<const Sym> values);
   static HostTensorStorage F16(memory::span<const memory::f16> values);
   static HostTensorStorage F32(memory::span<const memory::f32> values);
   static HostTensorStorage F64(memory::span<const memory::f64> values);
@@ -49,7 +49,7 @@ public:
   memory::span<const std::uint16_t> u16() const;
   memory::span<const std::uint32_t> u32() const;
   memory::span<const std::uint64_t> u64() const;
-  memory::span<const compiler::Sym> sym() const;
+  memory::span<const denox::Sym> sym() const;
   memory::span<const memory::f16> f16() const;
   memory::span<const memory::f32> f32() const;
   memory::span<const memory::f64> f64() const;

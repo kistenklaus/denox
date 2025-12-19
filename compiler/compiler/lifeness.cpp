@@ -1,5 +1,5 @@
 #include "compiler/lifeness.hpp"
-#include "memory/container/dynamic_bitset.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
 
 namespace denox::compiler {
 

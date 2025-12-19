@@ -1,7 +1,7 @@
 #include "compiler/sym_compile.hpp"
-#include "diag/not_implemented.hpp"
-#include "memory/container/dynamic_bitset.hpp"
-#include "symbolic/SymGraph.hpp"
+#include "denox/diag/not_implemented.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 
 namespace denox::compiler {
 

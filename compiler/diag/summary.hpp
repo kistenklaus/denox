@@ -4,7 +4,7 @@
 #include "compiler/ir/impl/ImplModel.hpp"
 #include "flatbuffers/detached_buffer.h"
 #include "model/Model.hpp"
-#include "symbolic/SymIR.hpp"
+#include "denox/symbolic/SymIR.hpp"
 #include <fmt/printf.h>
 
 namespace denox::compiler::diag {

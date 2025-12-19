@@ -2,9 +2,9 @@
 
 #include "compiler/ir/impl/PushConstant.hpp"
 #include "compiler/ir/impl/TensorBinding.hpp"
-#include "io/fs/Path.hpp"
-#include "memory/container/optional.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <memory>
 
 namespace denox::compiler {

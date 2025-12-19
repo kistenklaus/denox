@@ -1,12 +1,12 @@
 #pragma once
 
-#include "memory/hypergraph/AdjGraph.hpp"
-#include "memory/hypergraph/NodeId.hpp"
+#include "denox/memory/hypergraph/AdjGraph.hpp"
+#include "denox/memory/hypergraph/NodeId.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/DynamicInputExtent.hpp"
 #include "model/ModelMeta.hpp"
-#include "symbolic/SymGraph.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 
 namespace denox::compiler::details::model {
 

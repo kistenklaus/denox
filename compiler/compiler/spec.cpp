@@ -1,8 +1,8 @@
 #include "compiler/spec.hpp"
-#include "memory/container/dynamic_bitset.hpp"
-#include "memory/container/small_vector.hpp"
-#include "memory/container/vector.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
+#include "denox/memory/container/small_vector.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include <exception>
 
 namespace denox::compiler {

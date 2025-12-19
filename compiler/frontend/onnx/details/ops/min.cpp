@@ -178,10 +178,10 @@ memory::vector<Tensor> min(
 
   // ---- Sym ----
   {
-    auto outStore = make_out(Dtype::Sym, sizeof(compiler::Sym));
-    compiler::Sym *dst = reinterpret_cast<compiler::Sym *>(outStore->data());
+    auto outStore = make_out(Dtype::Sym, sizeof(Sym));
+    Sym *dst = reinterpret_cast<Sym *>(outStore->data());
 
-    memory::vector<const compiler::Sym *> bases;
+    memory::vector<const Sym *> bases;
     bases.reserve(Xs.size());
     for (auto *h : Xs)
       bases.push_back(h->storage()->sym().data());
@@ -190,7 +190,7 @@ memory::vector<Tensor> min(
 
     memory::vector<std::uint64_t> idx(outDims.size(), 0);
     for (std::size_t i = 0; i < N; ++i) {
-      compiler::Sym mv;
+      Sym mv;
       {
         const std::size_t lin0 =
             views[0].view.constIndexOf({idx.data(), idx.size()});
@@ -199,7 +199,7 @@ memory::vector<Tensor> min(
       for (std::size_t k = 1; k < Xs.size(); ++k) {
         const std::size_t link =
             views[k].view.constIndexOf({idx.data(), idx.size()});
-        compiler::Sym v = bases[k][link];
+        Sym v = bases[k][link];
         mv = sg->min(mv, v);
       }
       dst[i] = mv;

@@ -1,9 +1,10 @@
 #pragma once
 
-#include "memory/hypergraph/LinkedGraph.hpp"
+#include "denox/memory/hypergraph/LinkedGraph.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
-#include "symbolic/SymGraph.hpp"
+#include "denox/symbolic/SymGraph.hpp"
+
 namespace denox::compiler {
 
 struct CanoModel {

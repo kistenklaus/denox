@@ -16,7 +16,7 @@ TensorShape::TensorShape(compiler::SymGraph *g,
   }
 }
 TensorShape::TensorShape(compiler::SymGraph *g,
-                         memory::span<const compiler::Sym> dims)
+                         memory::span<const Sym> dims)
     : m_graph(g) {
   m_dims.reserve(dims.size());
   for (std::size_t i = 0; i < dims.size(); ++i) {
@@ -35,7 +35,7 @@ TensorShape::TensorShape(compiler::SymGraph *g,
   m_dims.reserve(dims.size());
   for (std::size_t i = 0; i < dims.size(); ++i) {
     m_dims.emplace_back(
-        m_graph, compiler::Sym::Const(static_cast<std::int64_t>(dims[i])));
+        m_graph, Sym::Const(static_cast<std::int64_t>(dims[i])));
   }
 }
 TensorShape::TensorShape(compiler::SymGraph *g,
@@ -44,7 +44,7 @@ TensorShape::TensorShape(compiler::SymGraph *g,
   m_dims.reserve(dims.size());
   for (std::size_t i = 0; i < dims.size(); ++i) {
     assert(dims[i] >= 0);
-    m_dims.emplace_back(m_graph, compiler::Sym::Const(dims[i]));
+    m_dims.emplace_back(m_graph, Sym::Const(dims[i]));
   }
 }
 memory::span<const compiler::Symbolic> TensorShape::dims() const {
@@ -64,11 +64,11 @@ bool TensorShape::hasZeroDim() const {
   return false;
 }
 compiler::Symbolic TensorShape::numel() const {
-  compiler::Symbolic one{m_graph, compiler::Sym::Const(1)};
+  compiler::Symbolic one{m_graph, Sym::Const(1)};
   compiler::Symbolic n = one;
   for (const auto &d : m_dims) {
     if (d.isConstant() && d.constant() == 0)
-      return compiler::Symbolic{m_graph, compiler::Sym::Const(0)};
+      return compiler::Symbolic{m_graph, Sym::Const(0)};
     n = n * d;
   }
   return n;
@@ -99,7 +99,7 @@ TensorShape TensorShape::unsqueeze(std::size_t axis) const {
   v.insert(v.begin() +
                static_cast<memory::vector<compiler::Symbolic>::difference_type>(
                    axis),
-           compiler::Symbolic{m_graph, compiler::Sym::Const(1)});
+           compiler::Symbolic{m_graph, Sym::Const(1)});
   return TensorShape{m_graph, std::move(v)};
 }
 TensorShape TensorShape::squeeze(std::size_t axis) const {
@@ -119,17 +119,17 @@ TensorShape TensorShape::broadcast(const TensorShape &a, const TensorShape &b) {
   const size_t ra = a.rank(), rb = b.rank();
   const size_t r = (ra > rb ? ra : rb);
   memory::vector<compiler::Symbolic> out(
-      r, compiler::Symbolic{g, compiler::Sym::Const(1)});
+      r, compiler::Symbolic{g, Sym::Const(1)});
 
   for (size_t i = 0; i < r; ++i) {
     const bool haveA = (i < ra);
     const bool haveB = (i < rb);
     const compiler::Symbolic da =
         haveA ? a.m_dims[ra - 1 - i]
-              : compiler::Symbolic{g, compiler::Sym::Const(1)};
+              : compiler::Symbolic{g, Sym::Const(1)};
     const compiler::Symbolic db =
         haveB ? b.m_dims[rb - 1 - i]
-              : compiler::Symbolic{g, compiler::Sym::Const(1)};
+              : compiler::Symbolic{g, Sym::Const(1)};
 
     if (da.isConstant() && da.constant() == 1) {
       out[r - 1 - i] = db;
@@ -182,7 +182,7 @@ TensorShape TensorShape::parse(const ::onnx::TensorShapeProto &shp,
         throw std::runtime_error(fmt::format(
             "vkcnn: {} has negative dim at axis {}", tensorName, i));
       }
-      dims.emplace_back(g, compiler::Sym::Const(v));
+      dims.emplace_back(g, Sym::Const(v));
     } else if (d.has_dim_param()) {
       assert(symGraph != nullptr);
       const std::string &label = d.dim_param();
@@ -190,16 +190,16 @@ TensorShape TensorShape::parse(const ::onnx::TensorShapeProto &shp,
         throw std::runtime_error(fmt::format(
             "vkcnn: {} has empty dim_param at axis {}", tensorName, i));
       }
-      compiler::Sym s;
+      Sym s;
       if (shp.dim_size() == 4 && i == 0) {
-        s = compiler::Sym::Const(1);
+        s = Sym::Const(1);
       } else {
         s = symGraph->var();
       }
       dims.emplace_back(g, s);
     } else {
       assert(symGraph != nullptr);
-      compiler::Sym s = symGraph->var();
+      Sym s = symGraph->var();
       dims.emplace_back(g, s);
     }
   }

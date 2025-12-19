@@ -1,7 +1,7 @@
 #pragma once
 #include "compiler/ir/populate/ImplDb.hpp"
-#include "io/fs/Path.hpp"
-#include "memory/container/shared_ptr.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/shared_ptr.hpp"
 #include "shaders/compiler/ShaderBinary.hpp"
 namespace denox::compiler {
 

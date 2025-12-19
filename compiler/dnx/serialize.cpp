@@ -1,12 +1,11 @@
 #include "dnx/serialize.hpp"
-#include "algorithm/align_up.hpp"
 #include "compiler/ir/SymTable.hpp"
-#include "diag/invalid_state.hpp"
-#include "diag/not_implemented.hpp"
-#include "diag/unreachable.hpp"
+#include "denox/algorithm/align_up.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/diag/not_implemented.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/vector.hpp"
 #include "dnx.h"
-#include "memory/container/vector.hpp"
-#include <fmt/base.h>
 #include <fmt/printf.h>
 
 namespace denox::dnx {
@@ -232,7 +231,7 @@ flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
     std::array<ScalarSource, 3> workgroupCounts_type;
     std::array<flatbuffers::Offset<void>, 3> workgroupCounts;
     for (std::size_t i = 0; i < 3; ++i) {
-      compiler::Sym count = dispatch.workgroupCount[i];
+      Sym count = dispatch.workgroupCount[i];
       if (count.isSymbolic()) {
         workgroupCounts_type[i] = ScalarSource_symbolic;
         auto symRef =

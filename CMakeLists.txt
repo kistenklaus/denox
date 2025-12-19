@@ -43,9 +43,78 @@ include(cmake/vma.cmake)
 
 include(cmake/warnings.cmake)
 
-add_library(denox_compiler EXCLUDE_FROM_ALL
 
-  compiler/algorithm/binary_op_permutations.cpp
+add_library(denox_common EXCLUDE_FROM_ALL
+  common/denox/algorithm/binary_op_permutations.cpp
+  common/denox/memory/dtype/dtype_reference.cpp
+  common/denox/memory/dtype/f16.cpp
+  common/denox/io/read_file.cpp
+  common/denox/io/fs/File.cpp
+  common/denox/io/fs/Path.cpp
+)
+
+target_include_directories(denox_common
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+)
+
+
+
+target_compile_features(denox_common PUBLIC cxx_std_20)
+set_target_properties(denox_common PROPERTIES CXX_STANDARD 20)
+set_target_properties(denox_common PROPERTIES CXX_STANDARD_REQUIRED ON)
+set_target_properties(denox_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_library(denox_symbolic EXCLUDE_FROM_ALL
+  symbolic/denox/symbolic/SymGraph_add_entry.cpp
+  symbolic/denox/symbolic/SymGraph_affine.cpp
+  symbolic/denox/symbolic/SymGraph_affine_symbol_cache.cpp
+  symbolic/denox/symbolic/SymGraph_api.cpp
+  symbolic/denox/symbolic/SymGraph_compile.cpp
+  symbolic/denox/symbolic/SymGraph_debug.cpp
+  symbolic/denox/symbolic/SymGraph_div_entry.cpp
+  symbolic/denox/symbolic/SymGraph_eval.cpp
+  symbolic/denox/symbolic/SymGraph_helpers.cpp
+  symbolic/denox/symbolic/SymGraph_max_entry.cpp
+  symbolic/denox/symbolic/SymGraph_min_entry.cpp
+  symbolic/denox/symbolic/SymGraph_mod_entry.cpp
+  symbolic/denox/symbolic/SymGraph_modsolver.cpp
+  symbolic/denox/symbolic/SymGraph_modsolver_cache.cpp
+  symbolic/denox/symbolic/SymGraph_mul_entry.cpp
+  symbolic/denox/symbolic/SymGraph_nonaffine.cpp
+  symbolic/denox/symbolic/SymGraph_nonaffine_symbol_cache.cpp
+  symbolic/denox/symbolic/SymGraph_sub_entry.cpp
+  symbolic/denox/symbolic/SymGraphEval.cpp
+)
+
+target_compile_features(denox_symbolic PUBLIC cxx_std_20)
+set_target_properties(denox_symbolic PROPERTIES CXX_STANDARD 20)
+set_target_properties(denox_symbolic PROPERTIES CXX_STANDARD_REQUIRED ON)
+set_target_properties(denox_symbolic PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+
+target_include_directories(denox_symbolic
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/symbolic
+)
+
+target_link_libraries(denox_symbolic PUBLIC denox_common denox::fmt)
+
+add_library(denox_database EXCLUDE_FROM_ALL
+  database/api_db.cpp
+)
+
+target_include_directories(denox_database
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/compiler> 
+    $<INSTALL_INTERFACE:include/compiler>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/common> 
+    $<INSTALL_INTERFACE:include/common>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/compiler
+)
+
+add_library(denox_compiler EXCLUDE_FROM_ALL
 
   compiler/compiler/cano/cano.cpp
   compiler/compiler/placement/placement.cpp
@@ -71,33 +140,6 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/diag/failed_to_realize.cpp
 
   compiler/dnx/serialize.cpp
-
-  compiler/memory/dtype/dtype_reference.cpp
-  compiler/memory/dtype/f16.cpp
-
-  compiler/memory/tensor/ActivationTensor.cpp
-  compiler/memory/tensor/BiasTensor.cpp
-  compiler/memory/tensor/FilterTensor.cpp
-
-  compiler/symbolic/SymGraphEval.cpp
-  compiler/symbolic/SymGraph_add_entry.cpp
-  compiler/symbolic/SymGraph_affine.cpp
-  compiler/symbolic/SymGraph_affine_symbol_cache.cpp
-  compiler/symbolic/SymGraph_api.cpp
-  compiler/symbolic/SymGraph_compile.cpp
-  compiler/symbolic/SymGraph_debug.cpp
-  compiler/symbolic/SymGraph_div_entry.cpp
-  compiler/symbolic/SymGraph_eval.cpp
-  compiler/symbolic/SymGraph_helpers.cpp
-  compiler/symbolic/SymGraph_max_entry.cpp
-  compiler/symbolic/SymGraph_min_entry.cpp
-  compiler/symbolic/SymGraph_mod_entry.cpp
-  compiler/symbolic/SymGraph_modsolver.cpp
-  compiler/symbolic/SymGraph_modsolver_cache.cpp
-  compiler/symbolic/SymGraph_mul_entry.cpp
-  compiler/symbolic/SymGraph_nonaffine.cpp
-  compiler/symbolic/SymGraph_nonaffine_symbol_cache.cpp
-  compiler/symbolic/SymGraph_sub_entry.cpp
 
   compiler/frontend/onnx/details/ops/abs.cpp
   compiler/frontend/onnx/details/ops/add.cpp
@@ -136,8 +178,6 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/frontend/onnx/details/ops/transpose.cpp
   compiler/frontend/onnx/details/ops/unsqueeze.cpp
 
-  compiler/io/fs/File.cpp
-  compiler/io/fs/Path.cpp
 
   compiler/db/Db.cpp
 
@@ -211,7 +251,8 @@ target_link_libraries(denox_compiler
     denox::db
     denox::spirv-tools
     denox::glslang
-
+    denox_common
+    denox_symbolic
 )
 
 target_compile_definitions(denox_compiler 

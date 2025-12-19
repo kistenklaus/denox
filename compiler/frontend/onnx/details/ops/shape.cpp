@@ -73,15 +73,15 @@ shape(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         HostTensorStorage::Int64(memory::span<const std::int64_t>(vals)));
   } else {
     // Return SYM
-    memory::vector<compiler::Sym> syms;
+    memory::vector<Sym> syms;
     syms.reserve(outLen);
     for (std::size_t i = 0; i < outLen; ++i) {
       const auto &d = inShape[static_cast<std::size_t>(s) + i];
-      syms.push_back(static_cast<compiler::Sym>(
+      syms.push_back(static_cast<Sym>(
           *d)); // Symbolic -> Sym (const or symbolic)
     }
     store = std::make_shared<HostTensorStorage>(
-        HostTensorStorage::Sym(memory::span<const compiler::Sym>(syms)));
+        HostTensorStorage::Sym(memory::span<const Sym>(syms)));
   }
 
   HostTensor ht(outShape, std::move(store));

@@ -1,7 +1,7 @@
 #include "device_info/query/query_coopmat_properties.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/optional.hpp"
-#include "memory/dtype/dtype.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/dtype/dtype.hpp"
 #include <fmt/format.h>
 #include <unistd.h>
 #include <vulkan/vulkan.hpp>

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Options.hpp"
-#include "io/fs/Path.hpp"
-#include "memory/container/span.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/span.hpp"
 #include "model/Model.hpp"
 
 namespace denox::onnx {

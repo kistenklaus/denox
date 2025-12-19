@@ -1,7 +1,7 @@
 #pragma once
 
 #include "compiler/ir/impl/TensorId.hpp"
-#include "memory/hypergraph/NodeId.hpp"
+#include "denox/memory/hypergraph/NodeId.hpp"
 namespace denox::compiler {
 
 struct MemoryImplicitConcatConstrain {

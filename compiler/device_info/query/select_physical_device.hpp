@@ -1,7 +1,7 @@
 #pragma once
 
-#include "memory/container/string.hpp"
-#include "memory/container/optional.hpp"
+#include "denox/memory/container/string.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "vulkan/vulkan.hpp"
 
 namespace denox::compiler::device_info::query {

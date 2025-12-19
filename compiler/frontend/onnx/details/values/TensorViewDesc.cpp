@@ -1,5 +1,4 @@
 #include "frontend/onnx/details/values/TensorViewDesc.hpp"
-#include "memory/dtype/dtype_reference.hpp"
 
 namespace denox::onnx::details {
 
@@ -7,9 +6,9 @@ TensorViewDesc TensorViewDesc::Identity(const TensorShape &shape) {
   auto graph = shape.graph();
   std::size_t r = shape.rank();
   memory::vector<compiler::Symbolic> strides(r);
-  compiler::Symbolic offset{graph, compiler::Sym::Const(0)};
+  compiler::Symbolic offset{graph, Sym::Const(0)};
   if (r != 0) {
-    strides[r - 1] = compiler::Symbolic{graph, compiler::Sym::Const(1)};
+    strides[r - 1] = compiler::Symbolic{graph, Sym::Const(1)};
     for (std::size_t d = r - 1; d-- > 0;) {
       strides[d] = strides[d + 1] * shape.dims()[d + 1];
     }
@@ -128,7 +127,7 @@ TensorViewDesc TensorViewDesc::unsqueeze(size_t axis) const {
   auto s = m_strides;
   const std::size_t r = s.size();
   assert(axis <= r);
-  compiler::Symbolic one{m_offset.graph(), compiler::Sym::Const(1)};
+  compiler::Symbolic one{m_offset.graph(), Sym::Const(1)};
   compiler::Symbolic stride_here = (r == 0) ? one : (axis == r ? one : s[axis]);
   s.insert(s.begin() +
                static_cast<memory::vector<compiler::Symbolic>::difference_type>(
@@ -152,14 +151,14 @@ TensorViewDesc::broadcastInDim(memory::span<const compiler::Symbolic> fromShape,
   assert(axesMap.size() == fromShape.size());
   memory::vector<compiler::Symbolic> s(
       toShape.size(),
-      compiler::Symbolic{m_offset.graph(), compiler::Sym::Const(0)});
+      compiler::Symbolic{m_offset.graph(), Sym::Const(0)});
   for (std::size_t i = 0; i < axesMap.size(); ++i) {
     std::size_t ax = static_cast<std::size_t>(axesMap[i]);
     assert(ax < s.size());
     // If fromShape[i]==1 and toShape[ax]>1 → stride 0; else copy stride
     if (fromShape[i].isConstant() && toShape[ax].isConstant()) {
       if (fromShape[i].constant() == 1 && toShape[ax].constant() > 1) {
-        s[ax] = compiler::Symbolic{m_offset.graph(), compiler::Sym::Const(0)};
+        s[ax] = compiler::Symbolic{m_offset.graph(), Sym::Const(0)};
       } else {
         s[ax] = m_strides[i];
       }

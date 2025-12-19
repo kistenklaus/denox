@@ -1,8 +1,7 @@
 #pragma once
 
-#include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/algorithm/pattern_matching/GraphPattern.hpp"
 #include "compiler/ir/TensorInstance.hpp"
-#include "device_info/DeviceInfo.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 

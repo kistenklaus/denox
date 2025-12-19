@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/algorithm/pattern_matching/GraphPattern.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 namespace denox::compiler::shaders {

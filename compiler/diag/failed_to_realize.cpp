@@ -1,9 +1,8 @@
 #include "diag/failed_to_realize.hpp"
 #include "compiler/impl/ComputeOpImpl.hpp"
-#include "diag/invalid_state.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/dynamic_bitset.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <stdexcept>
 
 using ComputeOpImpl = denox::compiler::impl::details::ComputeOpImpl;

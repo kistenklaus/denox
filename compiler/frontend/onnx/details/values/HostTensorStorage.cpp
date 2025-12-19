@@ -123,7 +123,7 @@ HostTensorStorage::Uint64(memory::span<const std::uint64_t> values) {
 }
 
 HostTensorStorage
-HostTensorStorage::Sym(memory::span<const compiler::Sym> values) {
+HostTensorStorage::Sym(memory::span<const denox::Sym> values) {
   void *raw = malloc(values.size_bytes());
   std::memcpy(raw, values.data(), values.size_bytes());
   return HostTensorStorage{Dtype::Sym, raw, values.size_bytes()};
@@ -214,10 +214,10 @@ memory::span<const std::uint64_t> HostTensorStorage::u64() const {
           m_byteSize / sizeof(std::uint64_t)};
 }
 
-memory::span<const compiler::Sym> HostTensorStorage::sym() const {
+memory::span<const Sym> HostTensorStorage::sym() const {
   assert(m_type == Dtype::Sym);
-  return {static_cast<const compiler::Sym *>(m_raw),
-          m_byteSize / sizeof(compiler::Sym)};
+  return {static_cast<const denox::Sym *>(m_raw),
+          m_byteSize / sizeof(denox::Sym)};
 }
 
 memory::span<const memory::f16> HostTensorStorage::f16() const {

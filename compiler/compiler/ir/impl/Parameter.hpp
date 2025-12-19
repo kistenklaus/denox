@@ -1,7 +1,7 @@
 #pragma once
 
 #include "compiler/ir/impl/TensorId.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <cstddef>
 
 namespace denox::compiler {

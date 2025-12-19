@@ -87,14 +87,14 @@ memory::vector<Tensor> clip(
   };
 
   // Sym readers (allow Int64 promoted to Sym::Const)
-  auto read_scalar_sym = [&](const HostTensor &t) -> compiler::Sym {
+  auto read_scalar_sym = [&](const HostTensor &t) -> Sym {
     if (!is_scalar_len(t))
       throw std::runtime_error("vkcnn: Clip: scalar must be rank-0 or 1x1.");
     const auto idx = read_scalar_index(t);
     if (t.type() == Dtype::Sym) {
       return t.storage()->sym()[idx];
     } else if (t.type() == Dtype::Int64) {
-      return compiler::Sym::Const(t.storage()->i64()[idx]);
+      return Sym::Const(t.storage()->i64()[idx]);
     } else {
       throw std::runtime_error(
           "vkcnn: Clip: for symbolic X, min/max must be SYM or INT64.");
@@ -240,7 +240,7 @@ memory::vector<Tensor> clip(
 
   // SYMBOLIC elements: elementwise y = min(max(x, min), max) using SymGraph
   if (xdt == Dtype::Sym) {
-    compiler::Sym minS, maxS;
+    Sym minS, maxS;
     const bool useMin = hasMin;
     const bool useMax = hasMax;
     if (useMin)
@@ -248,8 +248,8 @@ memory::vector<Tensor> clip(
     if (useMax)
       maxS = read_scalar_sym(*MaxT);
 
-    auto outStore = make_out(Dtype::Sym, sizeof(compiler::Sym));
-    compiler::Sym *dst = reinterpret_cast<compiler::Sym *>(outStore->data());
+    auto outStore = make_out(Dtype::Sym, sizeof(Sym));
+    Sym *dst = reinterpret_cast<Sym *>(outStore->data());
 
     auto g = state.symGraph;
 
@@ -257,7 +257,7 @@ memory::vector<Tensor> clip(
         Xin.view().offset().constant() == 0) {
       const auto src = Xin.storage()->sym();
       for (std::size_t i = 0; i < N; ++i) {
-        compiler::Sym v = src[i];
+        Sym v = src[i];
         if (useMin)
           v = g->max(v, minS);
         if (useMax)
@@ -270,7 +270,7 @@ memory::vector<Tensor> clip(
       memory::vector<std::uint64_t> idx(dims.size(), 0);
       for (std::size_t i = 0; i < N; ++i) {
         const std::size_t lin = view.constIndexOf({idx.data(), idx.size()});
-        compiler::Sym v = src[lin];
+        Sym v = src[lin];
         if (useMin)
           v = g->max(v, minS);
         if (useMax)

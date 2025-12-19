@@ -3,10 +3,9 @@
 #include "frontend/onnx/details/values/HostTensorStorage.hpp"
 #include "frontend/onnx/details/values/TensorShape.hpp"
 #include "frontend/onnx/details/values/TensorViewDesc.hpp"
-#include "io/fs/Path.hpp"
-#include <memory/container/shared_ptr.hpp>
-#include <memory/container/span.hpp>
-#include <memory/container/vector.hpp>
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/shared_ptr.hpp"
+#include "denox/memory/container/span.hpp"
 
 namespace onnx {
 class TensorProto;
@@ -67,7 +66,7 @@ public:
   std::int64_t loadI64(memory::span<const std::uint64_t> idx) const;
   std::uint64_t loadU64(memory::span<const std::uint64_t> idx) const;
   double loadDouble(memory::span<const std::uint64_t> idx) const;
-  compiler::Sym loadSym(memory::span<const std::uint64_t> idx) const;
+  Sym loadSym(memory::span<const std::uint64_t> idx) const;
 
   static HostTensor parse(const ::onnx::TensorProto &tensor,
                           const io::Path &externalDir = {});

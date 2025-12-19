@@ -2,11 +2,11 @@
 #include "compiler/ir/impl/MemoryConstrain.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
-#include "diag/invalid_state.hpp"
-#include "diag/not_implemented.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/dynamic_bitset.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/diag/not_implemented.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cstring>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/container/string.hpp"
+#include "denox/memory/container/string.hpp"
 namespace denox::compiler {
 
 enum class CompilationStage {

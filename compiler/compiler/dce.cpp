@@ -1,11 +1,11 @@
 #include "compiler/dce.hpp"
-#include "diag/logging.hpp"
-#include "memory/container/dynamic_bitset.hpp"
-#include "memory/container/small_vector.hpp"
-#include "memory/container/vector.hpp"
-#include "memory/hypergraph/AdjGraph.hpp"
-#include "memory/hypergraph/NodeId.hpp"
-#include "memory/hypergraph/NullWeight.hpp"
+#include "denox/diag/logging.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
+#include "denox/memory/container/small_vector.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/memory/hypergraph/AdjGraph.hpp"
+#include "denox/memory/hypergraph/NodeId.hpp"
+#include "denox/memory/hypergraph/NullWeight.hpp"
 #include "model/ComputeOp.hpp"
 #include <utility>
 

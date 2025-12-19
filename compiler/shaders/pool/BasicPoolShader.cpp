@@ -1,5 +1,5 @@
 #include "shaders/pool/BasicPoolShader.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "model/PoolFunction.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
 #include <stdexcept>

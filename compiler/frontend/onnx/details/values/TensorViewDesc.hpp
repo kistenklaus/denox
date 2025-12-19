@@ -1,9 +1,9 @@
 #pragma once
 
 #include "frontend/onnx/details/values/TensorShape.hpp"
-#include "memory/container/span.hpp"
-#include "memory/container/vector.hpp"
-#include "symbolic/Symbolic.hpp"
+#include "denox/memory/container/span.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/symbolic/Symbolic.hpp"
 
 namespace denox::onnx::details {
 

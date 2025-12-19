@@ -1,12 +1,13 @@
 #include "compiler/cano/cano.hpp"
+
 #include "Options.hpp"
-#include "algorithm/pattern_matching/match.hpp"
 #include "compiler/cano/rules/IFusionRule.hpp"
 #include "compiler/cano/rules/SliceSlice.hpp"
 #include "compiler/ir/CanoModel.hpp"
-#include "diag/logging.hpp"
-#include "memory/hypergraph/LinkedGraph.hpp"
-#include "symbolic/SymGraph.hpp"
+#include "denox/algorithm/pattern_matching/match.hpp"
+#include "denox/diag/logging.hpp"
+#include "denox/memory/hypergraph/LinkedGraph.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -31,13 +32,13 @@ CanoModel canonicalize(const Model &model, const Options &options) {
     throw std::runtime_error("Failed to canonicalize.");
   }
 
-  memory::vector<cano::IFusionRule*> rules;
+  memory::vector<cano::IFusionRule *> rules;
 
   cano::SliceSlice sliceSliceRule;
   if (options.fusionRules.enableSliceSliceFusion) {
     rules.push_back(&sliceSliceRule);
   }
-  
+
   SymGraph symGraph = model.symGraph();
 
   for (const auto &rule : rules) {

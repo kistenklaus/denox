@@ -1,7 +1,7 @@
 #pragma once
 
-#include "algorithm/pattern_matching/GraphPattern.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/memory/container/vector.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/IShader.hpp"
 

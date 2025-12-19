@@ -1,7 +1,7 @@
 #pragma once
 
-#include "algorithm/pattern_matching/GraphPattern.hpp"
-#include "algorithm/pattern_matching/LinkedGraphMatch.hpp"
+#include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/algorithm/pattern_matching/LinkedGraphMatch.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
 namespace denox::compiler::cano {

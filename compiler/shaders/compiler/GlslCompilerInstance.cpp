@@ -1,13 +1,12 @@
 #include "shaders/compiler/GlslCompilerInstance.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/vector.hpp"
 #include "shaders/compiler/CompilationError.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 #include "shaders/compiler/ShaderDebugInfoLevel.hpp"
 #include "shaders/compiler/ShaderPreprocessor.hpp"
-#include <chrono>
 #include <cstring>
-#include <diag/logging.hpp>
+#include "denox/diag/logging.hpp"
 #include <glslang/MachineIndependent/Versions.h>
 #include <glslang/Public/ShaderLang.h>
 #include <glslang/SPIRV/GlslangToSpv.h>
@@ -77,7 +76,6 @@ CompilationResult GlslCompilerInstance::compile() {
                                         m_sourcePath.str(),
                                         m_shader->getInfoLog())};
   }
-
 
   {
     const char *w1 = m_shader->getInfoLog();

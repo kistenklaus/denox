@@ -1,5 +1,5 @@
 #include "./Model.hpp"
-#include "diag/unreachable.hpp"
+#include "denox/diag/unreachable.hpp"
 #include "model/ModelControlBlock.hpp"
 #include <fmt/format.h>
 #include <stdexcept>

@@ -1,5 +1,5 @@
 #include "frontend/onnx/details/values/Attribute.hpp"
-#include "diag/unreachable.hpp"
+#include "denox/diag/unreachable.hpp"
 #include <onnx.pb.h>
 #include <stdexcept>
 

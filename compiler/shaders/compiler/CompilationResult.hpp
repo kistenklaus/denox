@@ -1,10 +1,9 @@
 #pragma once
 
-#include "diag/logging.hpp"
+#include "denox/diag/logging.hpp"
 #include "shaders/compiler/CompilationError.hpp"
 #include "shaders/compiler/ShaderBinary.hpp"
 #include <exception>
-#include <stdexcept>
 #include <variant>
 
 namespace denox::compiler {

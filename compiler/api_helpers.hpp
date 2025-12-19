@@ -1,8 +1,8 @@
 #pragma once
 
 #include "denox/compiler.h"
-#include "diag/unreachable.hpp"
-#include "memory/dtype/dtype.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/dtype/dtype.hpp"
 #include <optional>
 namespace denox::api {
 

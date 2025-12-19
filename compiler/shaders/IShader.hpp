@@ -1,10 +1,10 @@
 #pragma once
 
-#include "algorithm/pattern_matching/ConstGraphMatch.hpp"
-#include "algorithm/pattern_matching/GraphPattern.hpp"
 #include "compiler/impl/ImplBuilder.hpp"
-#include "memory/container/string.hpp"
-#include "memory/hypergraph/ConstGraph.hpp"
+#include "denox/algorithm/pattern_matching/ConstGraphMatch.hpp"
+#include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/memory/container/string.hpp"
+#include "denox/memory/hypergraph/ConstGraph.hpp"
 #include "model/ComputeOp.hpp"
 
 namespace denox::compiler {
@@ -66,7 +66,8 @@ public:
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             SymGraph &symGraph) const = 0;
 
-  virtual memory::string name(unsigned int pattern, unsigned int config) const = 0;
+  virtual memory::string name(unsigned int pattern,
+                              unsigned int config) const = 0;
 };
 
 } // namespace denox::compiler

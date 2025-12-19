@@ -1,8 +1,8 @@
 #pragma once
 
-#include "memory/container/span.hpp"
-#include "symbolic/SymGraph.hpp"
-#include "symbolic/Symbolic.hpp"
+#include "denox/memory/container/span.hpp"
+#include "denox/symbolic/SymGraph.hpp"
+#include "denox/symbolic/Symbolic.hpp"
 
 namespace onnx {
 class TensorShapeProto;
@@ -13,7 +13,7 @@ namespace denox::onnx::details {
 class TensorShape {
 public:
   TensorShape(compiler::SymGraph *g, memory::vector<compiler::Symbolic> dims);
-  TensorShape(compiler::SymGraph *g, memory::span<const compiler::Sym> dims);
+  TensorShape(compiler::SymGraph *g, memory::span<const Sym> dims);
   TensorShape(compiler::SymGraph *g, memory::span<const std::uint64_t> dims);
   TensorShape(compiler::SymGraph *g, memory::span<const std::int64_t> dims);
 

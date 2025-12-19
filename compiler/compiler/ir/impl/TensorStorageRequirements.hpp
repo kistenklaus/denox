@@ -1,9 +1,9 @@
 #pragma once
 
-#include "memory/dtype/dtype.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
-#include "symbolic/Sym.hpp"
-#include "symbolic/sym_vec2.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
+#include "denox/symbolic/Sym.hpp"
+#include "denox/symbolic/sym_vec2.hpp"
 #include <memory>
 namespace denox::compiler {
 

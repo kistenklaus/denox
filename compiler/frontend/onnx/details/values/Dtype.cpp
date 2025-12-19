@@ -1,7 +1,7 @@
 #include "frontend/onnx/details/values/Dtype.hpp"
 
-#include "diag/unreachable.hpp"
-#include "symbolic/Sym.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/symbolic/Sym.hpp"
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
@@ -29,7 +29,7 @@ std::size_t dtype::details::Dtype::size() const {
   case DtypeKind::String:
     throw std::logic_error("Trying to call Dtype::size with Dtype::String");
   case DtypeKind::Sym:
-    return sizeof(compiler::Sym);
+    return sizeof(Sym);
   }
   denox::compiler::diag::unreachable();
 }

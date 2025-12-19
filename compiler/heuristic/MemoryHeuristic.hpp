@@ -1,10 +1,9 @@
 #pragma once
 
-#include "algorithm/pattern_matching/ConstGraphMatch.hpp"
-#include "compiler/ir/SpecModel.hpp"
+#include "denox/algorithm/pattern_matching/ConstGraphMatch.hpp"
+#include "denox/memory/container/small_vector.hpp"
+#include "denox/memory/hypergraph/ConstGraph.hpp"
 #include "heuristic/IHeuristic.hpp"
-#include "memory/container/small_vector.hpp"
-#include "memory/hypergraph/ConstGraph.hpp"
 #include "shaders/IShader.hpp"
 #include "symbolic/SymGraph.hpp"
 #include "symbolic/SymGraphEval.hpp"
@@ -30,8 +29,7 @@ public:
   }
 
   float eval(std::span<const TensorInstance *> ins, const TensorInstance &out,
-             unsigned int pattern, unsigned int config,
-             uint64_t,
+             unsigned int pattern, unsigned int config, uint64_t,
              const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
              const IShader *shader) const final override {
 

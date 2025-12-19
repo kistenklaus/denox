@@ -176,7 +176,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   outSyms.reserve(R);
   for (std::size_t ax = 0; ax < R; ++ax)
     outSyms.emplace_back(
-        g, compiler::Sym::Const(static_cast<std::int64_t>(outU64[ax])));
+        g, Sym::Const(static_cast<std::int64_t>(outU64[ax])));
   TensorShape outShape{g, std::move(outSyms)};
 
   // Early return for empty
@@ -289,7 +289,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   // promote {Int64, Sym} -> Sym
   {
-    const std::size_t elemOut = sizeof(compiler::Sym);
+    const std::size_t elemOut = sizeof(Sym);
     void *raw = std::malloc(totalElems * elemOut);
     if (!raw)
       throw std::bad_alloc();
@@ -297,7 +297,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
             Dtype::Sym, raw, totalElems * elemOut));
 
-    compiler::Sym *out = static_cast<compiler::Sym *>(dst->data());
+    Sym *out = static_cast<Sym *>(dst->data());
     std::size_t outIndex = 0;
 
     for (std::size_t o = 0; o < outerCount; ++o) {
@@ -306,16 +306,16 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         const Dtype idt = contig[i].type();
 
         if (idt == Dtype::Sym) {
-          const compiler::Sym *src = contig[i].storage()->sym().data();
+          const Sym *src = contig[i].storage()->sym().data();
           const std::size_t base = o * chunkElems;
           std::memcpy(out + outIndex, src + base,
-                      chunkElems * sizeof(compiler::Sym));
+                      chunkElems * sizeof(Sym));
           outIndex += chunkElems;
         } else if (idt == Dtype::Int64) {
           const std::int64_t *src = contig[i].storage()->i64().data();
           const std::size_t base = o * chunkElems;
           for (std::size_t k = 0; k < chunkElems; ++k)
-            out[outIndex++] = compiler::Sym::Const(src[base + k]);
+            out[outIndex++] = Sym::Const(src[base + k]);
         } else {
           throw std::runtime_error(fmt::format(
               "vkcnn: Concat \"{}\": unexpected dtype in Sym-promotion path.",

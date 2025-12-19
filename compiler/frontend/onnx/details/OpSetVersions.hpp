@@ -1,7 +1,7 @@
 #pragma once
 
-#include "memory/container/hashmap.hpp"
-#include "memory/container/string.hpp"
+#include "denox/memory/container/hashmap.hpp"
+#include "denox/memory/container/string.hpp"
 #include <cassert>
 #include <cstdint>
 

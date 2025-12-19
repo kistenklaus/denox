@@ -100,15 +100,15 @@ sub(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     std::size_t outCount = 1;
     for (auto d : outDims)
       outCount *= static_cast<std::size_t>(d);
-    void *rawOut = std::malloc(outCount * sizeof(compiler::Sym));
+    void *rawOut = std::malloc(outCount * sizeof(Sym));
     if (!rawOut)
       throw std::bad_alloc();
-    compiler::Sym *po = static_cast<compiler::Sym *>(rawOut);
+    Sym *po = static_cast<Sym *>(rawOut);
 
     while (true) {
-      const compiler::Sym xs = A_broadcasted.loadSym(idx);
-      const compiler::Sym ys = B_broadcasted.loadSym(idx);
-      compiler::Sym r =
+      const Sym xs = A_broadcasted.loadSym(idx);
+      const Sym ys = B_broadcasted.loadSym(idx);
+      Sym r =
           state.symGraph->sub(xs, ys); // no positivity assumptions
       *po++ = r;
       if (!inc())
@@ -117,7 +117,7 @@ sub(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
     auto outStore =
         std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
-            Dtype::Sym, rawOut, outCount * sizeof(compiler::Sym)));
+            Dtype::Sym, rawOut, outCount * sizeof(Sym)));
     return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
 

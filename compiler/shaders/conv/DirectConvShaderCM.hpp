@@ -1,12 +1,10 @@
 #pragma once
 
 #include "Options.hpp"
-#include "algorithm/pattern_matching/GraphPattern.hpp"
-#include "io/fs/Path.hpp"
-#include "memory/container/optional.hpp"
-#include "memory/container/vector.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "memory/hypergraph/ConstGraph.hpp"
+#include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/memory/hypergraph/ConstGraph.hpp"
 #include "shaders/IShader.hpp"
 #include "shaders/compiler/GlslCompiler.hpp"
 #include <cassert>

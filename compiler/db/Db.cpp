@@ -1,7 +1,7 @@
 #include "db/Db.hpp"
 #include "db.h"
-#include "diag/invalid_state.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <dnx.h>
 #include <filesystem>
 #include <fstream>

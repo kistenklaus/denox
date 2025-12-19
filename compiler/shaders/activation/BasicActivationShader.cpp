@@ -1,6 +1,6 @@
 #include "shaders/activation/BasicActivationShader.hpp"
-#include "diag/invalid_state.hpp"
-#include "memory/dtype/dtype.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/memory/dtype/dtype.hpp"
 #include "model/ActivationFunction.hpp"
 
 namespace denox::compiler::shaders {

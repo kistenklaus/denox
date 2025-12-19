@@ -1,10 +1,8 @@
 #pragma once
-#include "memory/container/string.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/memory/container/string.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <cstdint>
 #include <regex>
-#include <string>
-#include <string_view>
 
 namespace denox::compiler {
 
