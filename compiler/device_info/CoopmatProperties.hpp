@@ -19,7 +19,6 @@ struct CoopmatShape {
   memory::Dtype acctype;
   bool saturatingAccumulation;
   bool subgroupScope;
-  bool workgroupScope;
 };
 
 struct CoopmatProperties {

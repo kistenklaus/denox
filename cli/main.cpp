@@ -2,10 +2,22 @@
 
 #include "alloc/monotone_alloc.hpp"
 #include "compile.hpp"
+#include "denox/compiler.h"
 #include "parser/parse.hpp"
 #include <fmt/printf.h>
+#include <stdexcept>
 
 int main(int argc, char **argv) {
+
+  DenoxDeviceInfo deviceInfo;
+  if (denox_query_device_info("*RTX*", &deviceInfo) != DENOX_SUCCESS) {
+    // throw std::runtime_error("fuck");
+  }
+  fmt::println("{}", deviceInfo.deviceName);
+
+  denox_destroy_device_info(&deviceInfo);
+
+  return 0;
 
   std::optional<Action> actionOpt;
   try {
@@ -34,5 +46,5 @@ int main(int argc, char **argv) {
     break;
   }
 
-    mono_free_all();
+  mono_free_all();
 }

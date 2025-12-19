@@ -173,6 +173,7 @@ add_library(denox_compiler EXCLUDE_FROM_ALL
   compiler/shaders/shaders.cpp
 
   compiler/api.cpp
+  compiler/api_query_device_info.cpp
   compiler/entry.cpp
 
 )

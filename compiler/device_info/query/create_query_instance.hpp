@@ -5,5 +5,5 @@
 
 namespace denox::compiler::device_info::query {
 
-vk::Instance create_query_instance(ApiVersion);
+vk::Instance create_query_instance(ApiVersion&);
 }

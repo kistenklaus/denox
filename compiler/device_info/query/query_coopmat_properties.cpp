@@ -102,7 +102,6 @@ query_coopmat_properties([[maybe_unused]] vk::Instance instance,
             .saturatingAccumulation =
                 static_cast<bool>(p.saturatingAccumulation),
             .subgroupScope = (p.scope == VK_SCOPE_SUBGROUP_KHR),
-            .workgroupScope = (p.scope == VK_SCOPE_WORKGROUP_KHR),
         };
         props.shapes.push_back(s);
       }
