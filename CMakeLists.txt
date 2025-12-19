@@ -48,6 +48,9 @@ add_library(denox_common EXCLUDE_FROM_ALL
   common/denox/algorithm/binary_op_permutations.cpp
   common/denox/memory/dtype/dtype_reference.cpp
   common/denox/memory/dtype/f16.cpp
+  common/denox/memory/tensor/ActivationTensor.cpp
+  common/denox/memory/tensor/BiasTensor.cpp
+  common/denox/memory/tensor/FilterTensor.cpp
   common/denox/io/read_file.cpp
   common/denox/io/fs/File.cpp
   common/denox/io/fs/Path.cpp
@@ -56,6 +59,12 @@ add_library(denox_common EXCLUDE_FROM_ALL
 target_include_directories(denox_common
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/common
+)
+
+target_link_libraries(denox_common PUBLIC
+    denox::generator
+    denox::fmt
+    denox::spdlog
 )
 
 
@@ -419,7 +428,6 @@ if (BUILD_TESTING)
       denox::fmt
       denox::spdlog
       denox::onnx
-      denox::generator
       denox::vulkan
       denox::glslang
       denox::spirv-tools
