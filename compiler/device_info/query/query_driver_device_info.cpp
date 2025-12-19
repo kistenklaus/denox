@@ -14,7 +14,7 @@
 namespace denox::compiler::device_info {
 
 DeviceInfo
-query_driver_device_info(const ApiVersion apiVersion,
+query_driver_device_info(ApiVersion& apiVersion,
                          const memory::optional<memory::string> &deviceName) {
 
   vk::Instance instance = query::create_query_instance(apiVersion);

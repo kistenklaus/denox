@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+
 namespace denox {
 
 enum class VulkanApiVersion {
@@ -11,23 +13,13 @@ enum class VulkanApiVersion {
   Vulkan_1_4,
 };
 
-
 enum class Storage {
   StorageBuffer,
   StorageImage,
   Sampler,
 };
 
-enum class Layout {
-  Undefined = 0,
-  HWC,
-  CHW,
-  CHWC8,
-  RGBA,
-  RGB,
-  RG,
-  R
-};
+enum class Layout { Undefined = 0, HWC, CHW, CHWC8, RGBA, RGB, RG, R };
 
 enum DataType {
   Auto,
@@ -38,7 +30,7 @@ enum DataType {
 };
 
 struct Extent {
-  const char *name = nullptr;
+  const char *name;
   uint64_t value = 0;
 };
 
@@ -49,11 +41,11 @@ struct Shape {
 };
 
 struct BufferDescription {
-  char* name;
+  std::string name;
   Shape shape;
   Storage storage = Storage::StorageBuffer;
   Layout layout = Layout::Undefined;
   DataType dtype = DataType::Auto;
 };
 
-}
+} // namespace denox

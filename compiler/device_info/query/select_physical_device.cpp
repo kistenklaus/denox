@@ -1,5 +1,8 @@
 #include "device_info/query/select_physical_device.hpp"
+#include "diag/invalid_argument.hpp"
+#include "diag/invalid_state.hpp"
 #include "diag/logging.hpp"
+#include "diag/missing_driver_support.hpp"
 #include <exception>
 
 namespace denox::compiler::device_info::query {
@@ -42,7 +45,7 @@ select_physical_device(vk::Instance instance,
   std::vector<vk::PhysicalDevice> devices = instance.enumeratePhysicalDevices();
   if (devices.empty()) {
     DENOX_ERROR("Failed to select physical device: No Vulkan device found.");
-    std::terminate();
+    diag::missing_driver_support();
   }
 
   // Empty name => pick a discrete GPU (first one). Throw if none found.
@@ -69,7 +72,7 @@ select_physical_device(vk::Instance instance,
     DENOX_ERROR("Failed to select physical device: pattern: \"{}\" did not "
                 "match any device.",
                 *deviceName);
-    std::terminate();
+    diag::invalid_argument();
   }
   if (matches.size() > 1) {
     // Build a short list for the error message
@@ -80,7 +83,7 @@ select_physical_device(vk::Instance instance,
     DENOX_ERROR("Failed to select physical device: pattern :\"{}\" is "
                 "ambiguous, devices: {}",
                 *deviceName, list);
-    std::terminate();
+    diag::invalid_argument();
   }
 
   return matches.front();
