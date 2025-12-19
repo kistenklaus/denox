@@ -1,11 +1,10 @@
 #pragma once
 
-#include "algorithm/hash_combine.hpp"
-#include "io/fs/Path.hpp"
-#include "memory/container/string.hpp"
-#include "memory/container/string_view.hpp"
+#include "denox/algorithm/hash_combine.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/string.hpp"
+#include "denox/memory/container/string_view.hpp"
 #include "shaders/compiler/CompilationResult.hpp"
-#include "shaders/compiler/ShaderBinary.hpp"
 #include <concepts>
 #include <fmt/format.h>
 #include <glslang/Include/ResourceLimits.h>

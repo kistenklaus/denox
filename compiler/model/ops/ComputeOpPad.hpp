@@ -1,7 +1,7 @@
 #pragma once
 
 #include "model/PaddingMode.hpp"
-#include "symbolic/Sym.hpp"
+#include "denox/symbolic/Sym.hpp"
 #include <memory>
 namespace denox::compiler {
 

@@ -2,7 +2,7 @@
 
 #include "device_info/ApiVersion.hpp"
 #include "device_info/DeviceInfo.hpp"
-#include "memory/container/optional.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "vulkan/vulkan.hpp"
 
 namespace denox::compiler::device_info {

@@ -5,10 +5,10 @@
 #include "compiler/ir/impl/PushConstant.hpp"
 #include "compiler/ir/impl/TensorBinding.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
-#include "memory/container/optional.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/vector.hpp"
 #include "shaders/compiler/ShaderBinary.hpp"
-#include "symbolic/Sym.hpp"
+#include "denox/symbolic/Sym.hpp"
 #include <cstdint>
 #include <vector>
 

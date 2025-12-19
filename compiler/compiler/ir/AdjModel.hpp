@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/hypergraph/AdjGraph.hpp"
+#include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
 namespace denox::compiler {

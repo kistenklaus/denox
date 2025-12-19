@@ -1,6 +1,6 @@
 #include "frontend/onnx/details/values/DeviceTensor.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/vector.hpp"
 
 namespace denox::onnx::details {
 
@@ -19,11 +19,11 @@ TensorShape DeviceTensor::shape() const {
   dims.reserve(m_rank);
   if (m_rank == 4) {
     // NCHW
-    dims.push_back(compiler::Symbolic{g, compiler::Sym::Const(1)});
+    dims.push_back(compiler::Symbolic{g, Sym::Const(1)});
   }
   assert(m_handle.channels() > 0);
   dims.push_back(
-      compiler::Symbolic{g, compiler::Sym::Const(m_handle.channels())});
+      compiler::Symbolic{g, Sym::Const(m_handle.channels())});
   dims.push_back(h);
   dims.push_back(w);
   return TensorShape{g, std::move(dims)};

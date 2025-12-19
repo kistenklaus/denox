@@ -2,8 +2,8 @@
 
 #include "frontend/onnx/details/values/DeviceTensor.hpp"
 #include "frontend/onnx/details/values/HostTensor.hpp"
-#include "memory/container/shared_ptr.hpp"
-#include "memory/container/variant.hpp"
+#include "denox/memory/container/shared_ptr.hpp"
+#include "denox/memory/container/variant.hpp"
 
 namespace onnx {
 class TensorProto;

@@ -10,13 +10,13 @@
 #include "compiler/sym_compile.hpp"
 #include "compiler/sym_table.hpp"
 #include "db/Db.hpp"
-#include "diag/invalid_argument.hpp"
+#include "denox/diag/invalid_argument.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "diag/summary.hpp"
-#include "diag/unreachable.hpp"
 #include "dnx/serialize.hpp"
 #include "frontend/onnx/onnx.hpp"
 #include "heuristic/DbHeuristic.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeTensor.hpp"
 #include "model/Model.hpp"
 #include <fmt/base.h>
@@ -160,9 +160,12 @@ void populate(const io::Path &dbpath, memory::span<const std::byte> raw,
     size_t binaryCountDelta = binaryCount - previousBinaryCount;
     size_t dispatchCountDelta = dispatchCount - previousDispatchCount;
     size_t opCountDelta = opCount - previousOpCount;
-    if (!(binaryCountDelta == 0 && dispatchCountDelta == 0 && opCountDelta == 0)) {
-      fmt::println("Added {} shader binaries to {}", binaryCountDelta, dbpath.str());
-      fmt::println("Added {} compute dispatches to {}", dispatchCountDelta, dbpath.str());
+    if (!(binaryCountDelta == 0 && dispatchCountDelta == 0 &&
+          opCountDelta == 0)) {
+      fmt::println("Added {} shader binaries to {}", binaryCountDelta,
+                   dbpath.str());
+      fmt::println("Added {} compute dispatches to {}", dispatchCountDelta,
+                   dbpath.str());
       fmt::println("Added {} operations to {}", opCountDelta, dbpath.str());
     }
   }

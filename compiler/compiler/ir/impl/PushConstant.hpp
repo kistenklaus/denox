@@ -1,16 +1,16 @@
 #pragma once
 
-#include "diag/invalid_state.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/hashmap.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "symbolic/SymGraph.hpp"
-#include "symbolic/ssym.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/hashmap.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/symbolic/Sym.hpp"
+#include "denox/symbolic/SymGraph.hpp"
+#include "denox/symbolic/ssym.hpp"
 #include <cstdint>
 #include <fmt/format.h>
 #include <limits>
 #include <stdexcept>
-#include <symbolic/Sym.hpp>
 
 namespace denox::compiler {
 

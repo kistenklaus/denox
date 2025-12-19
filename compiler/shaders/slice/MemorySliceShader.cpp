@@ -1,6 +1,6 @@
 #include "shaders/slice/MemorySliceShader.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include <stdexcept>
 
 namespace denox::compiler::shaders {

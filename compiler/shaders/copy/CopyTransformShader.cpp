@@ -1,8 +1,8 @@
 #include "shaders/copy/CopyTransformShader.hpp"
-#include "diag/not_implemented.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
+#include "denox/diag/not_implemented.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "model/ComputeOp.hpp"
 #include <stdexcept>
 

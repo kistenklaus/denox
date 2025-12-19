@@ -160,14 +160,14 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // -------- SYMBOLIC (no floats allowed) --------
   if (aIsSym || bIsSym) {
     // Only Sym with (Sym or Int). No floats already ensured.
-    void *rawOut = std::malloc(outCount * sizeof(compiler::Sym));
+    void *rawOut = std::malloc(outCount * sizeof(Sym));
     if (!rawOut)
       throw std::bad_alloc();
-    auto *po = static_cast<compiler::Sym *>(rawOut);
+    auto *po = static_cast<Sym *>(rawOut);
 
     while (true) {
-      const compiler::Sym xs = A_broadcasted.loadSym(idx);
-      const compiler::Sym ys = B_broadcasted.loadSym(idx);
+      const Sym xs = A_broadcasted.loadSym(idx);
+      const Sym ys = B_broadcasted.loadSym(idx);
 
       if (ys.isConstant() && ys.constant() == 0)
         throw std::runtime_error(fmt::format(
@@ -194,7 +194,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
     auto outStore =
         std::make_shared<HostTensorStorage>(HostTensorStorage::TakeOwnership(
-            Dtype::Sym, rawOut, outCount * sizeof(compiler::Sym)));
+            Dtype::Sym, rawOut, outCount * sizeof(Sym)));
     return {Tensor::Host(HostTensor(outShape, std::move(outStore)))};
   }
 

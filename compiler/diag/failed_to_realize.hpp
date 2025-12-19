@@ -1,7 +1,7 @@
 #pragma once
 
 #include "compiler/ir/ConstModel.hpp"
-#include "memory/hypergraph/ConstGraph.hpp"
+#include "denox/memory/hypergraph/ConstGraph.hpp"
 #include "compiler/impl/ComputeOpImpl.hpp"
 
 namespace denox::compiler::diag {

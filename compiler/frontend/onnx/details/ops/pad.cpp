@@ -112,11 +112,11 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
                       nodeName, expect, padLen));
 
     // Build full-length vectors (rank) of Sym zeros, then fill from axes/pads.
-    memory::vector<compiler::Sym> before(r, compiler::Sym::Const(0));
-    memory::vector<compiler::Sym> after(r, compiler::Sym::Const(0));
+    memory::vector<Sym> before(r, Sym::Const(0));
+    memory::vector<Sym> after(r, Sym::Const(0));
 
-    auto put_pad = [&](std::size_t ax, const compiler::Sym &b,
-                       const compiler::Sym &a) {
+    auto put_pad = [&](std::size_t ax, const Sym &b,
+                       const Sym &a) {
       before[ax] = b;
       after[ax] = a;
     };
@@ -144,7 +144,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
             throw std::runtime_error(fmt::format(
                 "vkcnn: Pad \"{}\": negative pads not supported on device.",
                 nodeName));
-          put_pad(nAxes[i], compiler::Sym::Const(b), compiler::Sym::Const(a));
+          put_pad(nAxes[i], Sym::Const(b), Sym::Const(a));
         }
       } else { // SYM
         auto p = padsHT.storage()->sym();
@@ -163,8 +163,8 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
             throw std::runtime_error(fmt::format(
                 "vkcnn: Pad \"{}\": negative pads not supported on device.",
                 nodeName));
-          before[ax] = compiler::Sym::Const(b);
-          after[ax] = compiler::Sym::Const(a);
+          before[ax] = Sym::Const(b);
+          after[ax] = Sym::Const(a);
         }
       } else {
         auto p = padsHT.storage()->sym();
@@ -178,9 +178,9 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     // Only H/W padding supported; others must be zero.
     const std::size_t axH = (r == 4) ? 2u : 1u;
     const std::size_t axW = (r == 4) ? 3u : 2u;
-    const compiler::Sym ZERO = compiler::Sym::Const(0);
+    const Sym ZERO = Sym::Const(0);
 
-    auto isKnownZero = [&](const compiler::Sym &s) -> bool {
+    auto isKnownZero = [&](const Sym &s) -> bool {
       // Accept literal constant zero or symbolic equality to ZERO.
       return (s.isConstant() && s.constant() == 0) || (s == ZERO);
     };
@@ -264,7 +264,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     }
 
     // Call backend
-    const compiler::Sym T = before[axH], B = after[axH], L = before[axW],
+    const Sym T = before[axH], B = after[axH], L = before[axW],
                         R = after[axW];
 
     compiler::Tensor outH =
@@ -340,7 +340,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   memory::vector<compiler::Symbolic> outSyms(r);
   for (size_t ax = 0; ax < r; ++ax)
     outSyms[ax] = compiler::Symbolic{
-        g, compiler::Sym::Const(static_cast<std::int64_t>(outDims[ax]))};
+        g, Sym::Const(static_cast<std::int64_t>(outDims[ax]))};
   TensorShape outShape{g, std::move(outSyms)};
 
   // Dtype & alloc

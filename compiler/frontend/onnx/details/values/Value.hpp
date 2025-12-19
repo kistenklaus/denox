@@ -6,7 +6,7 @@
 #include "frontend/onnx/details/values/Sequence.hpp"
 #include "frontend/onnx/details/values/SparseTensor.hpp"
 #include "frontend/onnx/details/values/Tensor.hpp"
-#include "memory/container/variant.hpp"
+#include "denox/memory/container/variant.hpp"
 namespace denox::onnx::details {
 
 enum class ValueKind { Tensor, Optional, Sequence, Map, SparseTensor, Opaque };

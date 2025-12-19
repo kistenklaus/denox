@@ -1,8 +1,7 @@
 #pragma once
 
-#include "algorithm/pattern_matching/ConstGraphMatch.hpp"
+#include "denox/algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "model/ComputeOp.hpp"
-#include "model/ComputeTensor.hpp"
 #include "shaders/IShader.hpp"
 #include <span>
 namespace denox::compiler {

@@ -1,14 +1,12 @@
 #pragma once
 
 #include "device_info/DeviceInfo.hpp"
-#include "io/fs/Path.hpp"
-#include "memory/container/optional.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "shaders/compiler/ShaderDebugInfoLevel.hpp"
-#include "symbolic/Sym.hpp"
 #include <type_traits>
-#include <variant>
 #include <vulkan/vulkan_core.h>
 
 namespace denox::compiler {

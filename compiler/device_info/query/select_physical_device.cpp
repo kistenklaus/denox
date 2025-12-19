@@ -1,8 +1,8 @@
 #include "device_info/query/select_physical_device.hpp"
-#include "diag/invalid_argument.hpp"
-#include "diag/invalid_state.hpp"
-#include "diag/logging.hpp"
-#include "diag/missing_driver_support.hpp"
+#include "denox/diag/invalid_argument.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/diag/logging.hpp"
+#include "denox/diag/missing_driver_support.hpp"
 #include <exception>
 
 namespace denox::compiler::device_info::query {

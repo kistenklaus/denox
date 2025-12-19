@@ -63,7 +63,7 @@ constant_of_shape([[maybe_unused]] ImportState &state,
   memory::vector<compiler::Symbolic> outDims;
   outDims.reserve(r);
   for (auto e : extents)
-    outDims.emplace_back(g, compiler::Sym::Const(static_cast<std::int64_t>(e)));
+    outDims.emplace_back(g, Sym::Const(static_cast<std::int64_t>(e)));
   TensorShape outShape{g, std::move(outDims)};
 
   // determine dtype from 'value' (default float32 zeros)

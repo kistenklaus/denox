@@ -2,7 +2,7 @@
 
 #include "Options.hpp"
 #include "device_info/DeviceInfo.hpp"
-#include "io/fs/Path.hpp"
+#include "denox/io/fs/Path.hpp"
 #include "shaders/compiler/ShaderDebugInfoLevel.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
 #include <glslang/Include/ResourceLimits.h>

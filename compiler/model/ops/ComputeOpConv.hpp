@@ -1,11 +1,11 @@
 #pragma once
 
-#include "memory/container/optional.hpp"
-#include "memory/container/shared_ptr.hpp"
-#include "memory/container/uvec2.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "memory/tensor/BiasTensor.hpp"
-#include "memory/tensor/FilterTensor.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/shared_ptr.hpp"
+#include "denox/memory/container/uvec2.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/tensor/BiasTensor.hpp"
+#include "denox/memory/tensor/FilterTensor.hpp"
 #include <memory>
 
 namespace denox::compiler {

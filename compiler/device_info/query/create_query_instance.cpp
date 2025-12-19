@@ -1,7 +1,7 @@
 #include "device_info/query/create_query_instance.hpp"
 #include "device_info/ApiVersion.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_handles.hpp>

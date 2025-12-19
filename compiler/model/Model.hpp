@@ -1,10 +1,10 @@
 #pragma once
 
-#include "memory/dtype/dtype.hpp"
-#include "memory/hypergraph/AdjGraph.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
-#include "memory/tensor/BiasTensor.hpp"
-#include "memory/tensor/FilterTensor.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/hypergraph/AdjGraph.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
+#include "denox/memory/tensor/BiasTensor.hpp"
+#include "denox/memory/tensor/FilterTensor.hpp"
 #include "model/AutoPadMode.hpp"
 #include "model/ComputeOp.hpp"
 #include "model/ComputeTensor.hpp"
@@ -14,7 +14,7 @@
 #include "model/PaddingMode.hpp"
 #include "model/PoolFunction.hpp"
 #include "model/Tensor.hpp"
-#include "symbolic/SymGraph.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 #include <memory>
 
 namespace denox::compiler {

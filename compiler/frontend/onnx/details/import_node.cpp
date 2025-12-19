@@ -1,5 +1,5 @@
 #include "frontend/onnx/details/import_node.hpp"
-#include "diag/unreachable.hpp"
+#include "denox/diag/unreachable.hpp"
 #include "frontend/onnx/details/ops/ops.hpp"
 #include "frontend/onnx/details/values/Attribute.hpp"
 #include <onnx.pb.h>

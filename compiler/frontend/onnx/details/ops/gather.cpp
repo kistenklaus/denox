@@ -127,14 +127,14 @@ gather([[maybe_unused]] ImportState &state,
     const auto g = data.shape().graph();
     for (std::size_t i = 0; i < static_cast<std::size_t>(axis); ++i)
       outSyms.emplace_back(
-          g, compiler::Sym::Const(static_cast<std::int64_t>(dataDims[i])));
+          g, Sym::Const(static_cast<std::int64_t>(dataDims[i])));
     for (auto d : idxDims)
       outSyms.emplace_back(g,
-                           compiler::Sym::Const(static_cast<std::int64_t>(d)));
+                           Sym::Const(static_cast<std::int64_t>(d)));
     for (std::size_t i = static_cast<std::size_t>(axis) + 1; i < dataDims.size();
          ++i)
       outSyms.emplace_back(
-          g, compiler::Sym::Const(static_cast<std::int64_t>(dataDims[i])));
+          g, Sym::Const(static_cast<std::int64_t>(dataDims[i])));
   }
   TensorShape outShape{data.shape().graph(), std::move(outSyms)};
   const auto outDims = outShape.toU64();

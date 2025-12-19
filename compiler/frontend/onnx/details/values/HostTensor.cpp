@@ -1,5 +1,5 @@
 #include "frontend/onnx/details/values/HostTensor.hpp"
-#include "io/fs/File.hpp"
+#include "denox/io/fs/File.hpp"
 #include <stdexcept>
 
 #include <onnx.pb.h>
@@ -291,8 +291,8 @@ HostTensor HostTensor::select(std::size_t axis, std::uint64_t index) const {
   auto g = m_shape.graph();
   auto v = m_view.slice(
       axis,
-      compiler::Symbolic{g, compiler::Sym::Const(static_cast<int64_t>(index))},
-      compiler::Symbolic{g, compiler::Sym::Const(1)});
+      compiler::Symbolic{g, Sym::Const(static_cast<int64_t>(index))},
+      compiler::Symbolic{g, Sym::Const(1)});
   v = v.squeeze(axis);
   auto s = m_shape.squeeze(axis);
   return withView(std::move(s), std::move(v));
@@ -304,11 +304,11 @@ HostTensor HostTensor::narrow(std::size_t axis, std::uint64_t start,
       axis,
       compiler::Symbolic{
           m_shape.graph(),
-          compiler::Sym::Const(static_cast<std::int64_t>(start))},
-      compiler::Symbolic{m_shape.graph(), compiler::Sym::Const(1)});
+          Sym::Const(static_cast<std::int64_t>(start))},
+      compiler::Symbolic{m_shape.graph(), Sym::Const(1)});
   auto sh = m_shape;
   sh[axis] = compiler::Symbolic{
-      m_shape.graph(), compiler::Sym::Const(static_cast<std::int64_t>(length))};
+      m_shape.graph(), Sym::Const(static_cast<std::int64_t>(length))};
   return withView(std::move(sh), std::move(v));
 }
 
@@ -775,34 +775,34 @@ double HostTensor::loadDouble(memory::span<const std::uint64_t> idx) const {
   }
   denox::compiler::diag::unreachable();
 }
-compiler::Sym HostTensor::loadSym(memory::span<const std::uint64_t> idx) const {
+Sym HostTensor::loadSym(memory::span<const std::uint64_t> idx) const {
   const std::size_t k = m_view.constIndexOf(idx);
   switch (m_store->type().kind()) {
   case DtypeKind::Sym:
-    return static_cast<const compiler::Sym *>(m_store->data())[k];
+    return static_cast<const Sym *>(m_store->data())[k];
   case DtypeKind::Int8:
-    return compiler::Sym::Const(
+    return Sym::Const(
         static_cast<int64_t>(static_cast<const int8_t *>(m_store->data())[k]));
   case DtypeKind::Int16:
-    return compiler::Sym::Const(
+    return Sym::Const(
         static_cast<int64_t>(static_cast<const int16_t *>(m_store->data())[k]));
   case DtypeKind::Int32:
-    return compiler::Sym::Const(
+    return Sym::Const(
         static_cast<int64_t>(static_cast<const int32_t *>(m_store->data())[k]));
   case DtypeKind::Int64:
-    return compiler::Sym::Const(
+    return Sym::Const(
         static_cast<const int64_t *>(m_store->data())[k]);
   case DtypeKind::Uint8:
-    return compiler::Sym::Const(
+    return Sym::Const(
         static_cast<int64_t>(static_cast<const uint8_t *>(m_store->data())[k]));
   case DtypeKind::Uint16:
-    return compiler::Sym::Const(static_cast<int64_t>(
+    return Sym::Const(static_cast<int64_t>(
         static_cast<const uint16_t *>(m_store->data())[k]));
   case DtypeKind::Uint32:
-    return compiler::Sym::Const(static_cast<int64_t>(
+    return Sym::Const(static_cast<int64_t>(
         static_cast<const uint32_t *>(m_store->data())[k]));
   case DtypeKind::Uint64:
-    return compiler::Sym::Const(static_cast<int64_t>(
+    return Sym::Const(static_cast<int64_t>(
         static_cast<const uint64_t *>(m_store->data())[k]));
   case DtypeKind::Float16:
   case DtypeKind::Float32:

@@ -1,15 +1,15 @@
 #include "shaders/conv/DirectConvShaderCM.hpp"
 #include "Options.hpp"
-#include "diag/invalid_state.hpp"
-#include "diag/unreachable.hpp"
-#include "memory/container/uvec2.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
-#include "memory/tensor/BiasDescriptor.hpp"
-#include "memory/tensor/BiasLayout.hpp"
-#include "memory/tensor/FilterLayout.hpp"
-#include "memory/tensor/FilterTensor.hpp"
-#include "memory/tensor/FitlerDescriptor.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/uvec2.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
+#include "denox/memory/tensor/BiasDescriptor.hpp"
+#include "denox/memory/tensor/BiasLayout.hpp"
+#include "denox/memory/tensor/FilterLayout.hpp"
+#include "denox/memory/tensor/FilterTensor.hpp"
+#include "denox/memory/tensor/FitlerDescriptor.hpp"
 #include "model/ActivationFunction.hpp"
 #include <fmt/format.h>
 
@@ -809,7 +809,6 @@ void DirectConvShaderCM::implement(
   //     },
   //     memory::FilterTensorConstView(conv->W.get())};
 
-
   TensorId weightTensorId = impl.createParameter(
       memory::FilterDescriptor{
           .shape = conv->W->shape(),
@@ -837,15 +836,12 @@ void DirectConvShaderCM::implement(
     dispatch.addBinding(0, 3, AccessFlag::ReadOnly, *biasTensorId);
   }
 
-
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
   dispatch.setName(name(pattern, configKey));
   dispatch.setSourcePath(m_srcPath);
-
-
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym()),

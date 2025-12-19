@@ -149,8 +149,8 @@ neg(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   // ---- Sym ----
   {
-    auto outStore = make_out(Dtype::Sym, sizeof(compiler::Sym));
-    compiler::Sym *dst = reinterpret_cast<compiler::Sym *>(outStore->data());
+    auto outStore = make_out(Dtype::Sym, sizeof(Sym));
+    Sym *dst = reinterpret_cast<Sym *>(outStore->data());
     const auto src = Xin.storage()->sym();
     auto sg = state.symGraph;
     memory::vector<std::uint64_t> idx(outDims.size(), 0);

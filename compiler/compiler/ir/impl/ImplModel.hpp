@@ -6,9 +6,9 @@
 #include "compiler/ir/impl/OutputDesc.hpp"
 #include "compiler/ir/impl/Parameter.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
-#include "memory/container/vector.hpp"
+#include "denox/memory/container/vector.hpp"
 #include "shaders/compiler/ShaderBinary.hpp"
-#include "symbolic/SymGraph.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 
 namespace denox::compiler {
 

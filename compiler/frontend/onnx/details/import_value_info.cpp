@@ -1,14 +1,10 @@
 #include "frontend/onnx/details/import_value_info.hpp"
 #include "Options.hpp"
-#include "diag/invalid_argument.hpp"
-#include "diag/unreachable.hpp"
+#include "denox/diag/invalid_argument.hpp"
 #include "frontend/onnx/details/values/Tensor.hpp"
-#include "memory/dtype/f32.hpp"
 #include "model/DynamicInputExtent.hpp"
-#include "model/ModelControlBlock.hpp"
-#include "symbolic/SymGraph.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 
-#include <exception>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
@@ -122,7 +118,7 @@ void import_value_info(ImportState &state,
           throw std::runtime_error(
               fmt::format("vkcnn: {} has negative dim at axis {}", name, i));
         }
-        dims.emplace_back(g, compiler::Sym::Const(v));
+        dims.emplace_back(g, Sym::Const(v));
         // NOTE: Check that it matches the input-shape option if set.
         int ri = shp.dim_size() == 4 ? i : (i + 1);
 
@@ -156,14 +152,14 @@ void import_value_info(ImportState &state,
           throw std::runtime_error(
               fmt::format("vkcnn: {} has empty dim_param at axis {}", name, i));
         }
-        compiler::Sym s;
+        Sym s;
         if (shp.dim_size() == 4 && i == 0) {
-          s = compiler::Sym::Const(1);
+          s = Sym::Const(1);
         } else {
           int ri = shp.dim_size() == 4 ? i : (i + 1);
           if (ri == 1) {
             if (options.inputShape.channels.value.has_value()) {
-              s = compiler::Sym::Const(
+              s = Sym::Const(
                   options.inputShape.channels.value.value());
             } else {
               s = symGraph->var();
@@ -174,7 +170,7 @@ void import_value_info(ImportState &state,
           }
           if (ri == 2) {
             if (options.inputShape.height.value.has_value()) {
-              s = compiler::Sym::Const(options.inputShape.height.value.value());
+              s = Sym::Const(options.inputShape.height.value.value());
             } else {
               s = symGraph->var();
             }
@@ -184,7 +180,7 @@ void import_value_info(ImportState &state,
           }
           if (ri == 3) {
             if (options.inputShape.width.value.has_value()) {
-              s = compiler::Sym::Const(options.inputShape.width.value.value());
+              s = Sym::Const(options.inputShape.width.value.value());
             } else {
               s = symGraph->var();
             }
@@ -196,7 +192,7 @@ void import_value_info(ImportState &state,
         dims.emplace_back(g, s);
       } else {
         assert(symGraph != nullptr);
-        compiler::Sym s = symGraph->var();
+        Sym s = symGraph->var();
         dims.emplace_back(g, s);
       }
     }
@@ -223,7 +219,7 @@ void import_value_info(ImportState &state,
               name, tshape[0].constant()));
         }
       } else {
-        tshape[0] = compiler::Symbolic{state.symGraph, compiler::Sym::Const(1)};
+        tshape[0] = compiler::Symbolic{state.symGraph, Sym::Const(1)};
       }
     }
 
@@ -232,8 +228,8 @@ void import_value_info(ImportState &state,
         get_const_channels_or_throw(tshape, axC, "input channels");
 
     // Height/Width may be symbolic
-    const compiler::Sym Hs = static_cast<compiler::Sym>(*tshape[axH]);
-    const compiler::Sym Ws = static_cast<compiler::Sym>(*tshape[axW]);
+    const Sym Hs = static_cast<Sym>(*tshape[axH]);
+    const Sym Ws = static_cast<Sym>(*tshape[axW]);
 
     // Optional float-type hint from dtype
     memory::optional<memory::Dtype> hint =

@@ -2,8 +2,8 @@
 
 #include "frontend/onnx/details/values/GraphAttr.hpp"
 #include "frontend/onnx/details/values/HostTensor.hpp"
-#include "memory/container/string_view.hpp"
-#include "memory/container/variant.hpp"
+#include "denox/memory/container/string_view.hpp"
+#include "denox/memory/container/variant.hpp"
 #include <cstdint>
 
 namespace onnx {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "compiler/ir/TensorInstance.hpp"
-#include "memory/hypergraph/LinkedGraph.hpp"
+#include "denox/memory/hypergraph/LinkedGraph.hpp"
 #include "model/ComputeOp.hpp"
 
 namespace denox::compiler {

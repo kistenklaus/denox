@@ -5,15 +5,14 @@
 #include "compiler/ir/impl/ImplModel.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
 #include "compiler/ir/impl/TensorStorageRequirements.hpp"
-#include "memory/container/hashmap.hpp"
-#include "memory/container/optional.hpp"
-#include "memory/container/vector.hpp"
-#include "memory/hypergraph/NodeId.hpp"
-#include "memory/tensor/BiasDescriptor.hpp"
-#include "memory/tensor/FilterTensor.hpp"
-#include "memory/tensor/FitlerDescriptor.hpp"
+#include "denox/memory/container/hashmap.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/memory/hypergraph/NodeId.hpp"
+#include "denox/memory/tensor/BiasDescriptor.hpp"
+#include "denox/memory/tensor/FilterTensor.hpp"
+#include "denox/memory/tensor/FitlerDescriptor.hpp"
 #include "shaders/compiler/GlslCompilerInstance.hpp"
-#include <chrono>
 #include <stdexcept>
 
 namespace denox::compiler {

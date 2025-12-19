@@ -4,9 +4,9 @@
 #include "compiler/ir/impl/PushConstant.hpp"
 #include "compiler/ir/impl/TensorBinding.hpp"
 #include "compiler/ir/impl/TensorId.hpp"
-#include "io/fs/Path.hpp"
-#include "memory/container/string.hpp"
-#include "memory/hypergraph/NodeId.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/string.hpp"
+#include "denox/memory/hypergraph/NodeId.hpp"
 #include <memory>
 
 namespace denox::compiler {

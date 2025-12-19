@@ -1,8 +1,8 @@
 #pragma once
 
-#include "memory/container/string.hpp"
-#include "memory/container/vector.hpp"
-#include "symbolic/Sym.hpp"
+#include "denox/memory/container/string.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/symbolic/Sym.hpp"
 #include <utility>
 
 namespace denox::compiler {

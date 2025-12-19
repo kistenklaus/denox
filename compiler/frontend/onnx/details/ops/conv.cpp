@@ -268,12 +268,12 @@ memory::vector<Tensor> conv(
     const unsigned py = sumY / 2u;
 
     // Prove size-preserving with the symbolic engine (no min/max involved).
-    compiler::Sym Hin = Xdev.handle().height().resolve();
-    compiler::Sym Win = Xdev.handle().width().resolve();
-    compiler::Sym Hout =
+    Sym Hin = Xdev.handle().height().resolve();
+    Sym Win = Xdev.handle().width().resolve();
+    Sym Hout =
         state.symGraph->pool(Hin, r, py, 1,
                              1); // stride=1, dil=1, pad=symmetric
-    compiler::Sym Wout = state.symGraph->pool(Win, s, px, 1, 1);
+    Sym Wout = state.symGraph->pool(Win, s, px, 1, 1);
 
     if (!(state.symGraph->resolve(Hout) == state.symGraph->resolve(Hin)) ||
         !(state.symGraph->resolve(Wout) == state.symGraph->resolve(Win))) {

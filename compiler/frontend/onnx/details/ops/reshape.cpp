@@ -190,7 +190,7 @@ reshape([[maybe_unused]] ImportState &state,
   outSyms.reserve(targetDims.size());
   const auto g = data.shape().graph();
   for (auto d : targetDims) {
-    outSyms.emplace_back(g, compiler::Sym::Const(static_cast<std::int64_t>(d)));
+    outSyms.emplace_back(g, Sym::Const(static_cast<std::int64_t>(d)));
   }
   TensorShape newShape{g, std::move(outSyms)};
 

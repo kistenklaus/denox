@@ -1,11 +1,11 @@
 #pragma once
 
-#include "memory/container/optional.hpp"
-#include "memory/dtype/dtype.hpp"
-#include "memory/hypergraph/NodeId.hpp"
-#include "memory/tensor/ActivationLayout.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/hypergraph/NodeId.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "model/ModelControlBlock.hpp"
-#include "symbolic/Symbolic.hpp"
+#include "denox/symbolic/Symbolic.hpp"
 
 namespace denox::compiler {
 

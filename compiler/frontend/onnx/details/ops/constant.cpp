@@ -76,7 +76,7 @@ memory::vector<Tensor> constant(
   };
   auto make_1d_shape = [&](std::size_t n) -> TensorShape {
     memory::vector<compiler::Symbolic> dims;
-    dims.emplace_back(g, compiler::Sym::Const(static_cast<int64_t>(n)));
+    dims.emplace_back(g, Sym::Const(static_cast<int64_t>(n)));
     return TensorShape{g, std::move(dims)};
   };
 

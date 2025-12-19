@@ -68,9 +68,9 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     return out;
   };
 
-  auto read_sym_1d = [&](const HostTensor &t) -> memory::vector<compiler::Sym> {
+  auto read_sym_1d = [&](const HostTensor &t) -> memory::vector<Sym> {
     const std::size_t n = read_len_1d(t);
-    memory::vector<compiler::Sym> out(n);
+    memory::vector<Sym> out(n);
 
     if (t.type() == Dtype::Sym) {
       if (t.isContiguous() && t.view().offset().isConstant() &&
@@ -92,7 +92,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     } else if (t.type() == Dtype::Int64) {
       auto ints = read_i64_1d(t);
       for (std::size_t i = 0; i < n; ++i)
-        out[i] = compiler::Sym::Const(ints[i]);
+        out[i] = Sym::Const(ints[i]);
     } else {
       throw std::runtime_error(fmt::format(
           "vkcnn: Slice \"{}\": starts/ends must be INT64 or SYM.", nodeName));
@@ -108,8 +108,8 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   const HostTensor &startsH = startsT.host();
   const HostTensor &endsH = endsT.host();
 
-  const memory::vector<compiler::Sym> startsSym = read_sym_1d(startsH);
-  const memory::vector<compiler::Sym> endsSym = read_sym_1d(endsH);
+  const memory::vector<Sym> startsSym = read_sym_1d(startsH);
+  const memory::vector<Sym> endsSym = read_sym_1d(endsH);
   if (startsSym.size() != endsSym.size())
     throw std::runtime_error(fmt::format(
         "vkcnn: Slice \"{}\": 'starts' and 'ends' must have same length.",
@@ -191,17 +191,17 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     auto g = state.symGraph;
 
     // extents (as Sym) of input (symbolic allowed)
-    const compiler::Sym H = devIn.handle().height().resolve();
-    const compiler::Sym W = devIn.handle().width().resolve();
+    const Sym H = devIn.handle().height().resolve();
+    const Sym W = devIn.handle().width().resolve();
 
     // default full-pass on H/W
-    compiler::Sym left = compiler::Sym::Const(0);
-    compiler::Sym right = W;
-    compiler::Sym top = compiler::Sym::Const(0);
-    compiler::Sym bot = H;
+    Sym left = Sym::Const(0);
+    Sym right = W;
+    Sym top = Sym::Const(0);
+    Sym bot = H;
 
-    auto norm_index_if_const_neg = [&](compiler::Sym idx,
-                                       compiler::Sym dim) -> compiler::Sym {
+    auto norm_index_if_const_neg = [&](Sym idx,
+                                       Sym dim) -> Sym {
       if (idx.isConstant() && idx.constant() < 0) {
         return g->add(dim, idx); // dim + (negative)
       }
@@ -210,8 +210,8 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
     for (std::size_t i = 0; i < nSpec; ++i) {
       const std::size_t a = ax[i];
-      const compiler::Sym s = startsSym[i];
-      const compiler::Sym e = endsSym[i];
+      const Sym s = startsSym[i];
+      const Sym e = endsSym[i];
 
       if (r == 4) {
         if (a == 2) { // H
@@ -314,9 +314,9 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         len = (en - st + (step - 1)) / step; // ceil_div
       }
       // Update view/shape
-      view = view.slice(a, compiler::Symbolic(g, compiler::Sym::Const(st)),
-                        compiler::Symbolic(g, compiler::Sym::Const(step)));
-      shape[a] = compiler::Symbolic(g, compiler::Sym::Const(len));
+      view = view.slice(a, compiler::Symbolic(g, Sym::Const(st)),
+                        compiler::Symbolic(g, Sym::Const(step)));
+      shape[a] = compiler::Symbolic(g, Sym::Const(len));
     } else {
       const int64_t ns = -step;
       if (st < 0)
@@ -340,9 +340,9 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
       // Represent descending order with a negative stride view (no extra
       // reverse).
-      view = view.slice(a, compiler::Symbolic(g, compiler::Sym::Const(st)),
-                        compiler::Symbolic(g, compiler::Sym::Const(step)));
-      shape[a] = compiler::Symbolic(g, compiler::Sym::Const(len));
+      view = view.slice(a, compiler::Symbolic(g, Sym::Const(st)),
+                        compiler::Symbolic(g, Sym::Const(step)));
+      shape[a] = compiler::Symbolic(g, Sym::Const(len));
     }
   }
 

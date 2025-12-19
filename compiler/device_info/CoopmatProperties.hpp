@@ -1,7 +1,7 @@
 #pragma once
 
-#include "memory/container/vector.hpp"
-#include "memory/dtype/dtype.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/memory/dtype/dtype.hpp"
 #include <cstdint>
 namespace denox::compiler {
 
