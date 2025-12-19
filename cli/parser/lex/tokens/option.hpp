@@ -5,43 +5,35 @@
 #include <string_view>
 
 enum class OptionToken {
-  SpirvOptimize,
-  SpirvNonSemanticDebugInfo,
-  SpirvDebugInfo,
-
-  FeatureCoopmat,
-  FeatureFusion,
-  FeatureMemoryConcat,
-
-  InputLayout,
-  InputType,
-  InputStorage,
-  InputShape,
-
-  OutputLayout,
-  OutputType,
-  OutputStorage,
-  OutputShape,
-
+  SpirvOptimize,             //
+  SpirvNonSemanticDebugInfo, //
+  SpirvDebugInfo,            //
+  FeatureCoopmat,            //
+  FeatureFusion,             //
+  FeatureMemoryConcat,       //
+  InputLayout,               //
+  InputType,                 //
+  InputStorage,              //
+  InputShape,                //
+  OutputLayout,              //
+  OutputType,                //
+  OutputStorage,             //
+  OutputShape,               //
   InputSize,
-
-  TargetEnv,
-  Device,
-
-  Assume,
-
-  Verbose,
-  Quiet,
-
-  Output,
+  TargetEnv, //
+  Device,    //
+  Assume,    
+  Verbose,   //
+  Quiet,     //
+  Output,    //
   Input,
-
-  Database,
+  Database, //
 };
 
 std::optional<OptionToken> parse_option(std::string_view str);
 
-template <> struct fmt::formatter<OptionToken> : fmt::formatter<std::string_view> {
+template <>
+struct fmt::formatter<OptionToken> : fmt::formatter<std::string_view> {
   template <typename FormatContext>
   auto format(OptionToken opt, FormatContext &ctx) const {
     std::string_view name;

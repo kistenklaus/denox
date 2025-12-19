@@ -12,7 +12,7 @@
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <onnx.pb.h>
 
-static bool is_onnx_model(std::span<const std::byte> data) {
+bool is_onnx_model(std::span<const std::byte> data) {
   onnx::ModelProto model;
 
   google::protobuf::io::ArrayInputStream stream(data.data(),
@@ -39,94 +39,102 @@ static bool is_onnx_model(std::span<const std::byte> data) {
   return true;
 }
 
-static bool is_dnx_model(std::span<const std::byte> data) {
+bool is_dnx_model(std::span<const std::byte> data) {
   flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t *>(data.data()),
                                  data.size());
   return denox::dnx::VerifyModelBuffer(verifier);
 }
 
-static bool is_db(std::span<const std::byte> data) {
+bool is_db(std::span<const std::byte> data) {
   flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t *>(data.data()),
                                  data.size());
   return denox::db::VerifyDbBuffer(verifier);
 }
 
-static std::optional<Artefact> resolve_artefact(std::span<const std::byte> data,
-                                                IOEndpoint endpoint) {
+static ArtefactParseResult resolve_artefact(std::span<const std::byte> data,
+                                            IOEndpoint endpoint) {
   const bool isDNX = is_dnx_model(data);
   const bool isONNX = is_onnx_model(data);
   const bool isDB = is_db(data);
 
-  fmt::println("isDNX: {}", isDNX);
-  fmt::println("isONNX: {}", isONNX);
-  fmt::println("isDB: {}", isDB);
-
   const int count = (isDNX ? 1 : 0) + (isONNX ? 1 : 0) + (isDB ? 1 : 0);
 
   if (count == 0) {
-    return std::nullopt;
+    return ArtefactParseResult::failure(ArtefactParseError::UnrecognizedFormat);
   }
 
   if (count > 1) {
-    throw std::runtime_error("input buffer matches multiple artefact formats; "
-                             "input is ambiguous or corrupted");
+    return ArtefactParseResult::failure(ArtefactParseError::AmbiguousFormat);
   }
 
   if (isDNX) {
-    return Artefact(
+    return ArtefactParseResult::success(Artefact(
         DnxArtefact{.endpoint = endpoint,
-                    .data = std::vector<std::byte>(data.begin(), data.end())});
+                    .data = std::vector<std::byte>(data.begin(), data.end())}));
   }
 
   if (isONNX) {
-    return Artefact(
-        OnnxArtefact{.endpoint = endpoint,
-                     .data = std::vector<std::byte>(data.begin(), data.end())});
+    return ArtefactParseResult::success(Artefact(OnnxArtefact{
+        .endpoint = endpoint,
+        .data = std::vector<std::byte>(data.begin(), data.end())}));
   }
 
-  if (isDB) {
-    return Artefact(DbArtefact{endpoint});
-  }
-
-  std::abort(); // logically unreachable
+  // Database never owns bytes
+  return ArtefactParseResult::success(Artefact(DbArtefact{endpoint}));
 }
 
-std::optional<Artefact> parse_artefact(const Token &token) {
+ArtefactParseResult parse_artefact(const Token &token) {
   switch (token.kind()) {
+
   case TokenKind::Command:
   case TokenKind::Option:
-    return std::nullopt;
+    return ArtefactParseResult::failure(ArtefactParseError::NotAnArtefactToken);
+
   case TokenKind::Pipe: {
-    const auto &pipe = token.pipe();
+    const Pipe &pipe = token.pipe();
     std::vector<std::byte> data = pipe.read_all();
+
     if (data.empty()) {
-      return std::nullopt;
+      return ArtefactParseResult::failure(
+          ArtefactParseError::UnrecognizedFormat);
     }
-    auto artefact = resolve_artefact(data, pipe);
-    if (artefact.has_value() && artefact->kind() == ArtefactKind::Database) {
-      throw std::runtime_error("database files cannot be piped");
+
+    auto res = resolve_artefact(data, IOEndpoint(pipe));
+
+    if (res.artefact && res.artefact->kind() == ArtefactKind::Database) {
+      return ArtefactParseResult::failure(ArtefactParseError::DatabasePiped);
     }
-    return artefact;
+
+    return res;
   }
+
   case TokenKind::Literal: {
-    const auto &literal = token.literal();
-    if (!literal.is_path()) {
-      // don't interpret this as a artefact!
-      return std::nullopt;
+    const LiteralToken &lit = token.literal();
+
+    if (!lit.is_path()) {
+      return ArtefactParseResult::failure(
+          ArtefactParseError::NotAnArtefactToken);
     }
-    const Path &path = literal.as_path();
+
+    const Path &path = lit.as_path();
+
+    // Database paths may not exist yet
     if (!path.exists()) {
       if (path.extension() == ".db") {
-        return Artefact(DbArtefact(IOEndpoint(path)));
+        return ArtefactParseResult::success(
+            Artefact(DbArtefact{IOEndpoint(path)}));
       }
-      return std::nullopt;
+
+      return ArtefactParseResult::failure(ArtefactParseError::PathDoesNotExist);
     }
+
     auto file = File::open(path, File::OpenMode::Read);
-    size_t size = file.size();
-    std::vector<std::byte> data(size);
+    std::vector<std::byte> data(file.size());
     file.read_exact(data);
-    return resolve_artefact(data, path);
+
+    return resolve_artefact(data, IOEndpoint(path));
   }
   }
-  throw std::runtime_error("unreachable");
+
+  std::abort(); // unreachable
 }

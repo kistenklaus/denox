@@ -295,15 +295,19 @@ endif()
 if (NOT BUILD_PYTHON_BINDING)
   add_executable(denox
     cli/main.cpp
+    cli/compile.cpp
+    cli/alloc/monotone_alloc.cpp
     cli/io/File.cpp
     cli/io/Path.cpp
     cli/parser/lex/tokens/literal.cpp
     cli/parser/lex/tokens/command.cpp
     cli/parser/lex/tokens/option.cpp
     cli/parser/lex/lex.cpp
+    cli/parser/errors.cpp
     cli/parser/parse.cpp
     cli/parser/parse_commands.cpp
     cli/parser/parse_artefact.cpp
+    cli/parser/parse_options.cpp
   )
 
   target_include_directories(denox 
