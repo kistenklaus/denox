@@ -1,6 +1,6 @@
 # cmake/deps/spdlog.cmake
 include_guard(GLOBAL)
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 option(DENOX_VENDOR_SPDLOG "Download/build spdlog if not found" ON)
 # spdlog can be header-only or compiled; compiled speeds up large builds a bit

@@ -1,6 +1,6 @@
 # cmake/deps/protobuf.cmake
 include_guard(GLOBAL)
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 # --- Find Protobuf via the CMake module (needed for protobuf_generate_cpp)
 if(APPLE)
@@ -71,7 +71,7 @@ else()
   # Single-config generator (Ninja/Make): only touch absl if current build type matches
   if (CMAKE_BUILD_TYPE IN_LIST DENOX_PROTOBUF_ABSL_CONFIGS)
     # Pull our absl wrapper (defines denox::absl or errors if truly missing)
-    include(cmake/absl.cmake)
+    include(${PROJECT_SOURCE_DIR}/cmake/absl.cmake)
     target_link_libraries(denox::protobuf INTERFACE denox::absl)
     log_info("Linking absl to libprotobuf (Only a ${CMAKE_BUILD_TYPE} dependency)")
   endif()

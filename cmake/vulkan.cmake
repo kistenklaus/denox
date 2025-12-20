@@ -1,6 +1,6 @@
 include_guard(GLOBAL)  # or DIRECTORY
 
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 find_package(Vulkan REQUIRED)
 

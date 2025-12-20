@@ -1,7 +1,7 @@
 include_guard(GLOBAL)
 
-include(cmake/colorful.cmake)
-include(cmake/vulkan.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/vulkan.cmake)
 
 # Allow overriding the fetched version from the parent project.
 # NOTE: Must be a *tag*, because tarballs only exist for tags.

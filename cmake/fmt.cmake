@@ -1,5 +1,5 @@
 include_guard(GLOBAL)  
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 # Options to control how we get fmt
 option(DENOX_VENDOR_FMT "Download/build fmt if not found" ON)
