@@ -1,7 +1,7 @@
 # cmake/denox_cli11.cmake
 include_guard(GLOBAL)  # or DIRECTORY to scope to the including directory
 
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 include(FetchContent)
 
 # Allow pin override from the cache/CLI: -Ddenox_CLI11_TAG=v2.4.2 (or a commit)

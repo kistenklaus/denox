@@ -1,5 +1,5 @@
 include_guard(GLOBAL)
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 # --- Fetch upstream exactly (always) ---
 set(FLATBUFFERS_BUILD_FLATC     ON  CACHE BOOL "" FORCE)
@@ -32,6 +32,14 @@ elseif(TARGET flatbuffers) # legacy/plain
   target_link_libraries(denox_flatbuffers INTERFACE flatbuffers)
 else()
   log_error("FlatBuffers library target not found after fetch.")
+endif()
+
+get_target_property(_fb_includes denox_flatbuffers INTERFACE_INCLUDE_DIRECTORIES)
+
+if(_fb_includes)
+  target_include_directories(denox_flatbuffers
+    SYSTEM INTERFACE ${_fb_includes}
+  )
 endif()
 
 # --- Expose flatc path AND target for build deps ---
@@ -134,7 +142,7 @@ function(denox_add_fbs_lib tgt)
   endforeach()
 
   # Collect under a custom target
-  set(_gen_tgt "${_tgt_real}_flatc")
+  set(_gen_tgt "${_tgt_real}_fbs")
   add_custom_target("${_gen_tgt}" DEPENDS ${_outs})
   if (FBS_IN_ALL)
     add_dependencies(all "${_gen_tgt}")

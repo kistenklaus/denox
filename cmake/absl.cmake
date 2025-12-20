@@ -1,5 +1,5 @@
 include_guard(GLOBAL)
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 set(DENOX_ABSL_COMPONENTS "strings;cord;log;check"
     CACHE STRING "Abseil components to link")

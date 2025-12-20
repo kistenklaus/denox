@@ -1,5 +1,5 @@
 include_guard(GLOBAL)  
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 add_library(lewissbaker-generator INTERFACE)
 

@@ -35,7 +35,8 @@ function(denox_enable_strict_warnings tgt)
       -Wconversion -Wsign-conversion
       -Wold-style-cast -Woverloaded-virtual
       -Wnon-virtual-dtor
-      -Wcast-qual -Wcast-align=strict
+      -Wcast-qual 
+      # -Wcast-align=strict
       -Wformat=2 -Wno-null-dereference -Wdouble-promotion
       -Wimplicit-fallthrough -Wmissing-field-initializers
       -Wswitch-enum -Wundef

@@ -6,6 +6,8 @@ file_identifier "dbdb";
 file_identifier "dbdb";
 
 table ShaderBinary {
+  // hash over glsl source.
+  src_sha256:[uint32];
   spirv:[uint32];
 }
 
@@ -35,22 +37,25 @@ table ComputeDispatch {
   workgroup_count_y:uint32;
   workgroup_count_z:uint32;
   push_constant:[uint8];
+  // hash over:
+  // 0. source sha256
+  // 1. workgroup_count_x
+  // 2. workgroup_count_y
+  // 3. workgroup_count_z
+  // 4. push_constant
+  // Note: does not include tensor bindings, because 
+  // for performance, we assume that the dispatch size is the only thing that
+  // really matters.
+  hash:uint64;
+  // only required for benchmarking doesn't act as a key!
   bindings:[TensorBinding];
   time:Timing;
 }
 
-table Operation {
-  shader_name:string;
-  pattern:uint32;
-  config:uint32;
-  hash:uint64;
-  dispatches:[uint32];
-}
-
 table Db {
+  version: uint32;
   shader_binaries:[ShaderBinary];
-  dispatch:[ComputeDispatch];
-  operations:[Operation];
+  dispatches:[ComputeDispatch];
 }
 
 root_type Db;

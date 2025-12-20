@@ -1,5 +1,5 @@
 include_guard(GLOBAL)
-include(cmake/colorful.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 option(DENOX_REQUIRE_SPIRV_TOOLS_OPT "Fail if SPIRV-Tools optimizer is not found" ON)
 
