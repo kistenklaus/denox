@@ -1,6 +1,8 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
+#include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
+#include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/io/fs/Path.hpp"
 
@@ -40,8 +42,12 @@ int main() {
   options.interfaceDescriptors = {albedo, norm, output};
 
   compiler::Model model = compiler::frontend(onnx, options);
-
   fmt::println("{}", model.to_string());
+
+  compiler::CanoModel cano = compiler::canonicalize(model);
+
+  compiler::Lifetimes lifetimes = compiler::lifeness(cano);
+
 }
 
 // #include "denox/common/types.hpp"

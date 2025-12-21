@@ -1,8 +1,8 @@
 #pragma once
 
+#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/compiler/frontend/model/ComputeTensor.hpp"
 #include "denox/memory/hypergraph/LinkedGraph.hpp"
-#include "model/ComputeOp.hpp"
-#include "model/ComputeTensor.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 
 namespace denox::compiler {
@@ -10,8 +10,8 @@ namespace denox::compiler {
 struct CanoModel {
   using Graph = memory::LinkedGraph<ComputeTensor, ComputeOp>;
   Graph graph;
-  Graph::NodeHandle input;
-  Graph::NodeHandle output;
+  std::vector<Graph::NodeHandle> inputs;
+  std::vector<Graph::NodeHandle> outputs;
   SymGraph symGraph;
 };
 

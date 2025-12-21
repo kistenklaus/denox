@@ -2,8 +2,8 @@
 
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
 #include "denox/algorithm/pattern_matching/LinkedGraphMatch.hpp"
-#include "model/ComputeOp.hpp"
-#include "model/ComputeTensor.hpp"
+#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/compiler/frontend/model/ComputeTensor.hpp"
 namespace denox::compiler::cano {
 
 class IFusionRule {

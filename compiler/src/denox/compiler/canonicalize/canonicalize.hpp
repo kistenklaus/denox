@@ -1,14 +1,12 @@
 #pragma once
 
-#include "Options.hpp"
-#include "compiler/ir/CanoModel.hpp"
-#include "denox/memory/hypergraph/ConstGraph.hpp"
-#include "denox/memory/hypergraph/LinkedGraph.hpp"
-#include "model/ComputeOp.hpp"
-#include "model/ComputeTensor.hpp"
-#include "model/Model.hpp"
+#include "denox/compiler/canonicalize/CanoModel.hpp"
+#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/compiler/frontend/model/ComputeTensor.hpp"
+#include "denox/compiler/frontend/model/Model.hpp"
+
 namespace denox::compiler {
 
-CanoModel canonicalize(const Model &model, const Options& options);
+CanoModel canonicalize(const Model &model);
 
 } // namespace denox::compiler

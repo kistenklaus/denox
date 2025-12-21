@@ -11,7 +11,6 @@ struct Lifetime {
 };
 
 struct Lifetimes {
-
   memory::vector<Lifetime> valueLifetimes;
 };
 

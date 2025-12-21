@@ -1,9 +1,9 @@
 #pragma once
 
-#include "compiler/cano/rules/IFusionRule.hpp"
+#include "denox/compiler/canonicalize/rules/IFusionRule.hpp"
 #include "denox/algorithm/pattern_matching/EdgePattern.hpp"
 #include "denox/algorithm/pattern_matching/NodePattern.hpp"
-#include "model/ComputeOp.hpp"
+#include "denox/compiler/frontend/model/ComputeOp.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 #include <cassert>
 namespace denox::compiler::cano {
@@ -25,7 +25,7 @@ public:
     m_handles.B->matchInDeg(1);
 
     static auto isSliceOp = [](const ComputeOp &op) {
-      return op.tag() == ComputeOpTag::Slice;
+      return op.tag() == ComputeOpKind::Slice;
     };
 
     m_handles.AB->matchValue(isSliceOp);
@@ -37,9 +37,9 @@ public:
     return m_handles.pattern;
   }
 
-  virtual void apply(SymGraph &symGraph,
+  void apply(SymGraph &symGraph,
                      const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp>
-                         &match) final override {
+                         &match) final {
     const auto &handles = m_handles;
 
     auto nodeA = match[handles.A];

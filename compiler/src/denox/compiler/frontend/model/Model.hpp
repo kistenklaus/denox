@@ -67,6 +67,12 @@ public:
 
   memory::optional<Tensor> getOutput(memory::string_view name) const;
 
+  uint32_t getInputCount() const;
+  uint32_t getOutputCount() const;
+
+  std::vector<Tensor> getInputs() const;
+  std::vector<Tensor> getOutputs() const;
+
   // adds a new name to a already existing value,
   // values might have multiple names!
   void assignValueName(memory::string_view name, Sym value,
