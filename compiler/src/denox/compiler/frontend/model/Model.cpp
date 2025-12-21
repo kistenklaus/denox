@@ -118,8 +118,6 @@ Tensor Model::conv2d(const Tensor &src, memory::FilterTensorConstView W,
 
 Tensor Model::activation(const Tensor &src, ActivationFunction func) const {
   memory::NodeId srcId = src.m_nodeId;
-  const auto srcNode = m_controlBlock->hypergraph.get(srcId);
-
   memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
       ComputeTensor{src.width(), src.height(), src.channels()});
 
@@ -486,7 +484,7 @@ std::optional<Tensor> Model::getOutput(std::string_view name) const {
   return Tensor{it->nodeId, m_controlBlock.get()};
 }
 
-void Model::assignValueName(std::string_view name, Sym value, bool onnxlabel) {
+void Model::assignValueName(std::string_view name, Sym value, bool imported) {
   auto it = std::ranges::find_if(
       m_controlBlock->valueNames, [&](const NamedValue &nameValue) {
         return nameValue.name == name && nameValue.value == value;
@@ -494,17 +492,17 @@ void Model::assignValueName(std::string_view name, Sym value, bool onnxlabel) {
   if (it != m_controlBlock->valueNames.end()) {
     return;
   }
-  m_controlBlock->valueNames.push_back(NamedValue(std::string(name), value));
+  m_controlBlock->valueNames.push_back(NamedValue(std::string(name), value, imported));
 }
 
 // onnxlabel doesn't affect query result!
-Sym Model::requireValueOfName(std::string_view name, bool onnxlabel) {
+Sym Model::requireValueOfName(std::string_view name, bool imported) {
   auto it = std::ranges::find_if(
       m_controlBlock->valueNames,
       [&](const NamedValue &nameValue) { return nameValue.name == name; });
   if (it == m_controlBlock->valueNames.end()) {
     Sym sym = m_controlBlock->symGraph.var();
-    m_controlBlock->valueNames.push_back(NamedValue(std::string(name), sym));
+    m_controlBlock->valueNames.push_back(NamedValue(std::string(name), sym, imported));
     return sym;
   } else {
     return it->value;
@@ -514,7 +512,7 @@ memory::optional<Sym> Model::getValueByName(std::string_view name) {
   auto it = std::ranges::find_if(
       m_controlBlock->valueNames,
       [&](const NamedValue &nameValue) { return nameValue.name == name; });
-  if (it != m_controlBlock->valueNames.end()) {
+  if (it == m_controlBlock->valueNames.end()) {
     return memory::nullopt;
   } else {
     return it->value;

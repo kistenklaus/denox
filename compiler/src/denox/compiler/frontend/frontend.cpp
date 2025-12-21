@@ -1,13 +1,49 @@
 #include "denox/compiler/frontend/frontend.hpp"
+#include "denox/common/TensorFormat.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/frontend/onnx/onnx.hpp"
+#include <algorithm>
 
 denox::compiler::Model
 denox::compiler::frontend(memory::span<const std::byte> raw,
                           const Options &options) {
   Model model = denox::onnx::read(raw, options);
 
-  // model.getInput().setLayout(options.inputLayout);
-  // model.getOutput().setLayout(options.outputLayout);
+  const auto inputNames = model.getInputNames();
+  for (const auto &inputName : inputNames) {
+    auto input = *model.getInput(inputName);
+
+    auto interfaceDescriptor = std::ranges::find_if(
+        options.interfaceDescriptors, [&](const TensorDescriptor &descriptor) {
+          return descriptor.name == inputName;
+        });
+    if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+      if (interfaceDescriptor->storage != TensorStorage::Optimal) {
+        input.setStorage(interfaceDescriptor->storage);
+      }
+      if (interfaceDescriptor->format != TensorFormat::Optimal) {
+        input.setFormat(interfaceDescriptor->format);
+      }
+    }
+  }
+
+  const auto outputNames = model.getInputNames();
+  for (const auto &outputName : outputNames) {
+    auto output = *model.getInput(outputName);
+
+    auto interfaceDescriptor = std::ranges::find_if(
+        options.interfaceDescriptors, [&](const TensorDescriptor &descriptor) {
+          return descriptor.name == outputName;
+        });
+    if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+      if (interfaceDescriptor->storage != TensorStorage::Optimal) {
+        output.setStorage(interfaceDescriptor->storage);
+      }
+      if (interfaceDescriptor->format != TensorFormat::Optimal) {
+        output.setFormat(interfaceDescriptor->format);
+      }
+    }
+  }
 
   return model;
 }

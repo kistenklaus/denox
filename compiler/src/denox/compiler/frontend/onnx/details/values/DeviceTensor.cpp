@@ -47,6 +47,8 @@ memory::optional<Dtype> DeviceTensor::type() const {
   case TensorDataType::Float32:
     return Dtype::Float32;
     break;
+  case TensorDataType::Float64:
+    return Dtype::Float64;
   };
   diag::unreachable();
 }

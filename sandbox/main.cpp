@@ -1,3 +1,5 @@
+#include "denox/common/TensorFormat.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/io/fs/Path.hpp"
@@ -12,6 +14,24 @@ int main() {
   file.read_exact(onnx);
 
   compiler::Options options;
+
+  compiler::TensorDescriptor input;
+  input.name = "input";
+  input.format = TensorFormat::Optimal;
+  input.storage = TensorStorage::Optimal;
+  input.dtype = TensorDataType::Float16;
+  input.widthValueName = "W";
+  input.heightValueName = "H";
+
+  compiler::TensorDescriptor output;
+  output.name = "output";
+  output.format = TensorFormat::Optimal;
+  output.storage = TensorStorage::Optimal;
+  output.dtype = TensorDataType::Float16;
+  output.widthValueName = "W";
+  output.heightValueName = "H";
+
+  options.interfaceDescriptors = {input, output};
 
   compiler::Model model = compiler::frontend(onnx, options);
 
