@@ -345,8 +345,7 @@ class UNetAlignment(nn.Module):
         pad_h = (alignment - (H % alignment)) % alignment
         aligned = F.pad(input, (0, pad_w, 0, pad_h), mode="replicate")
         output = self.net(aligned)
-        return output
-        # return output[:,:,:H,:W]
+        return output[:,:,:H,:W]
 
 
 rt_ldr = UNetAlignment(UNet(3, 3, False))

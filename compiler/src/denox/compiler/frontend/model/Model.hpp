@@ -30,7 +30,6 @@ public:
       : m_controlBlock(std::make_unique<details::model::ModelControlBlock>(
             *o.m_controlBlock)) {}
 
-
   Tensor input(const std::string &name, Sym width, Sym height, Sym channels,
                TensorDataType type = TensorDataType::Auto);
 
@@ -70,7 +69,8 @@ public:
 
   // adds a new name to a already existing value,
   // values might have multiple names!
-  void assignValueName(memory::string_view name, Sym value, bool imported = false);
+  void assignValueName(memory::string_view name, Sym value,
+                       bool imported = false);
 
   // create a new value if the there is no matching value name
   Sym requireValueOfName(memory::string_view name, bool imported = false);
@@ -80,6 +80,8 @@ public:
   const memory::AdjGraph<ComputeTensor, ComputeOp> &graph() const {
     return m_controlBlock->hypergraph;
   }
+
+  std::span<const NamedValue> valueNames() const;
 
   const SymGraph &symGraph() const { return m_controlBlock->symGraph; }
 

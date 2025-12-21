@@ -518,4 +518,9 @@ memory::optional<Sym> Model::getValueByName(std::string_view name) {
     return it->value;
   }
 }
+
+std::span<const NamedValue> Model::valueNames() const {
+  return m_controlBlock->valueNames;
+}
+
 } // namespace denox::compiler
