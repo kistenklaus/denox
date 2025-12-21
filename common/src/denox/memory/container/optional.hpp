@@ -1,6 +1,8 @@
 #pragma once
 
 #include <optional>
+#include <fmt/std.h>  //includes formatter
+
 namespace denox::memory {
 
 template <typename T> using optional = std::optional<T>;

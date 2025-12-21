@@ -1,6 +1,7 @@
 #pragma once
 
 #include "denox/symbolic/Sym.hpp"
+#include <fmt/core.h>
 #include <memory>
 namespace denox::compiler {
 
@@ -43,4 +44,16 @@ private:
   std::unique_ptr<Storage> m_store;
 };
 
-} // namespace vkcnn
+} // namespace denox::compiler
+
+template <> struct fmt::formatter<denox::compiler::ComputeOpSlice> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::compiler::ComputeOpSlice &op,
+              FormatContext &ctx) const {
+    const auto &s = *op;
+    return fmt::format_to(ctx.out(), "{{left={}, right={}, top={}, bottom={}}}",
+                          s.left, s.right, s.top, s.bottom);
+  }
+};

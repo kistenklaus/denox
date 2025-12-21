@@ -1,9 +1,9 @@
 #pragma once
 
-#include "compiler/ir/impl/ComputeDispatch.hpp"
-#include "compiler/ir/impl/PushConstant.hpp"
-#include "compiler/ir/impl/TensorBinding.hpp"
-#include "compiler/ir/impl/TensorId.hpp"
+#include "denox/compiler/implement/ComputeDispatch.hpp"
+#include "denox/compiler/implement/PushConstant.hpp"
+#include "denox/compiler/implement/TensorBinding.hpp"
+#include "denox/compiler/implement/TensorId.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
@@ -16,12 +16,12 @@ class ComputeDispatchBuilder {
 public:
   friend class Impl;
 
-  void addBinding(std::uint32_t set, std::uint32_t binding, AccessFlag access,
+  void addBinding(std::uint32_t set, std::uint32_t binding, Access access,
                   TensorId tensor) {
     self().bindings.push_back(TensorBinding{set, binding, access, tensor});
   }
 
-  void addBinding(std::uint32_t set, std::uint32_t binding, AccessFlag access,
+  void addBinding(std::uint32_t set, std::uint32_t binding, Access access,
                   memory::NodeId nodeId);
 
   void addPushConstant(PushConstant pushConstant) {

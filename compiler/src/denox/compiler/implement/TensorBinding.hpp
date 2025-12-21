@@ -1,19 +1,14 @@
 #pragma once
 
-#include "compiler/ir/impl/TensorId.hpp"
+#include "denox/common/Access.hpp"
+#include "denox/compiler/implement/TensorId.hpp"
 
 namespace denox::compiler {
-
-enum class AccessFlag {
-  ReadOnly,
-  WriteOnly,
-  ReadWrite,
-};
 
 struct TensorBinding {
   std::uint32_t set;
   std::uint32_t binding;
-  AccessFlag accessFlag;
+  Access accessFlag;
   TensorId tensorId;
 };
 

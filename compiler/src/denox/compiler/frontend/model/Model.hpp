@@ -98,3 +98,12 @@ private:
 };
 
 } // namespace denox::compiler
+
+template <>
+struct fmt::formatter<denox::compiler::Model>
+    : fmt::formatter<std::string_view> {
+  template <typename FormatContext>
+  auto format(const denox::compiler::Model &model, FormatContext &ctx) const {
+    return fmt::formatter<std::string_view>::format(model.to_string(), ctx);
+  }
+};

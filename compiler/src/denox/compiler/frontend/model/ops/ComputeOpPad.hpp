@@ -49,3 +49,24 @@ private:
 };
 
 } // namespace vkcnn
+
+template <>
+struct fmt::formatter<denox::compiler::ComputeOpPad> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::compiler::ComputeOpPad& op,
+              FormatContext& ctx) const {
+    const auto& s = *op;
+    return fmt::format_to(
+        ctx.out(),
+        "{{left={}, right={}, top={}, bottom={}, mode={}}}",
+        s.left,
+        s.right,
+        s.top,
+        s.bottom,
+        s.mode);
+  }
+};

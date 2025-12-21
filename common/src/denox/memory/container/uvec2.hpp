@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fmt/core.h>
+
 namespace denox::memory {
 
 struct uvec2 {
@@ -15,3 +17,20 @@ struct uvec2 {
 };
 
 } // namespace denox::memory
+
+template <>
+struct fmt::formatter<denox::memory::uvec2> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::uvec2& v, FormatContext& ctx) const {
+    return fmt::format_to(
+      ctx.out(),
+      "{{x={}, y={}}}",
+      v.x,
+      v.y
+    );
+  }
+};

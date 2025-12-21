@@ -6,10 +6,18 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <fmt/core.h>
 
 namespace denox::memory {
 
-enum class ActivationLayoutKind : uint64_t { CHW, HWC, HWC8, CHWC4, CHWC8, CHWC16 };
+enum class ActivationLayoutKind : uint64_t {
+  CHW,
+  HWC,
+  HWC8,
+  CHWC4,
+  CHWC8,
+  CHWC16
+};
 
 namespace details::memory::tensors {
 class ActivationLayout {
@@ -246,3 +254,29 @@ private:
 };
 
 } // namespace denox::memory
+
+template <>
+struct fmt::formatter<
+    denox::memory::details::memory::tensors::ActivationLayout> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(
+      const denox::memory::details::memory::tensors::ActivationLayout &layout,
+      FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", layout.to_string());
+  }
+};
+
+template <>
+struct fmt::formatter<denox::memory::ActivationLayout> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::ActivationLayout& layout,
+              FormatContext& ctx) const {
+    return fmt::format_to(ctx.out(), "{}", layout.to_string());
+  }
+};

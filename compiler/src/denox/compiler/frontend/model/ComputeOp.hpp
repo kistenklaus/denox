@@ -7,6 +7,7 @@
 #include "denox/compiler/frontend/model/ops/ComputeOpPool.hpp"
 #include "denox/compiler/frontend/model/ops/ComputeOpSlice.hpp"
 #include "denox/compiler/frontend/model/ops/ComputeOpUpsample.hpp"
+#include <fmt/core.h>
 #include <variant>
 
 namespace denox::compiler {
@@ -145,3 +146,40 @@ private:
 };
 
 } // namespace denox::compiler
+
+template <> struct fmt::formatter<denox::compiler::ComputeOp> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::compiler::ComputeOp &op, FormatContext &ctx) const {
+    using denox::compiler::ComputeOpKind;
+
+    switch (op.tag()) {
+    case ComputeOpKind::None:
+      return fmt::format_to(ctx.out(), "None{{}}");
+
+    case ComputeOpKind::Conv:
+      return fmt::format_to(ctx.out(), "Conv{}", op.conv());
+
+    case ComputeOpKind::Activation:
+      return fmt::format_to(ctx.out(), "Activation{}", op.activation());
+
+    case ComputeOpKind::Upsample:
+      return fmt::format_to(ctx.out(), "Upsample{}", op.upsample());
+
+    case ComputeOpKind::Pool:
+      return fmt::format_to(ctx.out(), "Pool{}", op.pool());
+
+    case ComputeOpKind::Concat:
+      return fmt::format_to(ctx.out(), "Concat");
+
+    case ComputeOpKind::Pad:
+      return fmt::format_to(ctx.out(), "Pad{}", op.pad());
+
+    case ComputeOpKind::Slice:
+      return fmt::format_to(ctx.out(), "Slice{}", op.slice());
+    }
+
+    std::abort(); // unreachable
+  }
+};

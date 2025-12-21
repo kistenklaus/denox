@@ -60,3 +60,24 @@ private:
 };
 
 } // namespace denox::compiler
+
+template <> struct fmt::formatter<denox::compiler::ComputeOpConv> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::compiler::ComputeOpConv &op,
+              FormatContext &ctx) const {
+    const auto &s = *op;
+
+    // Bias handling
+    if (s.B) {
+      return fmt::format_to(ctx.out(),
+                            "{{W={}, B={}, padding={}, stride={}, atype={}}}",
+                            *s.W, *s.B, s.padding, s.stride, s.atype);
+    } else {
+      return fmt::format_to(ctx.out(),
+                            "{{W={}, B=none, padding={}, stride={}, atype={}}}",
+                            *s.W, s.padding, s.stride, s.atype);
+    }
+  }
+};

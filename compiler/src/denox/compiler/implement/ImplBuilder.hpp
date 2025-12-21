@@ -1,10 +1,11 @@
 #pragma once
 
-#include "compiler/impl/ComputeDispatchBuilder.hpp"
-#include "compiler/ir/TensorInstance.hpp"
-#include "compiler/ir/impl/ImplModel.hpp"
-#include "compiler/ir/impl/TensorId.hpp"
-#include "compiler/ir/impl/TensorStorageRequirements.hpp"
+#include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
+#include "denox/compiler/implement/ImplModel.hpp"
+#include "denox/compiler/implement/TensorId.hpp"
+#include "denox/compiler/implement/TensorStorageRequirements.hpp"
+#include "denox/compiler/specialization/TensorInstance.hpp"
+#include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -12,7 +13,6 @@
 #include "denox/memory/tensor/BiasDescriptor.hpp"
 #include "denox/memory/tensor/FilterTensor.hpp"
 #include "denox/memory/tensor/FitlerDescriptor.hpp"
-#include "shaders/compiler/GlslCompilerInstance.hpp"
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -62,12 +62,11 @@ public:
   /// NOTE: May return already existing tensor.
   TensorId createTensor(SymGraph &symGraph, const TensorInstance &instance,
                         memory::NodeId nodeId) {
-    Sym spatialSize =
-        symGraph.mul(instance.extent.x.asSym(), instance.extent.y.asSym());
-    Sym byteSize =
-        symGraph.mul(spatialSize, instance.channels * instance.type.size());
+    Sym spatialSize = symGraph.mul(instance.width, instance.height);
+    Sym byteSize = symGraph.mul(
+        spatialSize, symGraph.mul(instance.channels, size_of(instance.type)));
     return createTensor(
-        byteSize, static_cast<unsigned int>(instance.type.alignment()), nodeId);
+        byteSize, static_cast<unsigned int>(align_of(instance.type)), nodeId);
   }
 
   TensorId createParameter(const memory::FilterDescriptor &descriptor,
@@ -112,8 +111,8 @@ public:
     return id;
   }
 
-  ComputeDispatchBuilder registerDispatch(GlslCompilerInstance shader, Sym wgX,
-                                          Sym wgY = Sym::Const(1),
+  ComputeDispatchBuilder registerDispatch(spirv::GlslCompilerInstance shader,
+                                          Sym wgX, Sym wgY = Sym::Const(1),
                                           Sym wgZ = Sym::Const(1)) {
     std::size_t index = m_impl->dispatches.size();
     auto builder = ComputeDispatchBuilder(index, this, m_fast);
@@ -148,7 +147,7 @@ public:
 
   void compileAll(bool logging) {
     memory::hash_map<std::string,
-                     std::pair<std::uint32_t, GlslCompilerInstance>>
+                     std::pair<std::uint32_t, spirv::GlslCompilerInstance>>
         binaryCache;
     for (auto &unit : m_compilationUnits) {
       std::string key = unit.instance.key();
@@ -198,7 +197,7 @@ private:
   ImplModel *m_impl;
   struct LazyCompilationUnit {
     std::size_t dispatchIndex;
-    GlslCompilerInstance instance;
+    spirv::GlslCompilerInstance instance;
   };
   memory::vector<LazyCompilationUnit> m_compilationUnits;
   bool m_fast;

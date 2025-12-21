@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <concepts>
+#include <fmt/core.h>
 #include <cstdint>
 
 namespace denox {
@@ -70,3 +71,21 @@ private:
 };
 
 } // namespace denox::compiler
+
+
+
+template <>
+struct fmt::formatter<denox::Sym> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::Sym& sym, FormatContext& ctx) const {
+    if (sym.isConstant()) {
+      return fmt::format_to(ctx.out(), "{}", sym.constant());
+    } else {
+      return fmt::format_to(ctx.out(), "[{}]", sym.sym());
+    }
+  }
+};

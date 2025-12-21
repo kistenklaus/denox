@@ -58,6 +58,18 @@ add_library(denox_compiler
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/lifeness/lifeness.cpp
 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/specialization/specialization.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/ComputeDispatchBuilder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/shaders.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/BasicActivationShader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/DirectConvShaderCM.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/copy/CopyTransformShader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pad/MemoryPadShader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pool/BasicPoolShader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/slice/MemorySliceShader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/BasicUpsampleShader.cpp
+
 
 )
 

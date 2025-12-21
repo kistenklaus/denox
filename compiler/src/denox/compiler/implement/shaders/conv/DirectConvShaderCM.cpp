@@ -1,16 +1,15 @@
-#include "shaders/conv/DirectConvShaderCM.hpp"
-#include "Options.hpp"
+#include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
+#include "denox/common/ActivationFunction.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "denox/memory/tensor/BiasDescriptor.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FilterTensor.hpp"
 #include "denox/memory/tensor/FitlerDescriptor.hpp"
-#include "model/ActivationFunction.hpp"
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
@@ -466,10 +465,10 @@ static std::vector<DirectConvConfig> CONFIGS = {
     },
 };
 
-DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
+DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                                        const Options &options)
     : m_compiler(compiler),
-      m_enableConvReluFusion(options.fusionRules.enableConvReluFusion),
+      m_enableConvReluFusion(options.features.enableConvReluFusion),
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
@@ -480,7 +479,7 @@ DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
   if (m_subgroupSize == 0) {
     return;
   }
-  if (options.features.coopmat == FeatureState::Disable) {
+  if (!options.features.coopmat) {
     return;
   }
   if (options.deviceInfo.coopmat.supported == false) {
@@ -488,11 +487,17 @@ DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
   }
 
   const auto tensorSupported = [](const TensorInstance &tensor) {
-    if (tensor.type != memory::Dtype::F16) {
+    if (tensor.type != TensorDataType::Float16) {
       return false;
     }
-    if (tensor.layout != memory::ActivationLayout::HWC &&
-        tensor.layout != memory::ActivationLayout::CHWC8) {
+    if (tensor.channels.isSymbolic()) {
+      return false;
+    }
+    if (tensor.storage != TensorStorage::StorageBuffer) {
+      return false;
+    }
+    if (tensor.format != TensorFormat::SSBO_HWC &&
+        tensor.format != TensorFormat::SSBO_CHWC8) {
       return false;
     }
     return true;
@@ -504,7 +509,7 @@ DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
     auto conv = in->matchOutgoing();
     conv->matchRank(1);
     conv->matchValue(
-        [](const ComputeOp &op) { return op.tag() == ComputeOpTag::Conv; });
+        [](const ComputeOp &op) { return op.tag() == ComputeOpKind::Conv; });
     auto out = conv->matchDst();
 
     in->matchValue(tensorSupported);
@@ -524,10 +529,10 @@ DirectConvShaderCM::DirectConvShaderCM(GlslCompiler *compiler,
 
     conv->matchRank(1);
     conv->matchValue(
-        [](const ComputeOp &op) { return op.tag() == ComputeOpTag::Conv; });
+        [](const ComputeOp &op) { return op.tag() == ComputeOpKind::Conv; });
     relu->matchRank(1);
     relu->matchValue([](const ComputeOp &op) {
-      if (op.tag() != ComputeOpTag::Activation) {
+      if (op.tag() != ComputeOpKind::Activation) {
         return false;
       }
       if (op.activation().func != ActivationFunction::ReLU) {
@@ -551,7 +556,7 @@ std::size_t DirectConvShaderCM::parameterMemorySize(
   const auto &convPattern = m_patternHandles[pattern].conv;
   memory::EdgeId convId = match[convPattern];
   const ComputeOp &op = graph.get(convId);
-  assert(op.tag() == ComputeOpTag::Conv);
+  assert(op.tag() == ComputeOpKind::Conv);
   const auto &conv = op.conv();
   std::size_t elemCount = conv->W->shape().elemCount();
   if (conv->B != nullptr) {
@@ -606,11 +611,10 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
   return configs;
 }
 
-static GlslCompilerInstance
-compile(GlslCompiler *compiler, const io::Path &srcPath,
+static spirv::GlslCompilerInstance
+compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int subgroupSize, unsigned int C, unsigned int K,
-        memory::ActivationLayout inputLayout,
-        memory::ActivationLayout outputLayout,
+        TensorFormat inputFormat, TensorFormat outputFormat,
         memory::optional<ActivationFunction> activationFunction,
         memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
         bool bias, const DirectConvConfig &config,
@@ -634,21 +638,21 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
     shader.define("OSTYPE_SIZE", 2);
   }
 
-  if (inputLayout == memory::ActivationLayout::HWC && C % 8 == 0) {
+  if (inputFormat == TensorFormat::SSBO_HWC && C % 8 == 0) {
     shader.define("IN_LAYOUT_HWC8");
-  } else if (inputLayout == memory::ActivationLayout::HWC && C % 8 != 0) {
+  } else if (inputFormat == TensorFormat::SSBO_HWC && C % 8 != 0) {
     shader.define("IN_LAYOUT_HWC");
-  } else if (inputLayout == memory::ActivationLayout::CHWC8) {
+  } else if (inputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("IN_LAYOUT_CHWC8");
   } else {
     diag::invalid_state();
   }
 
-  if (outputLayout == memory::ActivationLayout::HWC && K % 8 == 0) {
+  if (outputFormat == TensorFormat::SSBO_HWC && K % 8 == 0) {
     shader.define("OUT_LAYOUT_HWC8");
-  } else if (outputLayout == memory::ActivationLayout::HWC && K % 8 != 0) {
+  } else if (outputFormat == TensorFormat::SSBO_HWC && K % 8 != 0) {
     shader.define("OUT_LAYOUT_HWC");
-  } else if (outputLayout == memory::ActivationLayout::CHWC8) {
+  } else if (outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("OUT_LAYOUT_CHWC8");
   } else {
     diag::invalid_state();
@@ -771,7 +775,9 @@ void DirectConvShaderCM::implement(
   const ComputeOp &op = opGraph.get(convId);
   const auto &in = opGraph.get(inId);
   const auto &out = opGraph.get(outId);
-  assert(op.tag() == ComputeOpTag::Conv);
+  assert(op.tag() == ComputeOpKind::Conv);
+  assert(in.channels.isConstant());
+  assert(out.channels.isConstant());
   const ComputeOpConv &conv = op.conv();
 
   memory::optional<ActivationFunction> activationFunction;
@@ -781,22 +787,24 @@ void DirectConvShaderCM::implement(
         opGraph.get(match[*m_patternHandles[pattern].relu]).activation().func;
   }
 
+  uint32_t C = static_cast<uint32_t>(in.channels.constant());
+  uint32_t K = static_cast<uint32_t>(out.channels.constant());
+
   memory::FilterLayout filterLayout = memory::FilterLayout::KCRS;
   memory::BiasLayout biasLayout = memory::BiasLayout::C;
-  auto shader =
-      compile(m_compiler, m_srcPath, m_subgroupSize, in.channels, out.channels,
-              in.layout, out.layout, activationFunction,
-              memory::uvec2(conv->W->shape().r, conv->W->shape().s),
-              conv->padding, conv->stride, conv->B != nullptr, config, //
-              &filterLayout, &biasLayout);
+  auto shader = compile(
+      m_compiler, m_srcPath, m_subgroupSize, C, K, in.format, out.format,
+      activationFunction, memory::uvec2(conv->W->shape().r, conv->W->shape().s),
+      conv->padding, conv->stride, conv->B != nullptr, config, //
+      &filterLayout, &biasLayout);
 
   std::uint32_t tileX = config.cm_n * config.sg_n * config.wg_n;
   std::uint32_t tileY = config.cm_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileY);
-  Sym workgroupCountZ = symGraph.cdiv(in.extent.y.asSym(), tileZ);
+  Sym workgroupCountY = symGraph.cdiv(in.width, tileY);
+  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -829,38 +837,33 @@ void DirectConvShaderCM::implement(
         *conv->B);
   }
 
-  dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
-  dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
-  dispatch.addBinding(0, 2, AccessFlag::ReadOnly, weightTensorId);
+  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
+  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addBinding(0, 2, Access::ReadOnly, weightTensorId);
   if (biasTensorId) {
-    dispatch.addBinding(0, 3, AccessFlag::ReadOnly, *biasTensorId);
+    dispatch.addBinding(0, 3, Access::ReadOnly, *biasTensorId);
   }
 
+  dispatch.addPushConstant(PushConstant::Dynamic(in.width, memory::Dtype::U32));
   dispatch.addPushConstant(
-      PushConstant::Dynamic(in.extent.x, memory::Dtype::U32));
-  dispatch.addPushConstant(
-      PushConstant::Dynamic(in.extent.y, memory::Dtype::U32));
+      PushConstant::Dynamic(in.height, memory::Dtype::U32));
   dispatch.setName(name(pattern, configKey));
   dispatch.setSourcePath(m_srcPath);
 
   Sym inreads =
-      symGraph.mul(symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym()),
-                   in.channels * in.type.size());
+      symGraph.mul(symGraph.mul(in.width, in.height), C * size_of(in.type));
   size_t wreads = conv->W->byteSize() + (conv->B ? conv->B->byteSize() : 0ull);
   Sym reads = symGraph.add(wreads, inreads);
   Sym writes =
-      symGraph.mul(symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym()),
-                   out.channels * out.type.size());
+      symGraph.mul(symGraph.mul(out.width, out.height), K * size_of(out.type));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
 
-  dispatch.setDebugInfo(fmt::format("{}-direct-conv-{}", in.layout.to_string(),
-                                    out.layout.to_string()));
+  dispatch.setDebugInfo(
+      fmt::format("{}-direct-conv-{}", in.format, out.format));
 
-  dispatch.setInputDesc(
-      fmt::format("{}[{}]", in.layout.to_string(), in.channels));
-  dispatch.setOutputDesc(
-      fmt::format("{}[{}]", out.layout.to_string(), out.channels));
+  dispatch.setInputDesc(fmt::format("{}[{}]", in.format, C));
+  dispatch.setOutputDesc(fmt::format("{}[{}]", out.format, K));
 }
 memory::string DirectConvShaderCM::name(unsigned int pattern,
                                         unsigned int) const {

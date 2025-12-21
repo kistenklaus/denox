@@ -15,9 +15,9 @@ public:
   friend Model;
 
   ComputeTensor(Sym width, Sym height, Sym channels,
-                         TensorDataType dtype = TensorDataType::Auto,
-                         TensorStorage storage = TensorStorage::Optimal,
-                         TensorFormat format = TensorFormat::Optimal)
+                TensorDataType dtype = TensorDataType::Auto,
+                TensorStorage storage = TensorStorage::Optimal,
+                TensorFormat format = TensorFormat::Optimal)
       : m_width(width), m_height(height), m_channels(channels),
         m_storage(storage), m_format(format), m_dtype(dtype) {}
 
@@ -42,3 +42,17 @@ private:
 };
 
 } // namespace denox::compiler
+
+template <> struct fmt::formatter<denox::compiler::ComputeTensor> {
+  // No custom format specifiers
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::compiler::ComputeTensor &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(
+        ctx.out(),
+        "{{w={}, h={}, c={}, dtype={}, storage={}, format={}}}",
+        t.width(), t.height(), t.channels(), t.type(), t.storage(), t.format());
+  }
+};

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "compiler/impl/ImplBuilder.hpp"
+#include "denox/compiler/implement/ImplBuilder.hpp"
 #include "denox/algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
-#include "model/ComputeOp.hpp"
+#include "denox/compiler/frontend/model/ComputeOp.hpp"
 
 namespace denox::compiler {
 

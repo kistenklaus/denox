@@ -1,5 +1,5 @@
-#include "compiler/impl/ComputeDispatchBuilder.hpp"
-#include "compiler/impl/ImplBuilder.hpp"
+#include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
+#include "denox/compiler/implement/ImplBuilder.hpp"
 #include "denox/diag/unreachable.hpp"
 #include <fmt/format.h>
 
@@ -9,7 +9,7 @@ denox::compiler::ComputeDispatchBuilder::self() {
 };
 
 void denox::compiler::ComputeDispatchBuilder::addBinding(
-    std::uint32_t set, std::uint32_t binding, AccessFlag access,
+    std::uint32_t set, std::uint32_t binding, Access access,
     memory::NodeId nodeId) {
 
   assert(static_cast<std::uint64_t>(nodeId) < m_impl->m_nodeTensorMapping.size());

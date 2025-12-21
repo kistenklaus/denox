@@ -1,16 +1,16 @@
-#include "shaders/shaders.hpp"
-#include "shaders/activation/BasicActivationShader.hpp"
-#include "shaders/conv/DirectConvShaderCM.hpp"
-#include "shaders/copy/CopyTransformShader.hpp"
-#include "shaders/pad/MemoryPadShader.hpp"
-#include "shaders/pool/BasicPoolShader.hpp"
-#include "shaders/slice/MemorySliceShader.hpp"
-#include "shaders/upsample/BasicUpsampleShader.hpp"
+#include "denox/compiler/implement/shaders/shaders.hpp"
+#include "denox/compiler/implement/shaders/activation/BasicActivationShader.hpp"
+#include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
+#include "denox/compiler/implement/shaders/copy/CopyTransformShader.hpp"
+#include "denox/compiler/implement/shaders/pad/MemoryPadShader.hpp"
+#include "denox/compiler/implement/shaders/pool/BasicPoolShader.hpp"
+#include "denox/compiler/implement/shaders/slice/MemorySliceShader.hpp"
+#include "denox/compiler/implement/shaders/upsample/BasicUpsampleShader.hpp"
 #include <memory>
 
 namespace denox::compiler::shaders {
 
-std::vector<std::unique_ptr<IShader>> get_all_shaders(GlslCompiler *compiler,
+std::vector<std::unique_ptr<IShader>> get_all_shaders(spirv::GlslCompiler *compiler,
                                                       const Options &options) {
   std::vector<std::unique_ptr<IShader>> shaders;
   shaders.push_back(std::make_unique<compiler::shaders::DirectConvShaderCM>(

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compiler/ir/impl/PushConstant.hpp"
-#include "compiler/ir/impl/TensorBinding.hpp"
+#include "denox/compiler/implement/PushConstant.hpp"
+#include "denox/compiler/implement/TensorBinding.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"

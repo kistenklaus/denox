@@ -1,12 +1,13 @@
 #pragma once
 
+#include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/dtype/dtype_reference.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FitlerDescriptor.hpp"
-#include "denox/memory/dtype/dtype.hpp"
 #include <cassert>
 #include <concepts>
 #include <cstring>
+#include <fmt/core.h>
 #include <functional>
 #include <memory>
 #include <span>
@@ -33,7 +34,9 @@ public:
   std::span<const std::byte> span() const {
     return std::span<const std::byte>{m_buffer, m_desc.byteSize()};
   }
-  std::span<std::byte> span() { return std::span<std::byte>{m_buffer, m_desc.byteSize()}; }
+  std::span<std::byte> span() {
+    return std::span<std::byte>{m_buffer, m_desc.byteSize()};
+  }
 
   const FilterDescriptor &desc() const { return m_desc; }
   const FilterShape &shape() const { return m_desc.shape; }
@@ -42,7 +45,7 @@ public:
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
   dtype_reference at(unsigned int s, unsigned int r, unsigned int c,
-                   unsigned int k) {
+                     unsigned int k) {
     std::size_t linearIndex = m_desc.layout(m_desc.shape, s, r, c, k);
     std::size_t offset = linearIndex * m_desc.type.size();
     std::byte *ptr = m_buffer + offset;
@@ -50,12 +53,12 @@ public:
   }
 
   dtype_const_reference at(unsigned int s, unsigned int r, unsigned int c,
-                         unsigned int k) const {
+                           unsigned int k) const {
     std::size_t linearIndex = m_desc.layout(m_desc.shape, s, r, c, k);
     std::size_t offset = linearIndex * m_desc.type.size();
     const std::byte *ptr = m_buffer + offset;
     return dtype_const_reference(reinterpret_cast<const void *>(ptr),
-                               m_desc.type);
+                                 m_desc.type);
   }
 
   dtype_reference operator[](unsigned int linearIndex) {
@@ -68,7 +71,7 @@ public:
     std::size_t offset = linearIndex * m_desc.type.size();
     const std::byte *ptr = m_buffer + offset;
     return dtype_const_reference(reinterpret_cast<const void *>(ptr),
-                               m_desc.type);
+                                 m_desc.type);
   }
 
   void assignFrom(const FilterTensorConstView &view);
@@ -80,8 +83,7 @@ private:
 
 class FilterTensorConstView {
 public:
-  explicit FilterTensorConstView(FilterDescriptor desc,
-                                     const std::byte *buffer)
+  explicit FilterTensorConstView(FilterDescriptor desc, const std::byte *buffer)
       : m_desc(desc), m_buffer(buffer) {}
 
   FilterTensorConstView(FilterTensorView view)
@@ -103,19 +105,19 @@ public:
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
   dtype_const_reference at(unsigned int s, unsigned int r, unsigned int c,
-                         unsigned int k) const {
+                           unsigned int k) const {
     std::size_t linearIndex = m_desc.layout(m_desc.shape, s, r, c, k);
     std::size_t offset = linearIndex * m_desc.type.size();
     const std::byte *ptr = m_buffer + offset;
     return dtype_const_reference(reinterpret_cast<const void *>(ptr),
-                               m_desc.type);
+                                 m_desc.type);
   }
 
   dtype_const_reference operator[](unsigned int linearIndex) const {
     std::size_t offset = linearIndex * m_desc.type.size();
     const std::byte *ptr = m_buffer + offset;
     return dtype_const_reference(reinterpret_cast<const void *>(ptr),
-                               m_desc.type);
+                                 m_desc.type);
   }
 
 private:
@@ -128,8 +130,8 @@ private:
 public:
   template <typename Alloc = std::allocator<std::byte>>
   explicit FilterTensor(FilterDescriptor descriptor,
-                            std::span<const std::byte> weights,
-                            const Alloc &alloc = {})
+                        std::span<const std::byte> weights,
+                        const Alloc &alloc = {})
       : m_desc(descriptor) {
     using allocator_traits = std::allocator_traits<Alloc>;
 
@@ -146,9 +148,9 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
-    requires(!std::same_as<Alloc, std::span<std::byte>> && !std::same_as<Alloc, FilterTensorConstView>)
-  explicit FilterTensor(FilterDescriptor descriptor,
-                            const Alloc &alloc = {})
+    requires(!std::same_as<Alloc, std::span<std::byte>> &&
+             !std::same_as<Alloc, FilterTensorConstView>)
+  explicit FilterTensor(FilterDescriptor descriptor, const Alloc &alloc = {})
       : m_desc(descriptor) {
     using allocator_traits = std::allocator_traits<Alloc>;
 
@@ -163,9 +165,8 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
-  explicit FilterTensor(FilterDescriptor descriptor,
-                            FilterTensorConstView view,
-                            const Alloc &alloc = {})
+  explicit FilterTensor(FilterDescriptor descriptor, FilterTensorConstView view,
+                        const Alloc &alloc = {})
       : m_desc(descriptor) {
     using allocator_traits = std::allocator_traits<Alloc>;
 
@@ -188,8 +189,7 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
-  explicit FilterTensor(FilterTensorConstView view,
-                            const Alloc &alloc = {})
+  explicit FilterTensor(FilterTensorConstView view, const Alloc &alloc = {})
       : m_desc(view.desc()) {
     using allocator_traits = std::allocator_traits<Alloc>;
 
@@ -221,12 +221,12 @@ public:
   std::size_t byteSize() const { return m_desc.byteSize(); }
 
   dtype_reference at(unsigned int s, unsigned int r, unsigned int c,
-                   unsigned int k) {
+                     unsigned int k) {
     return FilterTensorView{this}.at(s, r, c, k);
   }
 
   dtype_const_reference at(unsigned int s, unsigned int r, unsigned int c,
-                         unsigned int k) const {
+                           unsigned int k) const {
     return FilterTensorConstView{this}.at(s, r, c, k);
   }
 
@@ -243,4 +243,48 @@ private:
   std::unique_ptr<std::byte[], std::function<void(std::byte *)>> m_storage;
 };
 
-} // namespace vkcnn
+} // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::FilterTensor> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::FilterTensor &t, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
+  }
+};
+
+template <>
+struct fmt::formatter<denox::memory::FilterTensorView> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::FilterTensorView& t,
+              FormatContext& ctx) const {
+    return fmt::format_to(
+        ctx.out(),
+        "{{desc={}, bytes={}}}",
+        t.desc(),
+        t.byteSize());
+  }
+};
+
+template <>
+struct fmt::formatter<denox::memory::FilterTensorConstView> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::FilterTensorConstView& t,
+              FormatContext& ctx) const {
+    return fmt::format_to(
+        ctx.out(),
+        "{{desc={}, bytes={}}}",
+        t.desc(),
+        t.byteSize());
+  }
+};

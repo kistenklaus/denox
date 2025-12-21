@@ -3,6 +3,7 @@
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FilterShape.hpp"
+#include <fmt/core.h>
 
 namespace denox::memory {
 
@@ -28,3 +29,14 @@ struct FilterDescriptor {
 };
 
 } // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::FilterDescriptor> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::FilterDescriptor &fd,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{shape={}, layout={}, type={}}}",
+                          fd.shape, fd.layout, fd.type);
+  }
+};

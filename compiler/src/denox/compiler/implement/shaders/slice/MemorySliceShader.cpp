@@ -1,6 +1,5 @@
-#include "shaders/slice/MemorySliceShader.hpp"
-#include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
+#include "denox/compiler/implement/shaders/slice/MemorySliceShader.hpp"
+#include "denox/diag/invalid_state.hpp"
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
@@ -57,14 +56,20 @@ static std::array<MemorySliceConfig, 5> CONFIGS{
     },
 };
 
-MemorySliceShader::MemorySliceShader(GlslCompiler *compiler)
+MemorySliceShader::MemorySliceShader(spirv::GlslCompiler *compiler)
     : m_compiler(compiler) {
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
-    if (tensor.type != memory::Dtype::F16) {
+    if (tensor.type != TensorDataType::Float16) {
       return false;
     }
-    if (tensor.layout != memory::ActivationLayout::HWC) {
+    if (tensor.channels.isSymbolic()) {
+      return false;
+    }
+    if (tensor.storage != TensorStorage::StorageBuffer) {
+      return false;
+    }
+    if (tensor.format != TensorFormat::SSBO_HWC) {
       return false;
     }
     return true;
@@ -75,7 +80,7 @@ MemorySliceShader::MemorySliceShader(GlslCompiler *compiler)
     auto slice = in->matchOutgoing();
     auto out = slice->matchDst();
     slice->matchValue(
-        [](const ComputeOp &op) { return op.tag() == ComputeOpTag::Slice; });
+        [](const ComputeOp &op) { return op.tag() == ComputeOpKind::Slice; });
 
     in->matchValue(supportedTensor);
     out->matchValue(supportedTensor);
@@ -94,33 +99,48 @@ memory::vector<unsigned int> MemorySliceShader::acceptMatch(
   memory::NodeId outId = match[patternHandle.out];
   const auto &in = opGraph.get(inId);
   const auto &out = opGraph.get(outId);
-  if (memory::ActivationLayout::demote(in.layout, in.channels) !=
-      memory::ActivationLayout::demote(out.layout, out.channels)) {
+  if (in.format != out.format) {
     return {};
   }
-  auto inLayout = memory::ActivationLayout::promote(in.layout, in.channels);
+
+  uint32_t cblocksize;
+  switch (in.format) {
+  case TensorFormat::SSBO_HWC:
+  case TensorFormat::SSBO_CHW:
+    cblocksize = 1;
+    break;
+  case TensorFormat::SSBO_CHWC8:
+    cblocksize = 8;
+    break;
+  case TensorFormat::Optimal:
+  case TensorFormat::TEX_RGBA:
+  case TensorFormat::TEX_RGB:
+  case TensorFormat::TEX_RG:
+  case TensorFormat::TEX_R:
+    diag::invalid_state();
+    break;
+  }
+
   memory::vector<unsigned int> configs;
   configs.reserve(CONFIGS.size());
   for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    if (CONFIGS[c].invocC % inLayout.vectorBlockSize() == 0) {
+    if (CONFIGS[c].invocC % cblocksize == 0) {
       configs.push_back(c);
     }
   }
   return configs;
 }
 
-static GlslCompilerInstance compile(GlslCompiler *compiler,
-                                    const io::Path &srcPath,
-                                    memory::ActivationLayout inputLayout,
-                                    memory::ActivationLayout outputLayout,
-                                    unsigned int channels,
-                                    const MemorySliceConfig &config) {
+static spirv::GlslCompilerInstance
+compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+        TensorFormat inputFormat, TensorFormat outputFormat,
+        unsigned int channels, const MemorySliceConfig &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("CH", channels);
 
-  if (inputLayout == memory::ActivationLayout::HWC &&
-      outputLayout == memory::ActivationLayout::HWC && (channels % 8 != 0)) {
+  if (inputFormat == TensorFormat::SSBO_HWC &&
+      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 != 0)) {
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
@@ -128,9 +148,8 @@ static GlslCompilerInstance compile(GlslCompiler *compiler,
 
     shader.define("IN_LAYOUT_HWC");
     shader.define("OUT_LAYOUT_HWC");
-  } else if (inputLayout == memory::ActivationLayout::HWC &&
-             outputLayout == memory::ActivationLayout::HWC &&
-             (channels % 8 == 0)) {
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -169,51 +188,48 @@ void MemorySliceShader::implement(
   const auto &slice = opGraph.get(opId).slice();
 
   assert(in.channels == out.channels);
-  auto shader = compile(m_compiler, m_srcPath, in.layout, out.layout,
-                        in.channels, config);
 
-  std::uint32_t tileX = config.invocC * config.wgC.value_or(in.channels);
+  uint32_t C = static_cast<uint32_t>(in.channels.constant());
+
+  auto shader =
+      compile(m_compiler, m_srcPath, in.format, out.format, C, config);
+
+  std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;
   std::uint32_t tileZ = config.invocH * config.wgH;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(out.extent.x.asSym(), tileY);
-  Sym workgroupCountZ = symGraph.cdiv(out.extent.y.asSym(), tileZ);
+  Sym workgroupCountY = symGraph.cdiv(out.width, tileY);
+  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
-  dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
+  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
+  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
 
   dispatch.addPushConstant(PushConstant::Dynamic(slice->top));
   dispatch.addPushConstant(PushConstant::Dynamic(slice->left));
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
-  dispatch.addPushConstant(PushConstant::Dynamic(out.extent.x));
-  dispatch.addPushConstant(PushConstant::Dynamic(out.extent.y));
+  dispatch.addPushConstant(PushConstant::Dynamic(in.width));
+  dispatch.addPushConstant(PushConstant::Dynamic(in.height));
+  dispatch.addPushConstant(PushConstant::Dynamic(out.width));
+  dispatch.addPushConstant(PushConstant::Dynamic(out.height));
   dispatch.setName(name(pattern, 0));
   dispatch.setSourcePath(m_srcPath);
 
-  Sym reads = symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym(),
-                           in.channels * in.type.size());
-  Sym writes = symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym(),
-                            out.channels * out.type.size());
+  Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
+  Sym writes = symGraph.mul(out.width, out.height, C * size_of(out.type));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
   dispatch.setDebugInfo(fmt::format("MemorySliceShader\n"
                                     "- IN_LAYOUT:  {}\n"
                                     "- OUT_LAYOUT: {}\n",
-                                    in.layout.to_string(),
-                                    out.layout.to_string()));
+                                    in.format, out.format));
 
-  dispatch.setInputDesc(
-      fmt::format("{}[{}]", in.layout.to_string(), in.channels));
-  dispatch.setOutputDesc(
-      fmt::format("{}[{}]", out.layout.to_string(), out.channels));
+  dispatch.setInputDesc(fmt::format("{}[{}]", in.format, in.channels));
+  dispatch.setOutputDesc(fmt::format("{}[{}]", out.format, out.channels));
 }
 
-memory::string
-MemorySliceShader::name(unsigned int, unsigned int) const {
+memory::string MemorySliceShader::name(unsigned int, unsigned int) const {
   return "memory-slice";
 }
 } // namespace denox::compiler::shaders

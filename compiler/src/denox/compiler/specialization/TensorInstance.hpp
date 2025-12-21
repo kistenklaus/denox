@@ -2,17 +2,17 @@
 
 #include "denox/compiler/canonicalize/CanoModel.hpp"
 #include "denox/compiler/lifeness/Lifetimes.hpp"
-#include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
-#include "denox/symbolic/sym_vec2.hpp"
+#include <fmt/core.h>
 
 namespace denox::compiler {
 
 struct TensorInstance {
-  sym_vec2 extent;
-  unsigned int channels;
-  memory::ActivationLayout layout;
-  memory::Dtype type;
+  Sym width;
+  Sym height;
+  Sym channels;
+  TensorStorage storage;
+  TensorFormat format;
+  TensorDataType type;
   CanoModel::Graph::NodeHandle originalNode;
   Lifetime lifetime;
 
@@ -20,3 +20,17 @@ struct TensorInstance {
 };
 
 } // namespace denox::compiler
+
+template <> struct fmt::formatter<denox::compiler::TensorInstance> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::compiler::TensorInstance &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(),
+                          "{{w={}, h={}, c={}, storage={}, format={}, "
+                          "dtype={}, vid=N{}, lifetime={}}}",
+                          t.width, t.height, t.channels, t.storage, t.format,
+                          t.type, *t.originalNode->id(), t.lifetime);
+  }
+};

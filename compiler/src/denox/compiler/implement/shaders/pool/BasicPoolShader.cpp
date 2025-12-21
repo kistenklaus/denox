@@ -1,7 +1,6 @@
-#include "shaders/pool/BasicPoolShader.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
-#include "model/PoolFunction.hpp"
-#include "shaders/compiler/GlslCompilerInstance.hpp"
+#include "denox/compiler/implement/shaders/pool/BasicPoolShader.hpp"
+#include "denox/common/PoolFunction.hpp"
+#include "denox/diag/invalid_state.hpp"
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
@@ -64,14 +63,20 @@ static std::array<BasicPoolConfig, 5> CONFIGS = {
     },
 };
 
-BasicPoolShader::BasicPoolShader(GlslCompiler *compiler)
+BasicPoolShader::BasicPoolShader(spirv::GlslCompiler *compiler)
     : m_compiler(compiler) {
   const auto supportedTensor = [](const TensorInstance &tensor) {
-    if (tensor.type != memory::Dtype::F16) {
+    if (tensor.type != TensorDataType::Float16) {
       return false;
     }
-    return tensor.layout == memory::ActivationLayout::HWC ||
-           tensor.layout == memory::ActivationLayout::CHWC8;
+    if (tensor.storage != TensorStorage::StorageBuffer) {
+      return false;
+    }
+    if (tensor.channels.isSymbolic()) {
+      return false;
+    }
+    return tensor.format == TensorFormat::SSBO_HWC ||
+           tensor.format == TensorFormat::SSBO_CHWC8;
   };
 
   {
@@ -86,7 +91,7 @@ BasicPoolShader::BasicPoolShader(GlslCompiler *compiler)
     pool->matchRank(1);
 
     pool->matchValue([](const ComputeOp &op) {
-      if (op.tag() != ComputeOpTag::Pool) {
+      if (op.tag() != ComputeOpKind::Pool) {
         return false;
       }
       const auto &pool = op.pool();
@@ -114,21 +119,36 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
   const auto &in = opGraph.get(match[patternHandles.in]);
   const auto &out = opGraph.get(match[patternHandles.out]);
 
-  memory::ActivationLayout inLayout = in.layout;
-  memory::ActivationLayout outLayout = out.layout;
-
-  if (memory::ActivationLayout::demote(outLayout, out.channels) !=
-      memory::ActivationLayout::demote(inLayout, in.channels)) {
+  if (in.format != out.format) {
     return {};
   }
-  if (in.type != memory::Dtype::F16) {
+  if (in.type != TensorDataType::Float16) {
     return {};
   }
-  if (out.type != memory::Dtype::F16) {
+  if (out.type != TensorDataType::Float16) {
     return {};
   }
 
-  outLayout = memory::ActivationLayout::promote(in.layout, in.channels);
+  uint32_t cblocksize;
+  switch (in.format) {
+  case TensorFormat::SSBO_HWC:
+  case TensorFormat::SSBO_CHW:
+    cblocksize = 1;
+    break;
+  case TensorFormat::SSBO_CHWC8:
+    cblocksize = 8;
+    break;
+  case TensorFormat::Optimal:
+  case TensorFormat::TEX_RGBA:
+  case TensorFormat::TEX_RGB:
+  case TensorFormat::TEX_RG:
+  case TensorFormat::TEX_R:
+    diag::invalid_state();
+    break;
+  }
+
+  uint32_t C = static_cast<uint32_t>(in.channels.constant());
+
   memory::vector<unsigned int> configs;
   configs.reserve(CONFIGS.size());
   for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
@@ -137,42 +157,40 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
       invocC = CONFIGS[c].invocC.value();
     } else {
       assert(CONFIGS[c].cdiv != 0);
-      invocC = (in.channels + CONFIGS[c].cdiv - 1) / CONFIGS[c].cdiv;
+      invocC = (C + CONFIGS[c].cdiv - 1) / CONFIGS[c].cdiv;
     }
-    if (invocC % outLayout.vectorBlockSize() == 0) {
+    if (invocC % cblocksize == 0) {
       configs.push_back(c);
     }
   }
   return configs;
 }
 
-static GlslCompilerInstance
-compile(GlslCompiler *compiler, const io::Path &srcPath,
-        memory::ActivationLayout inputLayout,
-        memory::ActivationLayout outputLayout, unsigned int channels,
-        memory::uvec2 kernelSize, memory::uvec2 stride, memory::uvec2 padding,
-        const BasicPoolConfig &config) {
+static spirv::GlslCompilerInstance
+compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+        TensorFormat inputFormat, TensorFormat outputFormat,
+        unsigned int channels, memory::uvec2 kernelSize, memory::uvec2 stride,
+        memory::uvec2 padding, const BasicPoolConfig &config) {
   auto shader = compiler->read(srcPath);
 
-  if (inputLayout == memory::ActivationLayout::HWC &&
-      outputLayout == memory::ActivationLayout::HWC && (channels % 8 != 0)) {
+  if (inputFormat == TensorFormat::SSBO_HWC &&
+      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 != 0)) {
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
     shader.define("ostype", "uint16_t");
     shader.define("OSTYPE_SIZE", 2);
     shader.define("IN_LAYOUT_HWC");
     shader.define("OUT_LAYOUT_HWC");
-  } else if (inputLayout == memory::ActivationLayout::HWC &&
-             outputLayout == memory::ActivationLayout::HWC &&
-             (channels % 8 == 0)) {
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
     shader.define("OSTYPE_SIZE", 16);
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
-  } else if (inputLayout == memory::ActivationLayout::CHWC8 &&
-             outputLayout == memory::ActivationLayout::CHWC8) {
+  } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
+             outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -223,15 +241,17 @@ void BasicPoolShader::implement(
   const auto &pool = opGraph.get(poolId).pool();
 
   assert(in.channels == out.channels);
-  auto shader =
-      compile(m_compiler, m_srcPath, in.layout, out.layout, in.channels,
-              pool->kernelSize, pool->stride, pool->padding, config);
+
+  uint32_t C = static_cast<uint32_t>(in.channels.constant());
+
+  auto shader = compile(m_compiler, m_srcPath, in.format, out.format, C,
+                        pool->kernelSize, pool->stride, pool->padding, config);
 
   unsigned int invocC;
   if (config.invocC) {
     invocC = *config.invocC;
   } else {
-    invocC = (in.channels + config.cdiv - 1) / config.cdiv;
+    invocC = (C + config.cdiv - 1) / config.cdiv;
   }
 
   std::uint32_t tileX = invocC * config.wgC;
@@ -239,34 +259,29 @@ void BasicPoolShader::implement(
   std::uint32_t tileZ = config.invocH * config.wgH;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(out.extent.x.asSym(), tileY);
-  Sym workgroupCountZ = symGraph.cdiv(out.extent.y.asSym(), tileZ);
+  Sym workgroupCountY = symGraph.cdiv(out.width, tileY);
+  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
-  dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
+  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
+  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addPushConstant(PushConstant::Dynamic(in.width));
+  dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.setName(name(pattern, 0));
   dispatch.setSourcePath(m_srcPath);
 
-  Sym reads = symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym(),
-                           in.channels * in.type.size());
-  Sym writes = symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym(),
-                            out.channels * out.type.size());
+  Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
+  Sym writes = symGraph.mul(out.width, out.height, C * size_of(out.type));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
   dispatch.setDebugInfo(fmt::format("BasicPoolShader\n"
                                     "- IN_LAYOUT:  {}\n"
                                     "- OUT_LAYOUT: {}\n",
-                                    in.layout.to_string(),
-                                    out.layout.to_string()));
+                                    in.format, out.format));
 
-  dispatch.setInputDesc(
-      fmt::format("{}[{}]", in.layout.to_string(), in.channels));
-  dispatch.setOutputDesc(
-      fmt::format("{}[{}]", out.layout.to_string(), out.channels));
+  dispatch.setInputDesc(fmt::format("{}[{}]", in.format, in.channels));
+  dispatch.setOutputDesc(fmt::format("{}[{}]", out.format, out.channels));
 }
 memory::string BasicPoolShader::name(unsigned int, unsigned int) const {
   return "basic-pool";

@@ -7,6 +7,7 @@
 #include <cassert>
 #include <concepts>
 #include <cstring>
+#include <fmt/core.h>
 #include <fmt/format.h>
 #include <functional>
 #include <memory>
@@ -225,3 +226,35 @@ private:
 };
 
 } // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::BiasTensor> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::BiasTensor &t, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
+  }
+};
+
+template <> struct fmt::formatter<denox::memory::BiasTensorView> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::BiasTensorView &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
+  }
+};
+
+template <> struct fmt::formatter<denox::memory::BiasTensorConstView> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::BiasTensorConstView &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
+  }
+};

@@ -13,10 +13,15 @@
 #include <algorithm>
 #include <cassert>
 #include <concepts>
+#include <fmt/core.h>
+#include <fmt/format.h>
 #include <iterator>
 #include <memory>
 #include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace denox::memory {
 
@@ -778,9 +783,7 @@ public:
       return size;
     }
 
-    [[nodiscard]] bool empty() const noexcept {
-      return begin() == end();
-    }
+    [[nodiscard]] bool empty() const noexcept { return begin() == end(); }
 
   private:
     explicit OutgoingList(NodeHandle node) : m_node(std::move(node)) {}
