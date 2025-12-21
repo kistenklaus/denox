@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fmt/core.h>
+
 namespace denox::memory {
 
 struct ActivationShape {
@@ -18,4 +20,14 @@ struct ActivationShape {
   }
 };
 
-} // namespace denox::compiler
+} // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::ActivationShape> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::ActivationShape &s,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{w={}, h={}, c={}}}", s.w, s.h, s.c);
+  }
+};

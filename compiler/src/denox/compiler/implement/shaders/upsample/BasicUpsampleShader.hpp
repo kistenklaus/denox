@@ -1,15 +1,16 @@
 #pragma once
 
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
-#include "shaders/IShader.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
+#include "denox/compiler/Options.hpp"
+#include "denox/compiler/implement/shaders/IShader.hpp"
+#include "denox/glsl/GlslCompiler.hpp"
 namespace denox::compiler::shaders {
 
 class BasicUpsampleShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicUpsampleShader(GlslCompiler *compiler, const Options& options);
+  BasicUpsampleShader(spirv::GlslCompiler *compiler, const Options &options);
 
   memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
@@ -28,7 +29,8 @@ public:
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             SymGraph &symGraph) const final override;
 
-  memory::string name(unsigned int pattern, unsigned int config) const final override;
+  memory::string name(unsigned int pattern,
+                      unsigned int config) const final override;
 
 private:
   struct Handles {
@@ -38,7 +40,7 @@ private:
   };
 
 private:
-  GlslCompiler *m_compiler;
+  spirv::GlslCompiler *m_compiler;
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =

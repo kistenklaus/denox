@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <fmt/core.h>
 
 namespace denox::memory {
 
@@ -93,3 +94,23 @@ private:
 };
 
 } // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::details::dtype::Dtype> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::details::dtype::Dtype &dt,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}",
+                          denox::memory::Dtype{dt}.to_string());
+  }
+};
+
+template <> struct fmt::formatter<denox::memory::Dtype> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::Dtype &dt, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", dt.to_string());
+  }
+};

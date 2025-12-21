@@ -1,12 +1,12 @@
 #pragma once
 
-#include "Options.hpp"
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/compiler/Options.hpp"
+#include "denox/compiler/implement/shaders/IShader.hpp"
+#include "denox/glsl/GlslCompiler.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
-#include "shaders/IShader.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
 #include <cassert>
 
 namespace denox::compiler::shaders {
@@ -19,7 +19,7 @@ private:
   static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
 public:
-  DirectConvShaderCM(GlslCompiler *compiler, const Options &options);
+  DirectConvShaderCM(spirv::GlslCompiler *compiler, const Options &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -56,7 +56,7 @@ private:
   };
 
 private:
-  GlslCompiler *m_compiler;
+  spirv::GlslCompiler *m_compiler;
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =

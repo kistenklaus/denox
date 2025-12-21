@@ -2,6 +2,7 @@
 
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
+#include <fmt/core.h>
 
 namespace denox::memory {
 
@@ -22,4 +23,15 @@ struct BiasDescriptor {
   }
 };
 
-} // namespace denox::compiler
+} // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::BiasDescriptor> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::BiasDescriptor &bd,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{shape={}, layout={}, type={}}}",
+                          bd.shape, bd.layout, bd.type);
+  }
+};

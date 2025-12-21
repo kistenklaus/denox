@@ -1,7 +1,7 @@
-#include "shaders/activation/BasicActivationShader.hpp"
+#include "denox/compiler/implement/shaders/activation/BasicActivationShader.hpp"
+#include "denox/common/ActivationFunction.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/memory/dtype/dtype.hpp"
-#include "model/ActivationFunction.hpp"
 
 namespace denox::compiler::shaders {
 
@@ -56,7 +56,7 @@ static constexpr std::array<BasicActivationConfig, 5> CONFIGS = {
         .wgH = 1,
     }};
 
-BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
+BasicActivationShader::BasicActivationShader(spirv::GlslCompiler *compiler,
                                              const Options &options)
     : m_compiler(compiler),
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
@@ -67,11 +67,17 @@ BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
 
 {
   const auto supportedTensor = [](const TensorInstance &tensor) {
-    if (tensor.type != memory::Dtype::F16) {
+    if (tensor.channels.isSymbolic()) {
       return false;
     }
-    if (tensor.layout != memory::ActivationLayout::HWC &&
-        tensor.layout != memory::ActivationLayout::CHWC8) {
+    if (tensor.type != TensorDataType::Float16) {
+      return false;
+    }
+    if (tensor.storage != TensorStorage::StorageBuffer) {
+      return false;
+    }
+    if (tensor.format != TensorFormat::SSBO_HWC &&
+        tensor.format != TensorFormat::SSBO_CHWC8) {
       return false;
     }
     return true;
@@ -86,7 +92,7 @@ BasicActivationShader::BasicActivationShader(GlslCompiler *compiler,
     out->matchValue(supportedTensor);
     acti->matchRank(1);
     acti->matchValue([](const ComputeOp &op) {
-      if (op.tag() != ComputeOpTag::Activation) {
+      if (op.tag() != ComputeOpKind::Activation) {
         return false;
       }
       if (op.activation().func != ActivationFunction::ReLU) {
@@ -107,16 +113,16 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
   const auto &patternHandles = m_patternHandles[pattern];
   const auto &in = opGraph.get(match[patternHandles.in]);
   const auto &out = opGraph.get(match[patternHandles.out]);
-  if (memory::ActivationLayout::demote(in.layout, in.channels) !=
-      memory::ActivationLayout::demote(out.layout, out.channels)) {
+  if (in.format != out.format) {
     return {};
   }
-  auto layout = memory::ActivationLayout::promote(in.layout, in.channels);
+  assert(in.channels.isConstant());
+  auto format = in.format;
   std::vector<unsigned int> configs;
   configs.reserve(CONFIGS.size());
   for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    const auto& config = CONFIGS[c];
-    uint32_t wgC = CONFIGS[c].wgC.value_or(in.channels);
+    const auto &config = CONFIGS[c];
+    uint32_t wgC = CONFIGS[c].wgC.value_or(in.channels.constant());
     uint32_t workGroupInvocations = wgC * config.wgH * config.wgW;
     if (workGroupInvocations >= m_maxComputeWorkGroupInvocations) {
       continue;
@@ -130,7 +136,25 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
     if (config.wgH >= m_maxComputeWorkGroupSize[2]) {
       continue;
     }
-    if (config.invocC % layout.vectorBlockSize() != 0) {
+    uint32_t vblocksize;
+    switch (format) {
+    case TensorFormat::SSBO_HWC:
+    case TensorFormat::SSBO_CHW:
+      vblocksize = 1;
+      break;
+    case TensorFormat::SSBO_CHWC8:
+      vblocksize = 8;
+      break;
+    case TensorFormat::Optimal:
+    case TensorFormat::TEX_RGBA:
+    case TensorFormat::TEX_RGB:
+    case TensorFormat::TEX_RG:
+    case TensorFormat::TEX_R:
+      diag::invalid_state();
+      break;
+    }
+
+    if (config.invocC % vblocksize != 0) {
       continue;
     }
     configs.push_back(c);
@@ -138,11 +162,11 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
   return configs;
 }
 
-static GlslCompilerInstance
-compile(GlslCompiler *compiler, const io::Path &srcPath,
-        unsigned int subgroupSize, memory::ActivationLayout inputLayout,
-        memory::ActivationLayout outputLayout, unsigned int channels,
-        memory::Dtype atype, ActivationFunction activationFunction,
+static spirv::GlslCompilerInstance
+compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+        unsigned int subgroupSize, TensorFormat inputFormat,
+        TensorFormat outputFormat, unsigned int channels, memory::Dtype atype,
+        ActivationFunction activationFunction,
         const BasicActivationConfig &config) {
   if (atype != memory::Dtype::F16) {
     diag::invalid_state();
@@ -163,8 +187,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
   case ActivationFunction::SiLU:
     diag::invalid_state();
   }
-  if (inputLayout == memory::ActivationLayout::HWC &&
-      outputLayout == memory::ActivationLayout::HWC && (channels % 8 != 0)) {
+  if (inputFormat == TensorFormat::SSBO_HWC &&
+      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 != 0)) {
     // HWC layout (slow path)
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
@@ -173,9 +197,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
 
     shader.define("IN_LAYOUT_HWC");
     shader.define("OUT_LAYOUT_HWC");
-  } else if (inputLayout == memory::ActivationLayout::HWC &&
-             outputLayout == memory::ActivationLayout::HWC &&
-             (channels % 8 == 0)) {
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -183,8 +206,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
 
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
-  } else if (inputLayout == memory::ActivationLayout::CHWC8 &&
-             outputLayout == memory::ActivationLayout::CHWC8) {
+  } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
+             outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -220,58 +243,57 @@ void BasicActivationShader::implement(
   const auto &out = opGraph.get(outId);
   const auto &acti = opGraph.get(match[patternHandles.acti]).activation();
 
+  assert(in.channels.isConstant());
   assert(in.channels == out.channels);
+  uint32_t channels = static_cast<uint32_t>(in.channels.constant());
   auto shader =
-      compile(m_compiler, m_srcPath, m_subgroupSize, in.layout, out.layout,
-              in.channels, memory::Dtype::F16, acti.func, config);
+      compile(m_compiler, m_srcPath, m_subgroupSize, in.format, out.format,
+              static_cast<unsigned int>(in.channels.constant()),
+              memory::Dtype::F16, acti.func, config);
 
-  std::uint32_t tileC = config.invocC * config.wgC.value_or(in.channels);
+  std::uint32_t tileC =
+      config.invocC * config.wgC.value_or(in.channels.constant());
   std::uint32_t tileW = config.invocW * config.wgW;
   std::uint32_t tileH = config.invocH * config.wgH;
 
   Sym workgroupCountX = symGraph.cdiv(in.channels, tileC);
-  Sym workgroupCountY = symGraph.cdiv(in.extent.x.asSym(), tileW);
-  Sym workgroupCountZ = symGraph.cdiv(in.extent.y.asSym(), tileH);
+  Sym workgroupCountY = symGraph.cdiv(in.width, tileW);
+  Sym workgroupCountZ = symGraph.cdiv(in.height, tileH);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, AccessFlag::ReadOnly, inId);
-  dispatch.addBinding(0, 1, AccessFlag::WriteOnly, outId);
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.x));
-  dispatch.addPushConstant(PushConstant::Dynamic(in.extent.y));
+  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
+  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addPushConstant(PushConstant::Dynamic(in.width));
+  dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.setSourcePath(m_srcPath);
 
-  Sym reads =
-      symGraph.mul(symGraph.mul(in.extent.x.asSym(), in.extent.y.asSym()),
-                   in.channels * in.type.size());
+  Sym reads = symGraph.mul(symGraph.mul(in.width, in.height),
+                           channels * size_of(in.type));
   dispatch.setMemoryReads(reads);
-  Sym writes =
-      symGraph.mul(symGraph.mul(out.extent.x.asSym(), out.extent.y.asSym()),
-                   out.channels * out.type.size());
+  Sym writes = symGraph.mul(symGraph.mul(out.width, out.height),
+                            channels * size_of(out.type));
   dispatch.setMemoryWrites(writes);
 
   switch (acti.func) {
   case ActivationFunction::ReLU:
     dispatch.setName("relu");
-    dispatch.setDebugInfo(fmt::format("{}-relu-{}", in.layout.to_string(),
-                                      out.layout.to_string()));
+    dispatch.setDebugInfo(fmt::format("{}-relu-{}", in.format, out.format));
     break;
   case ActivationFunction::LeakyReLU:
     dispatch.setName("leaky-relu");
-    dispatch.setDebugInfo(fmt::format("{}-leaky-relu-{}", in.layout.to_string(),
-                                      out.layout.to_string()));
+    dispatch.setDebugInfo(
+        fmt::format("{}-leaky-relu-{}", in.format, out.format));
     break;
   case ActivationFunction::SiLU:
     dispatch.setName("silu");
-    dispatch.setDebugInfo(fmt::format("{}-silu-{}", in.layout.to_string(),
-                                      out.layout.to_string()));
-    break;
+    dispatch.setDebugInfo(fmt::format("{}-silu-{}", in.format, out.format));
     break;
   }
   dispatch.setInputDesc(
-      fmt::format("{}[{}]", in.layout.to_string(), in.channels));
+      fmt::format("{}[{}]", in.format, in.channels));
   dispatch.setOutputDesc(
-      fmt::format("{}[{}]", out.layout.to_string(), out.channels));
+      fmt::format("{}[{}]", out.format, out.channels));
 }
 
 memory::string BasicActivationShader::name(unsigned int, unsigned int) const {

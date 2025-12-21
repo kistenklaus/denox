@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compiler/ir/impl/TensorId.hpp"
+#include "denox/compiler/implement/TensorId.hpp"
 #include "denox/memory/container/vector.hpp"
 #include <cstddef>
 

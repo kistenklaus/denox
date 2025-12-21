@@ -1,172 +1,329 @@
 #include "denox/compiler/specialization/specialization.hpp"
+#include "denox/common/TensorDataType.hpp"
+#include "denox/common/TensorFormat.hpp"
+#include "denox/common/TensorStorage.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
-#include "denox/memory/container/vector.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
-#include <exception>
+#include "denox/memory/container/span.hpp"
+#include "denox/memory/hypergraph/NullWeight.hpp"
 
 namespace denox::compiler {
 
-using Graph = CanoModel::Graph;
-using NodeHandle = Graph::NodeHandle;
+static TensorFormat supported_ssbo_formats[] = {
+    TensorFormat::SSBO_CHWC8,
+    TensorFormat::SSBO_HWC,
+};
 
-static inline void ensure_specialized_type(CanoModel::Graph::Node &node) {
-  if (!node.value().type().has_value()) {
-    node.value().setType(memory::Dtype::F16);
-  }
-}
+static TensorFormat supported_tex_formats[] = {
+    TensorFormat::TEX_RGBA,
+};
 
-static inline SpecModel::Graph::NodeHandle
-create_spec_node(SpecModel &spec, const Lifetimes &lifetimes,
-                 const CanoModel::Graph::NodeHandle &src,
-                 const memory::ActivationLayout &layout) {
-  const auto &ct = src->value();
-  TensorInstance st{
-      .extent = ct.extent(),
-      .channels = ct.channels(),
-      .layout = layout,
-      .type = *ct.type(),
-      .originalNode = src,
-      .lifetime = lifetimes.valueLifetimes[*src->id()],
-  };
-  return spec.graph.createNode(std::move(st));
-}
+static TensorStorage supported_tex_storages[] = {
+    // TensorStorage::StorageImage,
+    TensorStorage::SampledStorageImage,
+};
 
-static inline memory::vector<SpecModel::Graph::NodeHandle> &ensure_variants_for(
-    SpecModel &spec, const Lifetimes &lifetimes,
-    memory::span<const memory::ActivationLayout> layouts,
-    memory::vector<memory::vector<SpecModel::Graph::NodeHandle>> &variants,
-    CanoModel::Graph::Node &n) {
-  const auto id = n.id();
-  if (static_cast<std::uint64_t>(id) >= variants.size())
-    variants.resize(static_cast<std::uint64_t>(id) + 1);
-  auto &bucket = variants[*id];
-  if (!bucket.empty())
-    return bucket;
+struct TensorSpec {
+  TensorFormat format;
+  TensorStorage storage;
+  TensorDataType dtype;
+};
 
-  ensure_specialized_type(n);
-  const auto &ct = n.value();
-
-  if (ct.layout().has_value()) {
-    bucket.push_back(create_spec_node(spec, lifetimes, n, *ct.layout()));
-    return bucket;
+static std::vector<TensorSpec>
+specialize_tensor(const CanoModel::Graph::NodeHandle &node) {
+  std::vector<TensorStorage> storages;
+  if (node->value().storage() == TensorStorage::Optimal) {
+    if (node->value().channels().isConstant() &&
+        node->value().channels().constant() <= 4) {
+      for (const auto &s : supported_tex_storages) {
+        storages.push_back(s);
+      }
+    }
+    storages.push_back(TensorStorage::StorageBuffer);
+  } else {
+    storages.push_back(node->value().storage());
   }
 
-  const unsigned c = ct.channels();
-  for (const auto &l : layouts) {
-    if (l.supports(c))
-      bucket.push_back(create_spec_node(spec, lifetimes, n, l));
+  std::vector<TensorFormat> formats;
+  if (node->value().format() == TensorFormat::Optimal) {
+    if (node->value().channels().isConstant()) {
+      const auto c = node->value().channels().constant();
+      assert(c > 0);
+
+      if (c <= 4) {
+        if (std::ranges::count(supported_tex_formats, TensorFormat::TEX_RGBA) !=
+            0) {
+          formats.push_back(TensorFormat::TEX_RGBA);
+        }
+      }
+      if (c <= 3) {
+        if (std::ranges::count(supported_tex_formats, TensorFormat::TEX_RGB) !=
+            0) {
+          formats.push_back(TensorFormat::TEX_RGB);
+        }
+      }
+      if (c <= 2) {
+        if (std::ranges::count(supported_tex_formats, TensorFormat::TEX_RG) !=
+            0) {
+          formats.push_back(TensorFormat::TEX_RG);
+        }
+      }
+      if (std::ranges::count(supported_tex_formats, TensorFormat::TEX_R) != 0) {
+        formats.push_back(TensorFormat::TEX_R);
+      }
+    }
+    for (const auto &f : supported_ssbo_formats) {
+      formats.push_back(f);
+    }
+
+  } else {
+    formats.push_back(node->value().format());
   }
-  if (bucket.empty())
-    std::terminate(); // no supported layout
-  return bucket;
-}
 
-SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes,
-                     memory::span<const memory::ActivationLayout> layouts) {
-  assert(!layouts.empty());
-  if (layouts.empty())
-    std::terminate();
+  TensorDataType dtype = node->value().type() == TensorDataType::Auto
+                             ? TensorDataType::Float16
+                             : node->value().type();
 
-  using CanGraph = CanoModel::Graph;
-  using SpecGraph = SpecModel::Graph;
+  std::vector<TensorSpec> out;
 
-  assert(model.input->value().layout().has_value());
-  assert(model.output->value().layout().has_value());
+  for (TensorStorage s : storages) {
+    for (TensorFormat f : formats) {
 
-  SpecModel spec{};
+      const bool isTex =
+          f == TensorFormat::TEX_R || f == TensorFormat::TEX_RG ||
+          f == TensorFormat::TEX_RGB || f == TensorFormat::TEX_RGBA;
 
-  memory::vector<memory::vector<SpecGraph::NodeHandle>> variants;
-  variants.resize(model.graph.upperNodeCount());
+      const bool isBuffer = f == TensorFormat::SSBO_CHW ||
+                            f == TensorFormat::SSBO_CHWC8 ||
+                            f == TensorFormat::SSBO_HWC;
 
-  memory::dynamic_bitset seen(model.graph.upperNodeCount(), false);
-  memory::vector<CanGraph::NodeHandle> stack;
-  stack.reserve(model.graph.upperNodeCount());
-  stack.push_back(model.input);
-
-  while (!stack.empty()) {
-    CanGraph::NodeHandle node = std::move(stack.back());
-    stack.pop_back();
-
-    const auto nid = node->id();
-    if (static_cast<std::uint64_t>(nid) >= seen.size())
-      seen.resize(static_cast<std::uint64_t>(nid) + 1, false);
-    if (seen[*nid])
-      continue;
-    seen[*nid] = true;
-
-    ensure_variants_for(spec, lifetimes, layouts, variants, *node);
-
-    for (const auto &e : node->outgoing()) {
-      if (e.srcs().empty() || &e.srcs().front() != node.operator->()) {
-        stack.emplace_back(e.dst());
-        continue;
+      if (isTex) {
+        if (s != TensorStorage::StorageImage &&
+            s != TensorStorage::SampledStorageImage)
+          continue;
       }
 
-      memory::vector<memory::vector<SpecGraph::NodeHandle> *> srcVarLists;
-      srcVarLists.reserve(e.srcs().size());
-      for (auto &s : e.srcs()) {
-        auto &b = ensure_variants_for(spec, lifetimes, layouts, variants, s);
-        srcVarLists.push_back(&b);
+      if (isBuffer) {
+        if (s != TensorStorage::StorageBuffer)
+          continue;
       }
 
-      NodeHandle dstH = e.dst();
-      auto &dstBucket =
-          ensure_variants_for(spec, lifetimes, layouts, variants, *dstH);
-
-      const std::size_t k = srcVarLists.size();
-      if (k == 0) {
-        stack.emplace_back(e.dst());
-        continue;
-      }
-
-      memory::vector<std::size_t> idx(k, 0);
-      bool done = false;
-      while (!done) {
-        SpecGraph::NodeHandle &anchor = (*srcVarLists[0])[idx[0]];
-
-        memory::small_vector<const SpecGraph::NodeHandle *, 8> addSrcPtrs;
-        addSrcPtrs.reserve(k - 1);
-        for (std::size_t i = 1; i < k; ++i) {
-          addSrcPtrs.push_back(&((*srcVarLists[i])[idx[i]]));
-        }
-
-        for (const auto &dstV : dstBucket) {
-          anchor->outgoing().insert_after_with_dynamic_srcs(
-              anchor->outgoing().begin(),
-              memory::span<const SpecGraph::NodeHandle *>(addSrcPtrs), dstV,
-              memory::NullWeight{}, e.value());
-        }
-
-        std::size_t pos = k;
-        while (pos > 0) {
-          --pos;
-          ++idx[pos];
-          if (idx[pos] < srcVarLists[pos]->size())
-            break;
-          idx[pos] = 0;
-          if (pos == 0) {
-            done = true;
-            break;
-          }
-        }
-      }
-
-      stack.emplace_back(e.dst());
+      out.push_back(TensorSpec{
+          .format = f,
+          .storage = s,
+          .dtype = dtype,
+      });
     }
   }
 
-  {
-    auto in = model.input;
-    auto out = model.output;
-    auto &inB = ensure_variants_for(spec, lifetimes, layouts, variants, *in);
-    auto &outB = ensure_variants_for(spec, lifetimes, layouts, variants, *out);
-    assert(inB.size() == 1 && "input must have a fixed layout");
-    assert(outB.size() == 1 && "output must have a fixed layout");
-    spec.input = inB.front();
-    spec.output = outB.front();
+  assert(!out.empty());
+  return out;
+}
+
+static SpecModel::Graph::NodeHandle specialize_input(
+    SpecModel &spec,
+    memory::hash_map<uint64_t, memory::vector<SpecModel::Graph::NodeHandle>>
+        &tensorSpecializations,
+    const CanoModel::Graph::NodeHandle &input, const Lifetimes &lifetimes) {
+  memory::vector<TensorSpec> specs = specialize_tensor(input);
+  memory::vector<SpecModel::Graph::NodeHandle> specNodes;
+  specNodes.reserve(specs.size());
+  for (const auto &s : specs) {
+    TensorInstance instance{
+        .width = input->value().width(),
+        .height = input->value().height(),
+        .channels = input->value().channels(),
+        .storage = s.storage,
+        .format = s.format,
+        .type = s.dtype,
+        .originalNode = input,
+        .lifetime = lifetimes.valueLifetimes[*input->id()],
+    };
+    specNodes.push_back(spec.graph.createNode(std::move(instance)));
   }
 
+  // Case 1: exactly one specialization → no dummy needed
+  if (specNodes.size() == 1) {
+    tensorSpecializations[*input->id()] = specNodes;
+    return specNodes.front();
+  }
+
+  TensorInstance dummy{
+      .width = input->value().width(),
+      .height = input->value().height(),
+      .channels = input->value().channels(),
+      .storage = TensorStorage::Optimal,
+      .format = TensorFormat::Optimal,
+      .type = TensorDataType::Auto,
+      .originalNode = input,
+      .lifetime = lifetimes.valueLifetimes[*input->id()],
+  };
+  auto dummyNode = spec.graph.createNode(std::move(dummy));
+
+  for (const auto &dst : specNodes) {
+    dummyNode->outgoing().insert(dst, ComputeOp{});
+  }
+
+  tensorSpecializations[*input->id()] = specNodes;
+  return dummyNode;
+}
+
+SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes) {
+  SpecModel spec;
+
+  memory::hash_map<std::uint64_t, std::vector<SpecModel::Graph::NodeHandle>>
+      tensorSpecializations;
+
+  spec.inputs.reserve(model.inputs.size());
+  for (const auto &input : model.inputs) {
+    spec.inputs.push_back(
+        specialize_input(spec, tensorSpecializations, input, lifetimes));
+  }
+
+  // DFS: Specialize all reachable tensors.
+  memory::dynamic_bitset visited(model.graph.upperNodeCount(), false);
+  memory::vector<CanoModel::Graph::NodeHandle> stack;
+  stack.reserve(model.graph.upperNodeCount());
+
+  for (const auto &in : model.inputs) {
+    stack.push_back(in);
+  }
+
+  while (!stack.empty()) {
+    CanoModel::Graph::NodeHandle node = stack.back();
+    stack.pop_back();
+
+    const uint64_t nid = *node->id();
+    if (visited[nid]) {
+      continue;
+    }
+    visited[nid] = true;
+
+    // Node itself must already be specialized if it is an input
+    assert(tensorSpecializations.contains(nid));
+
+    for (const auto &e : node->outgoing()) {
+      const auto &dst = e.dst();
+      const uint64_t did = *dst.id();
+
+      if (!tensorSpecializations.contains(did)) {
+        auto specs = specialize_tensor(dst);
+
+        std::vector<SpecModel::Graph::NodeHandle> specNodes;
+        specNodes.reserve(specs.size());
+
+        for (const auto &s : specs) {
+          TensorInstance instance{
+              .width = dst.value().width(),
+              .height = dst.value().height(),
+              .channels = dst.value().channels(),
+              .storage = s.storage,
+              .format = s.format,
+              .type = s.dtype,
+              .originalNode = dst,
+              .lifetime = lifetimes.valueLifetimes[did],
+          };
+          specNodes.push_back(spec.graph.createNode(std::move(instance)));
+        }
+
+        tensorSpecializations[did] = std::move(specNodes);
+      }
+
+      stack.push_back(dst);
+    }
+  }
+
+  // DFS: expand edges
+  visited.clear();
+  visited.resize(model.graph.upperNodeCount(), false);
+  stack.clear();
+
+  for (const auto &in : model.inputs) {
+    stack.push_back(in);
+  }
+
+  while (!stack.empty()) {
+    CanoModel::Graph::NodeHandle node = stack.back();
+    stack.pop_back();
+
+    const uint64_t nid = *node->id();
+    if (visited[nid]) {
+      continue;
+    }
+    visited[nid] = true;
+
+    for (const auto &e : node->outgoing()) {
+      const auto &dst = e.dst();
+      std::vector<const std::vector<SpecModel::Graph::NodeHandle> *> srcLists;
+      for (const auto &src : e.srcs()) {
+        srcLists.push_back(&tensorSpecializations[*src.id()]);
+      }
+
+      auto &dstList = tensorSpecializations[*dst.id()];
+
+      const size_t k = srcLists.size();
+      assert(k > 0);
+
+      std::vector<size_t> idx(k, 0);
+      bool done = false;
+
+      while (!done) {
+        auto &anchor = (*srcLists[0])[idx[0]];
+
+        memory::small_vector<const SpecModel::Graph::NodeHandle *, 4> extraSrcs;
+        for (size_t i = 1; i < k; ++i) {
+          extraSrcs.push_back(&(*srcLists[i])[idx[i]]);
+        }
+
+        for (auto &dstSpec : dstList) {
+          anchor->outgoing().insert_after_with_dynamic_srcs(
+              anchor->outgoing().begin(),
+              memory::span<const SpecModel::Graph::NodeHandle *>(
+                  extraSrcs.data(), extraSrcs.size()),
+              dstSpec, memory::NullWeight{}, ComputeOp{e.value()});
+        }
+
+        // mixed-radix increment
+        for (size_t p = k; p-- > 0;) {
+          if (++idx[p] < srcLists[p]->size())
+            break;
+          idx[p] = 0;
+          if (p == 0)
+            done = true;
+        }
+      }
+
+      stack.push_back(dst);
+    }
+  }
+
+  spec.outputs.reserve(model.outputs.size());
+
+  for (const auto &output : model.outputs) {
+    const uint64_t oid = *output->id();
+    assert(tensorSpecializations.contains(oid));
+
+    auto &outSpecs = tensorSpecializations[oid];
+    if (outSpecs.size() == 1) {
+      spec.outputs.push_back(outSpecs.front());
+      continue;
+    }
+    TensorInstance dummy{
+        .width = output->value().width(),
+        .height = output->value().height(),
+        .channels = output->value().channels(),
+        .storage = TensorStorage::Optimal,
+        .format = TensorFormat::Optimal,
+        .type = TensorDataType::Auto,
+        .originalNode = output,
+        .lifetime = lifetimes.valueLifetimes[oid],
+    };
+    auto dummyNode = spec.graph.createNode(std::move(dummy));
+    for (auto &src : outSpecs) {
+      src->outgoing().insert(dummyNode, ComputeOp{});
+    }
+    spec.outputs.push_back(dummyNode);
+  }
   return spec;
 }
 

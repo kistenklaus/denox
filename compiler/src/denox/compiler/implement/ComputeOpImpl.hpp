@@ -1,6 +1,7 @@
 #pragma once
 
-#include "shaders/IShader.hpp"
+#include "denox/compiler/implement/shaders/IShader.hpp"
+#include "denox/compiler/specialization/TensorInstance.hpp"
 
 namespace denox::compiler::impl::details {
 

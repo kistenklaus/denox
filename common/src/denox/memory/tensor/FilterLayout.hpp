@@ -5,6 +5,7 @@
 #include "denox/memory/tensor/FilterShape.hpp"
 #include <cassert>
 #include <cstddef>
+#include <fmt/core.h>
 
 namespace denox::memory {
 
@@ -163,6 +164,7 @@ public:
     case FilterLayoutKind::KRSCK16:
       return "KRSCK16";
     }
+    diag::unreachable();
   }
 
 private:
@@ -234,3 +236,26 @@ private:
   details::memory::tensors::FilterLayout m_layout;
 };
 } // namespace denox::memory
+
+template <>
+struct fmt::formatter<denox::memory::details::memory::tensors::FilterLayout> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto
+  format(const denox::memory::details::memory::tensors::FilterLayout &layout,
+         FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", layout.to_string());
+  }
+};
+
+// denox::memory::FilterLayout
+template <> struct fmt::formatter<denox::memory::FilterLayout> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::FilterLayout &layout,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", layout.to_string());
+  }
+};

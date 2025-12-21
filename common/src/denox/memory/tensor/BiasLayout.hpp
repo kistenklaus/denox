@@ -3,6 +3,7 @@
 #include "denox/diag/unreachable.hpp"
 #include <cassert>
 #include <cstddef>
+#include <fmt/core.h>
 
 namespace denox::memory {
 
@@ -108,3 +109,68 @@ private:
 };
 
 } // namespace denox::memory
+
+template <>
+struct fmt::formatter<denox::memory::details::memory::tensors::BiasLayout> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::details::memory::tensors::BiasLayout &layout,
+              FormatContext &ctx) const {
+
+    const char *name = nullptr;
+    switch (layout.kind()) {
+    case denox::memory::BiasLayoutKind::C:
+      name = "C";
+      break;
+    case denox::memory::BiasLayoutKind::C4:
+      name = "C4";
+      break;
+    case denox::memory::BiasLayoutKind::C8:
+      name = "C8";
+      break;
+    case denox::memory::BiasLayoutKind::C16:
+      name = "C16";
+      break;
+    }
+
+    return fmt::format_to(ctx.out(), "{}", name);
+  }
+};
+
+template <>
+struct fmt::formatter<denox::memory::BiasLayout> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::BiasLayout& layout,
+              FormatContext& ctx) const {
+    return fmt::format_to(ctx.out(), "{}", layout.kind());
+  }
+};
+
+template <>
+struct fmt::formatter<denox::memory::BiasLayoutKind> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(denox::memory::BiasLayoutKind kind,
+              FormatContext& ctx) const {
+    switch (kind) {
+    case denox::memory::BiasLayoutKind::C:
+      return fmt::format_to(ctx.out(), "C");
+    case denox::memory::BiasLayoutKind::C4:
+      return fmt::format_to(ctx.out(), "C4");
+    case denox::memory::BiasLayoutKind::C8:
+      return fmt::format_to(ctx.out(), "C8");
+    case denox::memory::BiasLayoutKind::C16:
+      return fmt::format_to(ctx.out(), "C16");
+    }
+    // unreachable, but keeps compilers happy
+    return ctx.out();
+  }
+};

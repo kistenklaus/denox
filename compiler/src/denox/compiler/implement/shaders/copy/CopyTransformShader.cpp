@@ -1,9 +1,9 @@
-#include "shaders/copy/CopyTransformShader.hpp"
+#include "denox/compiler/implement/shaders/copy/CopyTransformShader.hpp"
+#include "denox/common/TensorFormat.hpp"
+#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/diag/invalid_state.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
-#include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
-#include "model/ComputeOp.hpp"
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
@@ -70,21 +70,27 @@ static std::array<CopyTransformConfig, 5> CONFIGS{
     },
 };
 
-CopyTransformShader::CopyTransformShader(GlslCompiler *compiler,
+CopyTransformShader::CopyTransformShader(spirv::GlslCompiler *compiler,
                                          const Options &options)
     : m_compiler(compiler),
-      m_enableImplicitConcat(options.fusionRules.enableImplicitConcat),
+      m_enableImplicitConcat(options.features.enableImplicitConcat),
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize) {
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
-    if (tensor.type != memory::Dtype::F16) {
+    if (tensor.type != TensorDataType::Float16) {
       return false;
     }
-    if (tensor.layout != memory::ActivationLayout::CHWC8 &&
-        tensor.layout != memory::ActivationLayout::HWC) {
+    if (tensor.channels.isSymbolic()) {
+      return false;
+    }
+    if (tensor.storage != TensorStorage::StorageBuffer) {
+      return false;
+    }
+    if (tensor.format != TensorFormat::SSBO_CHWC8 &&
+        tensor.format != TensorFormat::SSBO_HWC) {
       return false;
     }
     return true;
@@ -99,7 +105,7 @@ CopyTransformShader::CopyTransformShader(GlslCompiler *compiler,
     in0->matchValue(supportedTensor);
     in1->matchValue(supportedTensor);
     concat->matchValue(
-        [](const ComputeOp &op) { return op.tag() == ComputeOpTag::Concat; });
+        [](const ComputeOp &op) { return op.tag() == ComputeOpKind::Concat; });
     m_patternHandles.emplace_back(in0, in1, out);
     m_capabilities.patterns.emplace_back(std::move(concatPattern),
                                          std::move(in0), std::move(in1),
@@ -108,16 +114,15 @@ CopyTransformShader::CopyTransformShader(GlslCompiler *compiler,
 }
 
 static ConcatImplementationType
-tryImplicitConcat(memory::ActivationLayout src0Layout,
-                  memory::ActivationLayout src1Layout,
-                  memory::ActivationLayout dstLayout, memory::Dtype src0Type,
-                  memory::Dtype src1Type, memory::Dtype dstType,
+tryImplicitConcat(TensorFormat src0Layout, TensorFormat src1Layout,
+                  TensorFormat dstLayout, TensorDataType src0Type,
+                  TensorDataType src1Type, TensorDataType dstType,
                   const CanoModel::Graph::NodeHandle &src0,
                   const CanoModel::Graph::NodeHandle &src1) {
 
-  if (src0Layout != memory::ActivationLayout::CHWC8 ||
-      src1Layout != memory::ActivationLayout::CHWC8 ||
-      dstLayout != memory::ActivationLayout::CHWC8) {
+  if (src0Layout != TensorFormat::SSBO_CHWC8 ||
+      src1Layout != TensorFormat::SSBO_CHWC8 ||
+      dstLayout != TensorFormat::SSBO_CHWC8) {
     return ConcatImplementationType::Explicit;
   }
   if (!(src0Type == src1Type && src1Type == dstType)) {
@@ -125,14 +130,14 @@ tryImplicitConcat(memory::ActivationLayout src0Layout,
   }
   size_t src0ConcatFanout = 0;
   for (const auto &e : src0->outgoing()) {
-    if (e.value().tag() == ComputeOpTag::Concat) {
+    if (e.value().tag() == ComputeOpKind::Concat) {
       ++src0ConcatFanout;
     }
   }
 
   size_t src1ConcatFanout = 0;
   for (const auto &e : src1->outgoing()) {
-    if (e.value().tag() == ComputeOpTag::Concat) {
+    if (e.value().tag() == ComputeOpKind::Concat) {
       ++src1ConcatFanout;
     }
   }
@@ -166,24 +171,20 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
   const TensorInstance &src1 = graph.get(src1Id);
   const TensorInstance &dst = graph.get(dstId);
 
-  memory::ActivationLayout src0Layout =
-      memory::ActivationLayout::demote(src0.layout, src0.channels);
-  memory::ActivationLayout src1Layout =
-      memory::ActivationLayout::demote(src1.layout, src1.channels);
-  memory::ActivationLayout dstLayout =
-      memory::ActivationLayout::demote(dst.layout, dst.channels);
+  TensorFormat src0Format = src0.format;
+  TensorFormat src1Format = src1.format;
+  TensorFormat dstFormat = dst.format;
 
-  if (!(src0Layout == src1Layout && src1Layout == dstLayout)) {
+  if (!(src0Format == src1Format && src1Format == dstFormat)) {
     return {};
   }
 
   ConcatImplementationType implementationType =
-      tryImplicitConcat(src0Layout, src1Layout, dstLayout, src0.type, src1.type,
+      tryImplicitConcat(src0Format, src1Format, dstFormat, src0.type, src1.type,
                         dst.type, src0.originalNode, src1.originalNode);
 
   auto supported = [&](uint32_t wgC, uint32_t wgW, uint32_t wgH,
-                       uint32_t invocC,
-                       memory::ActivationLayout layout) -> bool {
+                       uint32_t invocC, TensorFormat format) -> bool {
     uint32_t workgroupInvocationCount = wgC * wgW * wgH;
     if (workgroupInvocationCount >= m_maxComputeWorkGroupInvocations) {
       return false;
@@ -197,7 +198,24 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
     if (wgH >= m_maxComputeWorkGroupSize[2]) {
       return false;
     }
-    if (invocC % layout.vectorBlockSize() != 0) {
+    uint32_t cblocksize;
+    switch (format) {
+    case TensorFormat::SSBO_HWC:
+    case TensorFormat::SSBO_CHW:
+      cblocksize = 1;
+      break;
+    case TensorFormat::SSBO_CHWC8:
+      cblocksize = 8;
+      break;
+    case TensorFormat::Optimal:
+    case TensorFormat::TEX_RGBA:
+    case TensorFormat::TEX_RGB:
+    case TensorFormat::TEX_RG:
+    case TensorFormat::TEX_R:
+      diag::invalid_state();
+      break;
+    }
+    if (invocC % cblocksize != 0) {
       return false;
     }
     return true;
@@ -209,14 +227,14 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
     configs.reserve(CONFIGS.size() * CONFIGS.size());
     for (unsigned int c0 = 0; c0 < CONFIGS.size(); ++c0) {
       const auto &config0 = CONFIGS[c0];
-      if (!supported(config0.wgC.value_or(src0.channels), config0.wgW,
-                     config0.wgH, config0.invocC, src0Layout)) {
+      if (!supported(config0.wgC.value_or(src0.channels.constant()),
+                     config0.wgW, config0.wgH, config0.invocC, src0Format)) {
         continue;
       }
       for (unsigned int c1 = 0; c1 < CONFIGS.size(); ++c1) {
         const auto &config1 = CONFIGS[c1];
-        if (supported(config1.wgC.value_or(src1.channels), config1.wgW,
-                      config1.wgH, config1.invocC, src1Layout)) {
+        if (supported(config1.wgC.value_or(src1.channels.constant()),
+                      config1.wgW, config1.wgH, config1.invocC, src1Format)) {
           configs.push_back((c1 << 16) | (c0 << 8) | EXPLICIT_CONCAT_TAG);
         }
       }
@@ -238,13 +256,12 @@ float CopyTransformShader::speedup(unsigned int config) const {
   }
 }
 
-static GlslCompilerInstance
-compile(GlslCompiler *compiler, const io::Path &srcPath,
+static spirv::GlslCompilerInstance
+compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int inputChannelOffset, unsigned int inputChannels,
         unsigned int outputChannelOffset, unsigned int outputChannels,
-        memory::ActivationLayout inputLayout,
-        memory::ActivationLayout outputLayout, bool allowVectorization,
-        const CopyTransformConfig &config) {
+        TensorFormat inputFormat, TensorFormat outputFormat,
+        bool allowVectorization, const CopyTransformConfig &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("IN_CH_OFFSET", inputChannelOffset);
@@ -252,8 +269,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
   shader.define("OUT_CH_OFFSET", outputChannelOffset);
   shader.define("OUT_CH", outputChannels);
 
-  if (inputLayout == memory::ActivationLayout::HWC &&
-      outputLayout == memory::ActivationLayout::HWC &&
+  if (inputFormat == TensorFormat::SSBO_HWC &&
+      outputFormat == TensorFormat::SSBO_HWC &&
       (inputChannels % 8 != 0 || outputChannels % 8 != 0 ||
        !allowVectorization)) {
     shader.define("istype", "uint16_t");
@@ -262,8 +279,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
     shader.define("OSTYPE_SIZE", 2);
     shader.define("IN_LAYOUT_HWC");
     shader.define("OUT_LAYOUT_HWC");
-  } else if (inputLayout == memory::ActivationLayout::HWC &&
-             outputLayout == memory::ActivationLayout::HWC &&
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC &&
              (inputChannels % 8 == 0 && outputChannels % 8 == 0 &&
               allowVectorization)) {
     shader.define("istype", "uvec4");
@@ -272,8 +289,8 @@ compile(GlslCompiler *compiler, const io::Path &srcPath,
     shader.define("OSTYPE_SIZE", 16);
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
-  } else if (inputLayout == memory::ActivationLayout::CHWC8 &&
-             outputLayout == memory::ActivationLayout::CHWC8) {
+  } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
+             outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -320,93 +337,95 @@ void CopyTransformShader::implement(
     const auto &dst = opGraph.get(dstId);
 
     const auto &src0 = opGraph.get(src0Id);
+
+    uint32_t src0Channels = static_cast<uint32_t>(src0.channels.constant());
+    uint32_t dstChannels = static_cast<uint32_t>(dst.channels.constant());
     {
       uint8_t config0Key = (configEnc >> 8) & 0xFF;
       const CopyTransformConfig &config0 = CONFIGS[config0Key];
       auto shader0 =
-          compile(m_compiler, m_srcPath, 0, src0.channels, 0, dst.channels,
-                  src0.layout, dst.layout, true, config0);
+          compile(m_compiler, m_srcPath, 0, src0Channels, 0, dstChannels,
+                  src0.format, dst.format, true, config0);
 
-      std::uint32_t tileX =
-          config0.invocC * config0.wgC.value_or(src0.channels);
+      std::uint32_t tileX = config0.invocC * config0.wgC.value_or(src0Channels);
       std::uint32_t tileY = config0.invocW * config0.wgW;
       std::uint32_t tileZ = config0.invocH * config0.wgH;
 
       Sym workgroupCountX = symGraph.cdiv(src0.channels, tileX);
-      Sym workgroupCountY = symGraph.cdiv(src0.extent.x.asSym(), tileY);
-      Sym workgroupCountZ = symGraph.cdiv(src0.extent.y.asSym(), tileZ);
+      Sym workgroupCountY = symGraph.cdiv(src0.width, tileY);
+      Sym workgroupCountZ = symGraph.cdiv(src0.height, tileZ);
 
       auto copySrc0Dispatch =
           impl.registerDispatch(std::move(shader0), workgroupCountX,
                                 workgroupCountY, workgroupCountZ);
-      copySrc0Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src0Id);
-      copySrc0Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
-      copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.x));
-      copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.extent.y));
+      copySrc0Dispatch.addBinding(0, 0, Access::ReadOnly, src0Id);
+      copySrc0Dispatch.addBinding(0, 1, Access::WriteOnly, dstId);
+      copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.width));
+      copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.height));
       copySrc0Dispatch.setName("explicit-concat-copy-src0");
       copySrc0Dispatch.setSourcePath(m_srcPath);
 
-      Sym reads = symGraph.mul(src0.extent.x.asSym(), src0.extent.y.asSym(),
-                               src0.channels * src0.type.size());
-      Sym writes = symGraph.mul(src0.extent.x.asSym(), src0.extent.y.asSym(),
-                                src0.channels * dst.type.size());
+      Sym reads = symGraph.mul(src0.width, src0.height,
+                               src0Channels * size_of(src0.type));
+      Sym writes = symGraph.mul(src0.width, src0.height,
+                                src0Channels * size_of(dst.type));
       copySrc0Dispatch.setMemoryReads(reads);
       copySrc0Dispatch.setMemoryWrites(writes);
       copySrc0Dispatch.setDebugInfo(fmt::format("CopyTransformShader\n"
                                                 "- IN_LAYOUT:  {}\n"
                                                 "- OUT_LAYOUT: {}\n",
-                                                src0.layout.to_string(),
-                                                dst.layout.to_string()));
+                                                src0.format, dst.format));
 
       copySrc0Dispatch.setInputDesc(
-          fmt::format("{}[{}]", src0.layout.to_string(), src0.channels));
+          fmt::format("{}[{}]", src0.format, src0Channels));
       copySrc0Dispatch.setOutputDesc(
-          fmt::format("{}[{}]", dst.layout.to_string(), dst.channels));
+          fmt::format("{}[{}]", dst.format, dstChannels));
     }
 
     {
       const auto &src1 = opGraph.get(src1Id);
+
+      uint32_t src1Channels = static_cast<uint32_t>(src1.channels.constant());
+
       uint8_t config1Key = (configEnc >> 16) & 0xFF;
       const CopyTransformConfig &config1 = CONFIGS[config1Key];
-      auto shader1 = compile(m_compiler, m_srcPath, 0, src1.channels,
-                             src0.channels, dst.channels, src1.layout,
-                             dst.layout, src0.channels % 8 == 0, config1);
+      auto shader1 = compile(m_compiler, m_srcPath, 0, src1Channels,
+                             src0Channels, dstChannels, src1.format, dst.format,
+                             src0.channels.constant() % 8 == 0, config1);
 
-      std::uint32_t tileX =
-          config1.invocC * config1.wgC.value_or(src1.channels);
+      std::uint32_t tileX = config1.invocC * config1.wgC.value_or(src1Channels);
       std::uint32_t tileY = config1.invocW * config1.wgW;
       std::uint32_t tileZ = config1.invocH * config1.wgH;
 
       Sym workgroupCountX = symGraph.cdiv(src1.channels, tileX);
-      Sym workgroupCountY = symGraph.cdiv(src1.extent.x.asSym(), tileY);
-      Sym workgroupCountZ = symGraph.cdiv(src1.extent.y.asSym(), tileZ);
+      Sym workgroupCountY = symGraph.cdiv(src1.width, tileY);
+      Sym workgroupCountZ = symGraph.cdiv(src1.height, tileZ);
 
       auto copySrc1Dispatch =
           impl.registerDispatch(std::move(shader1), workgroupCountX,
                                 workgroupCountY, workgroupCountZ);
-      copySrc1Dispatch.addBinding(0, 0, AccessFlag::ReadOnly, src1Id);
-      copySrc1Dispatch.addBinding(0, 1, AccessFlag::WriteOnly, dstId);
-      copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.x));
-      copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.extent.y));
+      copySrc1Dispatch.addBinding(0, 0, Access::ReadOnly, src1Id);
+      copySrc1Dispatch.addBinding(0, 1, Access::WriteOnly, dstId);
+      copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.width));
+      copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.height));
       copySrc1Dispatch.setName("explicit-concat-copy-src1");
       copySrc1Dispatch.setSourcePath(m_srcPath);
 
-      Sym reads = symGraph.mul(src1.extent.x.asSym(), src1.extent.y.asSym(),
-                               src1.channels * src1.type.size());
-      Sym writes = symGraph.mul(src1.extent.x.asSym(), src1.extent.y.asSym(),
-                                src1.channels * dst.type.size());
+      Sym reads = symGraph.mul(src1.width, src1.height,
+                               src1Channels * size_of(src1.type));
+      Sym writes = symGraph.mul(src1.width, src1.height,
+                                src1Channels * size_of(dst.type));
       copySrc1Dispatch.setMemoryReads(reads);
       copySrc1Dispatch.setMemoryWrites(writes);
       copySrc1Dispatch.setDebugInfo(fmt::format("CopyTransformShader\n"
                                                 "- IN_LAYOUT:  {}\n"
                                                 "- OUT_LAYOUT: {}\n",
-                                                src1.layout.to_string(),
-                                                dst.layout.to_string()));
+                                                src1.format, dst.format));
 
       copySrc1Dispatch.setInputDesc(
-          fmt::format("{}[{}]", src1.layout.to_string(), src1.channels));
+          fmt::format("{}[{}]", src1.format, src1.channels));
       copySrc1Dispatch.setOutputDesc(
-          fmt::format("{}[{}]", dst.layout.to_string(), dst.channels));
+          fmt::format("{}[{}]", dst.format, dst.channels));
     }
   }
 }

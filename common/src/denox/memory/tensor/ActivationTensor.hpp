@@ -6,6 +6,7 @@
 #include "denox/memory/tensor/ActivationDescriptor.hpp"
 #include <cassert>
 #include <cstring>
+#include <fmt/core.h>
 #include <functional>
 #include <memory>
 
@@ -175,7 +176,8 @@ public:
   std::byte *data() { return m_storage.get(); }
 
   denox::memory::span<const std::byte> span() const {
-    return denox::memory::span<const std::byte>{m_storage.get(), m_desc.byteSize()};
+    return denox::memory::span<const std::byte>{m_storage.get(),
+                                                m_desc.byteSize()};
   }
   denox::memory::span<std::byte> span() {
     return denox::memory::span<std::byte>{m_storage.get(), m_desc.byteSize()};
@@ -209,4 +211,37 @@ private:
   std::unique_ptr<std::byte[], std::function<void(std::byte *)>> m_storage;
 };
 
-} // namespace denox::compiler
+} // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::ActivationTensor> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::ActivationTensor &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
+  }
+};
+
+template <> struct fmt::formatter<denox::memory::ActivationTensorView> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::ActivationTensorView &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
+  }
+};
+
+template <> struct fmt::formatter<denox::memory::ActivationTensorConstView> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::ActivationTensorConstView &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
+  }
+};

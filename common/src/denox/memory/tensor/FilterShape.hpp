@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstddef>
+#include <fmt/core.h>
+
 namespace denox::memory {
 
 struct FilterShape {
@@ -23,3 +25,19 @@ struct FilterShape {
 };
 
 } // namespace denox::memory
+
+template <>
+struct fmt::formatter<denox::memory::FilterShape> {
+  constexpr auto parse(fmt::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::FilterShape& fs,
+              FormatContext& ctx) const {
+    return fmt::format_to(
+        ctx.out(),
+        "{{s={}, r={}, c={}, k={}}}",
+        fs.s, fs.r, fs.c, fs.k);
+  }
+};

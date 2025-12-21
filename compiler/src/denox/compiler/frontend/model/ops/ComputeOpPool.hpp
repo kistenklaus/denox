@@ -1,7 +1,8 @@
 #pragma once
 
-#include "denox/memory/container/uvec2.hpp"
 #include "denox/common/PoolFunction.hpp"
+#include "denox/memory/container/uvec2.hpp"
+#include <fmt/core.h>
 #include <memory>
 #include <utility>
 
@@ -49,4 +50,17 @@ private:
   std::unique_ptr<Storage> m_store;
 };
 
-} // namespace vkcnn
+} // namespace denox::compiler
+
+template <> struct fmt::formatter<denox::compiler::ComputeOpPool> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::compiler::ComputeOpPool &op,
+              FormatContext &ctx) const {
+    const auto &s = *op;
+    return fmt::format_to(ctx.out(),
+                          "{{kernel={}, padding={}, stride={}, func={}}}",
+                          s.kernelSize, s.padding, s.stride, s.func);
+  }
+};

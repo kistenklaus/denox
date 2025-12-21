@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Options.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
-#include "shaders/IShader.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
+#include "denox/compiler/implement/shaders/IShader.hpp"
+#include "denox/glsl/GlslCompiler.hpp"
 
 namespace denox::compiler::shaders {
 
@@ -20,7 +20,7 @@ public:
   static constexpr bool
       ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
 
-  CopyTransformShader(GlslCompiler *compiler, const Options &options);
+  CopyTransformShader(spirv::GlslCompiler *compiler, const Options &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -52,7 +52,7 @@ private:
   };
 
 private:
-  GlslCompiler *m_compiler;
+  spirv::GlslCompiler *m_compiler;
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
-#include "shaders/IShader.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
+#include "denox/compiler/implement/shaders/IShader.hpp"
+#include "denox/glsl/GlslCompiler.hpp"
 
 namespace denox::compiler::shaders {
 
@@ -10,7 +10,7 @@ class MemoryPadShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  MemoryPadShader(GlslCompiler *compiler);
+  MemoryPadShader(spirv::GlslCompiler *compiler);
 
   memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
@@ -40,7 +40,7 @@ private:
   };
 
 private:
-  GlslCompiler *m_compiler;
+  spirv::GlslCompiler *m_compiler;
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath = io::Path::cwd() / "compiler/shaders/pad/memory_pad.comp";

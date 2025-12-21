@@ -1,9 +1,10 @@
 #pragma once
 
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
-#include "compiler/ir/TensorInstance.hpp"
-#include "shaders/IShader.hpp"
-#include "shaders/compiler/GlslCompiler.hpp"
+#include "denox/compiler/Options.hpp"
+#include "denox/compiler/specialization/TensorInstance.hpp"
+#include "denox/compiler/implement/shaders/IShader.hpp"
+#include "denox/glsl/GlslCompiler.hpp"
 
 namespace denox::compiler::shaders {
 
@@ -11,7 +12,7 @@ class BasicActivationShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicActivationShader(GlslCompiler *compiler, const Options &options);
+  BasicActivationShader(spirv::GlslCompiler *compiler, const Options &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -41,7 +42,7 @@ private:
   };
 
 private:
-  GlslCompiler *m_compiler;
+  spirv::GlslCompiler *m_compiler;
 
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
