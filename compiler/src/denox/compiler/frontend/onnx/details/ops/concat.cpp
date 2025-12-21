@@ -74,7 +74,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
                         "channel axis {}.",
                         nodeName, chAxis));
 
-      compiler::Tensor outHandle =
+      compiler::TensorHandle outHandle =
           state.output.concat(d0.handle(), d1.handle());
       DeviceTensor outDev(r0, std::move(outHandle));
       return {Tensor::Device(std::move(outDev))};

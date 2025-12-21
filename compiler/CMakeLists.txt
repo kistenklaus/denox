@@ -55,14 +55,14 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/ops/unsqueeze.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/canonicalize/canonicalize.cpp
-
+    
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/lifeness/lifeness.cpp
-
+    
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/specialization/specialization.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/dce.cpp
-
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/implement.cpp
+    
+    # ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/implement.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/ComputeDispatchBuilder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/shaders.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/BasicActivationShader.cpp

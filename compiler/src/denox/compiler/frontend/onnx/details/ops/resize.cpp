@@ -151,7 +151,7 @@ resize(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         "vkcnn: Resize \"{}\": integer scale must be >= 1.", nodeName));
 
   // ---- backend ----
-  compiler::Tensor outHdl =
+  compiler::TensorHandle outHdl =
       state.output.upsample(Xd.handle(), s, FilterMode::Nearest);
   return {Tensor::Device(DeviceTensor{rank, std::move(outHdl)})};
 }

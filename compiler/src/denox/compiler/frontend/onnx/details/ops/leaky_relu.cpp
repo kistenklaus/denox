@@ -38,7 +38,7 @@ memory::vector<Tensor> leaky_relu(
   const DeviceTensor &inDev = inT.device();
   const std::size_t r = inDev.rank();
   // TODO: Remodel activation function to include parameters.
-  compiler::Tensor outHandle = state.output.activation(
+  compiler::TensorHandle outHandle = state.output.activation(
       inDev.handle(), ActivationFunction::LeakyReLU);
 
   DeviceTensor outDev(r, std::move(outHandle));

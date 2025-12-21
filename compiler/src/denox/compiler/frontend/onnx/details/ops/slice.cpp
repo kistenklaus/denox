@@ -247,7 +247,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
     // Delegate exact clamping to backend; hypergraph will carry
     // right-left/top-bottom. (No min/max symbols introduced here.)
-    compiler::Tensor outH =
+    compiler::TensorHandle outH =
         state.output.slice(devIn.handle(), left, right, top, bot);
     DeviceTensor outDev(r, std::move(outH));
     return {Tensor::Device(std::move(outDev))};

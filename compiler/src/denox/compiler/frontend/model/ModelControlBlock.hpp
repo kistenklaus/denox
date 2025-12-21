@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/common/TensorDescriptor.hpp"
 #include "denox/compiler/frontend/model/ComputeOp.hpp"
 #include "denox/compiler/frontend/model/ComputeTensor.hpp"
 #include "denox/compiler/frontend/model/ModelInterfaceDescriptor.hpp"
@@ -17,7 +18,7 @@ struct ModelControlBlock {
 
   std::vector<NamedValue> valueNames;
 
-  memory::AdjGraph<ComputeTensor, ComputeOp> hypergraph;
+  memory::AdjGraph<TensorDescriptor, ComputeOp> hypergraph;
 
   ModelMeta meta;
   SymGraph symGraph;

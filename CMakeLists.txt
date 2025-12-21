@@ -8,7 +8,7 @@ option(DENOX_SAN "Enables sanitizers" OFF)
 option(DENOX_DISABLE_WARNINGS "Enables sanitizers" OFF)
 
 add_subdirectory(common)
-add_subdirectory(symbolic)
+# add_subdirectory(symbolic)
 add_subdirectory(device_info)
 add_subdirectory(spirv)
 add_subdirectory(database)

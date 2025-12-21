@@ -20,7 +20,7 @@ int main() {
 
   compiler::Options options;
 
-  compiler::TensorDescriptor albedo;
+  compiler::InterfaceTensorDescriptor albedo;
   albedo.name = "albedo";
   albedo.format = TensorFormat::Optimal;
   albedo.storage = TensorStorage::Optimal;
@@ -28,7 +28,7 @@ int main() {
   albedo.widthValueName = "W";
   albedo.heightValueName = "H";
 
-  compiler::TensorDescriptor norm;
+  compiler::InterfaceTensorDescriptor norm;
   norm.name = "norm";
   norm.format = TensorFormat::Optimal;
   norm.storage = TensorStorage::Optimal;
@@ -36,7 +36,7 @@ int main() {
   norm.widthValueName = "W";
   norm.heightValueName = "H";
 
-  compiler::TensorDescriptor output;
+  compiler::InterfaceTensorDescriptor output;
   output.name = "output";
   output.format = TensorFormat::TEX_RGBA;
   output.storage = TensorStorage::StorageImage;

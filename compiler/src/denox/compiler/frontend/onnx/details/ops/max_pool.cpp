@@ -158,7 +158,7 @@ max_pool(ImportState &state,
   }
 
   // Backend call
-  compiler::Tensor outHandle =
+  compiler::TensorHandle outHandle =
       state.output.pool(Xdev.handle(), kernel, padding, stride, dilation,
                         PoolFunction::Max);
   return {Tensor::Device(DeviceTensor{Xdev.rank(), std::move(outHandle)})};

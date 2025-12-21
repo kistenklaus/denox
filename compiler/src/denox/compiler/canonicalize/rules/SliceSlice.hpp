@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/common/TensorDescriptor.hpp"
 #include "denox/compiler/canonicalize/rules/IFusionRule.hpp"
 #include "denox/algorithm/pattern_matching/EdgePattern.hpp"
 #include "denox/algorithm/pattern_matching/NodePattern.hpp"
@@ -32,13 +33,13 @@ public:
     m_handles.BC->matchValue(isSliceOp);
   }
 
-  const algorithm::GraphPattern<ComputeTensor, ComputeOp> &
+  const algorithm::GraphPattern<TensorDescriptor, ComputeOp> &
   pattern() final override {
     return m_handles.pattern;
   }
 
   void apply(SymGraph &symGraph,
-                     const algorithm::LinkedGraphMatch<ComputeTensor, ComputeOp>
+                     const algorithm::LinkedGraphMatch<TensorDescriptor, ComputeOp>
                          &match) final {
     const auto &handles = m_handles;
 
@@ -63,7 +64,7 @@ public:
   }
 
 private:
-  using Pattern = algorithm::GraphPattern<ComputeTensor, ComputeOp>;
+  using Pattern = algorithm::GraphPattern<TensorDescriptor, ComputeOp>;
   struct Handles {
     Pattern pattern;
     Pattern::NP A;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/common/TensorDescriptor.hpp"
 #include "denox/compiler/frontend/model/ComputeOp.hpp"
 #include "denox/compiler/frontend/model/ComputeTensor.hpp"
 #include "denox/memory/hypergraph/LinkedGraph.hpp"
@@ -10,7 +11,7 @@
 namespace denox::compiler {
 
 struct CanoModel {
-  using Graph = memory::LinkedGraph<ComputeTensor, ComputeOp>;
+  using Graph = memory::LinkedGraph<TensorDescriptor, ComputeOp>;
   Graph graph;
   std::vector<Graph::NodeHandle> inputs;
   std::vector<Graph::NodeHandle> outputs;

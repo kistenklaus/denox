@@ -13,10 +13,11 @@ denox::compiler::frontend(memory::span<const std::byte> raw,
   for (const auto &inputName : inputNames) {
     auto input = *model.getInput(inputName);
 
-    auto interfaceDescriptor = std::ranges::find_if(
-        options.interfaceDescriptors, [&](const TensorDescriptor &descriptor) {
-          return descriptor.name == inputName;
-        });
+    auto interfaceDescriptor =
+        std::ranges::find_if(options.interfaceDescriptors,
+                             [&](const InterfaceTensorDescriptor &descriptor) {
+                               return descriptor.name == inputName;
+                             });
     if (interfaceDescriptor != options.interfaceDescriptors.end()) {
       if (interfaceDescriptor->storage != TensorStorage::Optimal) {
         input.setStorage(interfaceDescriptor->storage);
@@ -31,10 +32,11 @@ denox::compiler::frontend(memory::span<const std::byte> raw,
   for (const auto &outputName : outputNames) {
     auto output = *model.getOutput(outputName);
 
-    auto interfaceDescriptor = std::ranges::find_if(
-        options.interfaceDescriptors, [&](const TensorDescriptor &descriptor) {
-          return descriptor.name == outputName;
-        });
+    auto interfaceDescriptor =
+        std::ranges::find_if(options.interfaceDescriptors,
+                             [&](const InterfaceTensorDescriptor &descriptor) {
+                               return descriptor.name == outputName;
+                             });
     if (interfaceDescriptor != options.interfaceDescriptors.end()) {
       if (interfaceDescriptor->storage != TensorStorage::Optimal) {
         output.setStorage(interfaceDescriptor->storage);

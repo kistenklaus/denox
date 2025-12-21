@@ -36,7 +36,7 @@ relu(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   const DeviceTensor &inDev = inT.device();
   const std::size_t r = inDev.rank();
 
-  compiler::Tensor outHandle = state.output.activation(
+  compiler::TensorHandle outHandle = state.output.activation(
       inDev.handle(), ActivationFunction::ReLU);
 
   DeviceTensor outDev(r, std::move(outHandle));
