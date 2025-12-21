@@ -1,7 +1,6 @@
 #pragma once
 
 #include "denox/memory/container/dynamic_bitset.hpp"
-#include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -10,6 +9,7 @@
 #include "denox/memory/hypergraph/LinkedGraph.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include "denox/memory/hypergraph/NullWeight.hpp"
+#include <fmt/core.h>
 #include <tuple>
 
 namespace denox::memory {
@@ -104,13 +104,16 @@ public:
 
     // Pass 0: Compact IDs and build remapping tables.
     std::size_t maxNodeId{0};
-    for (typename AdjGraph<V, E, W>::const_node_iterator::Node n : graph.nodes()) {
-      maxNodeId = std::max(static_cast<std::uint64_t>(n.id()), static_cast<std::uint64_t>(maxNodeId));
+    for (typename AdjGraph<V, E, W>::const_node_iterator::Node n :
+         graph.nodes()) {
+      maxNodeId = std::max(static_cast<std::uint64_t>(n.id()),
+                           static_cast<std::uint64_t>(maxNodeId));
     }
     std::size_t maxEdgeId{0};
     for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
          graph.edges()) {
-      maxEdgeId = std::max(static_cast<std::uint64_t>(e.id()), static_cast<std::uint64_t>(maxEdgeId));
+      maxEdgeId = std::max(static_cast<std::uint64_t>(e.id()),
+                           static_cast<std::uint64_t>(maxEdgeId));
     }
     denox::memory::vector<NodeId> nodeRemap(maxNodeId + 1, NodeId{0});
     {
@@ -223,7 +226,8 @@ public:
 
   denox::memory::span<const NodeId> src(EdgeId edge) const {
     return denox::memory::span<const NodeId>{
-        m_nodeIds.begin() + static_cast<std::ptrdiff_t>(m_edges[*edge].srcBegin),
+        m_nodeIds.begin() +
+            static_cast<std::ptrdiff_t>(m_edges[*edge].srcBegin),
         m_nodeIds.begin() + static_cast<std::ptrdiff_t>(m_edges[*edge].srcEnd)};
   }
 
@@ -241,3 +245,62 @@ private:
   denox::memory::vector<E> m_edgeData;
 };
 } // namespace denox::memory
+
+namespace fmt {
+
+template <typename V, typename E, typename W>
+struct formatter<denox::memory::ConstGraph<V, E, W>> {
+  constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::ConstGraph<V, E, W> &graph,
+              FormatContext &ctx) const {
+    auto out = ctx.out();
+
+    // ============================================================
+    // Nodes
+    // ============================================================
+
+    fmt::format_to(out, "Nodes:\n");
+    for (std::size_t i = 0; i < graph.nodeCount(); ++i) {
+      denox::memory::NodeId nid{i};
+      fmt::format_to(out, "  N{} {{ value={} }}\n",
+                     i,
+                     graph.get(nid));
+    }
+
+    // ============================================================
+    // Edges
+    // ============================================================
+
+    fmt::format_to(out, "Edges:\n");
+    for (std::size_t i = 0; i < graph.edgeCount(); ++i) {
+      denox::memory::EdgeId eid{i};
+
+      // src list
+      fmt::format_to(out, "  E{}: [", i);
+      bool first = true;
+      for (auto src : graph.src(eid)) {
+        if (!first)
+          fmt::format_to(out, ", ");
+        first = false;
+        fmt::format_to(out, "N{}", *src);
+      }
+      fmt::format_to(out, "] -> N{}", *graph.dst(eid));
+
+      // payload
+      fmt::format_to(out, " {{ op={} }}", graph.get(eid));
+
+      // weight (if any)
+      if constexpr (!std::is_same_v<W, denox::memory::NullWeight>) {
+        fmt::format_to(out, " {{ weight={} }}", graph.weight(eid));
+      }
+
+      fmt::format_to(out, "\n");
+    }
+
+    return out;
+  }
+};
+
+} // namespace fmt

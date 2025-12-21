@@ -1,11 +1,11 @@
 #pragma once
 
-#include "compiler/ir/ConstModel.hpp"
-#include "compiler/ir/SpecModel.hpp"
+#include "denox/compiler/dce/ConstModel.hpp"
+#include "denox/compiler/specialization/SpecModel.hpp"
 
 namespace denox::compiler {
 
 /// Dead Code Elimination
-OpModel dce(const SpecModel &model);
+ConstModel dce(const SpecModel &model);
 
 } // namespace denox::compiler

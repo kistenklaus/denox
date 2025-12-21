@@ -60,6 +60,9 @@ add_library(denox_compiler
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/specialization/specialization.cpp
 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/dce.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/implement.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/ComputeDispatchBuilder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/shaders.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/BasicActivationShader.cpp
@@ -69,8 +72,6 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pool/BasicPoolShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/slice/MemorySliceShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/BasicUpsampleShader.cpp
-
-
 )
 
 target_include_directories(denox_compiler
