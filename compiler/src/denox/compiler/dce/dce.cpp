@@ -1,4 +1,4 @@
-#include "compiler/dce.hpp"
+#include "denox/compiler/dce/dce.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
@@ -6,12 +6,11 @@
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include "denox/memory/hypergraph/NullWeight.hpp"
-#include "model/ComputeOp.hpp"
 #include <utility>
 
 namespace denox::compiler {
 
-OpModel dce(const SpecModel &model) {
+ConstModel dce(const SpecModel &model) {
   memory::AdjGraph<TensorInstance, ComputeOp> adj;
   using LinkedGraph = SpecModel::Graph;
   using NodeHandle = LinkedGraph::NodeHandle;
@@ -22,9 +21,15 @@ OpModel dce(const SpecModel &model) {
   stack.reserve(model.graph.upperNodeCount());
 
   memory::vector<memory::NodeId> adjNodes(model.graph.upperNodeCount());
-  adjNodes[*model.output->id()] = adj.addNode(model.output->value());
-
-  stack.push_back(model.output);
+  memory::vector<memory::NodeId> outputs;
+  outputs.reserve(model.outputs.size());
+  for (const auto &output : model.outputs) {
+    memory::NodeId id = adj.addNode(output->value());
+    adjNodes[*output->id()] = id;
+    stack.push_back(output);
+    outputs.push_back(id);
+    exists[*output->id()] = true;
+  }
 
   while (!stack.empty()) {
     NodeHandle node = stack.back();
@@ -56,10 +61,20 @@ OpModel dce(const SpecModel &model) {
 
   memory::ConstGraph<TensorInstance, ComputeOp> opGraph{adj};
 
-  return OpModel{
-    .graph = std::move(opGraph),
-    .input = adjNodes[*model.input->id()],
-      .output = adjNodes[*model.output->id()],
+  std::vector<memory::NodeId> inputs;
+  inputs.reserve(model.inputs.size());
+  for (const auto &input : model.inputs) {
+    if (!exists[*input->id()]) {
+      DENOX_WARN("Found dead input, implicitly pruned!");
+      continue;
+    }
+    inputs.push_back(adjNodes[*input->id()]);
+  }
+
+  return ConstModel{
+      .graph = std::move(opGraph),
+      .inputs = std::move(inputs),
+      .outputs = std::move(outputs),
   };
 }
 

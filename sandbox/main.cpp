@@ -1,13 +1,13 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
+#include "denox/compiler/dce/dce.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/io/fs/Path.hpp"
-#include "denox/memory/dtype/dtype.hpp"
-#include <fmt/base.h>
+#include <fmt/format.h>
 
 using namespace denox;
 using namespace denox::io;
@@ -44,19 +44,20 @@ int main() {
 
   options.interfaceDescriptors = {albedo, norm, output};
 
-  while (true) {
+  compiler::Model model = compiler::frontend(onnx, options);
+  fmt::println("MODEL:\n{}", model);
 
-    compiler::Model model = compiler::frontend(onnx, options);
-    // fmt::println("{}", model);
+  compiler::CanoModel cano = compiler::canonicalize(model);
 
-    compiler::CanoModel cano = compiler::canonicalize(model);
+  fmt::println("CANO:\n{}", cano);
 
-    // fmt::println("{}", cano);
+  compiler::Lifetimes lifetimes = compiler::lifeness(cano);
 
-    compiler::Lifetimes lifetimes = compiler::lifeness(cano);
+  compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
 
-    compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
+  fmt::println("SPEC:\n{}", specModel);
 
-    // fmt::println("{}", specModel);
-  }
+  compiler::ConstModel constModel = compiler::dce(specModel);
+
+  fmt::println("DCE:\n{}", constModel);
 }
