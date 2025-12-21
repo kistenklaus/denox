@@ -195,11 +195,17 @@ memory::vector<Tensor> conv(
         "vkcnn: Conv: kernel_shape mismatch (W has {}x{}, attr is {}x{}).", r,
         s, kernelShapeAttr->y, kernelShapeAttr->x));
 
+  if (!Xdev.handle().channels().isConstant()) {
+    throw std::runtime_error("vkcnn: Conv: input channels must be constant!");
+  }
+
+
+
   // Check input channels
-  if (Xdev.handle().channels() != c) {
+  if (Xdev.handle().channels().constant() != c) {
     throw std::runtime_error(
         fmt::format("vkcnn: Conv: input channels ({}) do not match W.C ({}).",
-                    Xdev.handle().channels(), c));
+                    Xdev.handle().channels().constant(), c));
   }
 
   memory::FilterDescriptor W_desc{

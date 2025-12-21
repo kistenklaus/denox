@@ -3,6 +3,7 @@
 add_executable(sandbox EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
 )
+
 target_compile_features(sandbox PUBLIC cxx_std_20)
 set_target_properties(sandbox PROPERTIES CXX_STANDARD 20)
 set_target_properties(sandbox PROPERTIES CXX_STANDARD_REQUIRED ON)

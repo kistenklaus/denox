@@ -1,4 +1,4 @@
-#include "frontend/onnx/details/values/DeviceTensor.hpp"
+#include "denox/compiler/frontend/onnx/details/values/DeviceTensor.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/vector.hpp"
 
@@ -21,9 +21,7 @@ TensorShape DeviceTensor::shape() const {
     // NCHW
     dims.push_back(compiler::Symbolic{g, Sym::Const(1)});
   }
-  assert(m_handle.channels() > 0);
-  dims.push_back(
-      compiler::Symbolic{g, Sym::Const(m_handle.channels())});
+  dims.push_back(compiler::Symbolic{g, m_handle.channels()});
   dims.push_back(h);
   dims.push_back(w);
   return TensorShape{g, std::move(dims)};
@@ -40,20 +38,15 @@ bool DeviceTensor::sameHandleAs(const DeviceTensor &o) const {
 }
 
 memory::optional<Dtype> DeviceTensor::type() const {
-  memory::optional<memory::Dtype> dtype = m_handle.type();
-  if (!dtype.has_value()) {
-    return memory::nullopt;
-  }
-  switch (dtype->kind()) {
-  case memory::DtypeKind::F16:
+  TensorDataType dtype = m_handle.type();
+  switch (dtype) {
+  case TensorDataType::Auto:
+    return std::nullopt;
+  case TensorDataType::Float16:
     return Dtype::Float16;
-  case memory::DtypeKind::F32:
+  case TensorDataType::Float32:
     return Dtype::Float32;
-  case memory::DtypeKind::F64:
-    return Dtype::Float64;
-  case memory::DtypeKind::U32:
-  case memory::DtypeKind::I32:
-    diag::unreachable();
+    break;
   };
   diag::unreachable();
 }

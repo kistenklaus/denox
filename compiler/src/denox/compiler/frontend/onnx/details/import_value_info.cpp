@@ -1,8 +1,8 @@
 #include "denox/compiler/frontend/onnx/details/import_value_info.hpp"
 #include "denox/compiler/Options.hpp"
-#include "denox/diag/invalid_argument.hpp"
 #include "denox/compiler/frontend/onnx/details/values/Tensor.hpp"
-#include "denox/compiler/frontend/model/DynamicInputExtent.hpp"
+#include "denox/diag/invalid_argument.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 
 #include <onnx.pb.h>
@@ -25,12 +25,7 @@ static unsigned get_const_channels_or_throw(const TensorShape &s, size_t axis,
 }
 
 void maybe_set_device_float_type_from_dtype(DeviceTensor &dev, Dtype onnxElem) {
-  // If you have a helper
-  // dtype_to_float_type(Dtype)->optional<vkcnn::FloatType>, use it here to set
-  // dev.handle().setType(...)
-  if (auto want = onnxElem.toDenoxType()) {
-    // You mentioned handle().type() is optional and there is setType().
-    // If your API needs non-const access:
+  if (auto want = onnxElem.toTensorType()) {
     dev.handle().setType(*want);
   }
 }
@@ -100,15 +95,21 @@ void import_value_info(ImportState &state,
           "vkcnn: tensor {} has unknown shape (dynamic rank unsupported)",
           name));
     }
-    compiler::NamedExtent dynamicExtent;
     // TensorShape::parse
     const auto &shp = ttype.shape();
     compiler::SymGraph *symGraph = state.symGraph;
     memory::vector<compiler::Symbolic> dims;
     dims.reserve(static_cast<std::size_t>(shp.dim_size()));
     auto g = symGraph;
-    if (!g)
+    if (!g) {
       throw std::runtime_error("vkcnn: symGraph is null");
+    }
+
+    auto interfaceDescriptor = std::ranges::find_if(
+        options.interfaceDescriptors,
+        [&](const compiler::TensorDescriptor &tensorDescriptor) {
+          return tensorDescriptor.name == name;
+        });
 
     for (int i = 0; i < shp.dim_size(); ++i) {
       const auto &d = shp.dim(i);
@@ -120,29 +121,48 @@ void import_value_info(ImportState &state,
         }
         dims.emplace_back(g, Sym::Const(v));
         // NOTE: Check that it matches the input-shape option if set.
-        int ri = shp.dim_size() == 4 ? i : (i + 1);
 
-        if (ri == 1) {
-          if (options.inputShape.channels.value.has_value() &&
-              options.inputShape.channels.value.value() != v) {
-            diag::invalid_argument();
-          }
-          dynamicExtent.channels = options.inputShape.channels.name;
-        }
-        if (ri == 2) {
-          if (options.inputShape.height.value.has_value() &&
-              options.inputShape.height.value.value() != v) {
-            diag::invalid_argument();
-          }
-          dynamicExtent.height = options.inputShape.height.name;
-        }
+        if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+          int ri = shp.dim_size() == 4 ? i : (i + 1);
 
-        if (ri == 3) {
-          if (options.inputShape.width.value.has_value() &&
-              options.inputShape.width.value.value() != v) {
-            diag::invalid_argument();
+          if (ri == 1) {
+            // channels
+            if (interfaceDescriptor->channels.has_value() &&
+                interfaceDescriptor->channels.value() != v) {
+              DENOX_ERROR(
+                  "Input {}, has non dynamic channel count {}, expected {}.",
+                  name, v, interfaceDescriptor->channels.value());
+              diag::invalid_argument();
+            }
+            if (interfaceDescriptor->channelValueName) {
+              state.output.assignValueName(
+                  interfaceDescriptor->channelValueName.value(), Sym::Const(v));
+            }
           }
-          dynamicExtent.width = options.inputShape.width.name;
+          if (ri == 2) {
+            // height
+            if (interfaceDescriptor->height.has_value() &&
+                interfaceDescriptor->height.value() != v) {
+              diag::invalid_argument();
+            }
+
+            if (interfaceDescriptor->heightValueName) {
+              state.output.assignValueName(
+                  interfaceDescriptor->heightValueName.value(), Sym::Const(v));
+            }
+          }
+
+          if (ri == 3) {
+            // width
+            if (interfaceDescriptor->width.has_value() &&
+                interfaceDescriptor->width.value() != v) {
+              diag::invalid_argument();
+            }
+            if (interfaceDescriptor->widthValueName) {
+              state.output.assignValueName(
+                  interfaceDescriptor->widthValueName.value(), Sym::Const(v));
+            }
+          }
         }
 
       } else if (d.has_dim_param()) {
@@ -156,38 +176,67 @@ void import_value_info(ImportState &state,
         if (shp.dim_size() == 4 && i == 0) {
           s = Sym::Const(1);
         } else {
+
           int ri = shp.dim_size() == 4 ? i : (i + 1);
           if (ri == 1) {
-            if (options.inputShape.channels.value.has_value()) {
-              s = Sym::Const(
-                  options.inputShape.channels.value.value());
+            // channels.
+            if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+              if (interfaceDescriptor->channels.has_value()) {
+                // overwrite symbolic behavior of onnx model!
+                s = Sym::Const(interfaceDescriptor->channels.value());
+                // naming the constant!
+              } else {
+                s = state.output.requireValueOfName(label, true);
+              }
+              if (interfaceDescriptor->channelValueName.has_value()) {
+                state.output.assignValueName(
+                    interfaceDescriptor->channelValueName.value(), s);
+              }
             } else {
-              s = symGraph->var();
-            }
-            if (options.inputShape.channels.name.has_value()) {
-              dynamicExtent.channels = options.inputShape.channels.name.value();
+              // check if a symbol if a identical name exist, then use this one.
+              s = state.output.requireValueOfName(label, true);
             }
           }
           if (ri == 2) {
-            if (options.inputShape.height.value.has_value()) {
-              s = Sym::Const(options.inputShape.height.value.value());
+            // height
+            if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+              if (interfaceDescriptor->height.has_value()) {
+                // overwrite symbolic behavior of onnx model!
+                s = Sym::Const(interfaceDescriptor->height.value());
+                // naming the constant!
+              } else {
+                s = state.output.requireValueOfName(label, true);
+              }
+              if (interfaceDescriptor->heightValueName.has_value()) {
+                state.output.assignValueName(
+                    interfaceDescriptor->heightValueName.value(), s);
+              }
             } else {
-              s = symGraph->var();
-            }
-            if (options.inputShape.height.name.has_value()) {
-              dynamicExtent.height = options.inputShape.height.name.value();
+              // check if a symbol if a identical name exist, then use this one.
+              s = state.output.requireValueOfName(label, true);
             }
           }
           if (ri == 3) {
-            if (options.inputShape.width.value.has_value()) {
-              s = Sym::Const(options.inputShape.width.value.value());
+            // width
+            if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+              if (interfaceDescriptor->width.has_value()) {
+                // overwrite symbolic behavior of onnx model!
+                s = Sym::Const(interfaceDescriptor->width.value());
+                // naming the constant!
+              } else {
+                s = state.output.requireValueOfName(label, true);
+              }
+              if (interfaceDescriptor->widthValueName.has_value()) {
+                state.output.assignValueName(
+                    interfaceDescriptor->widthValueName.value(), s);
+              }
             } else {
-              s = symGraph->var();
-            }
-            if (options.inputShape.width.name.has_value()) {
-              dynamicExtent.width = options.inputShape.width.name.value();
+              // check if a symbol if a identical name exist, then use this one.
+              s = state.output.requireValueOfName(label, true);
             }
           }
+
+          state.output.assignValueName(label, s, true);
         }
         dims.emplace_back(g, s);
       } else {
@@ -223,26 +272,22 @@ void import_value_info(ImportState &state,
       }
     }
 
-    // Channels must be positive constant to build the runtime handle
-    const unsigned C =
-        get_const_channels_or_throw(tshape, axC, "input channels");
-
     // Height/Width may be symbolic
     const Sym Hs = static_cast<Sym>(*tshape[axH]);
     const Sym Ws = static_cast<Sym>(*tshape[axW]);
+    const Sym Cs = static_cast<Sym>(*tshape[axC]);
 
     // Optional float-type hint from dtype
-    memory::optional<memory::Dtype> hint =
-        dtypeOpt ? dtypeOpt->toDenoxType() : memory::nullopt;
-    memory::optional<memory::Dtype> dtype;
-    if (options.inputType.has_value()) {
-      dtype = *options.inputType;
+    memory::optional<TensorDataType> hint =
+        dtypeOpt ? dtypeOpt->toTensorType() : memory::nullopt;
+    TensorDataType dtype;
+    if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+      dtype = interfaceDescriptor->dtype;
     } else if (hint.has_value()) {
       dtype = *hint;
     }
 
-    compiler::Tensor rt = state.output.input(C, name, memory::nullopt, dtype,
-                                             Ws, Hs, dynamicExtent);
+    compiler::Tensor rt = state.output.input(name, Ws, Hs, Cs, dtype);
 
     DeviceTensor dev(r, std::move(rt));
     state.tensors.emplace(name, Tensor::Device(std::move(dev)));
@@ -263,24 +308,28 @@ void import_value_info(ImportState &state,
                     name));
   }
 
+  auto interfaceDescriptor = std::ranges::find_if(
+      options.interfaceDescriptors,
+      [&](const compiler::TensorDescriptor &tensorDescriptor) {
+        return tensorDescriptor.name == name;
+      });
+
   DeviceTensor dev = it->second.device();
 
   // (A) DType consistency: if ONNX dtype is supported → verify or set
   if (dtypeOpt) {
-    if (auto want = dtypeOpt->toDenoxType()) {
+    if (auto want = dtypeOpt->toTensorType()) {
       auto &h = dev.handle();
-      if (h.type().has_value() && h.type().value() != *want) {
-        throw std::runtime_error("vkcnn: Output tensor type mismatch.");
-      }
-      if (!h.type().has_value()) {
+      if (h.type() == TensorDataType::Auto) {
         h.setType(*want);
+      } else if (h.type() != *want) {
+        throw std::runtime_error("vkcnn: Output tensor type mismatch.");
       }
     }
   }
 
   // (B) Channel-count check only (ignore all other dims/symbols)
   // We only do this if ONNX provided a tensor shape and a concrete channel dim.
-  compiler::NamedExtent extent;
   if (ttype.has_shape()) {
     const auto &oshape = ttype.shape();
 
@@ -293,56 +342,48 @@ void import_value_info(ImportState &state,
     }
     // If ONNX rank doesn't match or is weird, we don't try to reconcile; we
     // simply skip the channel check.
-    const size_t orank = static_cast<size_t>(oshape.dim_size());
-    if ((pr == 3 && orank == 3) || (pr == 4 && orank == 4)) {
-      const size_t chAxOnnx = (orank == 4) ? 1 : 0;
-      const auto &d = oshape.dim(static_cast<int>(chAxOnnx));
-      if (d.has_dim_value()) {
-        const int64_t v = d.dim_value();
-        if (v < 0) {
-          throw std::runtime_error(fmt::format(
-              "vkcnn: Output (\"{}\") has negative channel dim {}", name, v));
-        }
-        const unsigned rtC = dev.handle().channels();
-        if (static_cast<unsigned>(v) != rtC) {
-          throw std::runtime_error(fmt::format(
-              "vkcnn: Output (\"{}\") channel mismatch. Expected {}, got {}.",
-              name, v, rtC));
-        }
-      }
-      // If dim_param or unknown → we ignore (no symbol tracking here).
-    }
+    if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+      const size_t orank = static_cast<size_t>(oshape.dim_size());
+      for (std::size_t d = 0; d < orank; ++d) {
+        const auto &dim = oshape.dim()[static_cast<int>(d)];
+        std::size_t rd = (orank == 4) ? d : (d + 1);
+        if (rd == 1) {
+          if (dim.has_dim_value() &&
+              interfaceDescriptor->channels.has_value() &&
+              dim.dim_value() != interfaceDescriptor->channels.value()) {
+            diag::invalid_argument();
+          }
+          if (interfaceDescriptor->channelValueName.has_value()) {
+            state.output.assignValueName(*interfaceDescriptor->channelValueName,
+                                         dev.handle().channels());
+          }
 
-    for (std::size_t d = 0; d < orank; ++d) {
-      const auto &dim = oshape.dim()[static_cast<int>(d)];
-      std::size_t rd = (orank == 4) ? d : (d + 1);
-      if (rd == 1) {
-        extent.channels = options.outputShape.channels.name;
-        if (dim.has_dim_value() &&
-            options.outputShape.channels.value.has_value() &&
-            options.outputShape.channels.value.value() != dim.dim_value()) {
-          diag::invalid_argument();
-        }
-      } else if (rd == 2) {
-        extent.height = options.outputShape.height.name;
-        if (dim.has_dim_value() &&
-            options.outputShape.height.value.has_value() &&
-            options.outputShape.height.value.value() != dim.dim_value()) {
-          diag::invalid_argument();
-        }
-      } else if (rd == 3) {
-        extent.width = options.outputShape.width.name;
-        if (dim.has_dim_value() &&
-            options.outputShape.width.value.has_value() &&
-            options.outputShape.width.value.value() != dim.dim_value()) {
-          diag::invalid_argument();
+        } else if (rd == 2) {
+          if (dim.has_dim_value() && interfaceDescriptor->height.has_value() &&
+              dim.dim_value() != interfaceDescriptor->height.value()) {
+            diag::invalid_argument();
+          }
+
+          if (interfaceDescriptor->channelValueName.has_value()) {
+            state.output.assignValueName(*interfaceDescriptor->heightValueName,
+                                         *dev.handle().height());
+          }
+        } else if (rd == 3) {
+          if (dim.has_dim_value() && interfaceDescriptor->width.has_value() &&
+              dim.dim_value() != interfaceDescriptor->width.value()) {
+            diag::invalid_argument();
+          }
+          if (interfaceDescriptor->channelValueName.has_value()) {
+            state.output.assignValueName(*interfaceDescriptor->widthValueName,
+                                         *dev.handle().width());
+          }
         }
       }
     }
   }
 
   // Finalize output in backend
-  state.output.output(dev.handle(), name, extent);
+  state.output.output(dev.handle(), name);
 }
 
 } // namespace denox::onnx::details

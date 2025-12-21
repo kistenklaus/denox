@@ -1,11 +1,11 @@
 #pragma once
 
-#include "frontend/onnx/details/values/Map.hpp"
-#include "frontend/onnx/details/values/Opaque.hpp"
-#include "frontend/onnx/details/values/Optional.hpp"
-#include "frontend/onnx/details/values/Sequence.hpp"
-#include "frontend/onnx/details/values/SparseTensor.hpp"
-#include "frontend/onnx/details/values/Tensor.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Map.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Opaque.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Optional.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Sequence.hpp"
+#include "denox/compiler/frontend/onnx/details/values/SparseTensor.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Tensor.hpp"
 #include "denox/memory/container/variant.hpp"
 namespace denox::onnx::details {
 

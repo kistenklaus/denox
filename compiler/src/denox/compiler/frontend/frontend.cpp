@@ -4,7 +4,7 @@
 denox::compiler::Model
 denox::compiler::frontend(memory::span<const std::byte> raw,
                           const Options &options) {
-  auto model = denox::onnx::read(raw, options);
+  Model model = denox::onnx::read(raw, options);
 
   // model.getInput().setLayout(options.inputLayout);
   // model.getOutput().setLayout(options.outputLayout);

@@ -1,5 +1,6 @@
-#include "frontend/onnx/details/values/Dtype.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Dtype.hpp"
 
+#include "denox/common/TensorDataType.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/symbolic/Sym.hpp"
 #include <onnx.pb.h>
@@ -44,6 +45,31 @@ dtype::details::Dtype::toDenoxType() const {
   case DtypeKind::Float16:
     return memory::Dtype::F16;
   // NOTE: All other types are not supported by denox!
+  case DtypeKind::Undefined:
+  case DtypeKind::Int8:
+  case DtypeKind::Int16:
+  case DtypeKind::Int32:
+  case DtypeKind::Int64:
+  case DtypeKind::Uint8:
+  case DtypeKind::Uint16:
+  case DtypeKind::Uint32:
+  case DtypeKind::Uint64:
+  case DtypeKind::String:
+  case DtypeKind::Bool:
+  case DtypeKind::Sym:
+    break;
+  }
+  return memory::nullopt;
+}
+
+std::optional<TensorDataType> dtype::details::Dtype::toTensorType() const {
+  switch (m_kind) {
+  case DtypeKind::Float64:
+    return TensorDataType::Float64;
+  case DtypeKind::Float32:
+    return TensorDataType::Float32;
+  case DtypeKind::Float16:
+    return TensorDataType::Float32;
   case DtypeKind::Undefined:
   case DtypeKind::Int8:
   case DtypeKind::Int16:
@@ -191,6 +217,7 @@ memory::string_view Dtype::parse_to_string(std::int32_t dataType) {
 memory::optional<denox::memory::Dtype> Dtype::toDenoxType() const {
   return m_type.toDenoxType();
 }
+
 bool dtype::details::Dtype::isSignedInt() const {
   switch (m_kind) {
   case DtypeKind::Int8:
@@ -213,6 +240,7 @@ bool dtype::details::Dtype::isSignedInt() const {
   }
   diag::unreachable();
 }
+
 bool dtype::details::Dtype::isUnsignedInt() const {
   switch (m_kind) {
   case DtypeKind::Undefined:
@@ -278,5 +306,8 @@ bool dtype::details::Dtype::isInteger() const {
     return false;
   }
   diag::unreachable();
+}
+memory::optional<TensorDataType> Dtype::toTensorType() const {
+  return m_type.toTensorType();
 }
 } // namespace denox::onnx::details

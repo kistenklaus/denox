@@ -1,9 +1,9 @@
 #pragma once
 
-#include "denox/memory/container/optional.hpp"
-#include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
-#include "denox/symbolic/sym_vec2.hpp"
+#include "denox/common/TensorDataType.hpp"
+#include "denox/common/TensorFormat.hpp"
+#include "denox/common/TensorStorage.hpp"
+#include "denox/symbolic/Sym.hpp"
 
 namespace denox::compiler {
 
@@ -13,27 +13,32 @@ class Tensor;
 class ComputeTensor {
 public:
   friend Model;
-  friend Tensor;
-  explicit ComputeTensor(sym_vec2 extent, unsigned int channels,
-                         memory::optional<memory::ActivationLayout> layout,
-                         memory::optional<memory::Dtype> type)
-      : m_extent(extent), m_channels(channels), m_layout(layout), m_type(type) {
-  }
 
-  unsigned int channels() const { return m_channels; }
-  memory::optional<memory::ActivationLayout> layout() const { return m_layout; }
-  memory::optional<memory::Dtype> type() const { return m_type; }
+  ComputeTensor(Sym width, Sym height, Sym channels,
+                         TensorDataType dtype = TensorDataType::Auto,
+                         TensorStorage storage = TensorStorage::Optimal,
+                         TensorFormat format = TensorFormat::Optimal)
+      : m_width(width), m_height(height), m_channels(channels),
+        m_storage(storage), m_format(format), m_dtype(dtype) {}
 
-  sym_vec2 extent() const { return m_extent; }
+  Sym width() const { return m_width; }
+  Sym height() const { return m_height; }
+  Sym channels() const { return m_channels; }
 
-  void setType(memory::Dtype dtype) { m_type = dtype; }
-  void setLayout(memory::ActivationLayout layout) { m_layout = layout; }
+  TensorStorage storage() const { return m_storage; }
+  void setStorage(TensorStorage storage) { m_storage = storage; }
+  TensorFormat format() const { return m_format; }
+  void setFormat(TensorFormat format) { m_format = format; }
+  TensorDataType type() const { return m_dtype; }
+  void setType(TensorDataType dtype) { m_dtype = dtype; }
 
 private:
-  sym_vec2 m_extent;
-  unsigned int m_channels;
-  memory::optional<memory::ActivationLayout> m_layout;
-  memory::optional<memory::Dtype> m_type;
+  Sym m_width;
+  Sym m_height;
+  Sym m_channels;
+  TensorStorage m_storage;
+  TensorFormat m_format;
+  TensorDataType m_dtype;
 };
 
 } // namespace denox::compiler

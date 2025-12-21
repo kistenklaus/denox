@@ -5,6 +5,18 @@ add_library(denox_compiler
   EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/frontend.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/model/Model.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/onnx.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/import_node.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/import_value_info.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/Attribute.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/DeviceTensor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/Dtype.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/HostTensor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/HostTensorStorage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/Tensor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/TensorShape.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/TensorViewDesc.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/values/Value.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/ops/abs.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/ops/add.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/ops/average_pool.cpp
@@ -41,6 +53,8 @@ add_library(denox_compiler
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/ops/sub.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/ops/transpose.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/onnx/details/ops/unsqueeze.cpp
+
+
 )
 
 target_include_directories(denox_compiler

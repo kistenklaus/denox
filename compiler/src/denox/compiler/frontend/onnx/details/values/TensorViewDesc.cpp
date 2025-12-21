@@ -1,4 +1,4 @@
-#include "frontend/onnx/details/values/TensorViewDesc.hpp"
+#include "denox/compiler/frontend/onnx/details/values/TensorViewDesc.hpp"
 
 namespace denox::onnx::details {
 

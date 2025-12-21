@@ -112,7 +112,7 @@ compiler::Model read(memory::span<const std::byte> raw,
                   fmt::format("{}", onnx.model_version()));
 
     details::ImportState state{
-        .externalDir = onnx_dir,
+        .externalDir = denox::io::Path::cwd(),
         .symGraph = &controlBlock->symGraph,
         .output = compiler::Model(std::move(controlBlock)),
         .ir_version = onnx.ir_version(),

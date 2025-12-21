@@ -1,4 +1,4 @@
-#include "frontend/onnx/details/values/TensorShape.hpp"
+#include "denox/compiler/frontend/onnx/details/values/TensorShape.hpp"
 #include <cassert>
 #include <onnx.pb.h>
 
