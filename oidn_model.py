@@ -345,7 +345,8 @@ class UNetAlignment(nn.Module):
         pad_h = (alignment - (H % alignment)) % alignment
         aligned = F.pad(input, (0, pad_w, 0, pad_h), mode="replicate")
         output = self.net(aligned)
-        return output[:,:,:H,:W]
+        return output
+        # return output[:,:,:H,:W]
 
 
 rt_ldr = UNetAlignment(UNet(3, 3, False))
@@ -366,38 +367,38 @@ program = torch.onnx.export(
 )
 program.save("net.onnx")
 
-dnx = Module.compile(
-    program,
-    input_shape=Shape(H="H", W="W"),
-    summary=True,
-    verbose=True,
-)
-dnx.save("net.dnx")
-
-
-img = Image.open("input.png").convert("RGB")
-
-to_tensor = transforms.ToTensor()
-input_tensor: torch.Tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
-
-output_tensor = torch.utils.dlpack.from_dlpack(dnx(input_tensor))
-output_tensor = output_tensor.squeeze(0)
-output_tensor = torch.clamp(output_tensor, 0.0, 1.0)
-
-rt_ldr = rt_ldr.eval()
-device = torch.cuda.current_device()
-rt_ldr = rt_ldr.to(device=device)
-input_tensor = input_tensor.to(device=device)
-
-output_tensor_ref = rt_ldr(input_tensor)
-
-output_tensor_ref = output_tensor_ref.squeeze(0)
-output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
-
-to_pil = transforms.ToPILImage()
-
-output_img = to_pil(output_tensor)
-output_img.save("output.png")
-
-output_ref_img = to_pil(output_tensor_ref)
-output_ref_img.save("output_ref.png")
+# dnx = Module.compile(
+#     program,
+#     input_shape=Shape(H="H", W="W"),
+#     summary=True,
+#     verbose=True,
+# )
+# dnx.save("net.dnx")
+#
+#
+# img = Image.open("input.png").convert("RGB")
+#
+# to_tensor = transforms.ToTensor()
+# input_tensor: torch.Tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
+#
+# output_tensor = torch.utils.dlpack.from_dlpack(dnx(input_tensor))
+# output_tensor = output_tensor.squeeze(0)
+# output_tensor = torch.clamp(output_tensor, 0.0, 1.0)
+#
+# rt_ldr = rt_ldr.eval()
+# device = torch.cuda.current_device()
+# rt_ldr = rt_ldr.to(device=device)
+# input_tensor = input_tensor.to(device=device)
+#
+# output_tensor_ref = rt_ldr(input_tensor)
+#
+# output_tensor_ref = output_tensor_ref.squeeze(0)
+# output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
+#
+# to_pil = transforms.ToPILImage()
+#
+# output_img = to_pil(output_tensor)
+# output_img.save("output.png")
+#
+# output_ref_img = to_pil(output_tensor_ref)
+# output_ref_img.save("output_ref.png")

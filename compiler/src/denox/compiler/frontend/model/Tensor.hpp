@@ -37,8 +37,17 @@ public:
   TensorStorage storage() const {
     return m_controlBlock->hypergraph.get(m_nodeId).storage();
   }
+
+  void setStorage(TensorStorage storage) {
+    m_controlBlock->hypergraph.get(m_nodeId).setStorage(storage);
+  }
+
   TensorFormat format() const {
     return m_controlBlock->hypergraph.get(m_nodeId).format();
+  }
+
+  void setFormat(TensorFormat format) {
+    m_controlBlock->hypergraph.get(m_nodeId).setFormat(format);
   }
 
   std::uint64_t id() const { return static_cast<std::uint64_t>(m_nodeId); }

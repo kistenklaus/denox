@@ -10,12 +10,6 @@
 
 namespace denox::compiler {
 
-struct FusionRules {
-  bool enableSliceSliceFusion = true;
-  bool enableImplicitConcat = true;
-  bool enableConvReluFusion = true;
-};
-
 struct TensorShapeExtent {
   memory::optional<std::string> name;
   memory::optional<unsigned int> value;
@@ -29,6 +23,9 @@ struct TensorShapeDesc {
 
 struct Features {
   bool coopmat = true;
+  bool enableSliceSliceFusion = true;
+  bool enableImplicitConcat = true;
+  bool enableConvReluFusion = true;
 };
 
 struct DescriptorPolicy {
@@ -67,7 +64,6 @@ struct SpirvOptions {
 struct Options {
   unsigned int dnxVersion;
   Features features;
-  FusionRules fusion;
   SpirvOptions spirv;
   DeviceInfo deviceInfo;
   std::vector<TensorDescriptor> interfaceDescriptors;

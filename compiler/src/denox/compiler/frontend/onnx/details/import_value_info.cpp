@@ -1,28 +1,16 @@
 #include "denox/compiler/frontend/onnx/details/import_value_info.hpp"
+#include "denox/common/TensorDataType.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/frontend/onnx/details/values/Tensor.hpp"
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/logging.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 
+#include <fmt/base.h>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
-
-static unsigned get_const_channels_or_throw(const TensorShape &s, size_t axis,
-                                            const char *what) {
-  const auto &d = s[axis];
-  if (!d.isConstant()) {
-    throw std::runtime_error(
-        fmt::format("vkcnn: {} must be a constant (axis {})", what, axis));
-  }
-  const auto v = d.constant();
-  if (v <= 0) {
-    throw std::runtime_error(
-        fmt::format("vkcnn: {} must be positive, got {}", what, v));
-  }
-  return static_cast<unsigned>(v);
-}
 
 void maybe_set_device_float_type_from_dtype(DeviceTensor &dev, Dtype onnxElem) {
   if (auto want = onnxElem.toTensorType()) {
@@ -186,7 +174,17 @@ void import_value_info(ImportState &state,
                 s = Sym::Const(interfaceDescriptor->channels.value());
                 // naming the constant!
               } else {
-                s = state.output.requireValueOfName(label, true);
+                if (interfaceDescriptor->channelValueName.has_value()) {
+                  std::optional<Sym> attempt = state.output.getValueByName(
+                      interfaceDescriptor->channelValueName.value());
+                  if (attempt) {
+                    s = *attempt;
+                  } else {
+                    s = state.output.requireValueOfName(label, true);
+                  }
+                } else {
+                  s = state.output.requireValueOfName(label, true);
+                }
               }
               if (interfaceDescriptor->channelValueName.has_value()) {
                 state.output.assignValueName(
@@ -200,12 +198,23 @@ void import_value_info(ImportState &state,
           if (ri == 2) {
             // height
             if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+
               if (interfaceDescriptor->height.has_value()) {
                 // overwrite symbolic behavior of onnx model!
                 s = Sym::Const(interfaceDescriptor->height.value());
                 // naming the constant!
               } else {
-                s = state.output.requireValueOfName(label, true);
+                if (interfaceDescriptor->heightValueName.has_value()) {
+                  std::optional<Sym> attempt = state.output.getValueByName(
+                      interfaceDescriptor->heightValueName.value());
+                  if (attempt) {
+                    s = *attempt;
+                  } else {
+                    s = state.output.requireValueOfName(label, true);
+                  }
+                } else {
+                  s = state.output.requireValueOfName(label, true);
+                }
               }
               if (interfaceDescriptor->heightValueName.has_value()) {
                 state.output.assignValueName(
@@ -224,7 +233,17 @@ void import_value_info(ImportState &state,
                 s = Sym::Const(interfaceDescriptor->width.value());
                 // naming the constant!
               } else {
-                s = state.output.requireValueOfName(label, true);
+                if (interfaceDescriptor->widthValueName.has_value()) {
+                  std::optional<Sym> attempt = state.output.getValueByName(
+                      interfaceDescriptor->widthValueName.value());
+                  if (attempt) {
+                    s = *attempt;
+                  } else {
+                    s = state.output.requireValueOfName(label, true);
+                  }
+                } else {
+                  s = state.output.requireValueOfName(label, true);
+                }
               }
               if (interfaceDescriptor->widthValueName.has_value()) {
                 state.output.assignValueName(
@@ -264,8 +283,8 @@ void import_value_info(ImportState &state,
       if (tshape[0].isConstant()) {
         if (tshape[0].constant() != 1) {
           throw std::runtime_error(fmt::format(
-              "vkcnn: Input tensor (\"{}\") has fixed batch {} (unsupported).",
-              name, tshape[0].constant()));
+              "Input tensor (\"{}\") has fixed batch {} (unsupported).", name,
+              tshape[0].constant()));
         }
       } else {
         tshape[0] = compiler::Symbolic{state.symGraph, Sym::Const(1)};
@@ -281,7 +300,8 @@ void import_value_info(ImportState &state,
     memory::optional<TensorDataType> hint =
         dtypeOpt ? dtypeOpt->toTensorType() : memory::nullopt;
     TensorDataType dtype;
-    if (interfaceDescriptor != options.interfaceDescriptors.end()) {
+    if (interfaceDescriptor != options.interfaceDescriptors.end() &&
+        interfaceDescriptor->dtype != TensorDataType::Auto) {
       dtype = interfaceDescriptor->dtype;
     } else if (hint.has_value()) {
       dtype = *hint;
@@ -298,8 +318,8 @@ void import_value_info(ImportState &state,
   // Must exist and be DeviceTensor
   auto it = state.tensors.find(name);
   if (it == state.tensors.end()) {
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Output \"{}\" was never produced by any node.", name));
+    throw std::runtime_error(
+        fmt::format("Output \"{}\" was never produced by any node.", name));
   }
   if (!it->second.isDevice()) {
     throw std::runtime_error(
@@ -317,7 +337,10 @@ void import_value_info(ImportState &state,
   DeviceTensor dev = it->second.device();
 
   // (A) DType consistency: if ONNX dtype is supported → verify or set
-  if (dtypeOpt) {
+  if (interfaceDescriptor != options.interfaceDescriptors.end() &&
+      interfaceDescriptor->dtype != TensorDataType::Auto) {
+    dev.handle().setType(interfaceDescriptor->dtype);
+  } else if (dtypeOpt) {
     if (auto want = dtypeOpt->toTensorType()) {
       auto &h = dev.handle();
       if (h.type() == TensorDataType::Auto) {
@@ -351,31 +374,67 @@ void import_value_info(ImportState &state,
           if (dim.has_dim_value() &&
               interfaceDescriptor->channels.has_value() &&
               dim.dim_value() != interfaceDescriptor->channels.value()) {
+            DENOX_ERROR("Input \'{}\' has channel count {}, expected {}.", name,
+                        dim.dim_value(), interfaceDescriptor->channels.value());
             diag::invalid_argument();
           }
           if (interfaceDescriptor->channelValueName.has_value()) {
-            state.output.assignValueName(*interfaceDescriptor->channelValueName,
-                                         dev.handle().channels());
+            std::optional<Sym> lookup = state.output.getValueByName(
+                *interfaceDescriptor->channelValueName);
+            if (lookup && dev.handle().channels() != *lookup) {
+              DENOX_ERROR("Input \'{}\' has invalid dynamic channel extent.",
+                          name);
+              diag::invalid_argument();
+            }
+            if (!lookup) {
+              state.output.assignValueName(
+                  *interfaceDescriptor->channelValueName,
+                  dev.handle().channels());
+            }
           }
 
         } else if (rd == 2) {
           if (dim.has_dim_value() && interfaceDescriptor->height.has_value() &&
               dim.dim_value() != interfaceDescriptor->height.value()) {
+            DENOX_ERROR("Input \'{}\' has height {}, expected {}.", name,
+                        dim.dim_value(), interfaceDescriptor->height.value());
             diag::invalid_argument();
           }
 
-          if (interfaceDescriptor->channelValueName.has_value()) {
-            state.output.assignValueName(*interfaceDescriptor->heightValueName,
-                                         *dev.handle().height());
+          if (interfaceDescriptor->heightValueName.has_value()) {
+            std::optional<Sym> lookup = state.output.getValueByName(
+                *interfaceDescriptor->heightValueName);
+            if (lookup && dev.handle().height() != *lookup) {
+              DENOX_ERROR("Input \'{}\' has invalid dynamic height extent.",
+                          name);
+              diag::invalid_argument();
+            }
+            if (!lookup) {
+              state.output.assignValueName(
+                  *interfaceDescriptor->heightValueName,
+                  dev.handle().channels());
+            }
           }
         } else if (rd == 3) {
           if (dim.has_dim_value() && interfaceDescriptor->width.has_value() &&
               dim.dim_value() != interfaceDescriptor->width.value()) {
+            DENOX_ERROR("Input \'{}\' has width {}, expected {}.", name,
+                        dim.dim_value(), interfaceDescriptor->width.value());
             diag::invalid_argument();
           }
-          if (interfaceDescriptor->channelValueName.has_value()) {
-            state.output.assignValueName(*interfaceDescriptor->widthValueName,
-                                         *dev.handle().width());
+          if (interfaceDescriptor->widthValueName.has_value()) {
+            std::optional<Sym> lookup = state.output.getValueByName(
+                *interfaceDescriptor->widthValueName);
+            if (lookup && dev.handle().width() != *lookup) {
+              DENOX_ERROR("Input \'{}\' has invalid dynamic width extent.",
+                          name);
+              diag::invalid_argument();
+            }
+            if (!lookup) {
+              state.output.assignValueName(
+                  *interfaceDescriptor->widthValueName,
+                  dev.handle().channels());
+            }
           }
         }
       }

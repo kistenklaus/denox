@@ -7,6 +7,7 @@ namespace denox::compiler {
 struct NamedValue {
   std::string name;
   Sym value;
+  bool imported;
 };
 
 }

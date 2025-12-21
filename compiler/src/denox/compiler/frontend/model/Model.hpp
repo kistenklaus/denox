@@ -70,10 +70,10 @@ public:
 
   // adds a new name to a already existing value,
   // values might have multiple names!
-  void assignValueName(memory::string_view name, Sym value, bool onnxlabel = false);
+  void assignValueName(memory::string_view name, Sym value, bool imported = false);
 
   // create a new value if the there is no matching value name
-  Sym requireValueOfName(memory::string_view name, bool onnxlabel = false);
+  Sym requireValueOfName(memory::string_view name, bool imported = false);
   // tries to get a value with a specific name, if not found returns nullopt.
   memory::optional<Sym> getValueByName(memory::string_view valueName);
 

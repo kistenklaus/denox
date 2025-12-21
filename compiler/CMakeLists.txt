@@ -72,3 +72,18 @@ target_link_libraries(denox_compiler
     denox_spirv
     denox_database
 )
+
+
+target_compile_features(denox_compiler PUBLIC cxx_std_20)
+set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
+set_target_properties(denox_common PROPERTIES CXX_STANDARD_REQUIRED ON)
+set_target_properties(denox_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+if (NOT DENOX_DISABLE_WARNINGS)
+  denox_enable_strict_warnings(denox_compiler)
+endif()
+
+if (DENOX_SAN) 
+  target_compile_options(denox_compiler PRIVATE -fsanitize=undefined -fsanitize=address)
+  target_link_options(denox_compiler PRIVATE -fsanitize=undefined -fsanitize=address)
+endif()
