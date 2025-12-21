@@ -1,4 +1,4 @@
-#include "compiler/spec.hpp"
+#include "denox/compiler/specialization/specialization.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/vector.hpp"

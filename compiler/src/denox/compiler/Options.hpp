@@ -23,7 +23,6 @@ struct TensorShapeDesc {
 
 struct Features {
   bool coopmat = true;
-  bool enableSliceSliceFusion = true;
   bool enableImplicitConcat = true;
   bool enableConvReluFusion = true;
 };

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compiler/ir/CanoModel.hpp"
-#include "compiler/ir/Lifetimes.hpp"
+#include "denox/compiler/canonicalize/CanoModel.hpp"
+#include "denox/compiler/lifeness/Lifetimes.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/ActivationLayout.hpp"
 #include "denox/symbolic/sym_vec2.hpp"

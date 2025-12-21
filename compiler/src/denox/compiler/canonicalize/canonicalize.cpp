@@ -1,10 +1,9 @@
-#include "compiler/cano/cano.hpp"
+#include "denox/compiler/canonicalize/canonicalize.hpp"
 
-#include "Options.hpp"
-#include "compiler/cano/rules/IFusionRule.hpp"
-#include "compiler/cano/rules/SliceSlice.hpp"
-#include "compiler/ir/CanoModel.hpp"
 #include "denox/algorithm/pattern_matching/match.hpp"
+#include "denox/compiler/canonicalize/CanoModel.hpp"
+#include "denox/compiler/canonicalize/rules/IFusionRule.hpp"
+#include "denox/compiler/canonicalize/rules/SliceSlice.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/memory/hypergraph/LinkedGraph.hpp"
 #include "denox/symbolic/SymGraph.hpp"
@@ -12,12 +11,20 @@
 
 namespace denox::compiler {
 
-CanoModel canonicalize(const Model &model, const Options &options) {
+CanoModel canonicalize(const Model &model) {
   // 1. Build LinkedGraph
   using LinkedGraph = memory::LinkedGraph<ComputeTensor, ComputeOp>;
   auto [mapping, graph] = LinkedGraph::from(model.graph());
-  LinkedGraph::NodeHandle input = mapping[model.getInput().id()];
-  LinkedGraph::NodeHandle output = mapping[model.getOutput().id()];
+
+  std::vector<LinkedGraph::NodeHandle> inputs;
+  for (const auto &input : model.getInputs()) {
+    inputs.push_back(mapping[input.id()]);
+  }
+  std::vector<LinkedGraph::NodeHandle> outputs;
+  for (const auto &output : model.getOutputs()) {
+    outputs.push_back(mapping[output.id()]);
+  }
+
   // NOTE: mapping.clear() drops all references to internal tensors, which
   // may implicitly remove dead branches.
   // Afterwards the graph only contains nodes and operations
@@ -26,31 +33,36 @@ CanoModel canonicalize(const Model &model, const Options &options) {
   // contribute to the output!
   mapping.clear();
 
-  if (output->incoming().size() == 0) {
-    DENOX_ERROR("Models output does not depend on the input. Denox does not "
-                "support constant outputs!");
-    throw std::runtime_error("Failed to canonicalize.");
+  for (const auto &output : outputs) {
+    if (output->incoming().size() == 0) {
+      DENOX_ERROR("Models output does not depend on the input. Denox does not "
+                  "support constant outputs!");
+      throw std::runtime_error("Failed to canonicalize.");
+    }
   }
-
-  memory::vector<cano::IFusionRule *> rules;
-
   cano::SliceSlice sliceSliceRule;
-  if (options.fusionRules.enableSliceSliceFusion) {
-    rules.push_back(&sliceSliceRule);
-  }
+
+  memory::vector<cano::IFusionRule *> rules{&sliceSliceRule};
 
   SymGraph symGraph = model.symGraph();
 
+  LinkedGraph::NodeHandle root = graph.createNode(
+      ComputeTensor(Sym::Const(0), Sym::Const(0), Sym::Const(0)));
+
+  for (const auto &input : inputs) {
+    root->outgoing().insert(input, ComputeOp{});
+  }
+
   for (const auto &rule : rules) {
     const auto &pattern = rule->pattern();
-    for (const auto &match : algorithm::match_all(pattern, input)) {
+    for (const auto &match : algorithm::match_all(pattern, root)) {
       rule->apply(symGraph, match);
     }
   }
   CanoModel m{
       .graph = std::move(graph),
-      .input = std::move(input),
-      .output = std::move(output),
+      .inputs = std::move(inputs),
+      .outputs = std::move(outputs),
       .symGraph = std::move(symGraph),
   };
 

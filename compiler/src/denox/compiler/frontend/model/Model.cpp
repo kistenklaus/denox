@@ -523,4 +523,29 @@ std::span<const NamedValue> Model::valueNames() const {
   return m_controlBlock->valueNames;
 }
 
+uint32_t Model::getInputCount() const {
+  return static_cast<uint32_t>(m_controlBlock->inputs.size());
+}
+uint32_t Model::getOutputCount() const {
+  return static_cast<uint32_t>(m_controlBlock->outputs.size());
+}
+
+std::vector<Tensor> Model::getInputs() const {
+  std::vector<Tensor> inputs;
+  inputs.reserve(m_controlBlock->inputs.size());
+  for (const auto& input : m_controlBlock->inputs) {
+    inputs.push_back(Tensor{input.nodeId, m_controlBlock.get()});
+  }
+  return inputs;
+}
+
+std::vector<Tensor> Model::getOutputs() const {
+  std::vector<Tensor> outputs;
+  outputs.reserve(m_controlBlock->outputs.size());
+  for (const auto& output : m_controlBlock->outputs) {
+    outputs.push_back(Tensor{output.nodeId, m_controlBlock.get()});
+  }
+  return outputs;
+}
+
 } // namespace denox::compiler
