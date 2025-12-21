@@ -1,34 +1,35 @@
 #include "denox/compiler/frontend/model/Model.hpp"
+#include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
-#include "denox/compiler/Options.hpp"
+#include "denox/common/TensorStorage.hpp"
 #include "denox/compiler/frontend/model/ModelControlBlock.hpp"
 #include "denox/compiler/frontend/model/NamedValue.hpp"
-#include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
-#include "denox/memory/tensor/BiasLayout.hpp"
 #include <algorithm>
 #include <fmt/format.h>
 #include <stdexcept>
 
 namespace denox::compiler {
 
-Tensor Model::input(const std::string &name, Sym width, Sym height,
-                    Sym channels, TensorDataType dtype) {
+TensorHandle Model::input(const std::string &name, Sym width, Sym height,
+                          Sym channels, TensorDataType dtype) {
 
   memory::NodeId id = m_controlBlock->hypergraph.addNode(
-      ComputeTensor{width, height, channels, dtype});
+      TensorDescriptor{width, height, channels, TensorStorage::Optimal,
+                       TensorFormat::Optimal, dtype});
 
   m_controlBlock->inputs.push_back(ModelInterfaceDescriptor{id, name});
 
-  return Tensor{id, m_controlBlock.get()};
+  return TensorHandle{id, m_controlBlock.get()};
 }
 
-Tensor Model::conv2d(const Tensor &src, memory::FilterTensorConstView W,
-                     memory::optional<memory::BiasTensorConstView> B,
-                     AutoPadMode autoPad, memory::uvec2 stride,
-                     memory::optional<memory::uvec2> padding,
-                     memory::uvec2 dilation,
-                     memory::optional<memory::Dtype> atype) const {
+TensorHandle Model::conv2d(const TensorHandle &src,
+                           memory::FilterTensorConstView W,
+                           memory::optional<memory::BiasTensorConstView> B,
+                           AutoPadMode autoPad, memory::uvec2 stride,
+                           memory::optional<memory::uvec2> padding,
+                           memory::uvec2 dilation,
+                           memory::optional<memory::Dtype> atype) const {
   // We still don’t support dilation ≠ 1 in the backend
   if (dilation != memory::uvec2(1, 1)) {
     throw std::runtime_error(
@@ -83,25 +84,26 @@ Tensor Model::conv2d(const Tensor &src, memory::FilterTensorConstView W,
     throw std::runtime_error("vkcnn: conv2d received unknown AutoPadMode");
   }
 
-  Sym width = m_controlBlock->symGraph.pool(srcTensor.width(), kernelSize.x,
+  Sym width = m_controlBlock->symGraph.pool(srcTensor.width, kernelSize.x,
                                             pad.x, stride.x, dilation.x, true);
-  Sym height = m_controlBlock->symGraph.pool(srcTensor.height(), kernelSize.y,
+  Sym height = m_controlBlock->symGraph.pool(srcTensor.height, kernelSize.y,
                                              pad.y, stride.y, dilation.y, true);
 
   if (autoPad == AutoPadMode::SameUpper || autoPad == AutoPadMode::SameLower) {
     auto &g = m_controlBlock->symGraph;
     const Sym outW = g.resolve(width);
     const Sym outH = g.resolve(height);
-    const Sym inW = g.resolve(srcTensor.width());
-    const Sym inH = g.resolve(srcTensor.height());
+    const Sym inW = g.resolve(srcTensor.width);
+    const Sym inH = g.resolve(srcTensor.height);
 
     if (!(outW == inW && outH == inH)) {
       throw std::runtime_error("vkcnn: conv2d SAME_* rejected: shape is not "
                                "provably preserved with symmetric padding");
     }
   }
-  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
-      ComputeTensor{width, height, Sym::Const(W.shape().k)});
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(TensorDescriptor{
+      width, height, Sym::Const(W.shape().k), TensorStorage::Optimal,
+      TensorFormat::Optimal, TensorDataType::Auto});
 
   memory::optional<memory::BiasTensor> b = memory::nullopt;
   if (B.has_value()) {
@@ -113,38 +115,42 @@ Tensor Model::conv2d(const Tensor &src, memory::FilterTensorConstView W,
       ComputeOp{ComputeOpConv(memory::FilterTensor{W}, std::move(b), pad,
                               stride, atype)});
 
-  return Tensor{dstId, m_controlBlock.get()};
+  return TensorHandle{dstId, m_controlBlock.get()};
 }
 
-Tensor Model::activation(const Tensor &src, ActivationFunction func) const {
+TensorHandle Model::activation(const TensorHandle &src,
+                               ActivationFunction func) const {
   memory::NodeId srcId = src.m_nodeId;
-  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
-      ComputeTensor{src.width(), src.height(), src.channels()});
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(TensorDescriptor{
+      src.width(), src.height(), src.channels(), TensorStorage::Optimal,
+      TensorFormat::Optimal, TensorDataType::Auto});
 
   m_controlBlock->hypergraph.addEdge(srcId, dstId,
                                      ComputeOp{ComputeOpActivation{func}});
-  return Tensor{dstId, m_controlBlock.get()};
+  return TensorHandle{dstId, m_controlBlock.get()};
 }
 
-Tensor Model::upsample(const Tensor &src, unsigned int scalingFactor,
-                       FilterMode mode) const {
+TensorHandle Model::upsample(const TensorHandle &src,
+                             unsigned int scalingFactor,
+                             FilterMode mode) const {
   memory::NodeId srcId = src.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
-  Sym width = m_controlBlock->symGraph.mul(scalingFactor, srcNode.width());
-  Sym height = m_controlBlock->symGraph.mul(scalingFactor, srcNode.height());
+  Sym width = m_controlBlock->symGraph.mul(scalingFactor, srcNode.width);
+  Sym height = m_controlBlock->symGraph.mul(scalingFactor, srcNode.height);
 
   memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
-      ComputeTensor{width, height, srcNode.channels()});
+      TensorDescriptor{width, height, srcNode.channels, TensorStorage::Optimal,
+                       TensorFormat::Optimal, TensorDataType::Auto});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId, ComputeOp{ComputeOpUpsample{scalingFactor, mode}});
-  return Tensor{dstId, m_controlBlock.get()};
+  return TensorHandle{dstId, m_controlBlock.get()};
 }
 
-Tensor Model::pool(const Tensor &src, memory::uvec2 kernelSize,
-                   memory::uvec2 padding, memory::uvec2 stride,
-                   memory::uvec2 dilation, PoolFunction poolFunc) const {
+TensorHandle Model::pool(const TensorHandle &src, memory::uvec2 kernelSize,
+                         memory::uvec2 padding, memory::uvec2 stride,
+                         memory::uvec2 dilation, PoolFunction poolFunc) const {
 
   if (dilation != memory::uvec2(1, 1)) {
     throw std::runtime_error(
@@ -153,31 +159,33 @@ Tensor Model::pool(const Tensor &src, memory::uvec2 kernelSize,
 
   memory::NodeId srcId = src.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
-  Sym width = m_controlBlock->symGraph.pool(srcNode.width(), kernelSize.x,
+  Sym width = m_controlBlock->symGraph.pool(srcNode.width, kernelSize.x,
                                             padding.x, stride.x, dilation.x);
-  Sym height = m_controlBlock->symGraph.pool(srcNode.height(), kernelSize.y,
+  Sym height = m_controlBlock->symGraph.pool(srcNode.height, kernelSize.y,
                                              padding.y, stride.y, dilation.y);
 
   memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
-      ComputeTensor{width, height, srcNode.channels()});
+      TensorDescriptor{width, height, srcNode.channels, TensorStorage::Optimal,
+                       TensorFormat::Optimal, TensorDataType::Auto});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId,
       ComputeOp{ComputeOpPool(kernelSize, padding, stride, poolFunc)});
-  return Tensor{dstId, m_controlBlock.get()};
+  return TensorHandle{dstId, m_controlBlock.get()};
 }
 
-Tensor Model::concat(const Tensor &src0, const Tensor &src1) const {
+TensorHandle Model::concat(const TensorHandle &src0,
+                           const TensorHandle &src1) const {
   memory::NodeId src0Id = src0.m_nodeId;
   auto src0Node = m_controlBlock->hypergraph.get(src0Id);
 
   memory::NodeId src1Id = src1.m_nodeId;
   auto src1Node = m_controlBlock->hypergraph.get(src1Id);
 
-  if (m_controlBlock->symGraph.resolve(src0Node.width()) !=
-          m_controlBlock->symGraph.resolve(src1Node.width()) &&
-      m_controlBlock->symGraph.resolve(src0Node.height()) !=
-          m_controlBlock->symGraph.resolve(src1Node.height())) {
+  if (m_controlBlock->symGraph.resolve(src0Node.width) !=
+          m_controlBlock->symGraph.resolve(src1Node.width) &&
+      m_controlBlock->symGraph.resolve(src0Node.height) !=
+          m_controlBlock->symGraph.resolve(src1Node.height)) {
     throw std::runtime_error(
         "Model::concat: Failed to prove that "
         "spatial dims of concat arguments match.\nvkcnn only accepts concat "
@@ -187,29 +195,31 @@ Tensor Model::concat(const Tensor &src0, const Tensor &src1) const {
         "dimensions such that all concat arguments are provably equal.");
   }
 
-  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(ComputeTensor{
-      src0Node.width(), src0Node.height(),
-      m_controlBlock->symGraph.add(src0Node.channels(), src1Node.channels())});
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(TensorDescriptor{
+      src0Node.width, src0Node.height,
+      m_controlBlock->symGraph.add(src0Node.channels, src1Node.channels),
+      TensorStorage::Optimal, TensorFormat::Optimal, TensorDataType::Auto});
 
   m_controlBlock->hypergraph.addEdge(src0Id, src1Id, dstId,
                                      ComputeOp{ComputeOpConcat{}});
 
-  return Tensor{dstId, m_controlBlock.get()};
+  return TensorHandle{dstId, m_controlBlock.get()};
 }
 
-Tensor Model::pad(const Tensor &src0, Sym left, Sym right, Sym top, Sym bottom,
-                  PaddingMode mode) const {
+TensorHandle Model::pad(const TensorHandle &src0, Sym left, Sym right, Sym top,
+                        Sym bottom, PaddingMode mode) const {
 
   auto srcId = src0.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
   Sym width = m_controlBlock->symGraph.add(
-      srcNode.width(), m_controlBlock->symGraph.add(left, right, false));
+      srcNode.width, m_controlBlock->symGraph.add(left, right, false));
   Sym height = m_controlBlock->symGraph.add(
-      srcNode.height(), m_controlBlock->symGraph.add(top, bottom, false));
+      srcNode.height, m_controlBlock->symGraph.add(top, bottom, false));
 
   auto dstId = m_controlBlock->hypergraph.addNode(
-      ComputeTensor{width, height, srcNode.channels()});
+      TensorDescriptor{width, height, srcNode.channels, TensorStorage::Optimal,
+                       TensorFormat::Optimal, TensorDataType::Auto});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId,
@@ -217,11 +227,11 @@ Tensor Model::pad(const Tensor &src0, Sym left, Sym right, Sym top, Sym bottom,
                              m_controlBlock->symGraph.resolve(right),
                              m_controlBlock->symGraph.resolve(top),
                              m_controlBlock->symGraph.resolve(bottom), mode)});
-  return Tensor{dstId, m_controlBlock.get()};
+  return TensorHandle{dstId, m_controlBlock.get()};
 }
 
-Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
-                    Sym bottom) const {
+TensorHandle Model::slice(const TensorHandle &src0, Sym left, Sym right,
+                          Sym top, Sym bottom) const {
 
   auto srcId = src0.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
@@ -230,7 +240,8 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
   Sym height = m_controlBlock->symGraph.sub(bottom, top);
 
   auto dstId = m_controlBlock->hypergraph.addNode(
-      ComputeTensor{width, height, srcNode.channels()});
+      TensorDescriptor{width, height, srcNode.channels, TensorStorage::Optimal,
+                       TensorFormat::Optimal, TensorDataType::Auto});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId,
@@ -238,10 +249,10 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
                                m_controlBlock->symGraph.resolve(right),
                                m_controlBlock->symGraph.resolve(top),
                                m_controlBlock->symGraph.resolve(bottom))});
-  return Tensor{dstId, m_controlBlock.get()};
+  return TensorHandle{dstId, m_controlBlock.get()};
 }
 
-void Model::output(const Tensor &src, const std::string &name) {
+void Model::output(const TensorHandle &src, const std::string &name) {
 
   m_controlBlock->outputs.push_back(
       ModelInterfaceDescriptor{src.m_nodeId, name});
@@ -463,7 +474,7 @@ std::vector<std::string> Model::getOutputNames() const {
   }
   return names;
 }
-std::optional<Tensor> Model::getInput(std::string_view name) const {
+std::optional<TensorHandle> Model::getInput(std::string_view name) const {
   auto it = std::ranges::find_if(m_controlBlock->inputs,
                                  [&](const ModelInterfaceDescriptor &interf) {
                                    return interf.name == name;
@@ -471,9 +482,9 @@ std::optional<Tensor> Model::getInput(std::string_view name) const {
   if (it == m_controlBlock->inputs.end()) {
     return std::nullopt;
   }
-  return Tensor{it->nodeId, m_controlBlock.get()};
+  return TensorHandle{it->nodeId, m_controlBlock.get()};
 }
-std::optional<Tensor> Model::getOutput(std::string_view name) const {
+std::optional<TensorHandle> Model::getOutput(std::string_view name) const {
   auto it = std::ranges::find_if(m_controlBlock->outputs,
                                  [&](const ModelInterfaceDescriptor &interf) {
                                    return interf.name == name;
@@ -481,7 +492,7 @@ std::optional<Tensor> Model::getOutput(std::string_view name) const {
   if (it == m_controlBlock->outputs.end()) {
     return std::nullopt;
   }
-  return Tensor{it->nodeId, m_controlBlock.get()};
+  return TensorHandle{it->nodeId, m_controlBlock.get()};
 }
 
 void Model::assignValueName(std::string_view name, Sym value, bool imported) {
@@ -492,7 +503,8 @@ void Model::assignValueName(std::string_view name, Sym value, bool imported) {
   if (it != m_controlBlock->valueNames.end()) {
     return;
   }
-  m_controlBlock->valueNames.push_back(NamedValue(std::string(name), value, imported));
+  m_controlBlock->valueNames.push_back(
+      NamedValue(std::string(name), value, imported));
 }
 
 // onnxlabel doesn't affect query result!
@@ -502,7 +514,8 @@ Sym Model::requireValueOfName(std::string_view name, bool imported) {
       [&](const NamedValue &nameValue) { return nameValue.name == name; });
   if (it == m_controlBlock->valueNames.end()) {
     Sym sym = m_controlBlock->symGraph.var();
-    m_controlBlock->valueNames.push_back(NamedValue(std::string(name), sym, imported));
+    m_controlBlock->valueNames.push_back(
+        NamedValue(std::string(name), sym, imported));
     return sym;
   } else {
     return it->value;
@@ -530,20 +543,20 @@ uint32_t Model::getOutputCount() const {
   return static_cast<uint32_t>(m_controlBlock->outputs.size());
 }
 
-std::vector<Tensor> Model::getInputs() const {
-  std::vector<Tensor> inputs;
+std::vector<TensorHandle> Model::getInputs() const {
+  std::vector<TensorHandle> inputs;
   inputs.reserve(m_controlBlock->inputs.size());
-  for (const auto& input : m_controlBlock->inputs) {
-    inputs.push_back(Tensor{input.nodeId, m_controlBlock.get()});
+  for (const auto &input : m_controlBlock->inputs) {
+    inputs.push_back(TensorHandle{input.nodeId, m_controlBlock.get()});
   }
   return inputs;
 }
 
-std::vector<Tensor> Model::getOutputs() const {
-  std::vector<Tensor> outputs;
+std::vector<TensorHandle> Model::getOutputs() const {
+  std::vector<TensorHandle> outputs;
   outputs.reserve(m_controlBlock->outputs.size());
-  for (const auto& output : m_controlBlock->outputs) {
-    outputs.push_back(Tensor{output.nodeId, m_controlBlock.get()});
+  for (const auto &output : m_controlBlock->outputs) {
+    outputs.push_back(TensorHandle{output.nodeId, m_controlBlock.get()});
   }
   return outputs;
 }

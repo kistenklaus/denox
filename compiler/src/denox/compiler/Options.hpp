@@ -41,7 +41,7 @@ struct DescriptorPolicies {
   DescriptorPolicy writePolicy;
 };
 
-struct TensorDescriptor {
+struct InterfaceTensorDescriptor {
   std::string name;
   TensorFormat format;
   TensorStorage storage;
@@ -65,7 +65,7 @@ struct Options {
   Features features;
   SpirvOptions spirv;
   DeviceInfo deviceInfo;
-  std::vector<TensorDescriptor> interfaceDescriptors;
+  std::vector<InterfaceTensorDescriptor> interfaceDescriptors;
   DescriptorPolicies descriptorPolicies;
   diag::LogLevel loglevel;
 };

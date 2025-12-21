@@ -95,7 +95,7 @@ void import_value_info(ImportState &state,
 
     auto interfaceDescriptor = std::ranges::find_if(
         options.interfaceDescriptors,
-        [&](const compiler::TensorDescriptor &tensorDescriptor) {
+        [&](const auto &tensorDescriptor) {
           return tensorDescriptor.name == name;
         });
 
@@ -299,7 +299,7 @@ void import_value_info(ImportState &state,
     // Optional float-type hint from dtype
     memory::optional<TensorDataType> hint =
         dtypeOpt ? dtypeOpt->toTensorType() : memory::nullopt;
-    TensorDataType dtype;
+    TensorDataType dtype = TensorDataType::Float16; // <- default
     if (interfaceDescriptor != options.interfaceDescriptors.end() &&
         interfaceDescriptor->dtype != TensorDataType::Auto) {
       dtype = interfaceDescriptor->dtype;
@@ -307,7 +307,7 @@ void import_value_info(ImportState &state,
       dtype = *hint;
     }
 
-    compiler::Tensor rt = state.output.input(name, Ws, Hs, Cs, dtype);
+    compiler::TensorHandle rt = state.output.input(name, Ws, Hs, Cs, dtype);
 
     DeviceTensor dev(r, std::move(rt));
     state.tensors.emplace(name, Tensor::Device(std::move(dev)));
@@ -330,7 +330,7 @@ void import_value_info(ImportState &state,
 
   auto interfaceDescriptor = std::ranges::find_if(
       options.interfaceDescriptors,
-      [&](const compiler::TensorDescriptor &tensorDescriptor) {
+      [&](const auto &tensorDescriptor) {
         return tensorDescriptor.name == name;
       });
 

@@ -32,22 +32,22 @@ struct TensorSpec {
 static std::vector<TensorSpec>
 specialize_tensor(const CanoModel::Graph::NodeHandle &node) {
   std::vector<TensorStorage> storages;
-  if (node->value().storage() == TensorStorage::Optimal) {
-    if (node->value().channels().isConstant() &&
-        node->value().channels().constant() <= 4) {
+  if (node->value().storage == TensorStorage::Optimal) {
+    if (node->value().channels.isConstant() &&
+        node->value().channels.constant() <= 4) {
       for (const auto &s : supported_tex_storages) {
         storages.push_back(s);
       }
     }
     storages.push_back(TensorStorage::StorageBuffer);
   } else {
-    storages.push_back(node->value().storage());
+    storages.push_back(node->value().storage);
   }
 
   std::vector<TensorFormat> formats;
-  if (node->value().format() == TensorFormat::Optimal) {
-    if (node->value().channels().isConstant()) {
-      const auto c = node->value().channels().constant();
+  if (node->value().format == TensorFormat::Optimal) {
+    if (node->value().channels.isConstant()) {
+      const auto c = node->value().channels.constant();
       assert(c > 0);
 
       if (c <= 4) {
@@ -77,12 +77,12 @@ specialize_tensor(const CanoModel::Graph::NodeHandle &node) {
     }
 
   } else {
-    formats.push_back(node->value().format());
+    formats.push_back(node->value().format);
   }
 
-  TensorDataType dtype = node->value().type() == TensorDataType::Auto
+  TensorDataType dtype = node->value().type == TensorDataType::Auto
                              ? TensorDataType::Float16
-                             : node->value().type();
+                             : node->value().type;
 
   std::vector<TensorSpec> out;
 
@@ -130,9 +130,9 @@ static SpecModel::Graph::NodeHandle specialize_input(
   specNodes.reserve(specs.size());
   for (const auto &s : specs) {
     TensorInstance instance{
-        .width = input->value().width(),
-        .height = input->value().height(),
-        .channels = input->value().channels(),
+        .width = input->value().width,
+        .height = input->value().height,
+        .channels = input->value().channels,
         .storage = s.storage,
         .format = s.format,
         .type = s.dtype,
@@ -149,9 +149,9 @@ static SpecModel::Graph::NodeHandle specialize_input(
   }
 
   TensorInstance dummy{
-      .width = input->value().width(),
-      .height = input->value().height(),
-      .channels = input->value().channels(),
+      .width = input->value().width,
+      .height = input->value().height,
+      .channels = input->value().channels,
       .storage = TensorStorage::Optimal,
       .format = TensorFormat::Optimal,
       .type = TensorDataType::Auto,
@@ -214,9 +214,9 @@ SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes) {
 
         for (const auto &s : specs) {
           TensorInstance instance{
-              .width = dst.value().width(),
-              .height = dst.value().height(),
-              .channels = dst.value().channels(),
+              .width = dst.value().width,
+              .height = dst.value().height,
+              .channels = dst.value().channels,
               .storage = s.storage,
               .format = s.format,
               .type = s.dtype,
@@ -309,9 +309,9 @@ SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes) {
       continue;
     }
     TensorInstance dummy{
-        .width = output->value().width(),
-        .height = output->value().height(),
-        .channels = output->value().channels(),
+        .width = output->value().width,
+        .height = output->value().height,
+        .channels = output->value().channels,
         .storage = TensorStorage::Optimal,
         .format = TensorFormat::Optimal,
         .type = TensorDataType::Auto,

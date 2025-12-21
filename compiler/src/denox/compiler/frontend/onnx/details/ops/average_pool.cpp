@@ -149,7 +149,7 @@ memory::vector<Tensor> average_pool(
 
   // Backend call — fix dilation to (1,1) for AveragePool
   const memory::uvec2 dilation(1, 1);
-  compiler::Tensor outHandle =
+  compiler::TensorHandle outHandle =
       state.output.pool(Xdev.handle(), kernel, padding, stride, dilation,
                         PoolFunction::Avg);
 

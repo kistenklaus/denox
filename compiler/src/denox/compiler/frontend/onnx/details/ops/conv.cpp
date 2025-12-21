@@ -292,7 +292,7 @@ memory::vector<Tensor> conv(
   }
 
   // ---- backend ----
-  compiler::Tensor out =
+  compiler::TensorHandle out =
       state.output.conv2d(Xdev.handle(), W_view, B_view,
                           autoPad, // AutoPadMode
                           strides,

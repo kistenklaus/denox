@@ -29,7 +29,8 @@ using ComputeOpImpl = impl::details::ComputeOpImpl;
 using SuperGraph = memory::AdjGraph<TensorInstance, ComputeOpImpl, float>;
 
 ImplModel implement(const OpModel &model, const SymGraph &symGraphRef,
-                    IHeuristic *heuristic, const Options &options) {
+                    IHeuristic *heuristic, 
+                    const Options &options) {
   const auto &opGraph = model.graph;
   SuperGraph supergraph{};
 

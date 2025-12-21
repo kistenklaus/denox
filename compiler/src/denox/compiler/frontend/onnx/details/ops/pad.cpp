@@ -267,7 +267,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const Sym T = before[axH], B = after[axH], L = before[axW],
                         R = after[axW];
 
-    compiler::Tensor outH =
+    compiler::TensorHandle outH =
         state.output.pad(devIn.handle(), L, R, T, B, devMode);
     DeviceTensor outDev(r, std::move(outH));
 

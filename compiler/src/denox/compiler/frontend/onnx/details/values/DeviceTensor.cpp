@@ -4,7 +4,7 @@
 
 namespace denox::onnx::details {
 
-DeviceTensor::DeviceTensor(std::size_t rank, compiler::Tensor handle)
+DeviceTensor::DeviceTensor(std::size_t rank, compiler::TensorHandle handle)
     : m_rank(rank), m_handle(std::move(handle)) {
   assert(m_rank == 3 || m_rank == 4);
 }

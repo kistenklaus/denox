@@ -1,6 +1,7 @@
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 
 #include "denox/algorithm/pattern_matching/match.hpp"
+#include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/canonicalize/CanoModel.hpp"
 #include "denox/compiler/canonicalize/rules/IFusionRule.hpp"
 #include "denox/compiler/canonicalize/rules/SliceSlice.hpp"
@@ -13,7 +14,7 @@ namespace denox::compiler {
 
 CanoModel canonicalize(const Model &model) {
   // 1. Build LinkedGraph
-  using LinkedGraph = memory::LinkedGraph<ComputeTensor, ComputeOp>;
+  using LinkedGraph = memory::LinkedGraph<TensorDescriptor, ComputeOp>;
   auto [mapping, graph] = LinkedGraph::from(model.graph());
 
   std::vector<LinkedGraph::NodeHandle> inputs;
@@ -47,7 +48,8 @@ CanoModel canonicalize(const Model &model) {
   SymGraph symGraph = model.symGraph();
 
   LinkedGraph::NodeHandle root = graph.createNode(
-      ComputeTensor(Sym::Const(0), Sym::Const(0), Sym::Const(0)));
+      TensorDescriptor(Sym::Const(0), Sym::Const(0), Sym::Const(0),
+        TensorStorage::Optimal, TensorFormat::Optimal, TensorDataType::Auto));
 
   for (const auto &input : inputs) {
     root->outgoing().insert(input, ComputeOp{});
