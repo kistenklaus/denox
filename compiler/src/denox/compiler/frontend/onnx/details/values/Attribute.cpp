@@ -1,4 +1,4 @@
-#include "frontend/onnx/details/values/Attribute.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Attribute.hpp"
 #include "denox/diag/unreachable.hpp"
 #include <onnx.pb.h>
 #include <stdexcept>

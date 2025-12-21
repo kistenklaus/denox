@@ -1,19 +1,18 @@
 #pragma once
 
-#include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/hypergraph/AdjGraph.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
-#include "denox/memory/tensor/BiasTensor.hpp"
-#include "denox/memory/tensor/FilterTensor.hpp"
 #include "denox/common/AutoPadMode.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
-#include "denox/compiler/frontend/model/ComputeTensor.hpp"
-#include "denox/compiler/frontend/model/DynamicInputExtent.hpp"
 #include "denox/common/FilterMode.hpp"
-#include "denox/compiler/frontend/model/ModelControlBlock.hpp"
 #include "denox/common/PaddingMode.hpp"
 #include "denox/common/PoolFunction.hpp"
+#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/compiler/frontend/model/ComputeTensor.hpp"
+#include "denox/compiler/frontend/model/ModelControlBlock.hpp"
 #include "denox/compiler/frontend/model/Tensor.hpp"
+#include "denox/memory/container/string_view.hpp"
+#include "denox/memory/dtype/dtype.hpp"
+#include "denox/memory/hypergraph/AdjGraph.hpp"
+#include "denox/memory/tensor/BiasTensor.hpp"
+#include "denox/memory/tensor/FilterTensor.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 #include <memory>
 
@@ -31,15 +30,12 @@ public:
       : m_controlBlock(std::make_unique<details::model::ModelControlBlock>(
             *o.m_controlBlock)) {}
 
-  Tensor
-  input(unsigned int channels, const std::string &name,
-        memory::optional<memory::ActivationLayout> layout = memory::nullopt,
-        memory::optional<memory::Dtype> type = memory::nullopt,
-        memory::optional<Sym> W = memory::nullopt,
-        memory::optional<Sym> H = memory::nullopt,
-        NamedExtent dynamicExtent = {});
 
-  Tensor conv2d(const Tensor &src, memory::FilterTensorConstView W,
+  Tensor input(const std::string &name, Sym width, Sym height, Sym channels,
+               TensorDataType type = TensorDataType::Auto);
+
+  Tensor conv2d(const Tensor &src, //
+                memory::FilterTensorConstView W,
                 memory::optional<memory::BiasTensorConstView> B,
                 AutoPadMode autoPad, memory::uvec2 stride,
                 memory::optional<memory::uvec2> padding, memory::uvec2 dilation,
@@ -62,32 +58,30 @@ public:
   Tensor slice(const Tensor &src0, Sym left, Sym right, Sym top,
                Sym bottom) const;
 
-  void output(const Tensor &src, const std::string &name,
-              NamedExtent extentNames = {}) const;
+  void output(const Tensor &src, const std::string &name);
+
+  memory::vector<memory::string> getInputNames() const;
+
+  memory::vector<memory::string> getOutputNames() const;
+
+  memory::optional<Tensor> getInput(memory::string_view name) const;
+
+  memory::optional<Tensor> getOutput(memory::string_view name) const;
+
+  // adds a new name to a already existing value,
+  // values might have multiple names!
+  void assignValueName(memory::string_view name, Sym value, bool onnxlabel = false);
+
+  // create a new value if the there is no matching value name
+  Sym requireValueOfName(memory::string_view name, bool onnxlabel = false);
+  // tries to get a value with a specific name, if not found returns nullopt.
+  memory::optional<Sym> getValueByName(memory::string_view valueName);
 
   const memory::AdjGraph<ComputeTensor, ComputeOp> &graph() const {
     return m_controlBlock->hypergraph;
   }
 
   const SymGraph &symGraph() const { return m_controlBlock->symGraph; }
-
-  Tensor getInput() const;
-  Tensor getOutput() const;
-
-  const NamedExtent &getInputExtentNames() const {
-    return m_controlBlock->inputExtentNames;
-  }
-
-  const NamedExtent &getOutputExtentNames() const {
-    return m_controlBlock->outputExtentNames;
-  }
-
-  const std::string& getInputName() const {
-    return m_controlBlock->inputName;
-  }
-  const std::string& getOutputName() const  {
-    return m_controlBlock->outputName;
-  }
 
   memory::string to_string() const;
 

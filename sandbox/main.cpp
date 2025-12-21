@@ -14,9 +14,9 @@ int main() {
   compiler::Options options;
 
   compiler::Model model = compiler::frontend(onnx, options);
+
+  fmt::println("{}", model.to_string());
 }
-
-
 
 // #include "denox/common/types.hpp"
 // #include "denox/runtime.hpp"
@@ -36,13 +36,15 @@ int main() {
 //   }
 //
 //   std::ifstream dnxFile("./net.dnx", std::ios::binary);
-//   std::vector<std::uint8_t> dnxBinary((std::istreambuf_iterator<char>(dnxFile)),
+//   std::vector<std::uint8_t>
+//   dnxBinary((std::istreambuf_iterator<char>(dnxFile)),
 //                                       std::istreambuf_iterator<char>());
 //
 //   denox::RuntimeModel model;
 //   if (denox::create_runtime_model(context,
-//                                   static_cast<const void *>(dnxBinary.data()),
-//                                   dnxBinary.size(), &model) < 0) {
+//                                   static_cast<const void
+//                                   *>(dnxBinary.data()), dnxBinary.size(),
+//                                   &model) < 0) {
 //     throw std::runtime_error("Failed to create runtime model");
 //   }
 //
@@ -139,13 +141,15 @@ int main() {
 //   }
 //
 //   std::ifstream dnxFile("./net.dnx", std::ios::binary);
-//   std::vector<std::uint8_t> dnxBinary((std::istreambuf_iterator<char>(dnxFile)),
+//   std::vector<std::uint8_t>
+//   dnxBinary((std::istreambuf_iterator<char>(dnxFile)),
 //                                       std::istreambuf_iterator<char>());
 //
 //   denox::RuntimeModel model;
 //   if (denox::create_runtime_model(context,
-//                                   static_cast<const void *>(dnxBinary.data()),
-//                                   dnxBinary.size(), &model) < 0) {
+//                                   static_cast<const void
+//                                   *>(dnxBinary.data()), dnxBinary.size(),
+//                                   &model) < 0) {
 //     throw std::runtime_error("Failed to create runtime model");
 //   }
 //

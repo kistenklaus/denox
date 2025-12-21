@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/common/TensorDataType.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/string_view.hpp"
 #include "denox/memory/dtype/dtype.hpp"
@@ -33,6 +34,7 @@ struct Dtype {
   std::size_t size() const;
 
   memory::optional<denox::memory::Dtype> toDenoxType() const;
+  std::optional<TensorDataType> toTensorType() const;
   memory::string_view to_string() const;
   DtypeKind kind() const { return m_kind; }
 
@@ -95,6 +97,7 @@ public:
   bool isFloat() const { return m_type.isFloat(); }
 
   memory::optional<memory::Dtype> toDenoxType() const;
+  memory::optional<TensorDataType> toTensorType() const;
 
 private:
   dtype::details::Dtype m_type;

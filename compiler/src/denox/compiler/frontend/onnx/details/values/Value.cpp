@@ -1,4 +1,4 @@
-#include "frontend/onnx/details/values/Value.hpp"
+#include "denox/compiler/frontend/onnx/details/values/Value.hpp"
 
 namespace denox::onnx::details {
 

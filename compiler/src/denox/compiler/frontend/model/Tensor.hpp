@@ -1,10 +1,7 @@
 #pragma once
 
-#include "denox/memory/container/optional.hpp"
-#include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/hypergraph/NodeId.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "denox/compiler/frontend/model/ModelControlBlock.hpp"
+#include "denox/memory/hypergraph/NodeId.hpp"
 #include "denox/symbolic/Symbolic.hpp"
 
 namespace denox::compiler {
@@ -15,39 +12,37 @@ class Tensor {
 public:
   friend Model;
 
-  memory::optional<memory::ActivationLayout> layout() const {
-    return m_controlBlock->hypergraph.get(m_nodeId).m_layout;
+  TensorDataType type() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).type();
   }
 
-  void setLayout(memory::optional<memory::ActivationLayout> layout) {
-    m_controlBlock->hypergraph.get(m_nodeId).m_layout = layout;
+  void setType(TensorDataType type) {
+    m_controlBlock->hypergraph.get(m_nodeId).setType(type);
   }
 
-  memory::optional<memory::Dtype> type() const {
-    return m_controlBlock->hypergraph.get(m_nodeId).m_type;
-  }
-
-  void setType(memory::optional<memory::Dtype> type) {
-    m_controlBlock->hypergraph.get(m_nodeId).m_type = type;
-  }
-
-  unsigned int channels() const {
-    return m_controlBlock->hypergraph.get(m_nodeId).m_channels;
+  Sym channels() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).channels();
   }
 
   Symbolic width() const {
-    return Symbolic(
-        &m_controlBlock->symGraph,
-        m_controlBlock->hypergraph.get(m_nodeId).m_extent.x.asSym());
+    return Symbolic(&m_controlBlock->symGraph,
+                    m_controlBlock->hypergraph.get(m_nodeId).width());
   }
 
   Symbolic height() const {
-    return Symbolic(
-        &m_controlBlock->symGraph,
-        m_controlBlock->hypergraph.get(m_nodeId).m_extent.y.asSym());
+    return Symbolic(&m_controlBlock->symGraph,
+                    m_controlBlock->hypergraph.get(m_nodeId).height());
+  }
+
+  TensorStorage storage() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).storage();
+  }
+  TensorFormat format() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).format();
   }
 
   std::uint64_t id() const { return static_cast<std::uint64_t>(m_nodeId); }
+
   Tensor() : m_nodeId(memory::NodeId(0)), m_controlBlock(nullptr) {}
 
 private:

@@ -1,36 +1,25 @@
-#include "./Model.hpp"
+#include "denox/compiler/frontend/model/Model.hpp"
+#include "denox/common/TensorFormat.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/frontend/model/ModelControlBlock.hpp"
+#include "denox/compiler/frontend/model/NamedValue.hpp"
+#include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
+#include "denox/memory/tensor/BiasLayout.hpp"
+#include <algorithm>
 #include <fmt/format.h>
 #include <stdexcept>
 
 namespace denox::compiler {
 
-Tensor Model::input(unsigned int channels, const std::string &name,
-                    memory::optional<memory::ActivationLayout> layout,
-                    memory::optional<memory::Dtype> type,
-                    memory::optional<Sym> W, memory::optional<Sym> H,
-                    NamedExtent dynamicExtent) {
-  Sym w = Sym::Const(0);
-  if (W.has_value()) {
-    w = *W;
-  } else {
-    w = m_controlBlock->symGraph.var();
-  }
-  Sym h = Sym::Const(0);
-  if (H.has_value()) {
-    h = *H;
-  } else {
-    h = m_controlBlock->symGraph.var();
-  }
+Tensor Model::input(const std::string &name, Sym width, Sym height,
+                    Sym channels, TensorDataType dtype) {
 
-  sym_vec2 extent{w, h};
-  assert(m_controlBlock->input == details::model::ModelControlBlock::NullNode);
-  memory::NodeId id =
-      m_controlBlock->hypergraph.emplaceNode(extent, channels, layout, type);
-  m_controlBlock->input = id;
-  m_controlBlock->inputExtentNames = dynamicExtent;
-  m_controlBlock->inputName = name;
+  memory::NodeId id = m_controlBlock->hypergraph.addNode(
+      ComputeTensor{width, height, channels, dtype});
+
+  m_controlBlock->inputs.push_back(ModelInterfaceDescriptor{id, name});
+
   return Tensor{id, m_controlBlock.get()};
 }
 
@@ -94,27 +83,25 @@ Tensor Model::conv2d(const Tensor &src, memory::FilterTensorConstView W,
     throw std::runtime_error("vkcnn: conv2d received unknown AutoPadMode");
   }
 
-  sym_vec2 extent{
-      m_controlBlock->symGraph.pool(srcTensor.m_extent.x.asSym(), kernelSize.x,
-                                    pad.x, stride.x, dilation.x, true),
-      m_controlBlock->symGraph.pool(srcTensor.m_extent.y.asSym(), kernelSize.y,
-                                    pad.y, stride.y, dilation.y, true)};
+  Sym width = m_controlBlock->symGraph.pool(srcTensor.width(), kernelSize.x,
+                                            pad.x, stride.x, dilation.x, true);
+  Sym height = m_controlBlock->symGraph.pool(srcTensor.height(), kernelSize.y,
+                                             pad.y, stride.y, dilation.y, true);
 
   if (autoPad == AutoPadMode::SameUpper || autoPad == AutoPadMode::SameLower) {
     auto &g = m_controlBlock->symGraph;
-    const Sym outW = g.resolve(extent.x.asSym());
-    const Sym outH = g.resolve(extent.y.asSym());
-    const Sym inW = g.resolve(srcTensor.m_extent.x.asSym());
-    const Sym inH = g.resolve(srcTensor.m_extent.y.asSym());
+    const Sym outW = g.resolve(width);
+    const Sym outH = g.resolve(height);
+    const Sym inW = g.resolve(srcTensor.width());
+    const Sym inH = g.resolve(srcTensor.height());
 
     if (!(outW == inW && outH == inH)) {
       throw std::runtime_error("vkcnn: conv2d SAME_* rejected: shape is not "
                                "provably preserved with symmetric padding");
     }
   }
-
-  memory::NodeId dstId = m_controlBlock->hypergraph.emplaceNode(
-      extent, W.shape().k, memory::nullopt, memory::nullopt);
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
+      ComputeTensor{width, height, Sym::Const(W.shape().k)});
 
   memory::optional<memory::BiasTensor> b = memory::nullopt;
   if (B.has_value()) {
@@ -133,8 +120,8 @@ Tensor Model::activation(const Tensor &src, ActivationFunction func) const {
   memory::NodeId srcId = src.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
-  memory::NodeId dstId = m_controlBlock->hypergraph.emplaceNode(
-      srcNode.m_extent, srcNode.m_channels, memory::nullopt, memory::nullopt);
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
+      ComputeTensor{src.width(), src.height(), src.channels()});
 
   m_controlBlock->hypergraph.addEdge(srcId, dstId,
                                      ComputeOp{ComputeOpActivation{func}});
@@ -146,12 +133,11 @@ Tensor Model::upsample(const Tensor &src, unsigned int scalingFactor,
   memory::NodeId srcId = src.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
-  sym_vec2 extent{
-      m_controlBlock->symGraph.mul(scalingFactor, srcNode.m_extent.x.asSym()),
-      m_controlBlock->symGraph.mul(scalingFactor, srcNode.m_extent.y.asSym())};
+  Sym width = m_controlBlock->symGraph.mul(scalingFactor, srcNode.width());
+  Sym height = m_controlBlock->symGraph.mul(scalingFactor, srcNode.height());
 
-  memory::NodeId dstId = m_controlBlock->hypergraph.emplaceNode(
-      extent, srcNode.m_channels, memory::nullopt, memory::nullopt);
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
+      ComputeTensor{width, height, srcNode.channels()});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId, ComputeOp{ComputeOpUpsample{scalingFactor, mode}});
@@ -169,14 +155,13 @@ Tensor Model::pool(const Tensor &src, memory::uvec2 kernelSize,
 
   memory::NodeId srcId = src.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
-  sym_vec2 extent{
-      m_controlBlock->symGraph.pool(srcNode.m_extent.x.asSym(), kernelSize.x,
-                                    padding.x, stride.x, dilation.x),
-      m_controlBlock->symGraph.pool(srcNode.m_extent.y.asSym(), kernelSize.y,
-                                    padding.y, stride.y, dilation.y)};
+  Sym width = m_controlBlock->symGraph.pool(srcNode.width(), kernelSize.x,
+                                            padding.x, stride.x, dilation.x);
+  Sym height = m_controlBlock->symGraph.pool(srcNode.height(), kernelSize.y,
+                                             padding.y, stride.y, dilation.y);
 
-  memory::NodeId dstId = m_controlBlock->hypergraph.emplaceNode(
-      extent, srcNode.m_channels, memory::nullopt, memory::nullopt);
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(
+      ComputeTensor{width, height, srcNode.channels()});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId,
@@ -191,10 +176,10 @@ Tensor Model::concat(const Tensor &src0, const Tensor &src1) const {
   memory::NodeId src1Id = src1.m_nodeId;
   auto src1Node = m_controlBlock->hypergraph.get(src1Id);
 
-  if (m_controlBlock->symGraph.resolve(src0Node.m_extent.x.asSym()) !=
-          m_controlBlock->symGraph.resolve(src1Node.m_extent.x.asSym()) &&
-      m_controlBlock->symGraph.resolve(src0Node.m_extent.y.asSym()) !=
-          m_controlBlock->symGraph.resolve(src1Node.m_extent.y.asSym())) {
+  if (m_controlBlock->symGraph.resolve(src0Node.width()) !=
+          m_controlBlock->symGraph.resolve(src1Node.width()) &&
+      m_controlBlock->symGraph.resolve(src0Node.height()) !=
+          m_controlBlock->symGraph.resolve(src1Node.height())) {
     throw std::runtime_error(
         "Model::concat: Failed to prove that "
         "spatial dims of concat arguments match.\nvkcnn only accepts concat "
@@ -204,9 +189,9 @@ Tensor Model::concat(const Tensor &src0, const Tensor &src1) const {
         "dimensions such that all concat arguments are provably equal.");
   }
 
-  memory::NodeId dstId = m_controlBlock->hypergraph.emplaceNode(
-      src0Node.m_extent, src0Node.m_channels + src1Node.m_channels,
-      memory::nullopt, memory::nullopt);
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(ComputeTensor{
+      src0Node.width(), src0Node.height(),
+      m_controlBlock->symGraph.add(src0Node.channels(), src1Node.channels())});
 
   m_controlBlock->hypergraph.addEdge(src0Id, src1Id, dstId,
                                      ComputeOp{ComputeOpConcat{}});
@@ -220,16 +205,13 @@ Tensor Model::pad(const Tensor &src0, Sym left, Sym right, Sym top, Sym bottom,
   auto srcId = src0.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
-  sym_vec2 extent{
-      m_controlBlock->symGraph.add(
-          srcNode.m_extent.x.asSym(),
-          m_controlBlock->symGraph.add(left, right, false)),
-      m_controlBlock->symGraph.add(
-          srcNode.m_extent.y.asSym(),
-          m_controlBlock->symGraph.add(top, bottom, false)),
-  };
-  auto dstId = m_controlBlock->hypergraph.emplaceNode(
-      extent, srcNode.channels(), memory::nullopt, memory::nullopt);
+  Sym width = m_controlBlock->symGraph.add(
+      srcNode.width(), m_controlBlock->symGraph.add(left, right, false));
+  Sym height = m_controlBlock->symGraph.add(
+      srcNode.height(), m_controlBlock->symGraph.add(top, bottom, false));
+
+  auto dstId = m_controlBlock->hypergraph.addNode(
+      ComputeTensor{width, height, srcNode.channels()});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId,
@@ -246,12 +228,11 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
   auto srcId = src0.m_nodeId;
   const auto srcNode = m_controlBlock->hypergraph.get(srcId);
 
-  sym_vec2 extent{
-      m_controlBlock->symGraph.sub(right, left),
-      m_controlBlock->symGraph.sub(bottom, top),
-  };
-  auto dstId = m_controlBlock->hypergraph.emplaceNode(
-      extent, srcNode.channels(), memory::nullopt, memory::nullopt);
+  Sym width = m_controlBlock->symGraph.sub(right, left);
+  Sym height = m_controlBlock->symGraph.sub(bottom, top);
+
+  auto dstId = m_controlBlock->hypergraph.addNode(
+      ComputeTensor{width, height, srcNode.channels()});
 
   m_controlBlock->hypergraph.addEdge(
       srcId, dstId,
@@ -262,23 +243,10 @@ Tensor Model::slice(const Tensor &src0, Sym left, Sym right, Sym top,
   return Tensor{dstId, m_controlBlock.get()};
 }
 
-void Model::output(const Tensor &src, const std::string &name,
-                   NamedExtent extentNames) const {
-  // Currently we only support a single input / output.
-  assert(m_controlBlock->output == details::model::ModelControlBlock::NullNode);
-  m_controlBlock->outputExtentNames = extentNames;
-  m_controlBlock->output = src.m_nodeId;
-  m_controlBlock->outputName = name;
-}
+void Model::output(const Tensor &src, const std::string &name) {
 
-Tensor Model::getInput() const {
-  assert(m_controlBlock->input != details::model::ModelControlBlock::NullNode);
-  return Tensor{m_controlBlock->input, m_controlBlock.get()};
-}
-
-Tensor Model::getOutput() const {
-  assert(m_controlBlock->output != details::model::ModelControlBlock::NullNode);
-  return Tensor{m_controlBlock->output, m_controlBlock.get()};
+  m_controlBlock->outputs.push_back(
+      ModelInterfaceDescriptor{src.m_nodeId, name});
 }
 
 memory::string Model::to_string() const {
@@ -297,49 +265,61 @@ memory::string Model::to_string() const {
     str.append(
         fmt::format("- Version: {}\n", *m_controlBlock->meta.modelVersion));
   }
-  auto input = getInput();
-  str.append(fmt::format("- Input: (TensorID: {})\n    C: {}\n",
-                         static_cast<std::uint64_t>(input.m_nodeId),
-                         input.channels()));
-  if (input.width().isSymbolic()) {
-    str.append(fmt::format("    W: [{}] <- SymInt\n", (*input.width()).sym()));
-  } else {
-    str.append(fmt::format("    W: {}\n", (*input.width()).constant()));
-  }
-  if (input.height().isSymbolic()) {
-    str.append(fmt::format("    H: [{}] <- SymInt\n", (*input.height()).sym()));
-  } else {
-    str.append(fmt::format("    H: {}\n", (*input.height()).constant()));
-  }
-  if (input.type().has_value()) {
-    str.append(fmt::format("    dtype: {}\n", input.type()->to_string()));
+  auto inputNames = getInputNames();
+  for (const auto &inputName : inputNames) {
+    auto input = *getInput(inputName);
+    str.append(fmt::format("- Input: (TensorID: {})\n",
+                           static_cast<std::uint64_t>(input.m_nodeId)));
+
+    if (input.channels().isSymbolic()) {
+      str.append(
+          fmt::format("    C: [{}] <- SymInt\n", (input.channels()).sym()));
+    } else {
+      str.append(fmt::format("    C: {}\n", (input.channels()).constant()));
+    }
+    if (input.width().isSymbolic()) {
+      str.append(
+          fmt::format("    W: [{}] <- SymInt\n", (*input.width()).sym()));
+    } else {
+      str.append(fmt::format("    W: {}\n", (*input.width()).constant()));
+    }
+    if (input.height().isSymbolic()) {
+      str.append(
+          fmt::format("    H: [{}] <- SymInt\n", (*input.height()).sym()));
+    } else {
+      str.append(fmt::format("    H: {}\n", (*input.height()).constant()));
+    }
+    str.append(fmt::format("    dtype: {}\n", input.type()));
+    str.append(fmt::format("    storage: {}\n", input.storage()));
+    str.append(fmt::format("    format: {}\n", input.format()));
   }
 
-  if (input.layout().has_value()) {
-    str.append(fmt::format("    layout: {}\n", input.layout()->to_string()));
-  }
-
-  auto output = getOutput();
-  str.append(fmt::format("- Output: (TensorID: {})\n    C: {}\n",
-                         static_cast<std::uint64_t>(output.m_nodeId),
-                         output.channels()));
-  if (output.width().isSymbolic()) {
-    str.append(fmt::format("    W: [{}] <- SymInt\n", (*output.width()).sym()));
-  } else {
-    str.append(fmt::format("    W: {}\n", output.width().constant()));
-  }
-  if (output.height().isSymbolic()) {
-    str.append(
-        fmt::format("    H: [{}] <- SymInt\n", (*output.height()).sym()));
-  } else {
-    str.append(fmt::format("    H: {}\n", output.height().constant()));
-  }
-  if (output.type().has_value()) {
-    str.append(fmt::format("    dtype: {}\n", output.type()->to_string()));
-  }
-
-  if (output.layout().has_value()) {
-    str.append(fmt::format("    layout: {}\n", output.layout()->to_string()));
+  auto outputNames = getOutputNames();
+  for (const auto &outputName : outputNames) {
+    auto output = *getOutput(outputName);
+    str.append(fmt::format("- Output: (TensorID: {})\n",
+                           static_cast<std::uint64_t>(output.m_nodeId)));
+    if (output.channels().isSymbolic()) {
+      str.append(
+          fmt::format("    C: [{}] <- SymInt\n", (output.channels()).sym()));
+    } else {
+      str.append(fmt::format("    C: {}\n", (output.channels()).constant()));
+    }
+    if (output.width().isSymbolic()) {
+      str.append(
+          fmt::format("    W: [{}] <- SymInt\n", (*output.width()).sym()));
+    } else {
+      str.append(fmt::format("    W: {}\n", output.width().constant()));
+    }
+    if (output.height().isSymbolic()) {
+      str.append(
+          fmt::format("    H: [{}] <- SymInt\n", (*output.height()).sym()));
+    } else {
+      str.append(fmt::format("    H: {}\n", output.height().constant()));
+    }
+    str.append(fmt::format("    dtype: {}\n", output.type()));
+    str.append(fmt::format("    storage: {}\n", output.storage()));
+    str.append(fmt::format("    format: {}\n", output.format()));
   }
 
   str.append("- Layers:\n");
@@ -368,9 +348,9 @@ memory::string Model::to_string() const {
     std::string inout = fmt::format("{} -> {}", in, out);
 
     switch (op.tag()) {
-    case ComputeOpTag::None:
+    case ComputeOpKind::None:
       diag::unreachable();
-    case ComputeOpTag::Conv: {
+    case ComputeOpKind::Conv: {
       str.append(fmt::format("    Conv: {}\n", inout));
       const auto conv = op.conv();
       str.append(fmt::format("      - kernelSize: {}x{}\n", conv->W->shape().s,
@@ -386,7 +366,7 @@ memory::string Model::to_string() const {
       }
       break;
     }
-    case ComputeOpTag::Activation: {
+    case ComputeOpKind::Activation: {
       const auto acti = op.activation();
       switch (acti.func) {
       case ActivationFunction::ReLU:
@@ -401,7 +381,7 @@ memory::string Model::to_string() const {
       }
       break;
     }
-    case ComputeOpTag::Upsample: {
+    case ComputeOpKind::Upsample: {
       const auto upsample = op.upsample();
       str.append(fmt::format("    Upsample: {}\n", inout));
       switch (upsample.mode) {
@@ -413,7 +393,7 @@ memory::string Model::to_string() const {
           fmt::format("      - scaling-factor: {}\n", upsample.scalingFactor));
       break;
     }
-    case ComputeOpTag::Pool: {
+    case ComputeOpKind::Pool: {
       const auto &pool = op.pool();
       str.append(fmt::format("    Pool: {}\n", inout));
       str.append(fmt::format("      - kernelSize: {}x{}\n", pool->kernelSize.x,
@@ -432,11 +412,11 @@ memory::string Model::to_string() const {
       }
       break;
     }
-    case ComputeOpTag::Concat: {
+    case ComputeOpKind::Concat: {
       str.append(fmt::format("    Concat: {}\n", inout));
       break;
     }
-    case ComputeOpTag::Pad: {
+    case ComputeOpKind::Pad: {
       const auto &pad = op.pad();
       str.append(fmt::format("    Pad: {}\n", inout));
       str.append(fmt::format("      - left:       {}\n",
@@ -449,7 +429,7 @@ memory::string Model::to_string() const {
                              m_controlBlock->symGraph.to_string(pad->bottom)));
       break;
     }
-    case ComputeOpTag::Slice: {
+    case ComputeOpKind::Slice: {
       const auto &slice = op.slice();
       str.append(fmt::format("    Slice: {}\n", inout));
       str.append(fmt::format("      - left:       {}\n",
@@ -469,4 +449,75 @@ memory::string Model::to_string() const {
   return str;
 }
 
+std::vector<std::string> Model::getInputNames() const {
+  std::vector<std::string> names;
+  names.reserve(m_controlBlock->inputs.size());
+  for (const auto &in : m_controlBlock->inputs) {
+    names.push_back(in.name);
+  }
+  return names;
+}
+std::vector<std::string> Model::getOutputNames() const {
+  std::vector<std::string> names;
+  names.reserve(m_controlBlock->outputs.size());
+  for (const auto &in : m_controlBlock->outputs) {
+    names.push_back(in.name);
+  }
+  return names;
+}
+std::optional<Tensor> Model::getInput(std::string_view name) const {
+  auto it = std::ranges::find_if(m_controlBlock->inputs,
+                                 [&](const ModelInterfaceDescriptor &interf) {
+                                   return interf.name == name;
+                                 });
+  if (it == m_controlBlock->inputs.end()) {
+    return std::nullopt;
+  }
+  return Tensor{it->nodeId, m_controlBlock.get()};
+}
+std::optional<Tensor> Model::getOutput(std::string_view name) const {
+  auto it = std::ranges::find_if(m_controlBlock->outputs,
+                                 [&](const ModelInterfaceDescriptor &interf) {
+                                   return interf.name == name;
+                                 });
+  if (it == m_controlBlock->outputs.end()) {
+    return std::nullopt;
+  }
+  return Tensor{it->nodeId, m_controlBlock.get()};
+}
+
+void Model::assignValueName(std::string_view name, Sym value, bool onnxlabel) {
+  auto it = std::ranges::find_if(
+      m_controlBlock->valueNames, [&](const NamedValue &nameValue) {
+        return nameValue.name == name && nameValue.value == value;
+      });
+  if (it != m_controlBlock->valueNames.end()) {
+    return;
+  }
+  m_controlBlock->valueNames.push_back(NamedValue(std::string(name), value));
+}
+
+// onnxlabel doesn't affect query result!
+Sym Model::requireValueOfName(std::string_view name, bool onnxlabel) {
+  auto it = std::ranges::find_if(
+      m_controlBlock->valueNames,
+      [&](const NamedValue &nameValue) { return nameValue.name == name; });
+  if (it == m_controlBlock->valueNames.end()) {
+    Sym sym = m_controlBlock->symGraph.var();
+    m_controlBlock->valueNames.push_back(NamedValue(std::string(name), sym));
+    return sym;
+  } else {
+    return it->value;
+  }
+}
+memory::optional<Sym> Model::getValueByName(std::string_view name) {
+  auto it = std::ranges::find_if(
+      m_controlBlock->valueNames,
+      [&](const NamedValue &nameValue) { return nameValue.name == name; });
+  if (it != m_controlBlock->valueNames.end()) {
+    return memory::nullopt;
+  } else {
+    return it->value;
+  }
+}
 } // namespace denox::compiler
