@@ -27,9 +27,9 @@ denox::compiler::frontend(memory::span<const std::byte> raw,
     }
   }
 
-  const auto outputNames = model.getInputNames();
+  const auto outputNames = model.getOutputNames();
   for (const auto &outputName : outputNames) {
-    auto output = *model.getInput(outputName);
+    auto output = *model.getOutput(outputName);
 
     auto interfaceDescriptor = std::ranges::find_if(
         options.interfaceDescriptors, [&](const TensorDescriptor &descriptor) {

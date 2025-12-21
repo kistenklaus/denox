@@ -15,23 +15,29 @@ int main() {
 
   compiler::Options options;
 
-  compiler::TensorDescriptor input;
-  input.name = "input";
-  input.format = TensorFormat::Optimal;
-  input.storage = TensorStorage::Optimal;
-  input.dtype = TensorDataType::Float16;
-  input.widthValueName = "W";
-  input.heightValueName = "H";
+  compiler::TensorDescriptor albedo;
+  albedo.name = "albedo";
+  albedo.format = TensorFormat::TEX_RGBA;
+  albedo.storage = TensorStorage::Sampler;
+  albedo.dtype = TensorDataType::Float16;
+  albedo.widthValueName = "W";
+  albedo.heightValueName = "H";
+
+  compiler::TensorDescriptor norm;
+  norm.name = "norm";
+  norm.format = TensorFormat::TEX_RGBA;
+  norm.storage = TensorStorage::Sampler;
+  norm.dtype = TensorDataType::Float16;
+  norm.widthValueName = "W";
+  norm.heightValueName = "H";
 
   compiler::TensorDescriptor output;
   output.name = "output";
-  output.format = TensorFormat::Optimal;
-  output.storage = TensorStorage::Optimal;
+  output.format = TensorFormat::TEX_RGBA;
+  output.storage = TensorStorage::StorageImage;
   output.dtype = TensorDataType::Float16;
-  output.widthValueName = "W";
-  output.heightValueName = "H";
 
-  options.interfaceDescriptors = {input, output};
+  options.interfaceDescriptors = {albedo, norm, output};
 
   compiler::Model model = compiler::frontend(onnx, options);
 

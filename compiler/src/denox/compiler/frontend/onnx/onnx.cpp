@@ -1,9 +1,9 @@
 #include "denox/compiler/frontend/onnx/onnx.hpp"
-#include "denox/diag/unreachable.hpp"
+#include "denox/compiler/frontend/model/ModelControlBlock.hpp"
 #include "denox/compiler/frontend/onnx/details/ImportState.hpp"
 #include "denox/compiler/frontend/onnx/details/import_node.hpp"
 #include "denox/compiler/frontend/onnx/details/import_value_info.hpp"
-#include "denox/compiler/frontend/model/ModelControlBlock.hpp"
+#include "denox/diag/unreachable.hpp"
 #include <fmt/format.h>
 #include <memory>
 #include <onnx.pb.h>
@@ -46,23 +46,23 @@ static void import_graph(details::ImportState &state,
       runtime_inputs.push_back(&in);
     }
   }
-  if (runtime_inputs.size() != 1) {
-    throw std::runtime_error(
-        fmt::format("vkcnn: Expected exactly one runtime input (image). Got {}",
-                    runtime_inputs.size()));
+  // if (runtime_inputs.size() != 1) {
+  //   throw std::runtime_error(
+  //       fmt::format("vkcnn: Expected exactly one runtime input (image). Got
+  //       {}",
+  //                   runtime_inputs.size()));
+  // }
+
+  // if (graph.output().size() != 1) {
+  //   throw std::runtime_error(fmt::format(
+  //       "vkcnn: Expected exactly one output. Got {}", graph.output_size()));
+  // }
+
+  for (const auto &input : runtime_inputs) {
+    // We probably need a special function for input / output
+    import_value_info(state, *input, details::ValueInfoImportContext::Input,
+                      options);
   }
-
-  if (graph.output().size() != 1) {
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Expected exactly one output. Got {}", graph.output_size()));
-  }
-
-  const auto &input = *runtime_inputs.front();
-  const auto &output = graph.output(0);
-
-  // We probably need a special function for input / output
-  import_value_info(state, input,
-                             details::ValueInfoImportContext::Input, options);
 
   for (const ::onnx::NodeProto &node : graph.node()) {
     details::import_node(state, node);
@@ -71,8 +71,10 @@ static void import_graph(details::ImportState &state,
     import_value_info(state, value_info, details::ValueInfoImportContext::Hint,
                       options);
   }
-  import_value_info(state, output, details::ValueInfoImportContext::Output,
-                    options);
+  for (const auto &output : graph.output()) {
+    import_value_info(state, output, details::ValueInfoImportContext::Output,
+                      options);
+  }
 }
 
 compiler::Model read(memory::span<const std::byte> raw,
@@ -159,9 +161,8 @@ compiler::Model read(memory::span<const std::byte> raw,
 
     return std::move(state.output);
   } catch (const std::runtime_error &e) {
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Failed to import ONNX model: {}",
-        e.what()));
+    throw std::runtime_error(
+        fmt::format("vkcnn: Failed to import ONNX model: {}", e.what()));
   }
   diag::unreachable();
 }
