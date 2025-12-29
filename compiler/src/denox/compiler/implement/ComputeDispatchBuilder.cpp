@@ -1,92 +1,33 @@
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
-#include "denox/compiler/implement/ImplBuilder.hpp"
-#include "denox/diag/unreachable.hpp"
-#include <fmt/format.h>
+#include "denox/compiler/implement/OpImpl.hpp"
+#include "denox/compiler/implement/SuperGraphBuilder.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include <stdexcept>
 
-denox::compiler::ComputeDispatch &
-denox::compiler::ComputeDispatchBuilder::self() {
-  return m_impl->m_impl->dispatches[m_index];
-};
+namespace denox::compiler {
 
-void denox::compiler::ComputeDispatchBuilder::addBinding(
-    std::uint32_t set, std::uint32_t binding, Access access,
-    memory::NodeId nodeId) {
-
-  assert(static_cast<std::uint64_t>(nodeId) < m_impl->m_nodeTensorMapping.size());
-  assert(m_impl->m_nodeTensorMapping[*nodeId].has_value());
-  TensorId id = m_impl->m_nodeTensorMapping[*nodeId].value();
-  return addBinding(set, binding, access, id);
+ComputeDispatch &ComputeDispatchBuilder::self() {
+  return m_impl->m_dispatches[m_index];
 }
 
-void denox::compiler::ComputeDispatchBuilder::setName(memory::string name) {
-  if (self().meta == nullptr) {
-    self().meta = std::make_unique<ComputeDispatchMeta>();
+void ComputeDispatchBuilder::addBinding(uint32_t set, uint32_t binding,
+                                        Access access, memory::NodeId nodeId) {
+  if (*nodeId >= m_impl->m_superBuilder->m_nodeTensorMapping.size()) {
+    diag::invalid_state();
   }
-  if (m_fast) {
-    self().meta->name = name;
-    return;
+  memory::optional<TensorId> tensorId =
+      m_impl->m_superBuilder->m_nodeTensorMapping[*nodeId];
+  if (!tensorId.has_value()) {
+    diag::invalid_state();
   }
-  return;
-
-  memory::span<ComputeDispatch> dispatches = m_impl->m_impl->dispatches;
-  bool duplicatesExist = false;
-  memory::optional<std::size_t> original = memory::nullopt;
-  memory::string zeroName = fmt::format("{}-0", name);
-  for (std::size_t i = 0; i < dispatches.size(); ++i) {
-    const auto &dispatch = dispatches[i];
-    if (dispatch.meta == nullptr) {
-      continue;
-    }
-    if (!dispatch.meta->name.has_value()) {
-      continue;
-    }
-    if (*dispatch.meta->name == name) {
-      original = i;
-      break;
-    }
-    if (*dispatch.meta->name == zeroName) {
-      duplicatesExist = true;
-      break;
-    }
-  }
-
-  if (!duplicatesExist && !original.has_value()) {
-    self().meta->name = std::move(name);
-    return;
-  }
-
-  if (original.has_value()) {
-    assert(dispatches[*original].meta != nullptr);
-    assert(dispatches[*original].meta->name.has_value());
-    dispatches[*original].meta->name =
-        fmt::format("{}-0", *dispatches[*original].meta->name);
-    self().meta->name = fmt::format("{}-1", name);
-    return;
-  }
-
-  assert(duplicatesExist);
-  std::size_t suffix = 2;
-  while (true) {
-    memory::string newName = fmt::format("{}-{}", name, suffix);
-    bool exists = false;
-    for (std::size_t i = 0; i < dispatches.size(); ++i) {
-      const auto &dispatch = dispatches[i];
-      if (dispatch.meta == nullptr) {
-        continue;
-      }
-      if (!dispatch.meta->name.has_value()) {
-        continue;
-      }
-      if (dispatch.meta->name.value() == newName) {
-        exists = true;
-        break;
-      }
-    }
-    if (!exists) {
-      self().meta->name = std::move(newName);
-      return;
-    }
-    ++suffix;
-  }
-  diag::unreachable();
+  addBinding(set, binding, access, *tensorId);
 }
+
+void ComputeDispatchBuilder::addBinding(uint32_t set, uint32_t binding,
+                                        Access access, TensorId tensor) {
+  self().bindings.push_back(TensorBinding{set, binding, access, tensor});
+}
+void ComputeDispatchBuilder::setDebugInfo(memory::string_view debugInfo) {
+  self().info.debug_info = debugInfo;
+}
+} // namespace denox::compiler

@@ -171,7 +171,7 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 }
 
 void MemorySliceShader::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    OpImpl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
@@ -224,9 +224,6 @@ void MemorySliceShader::implement(
                                     "- IN_LAYOUT:  {}\n"
                                     "- OUT_LAYOUT: {}\n",
                                     in.format, out.format));
-
-  dispatch.setInputDesc(fmt::format("{}[{}]", in.format, in.channels));
-  dispatch.setOutputDesc(fmt::format("{}[{}]", out.format, out.channels));
 }
 
 memory::string MemorySliceShader::name(unsigned int, unsigned int) const {

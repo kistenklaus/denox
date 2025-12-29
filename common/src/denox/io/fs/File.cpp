@@ -23,7 +23,7 @@ File File::open(const Path &p, OpenMode mode) {
   std::error_code ec;
   File f;
   if (!f.open_ec(p, mode, ec))
-    throw std::system_error(ec, "File::open");
+    throw std::system_error(ec, fmt::format("File::open(\"{}\")", p));
   return f;
 }
 

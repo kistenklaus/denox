@@ -311,7 +311,7 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 }
 
 void CopyTransformShader::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    OpImpl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern, unsigned int configEnc,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
@@ -375,11 +375,6 @@ void CopyTransformShader::implement(
                                                 "- IN_LAYOUT:  {}\n"
                                                 "- OUT_LAYOUT: {}\n",
                                                 src0.format, dst.format));
-
-      copySrc0Dispatch.setInputDesc(
-          fmt::format("{}[{}]", src0.format, src0Channels));
-      copySrc0Dispatch.setOutputDesc(
-          fmt::format("{}[{}]", dst.format, dstChannels));
     }
 
     {
@@ -421,11 +416,6 @@ void CopyTransformShader::implement(
                                                 "- IN_LAYOUT:  {}\n"
                                                 "- OUT_LAYOUT: {}\n",
                                                 src1.format, dst.format));
-
-      copySrc1Dispatch.setInputDesc(
-          fmt::format("{}[{}]", src1.format, src1.channels));
-      copySrc1Dispatch.setOutputDesc(
-          fmt::format("{}[{}]", dst.format, dst.channels));
     }
   }
 }

@@ -4,7 +4,6 @@
 #include "denox/common/SHA256.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/string.hpp"
-#include "denox/memory/container/string_view.hpp"
 #include "denox/spirv/CompilationResult.hpp"
 #include <fmt/format.h>
 
@@ -15,12 +14,12 @@ class GlslCompiler; // fwd declare
 class GlslCompilerInstance {
 public:
   friend class GlslCompiler;
+
   template <typename T>
     requires(fmt::is_formattable<T>::value &&
              !std::same_as<T, memory::string_view> &&
              !std::same_as<T, memory::string> &&
              !std::same_as<T, const char *> && !std::same_as<T, bool>)
-
   void define(std::string_view name, const T &value) {
     m_preamble.append(fmt::format("#define {} ({})\n", name, value));
   }
@@ -45,11 +44,16 @@ public:
     m_preamble.append(fmt::format("#define {} (1)\n", name));
   }
 
-  void enableDenoxPreprocessor() { m_denoxPreprocessor = true; }
+  void enableDenoxPreprocessor() {
+    m_denoxPreprocessor = true; 
+  }
 
   CompilationResult compile();
 
-  const io::Path &getSourcePath() const { return m_sourcePath; }
+
+
+  const io::Path &getSourcePath() const {
+    return m_sourcePath; }
 
   std::size_t hashPreamble() const {
     std::size_t preambleHash = std::hash<memory::string>{}(m_preamble);
@@ -57,7 +61,8 @@ public:
     return algorithm::hash_combine(preambleHash, sourcePathHash);
   }
 
-  std::string_view getPreamble() const { return m_preamble; }
+  std::string_view getPreamble() const {
+    return m_preamble; }
 
   std::string key() const {
     return fmt::format("{}$&%;{}", m_sourcePath.str(), m_preamble);
@@ -71,11 +76,11 @@ public:
     return hash;
   }
 
-  void sha256(SHA256Builder& hash) const {
+  void sha256(SHA256Builder &hash) const {
     hash.update(std::span{reinterpret_cast<const uint8_t *>(m_preamble.data()),
-                         m_preamble.size()});
+                          m_preamble.size()});
     hash.update(std::span{reinterpret_cast<const uint8_t *>(m_src.data()),
-                         m_src.size()});
+                          m_src.size()});
   }
 
 private:

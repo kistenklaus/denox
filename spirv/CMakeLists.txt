@@ -8,6 +8,7 @@ add_library(denox_spirv EXCLUDE_FROM_ALL
   src/denox/glsl/GlslPreprocessor.cpp
   src/denox/glsl/GlslCompiler.cpp
   src/denox/glsl/GlslCompilerInstance.cpp
+  src/denox/spirv/SpirvTools.cpp
 )
 
 target_compile_features(denox_spirv PUBLIC cxx_std_20)
@@ -23,6 +24,7 @@ target_include_directories(denox_spirv
 target_link_libraries(denox_spirv PUBLIC
 PRIVATE
   denox::glslang
+  denox::spirv-tools
 PUBLIC
   denox_common
   denox_device_info

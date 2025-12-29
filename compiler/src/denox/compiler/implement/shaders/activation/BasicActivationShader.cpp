@@ -230,7 +230,7 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 }
 
 void BasicActivationShader::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    OpImpl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
@@ -290,10 +290,6 @@ void BasicActivationShader::implement(
     dispatch.setDebugInfo(fmt::format("{}-silu-{}", in.format, out.format));
     break;
   }
-  dispatch.setInputDesc(
-      fmt::format("{}[{}]", in.format, in.channels));
-  dispatch.setOutputDesc(
-      fmt::format("{}[{}]", out.format, out.channels));
 }
 
 memory::string BasicActivationShader::name(unsigned int, unsigned int) const {

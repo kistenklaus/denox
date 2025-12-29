@@ -60,13 +60,13 @@ MemoryPadShader::MemoryPadShader(spirv::GlslCompiler *compiler)
     : m_compiler(compiler) {
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
+    if (tensor.channels.isSymbolic()) {
+      return false;
+    }
     if (tensor.type != TensorDataType::Float16) {
       return false;
     }
     if (tensor.storage != TensorStorage::StorageBuffer) {
-      return false;
-    }
-    if (tensor.channels.isSymbolic()) {
       return false;
     }
     if (tensor.format != TensorFormat::SSBO_HWC) {
@@ -180,7 +180,7 @@ static spirv::GlslCompilerInstance compile(spirv::GlslCompiler *compiler,
 }
 
 void MemoryPadShader::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    OpImpl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
@@ -193,7 +193,7 @@ void MemoryPadShader::implement(
   const auto &out = opGraph.get(outId);
   const ComputeOpPad &pad = opGraph.get(padId).pad();
 
-  assert(in.channels.isSymbolic());
+  assert(in.channels.isConstant());
   assert(in.channels == out.channels);
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
@@ -240,11 +240,6 @@ void MemoryPadShader::implement(
                                     "- OUT_LAYOUT: {}\n",
                                     in.format,
                                     out.format));
-
-  dispatch.setInputDesc(
-      fmt::format("{}[{}]", in.format, C));
-  dispatch.setOutputDesc(
-      fmt::format("{}[{}]", out.format, C));
 }
 memory::string MemoryPadShader::name(unsigned int, unsigned int) const {
   return "memory-pad";

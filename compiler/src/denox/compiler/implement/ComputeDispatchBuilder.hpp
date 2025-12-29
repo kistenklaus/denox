@@ -1,85 +1,37 @@
 #pragma once
 
+#include "denox/common/Access.hpp"
 #include "denox/compiler/implement/ComputeDispatch.hpp"
-#include "denox/compiler/implement/PushConstant.hpp"
-#include "denox/compiler/implement/TensorBinding.hpp"
-#include "denox/compiler/implement/TensorId.hpp"
-#include "denox/io/fs/Path.hpp"
-#include "denox/memory/container/string.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
-#include <memory>
-
+#include <cstddef>
 namespace denox::compiler {
-class Impl;
+
+class OpImpl;
 
 class ComputeDispatchBuilder {
 public:
-  friend class Impl;
+  friend class OpImpl;
 
-  void addBinding(std::uint32_t set, std::uint32_t binding, Access access,
-                  TensorId tensor) {
-    self().bindings.push_back(TensorBinding{set, binding, access, tensor});
-  }
+  void addBinding(uint32_t set, uint32_t binding, Access access,
+                  TensorId tensor);
 
-  void addBinding(std::uint32_t set, std::uint32_t binding, Access access,
+  void addBinding(uint32_t set, uint32_t binding, Access access,
                   memory::NodeId nodeId);
-
-  void addPushConstant(PushConstant pushConstant) {
-    self().pushConstants.push_back(pushConstant);
-  }
-
-  void setName(memory::string name);
-
-  void setDebugInfo(memory::string debugInfo) {
-    if (self().meta == nullptr) {
-      self().meta = std::make_unique<ComputeDispatchMeta>();
-    }
-    self().meta->debug_info = std::move(debugInfo);
-  }
-
-  void setInputDesc(memory::string input_desc) {
-    if (self().meta == nullptr) {
-      self().meta = std::make_unique<ComputeDispatchMeta>();
-    }
-    self().meta->input_desc = std::move(input_desc);
-  }
-
-  void setOutputDesc(memory::string output_desc) {
-    if (self().meta == nullptr) {
-      self().meta = std::make_unique<ComputeDispatchMeta>();
-    }
-    self().meta->output_desc = std::move(output_desc);
-  }
-
-  void setSourcePath(io::Path sourcePath) {
-    if (self().meta == nullptr) {
-      self().meta = std::make_unique<ComputeDispatchMeta>();
-    }
-    self().meta->sourcePath = std::move(sourcePath);
-  }
-
-  void setMemoryReads(Sym reads) {
-    if (self().meta == nullptr) {
-      self().meta = std::make_unique<ComputeDispatchMeta>();
-    }
-    self().meta->memory_reads = reads;
-  }
-
-  void setMemoryWrites(Sym reads) {
-    if (self().meta == nullptr) {
-      self().meta = std::make_unique<ComputeDispatchMeta>();
-    }
-    self().meta->memory_writes = reads;
-  }
+  void addPushConstant(PushConstant pc) { self().pushConstant.push_back(pc); }
+  void setName(memory::string_view name) { self().info.name = name; };
+  void setDebugInfo(memory::string_view debugInfo);
+  void setSourcePath(const io::Path &path) { self().info.srcPath = path; }
+  void setMemoryReads(Sym reads) { self().info.memoryReads = reads; }
+  void setMemoryWrites(Sym writes) { self().info.memoryWrites = writes; }
 
 private:
+  ComputeDispatchBuilder(size_t index, OpImpl *impl)
+      : m_index(index), m_impl(impl) {}
   ComputeDispatch &self();
 
-  ComputeDispatchBuilder(std::size_t index, Impl *impl, bool fast)
-      : m_index(index), m_impl(impl), m_fast(fast) {}
-  std::size_t m_index;
-  Impl *m_impl;
-  bool m_fast;
+private:
+  size_t m_index;
+  OpImpl *m_impl;
 };
 
 } // namespace denox::compiler

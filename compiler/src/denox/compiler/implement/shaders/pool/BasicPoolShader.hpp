@@ -26,7 +26,7 @@ public:
     return m_capabilities;
   }
 
-  void implement(Impl &impl,
+  void implement(OpImpl &impl,
                  const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
                  unsigned int pattern,
                  unsigned int config,
@@ -47,7 +47,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::cwd() / "compiler/shaders/pool/basic_pool.comp";
+      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/pool/basic_pool.comp";
 };
 
 } // namespace denox::compiler::shaders

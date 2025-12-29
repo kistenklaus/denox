@@ -1,7 +1,7 @@
 #pragma once
 
+#include "denox/common/Lifetime.hpp"
 #include "denox/compiler/canonicalize/CanoModel.hpp"
-#include "denox/compiler/lifeness/Lifetimes.hpp"
 #include <fmt/core.h>
 
 namespace denox::compiler {

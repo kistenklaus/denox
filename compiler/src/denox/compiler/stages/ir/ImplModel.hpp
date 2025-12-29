@@ -18,8 +18,7 @@ struct ImplModel {
   memory::vector<ComputeDispatch> dispatches;
   memory::vector<SpirvBinary> shaderBinaries;
 
-  memory::vector<MemoryImplicitConcatConstrain> memoryImplicitConcatConstrains;
-  memory::vector<Parameter> parameters;
+  memory::vector<MemoryImplicitConcatConstrain> memoryImplicitConcatConstrains; memory::vector<Parameter> parameters;
 
   memory::vector<InputDesc> inputs;
   memory::vector<OutputDesc> outputs;

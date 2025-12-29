@@ -26,7 +26,7 @@ static inline size_t size_of(TensorDataType dtype) {
   diag::unreachable();
 }
 
-static inline size_t align_of(TensorDataType dtype) {
+static inline uint16_t align_of(TensorDataType dtype) {
   switch (dtype) {
   case TensorDataType::Auto:
     diag::invalid_state();

@@ -129,7 +129,7 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   }
 
   if (in.channels != out.channels) {
-    return {};
+    diag::invalid_state();
   }
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
@@ -227,7 +227,7 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 }
 
 void BasicUpsampleShader::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    OpImpl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern, unsigned int configKey,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
@@ -275,11 +275,6 @@ void BasicUpsampleShader::implement(
                                     "- OUT_LAYOUT: {}\n",
                                     in.format,
                                     out.format));
-
-  dispatch.setInputDesc(
-      fmt::format("{}[{}]", in.format, in.channels));
-  dispatch.setOutputDesc(
-      fmt::format("{}[{}]", out.format, out.channels));
 }
 memory::string BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern,
                                          unsigned int) const {

@@ -23,7 +23,7 @@ public:
   }
 
   void
-  implement(Impl &impl,
+  implement(OpImpl &impl,
             const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
             unsigned int pattern, unsigned int config,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
@@ -44,7 +44,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::cwd() / "compiler/shaders/upsample/basic_upsample.comp";
+      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/upsample/basic_upsample.comp";
 
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;

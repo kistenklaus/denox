@@ -1,0 +1,103 @@
+#include "denox/compiler/implement/OpImpl.hpp"
+#include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
+#include "denox/compiler/implement/SuperGraphBuilder.hpp"
+#include <stdexcept>
+
+namespace denox::compiler {
+
+TensorId OpImpl::createParameter(const memory::FilterDescriptor &descriptor,
+                                 memory::FilterTensorConstView data) {
+  size_t bytes = descriptor.byteSize();
+  uint16_t alignment;
+  if (descriptor.layout.isVectorized()) {
+    alignment = 16;
+  } else {
+    // TODO should probably be a call to align_of
+    alignment = descriptor.type.alignment();
+  }
+  TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
+  if (m_superBuilder->m_writeParameters) {
+    memory::FilterTensor tensor{
+        descriptor,
+        data,
+    };
+    memory::vector<std::byte> data(tensor.span().begin(), tensor.span().end());
+    m_parameters.emplace_back(id, std::move(data));
+  }
+  return id;
+}
+
+TensorId OpImpl::createParameter(const memory::BiasDescriptor &descriptor,
+                                 memory::BiasTensorConstView data) {
+  size_t bytes = descriptor.byteSize();
+  uint16_t alignment;
+  if (descriptor.layout.isVectorized()) {
+    alignment = 16;
+  } else {
+    alignment = descriptor.type.alignment();
+  }
+  TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
+  if (m_superBuilder->m_writeParameters) {
+    memory::BiasTensor tensor{
+        descriptor,
+        data,
+    };
+    memory::vector<std::byte> data(tensor.span().begin(), tensor.span().end());
+    m_parameters.emplace_back(id, std::move(data));
+  }
+  return id;
+}
+
+ComputeDispatchBuilder
+OpImpl::registerDispatch(spirv::GlslCompilerInstance glsl, Sym wgX, Sym wgY,
+                         Sym wgZ) {
+  size_t index = m_dispatches.size();
+  m_dispatches.push_back(ComputeDispatch{
+      .glsl = std::move(glsl),
+      .pushConstant = {},
+      .workgroupCountX = wgX,
+      .workgroupCountY = wgY,
+      .workgroupCountZ = wgZ,
+      .bindings = {},
+  });
+  return ComputeDispatchBuilder(index, this);
+}
+
+void OpImpl::createImplicitConcatConstrain(memory::NodeId src0,
+                                           memory::NodeId src1,
+                                           memory::NodeId dst) {
+  memory::optional<TensorId> tensorSrc0;
+  if (*src0 < m_superBuilder->m_nodeTensorMapping.size()) {
+    tensorSrc0 = m_superBuilder->m_nodeTensorMapping[*src0];
+  }
+  memory::optional<TensorId> tensorSrc1;
+  if (*src1 < m_superBuilder->m_nodeTensorMapping.size()) {
+    tensorSrc1 = m_superBuilder->m_nodeTensorMapping[*src1];
+  }
+  memory::optional<TensorId> tensorDst;
+  if (*dst < m_superBuilder->m_nodeTensorMapping.size()) {
+    tensorDst = m_superBuilder->m_nodeTensorMapping[*dst];
+  }
+  if (tensorSrc0.has_value() && tensorSrc1.has_value() &&
+      tensorDst.has_value()) {
+    m_memoryConstrains.emplace_back(*tensorSrc0, *tensorSrc1, *tensorDst);
+  } else {
+    throw std::runtime_error(
+        "Failed to create memory constrain, invalid node ids.");
+  }
+}
+
+void OpImpl::finish() {
+  m_superBuilder->m_graph.addEdge(
+      m_inputs, m_output,
+      SuperGraphEdge{
+          .dispatches = std::move(m_dispatches),
+          .memoryConstrains = std::move(m_memoryConstrains),
+          .parameters = std::move(m_parameters),
+      });
+  // m_superBuilder = nullptr;
+  // m_inputs.clear();
+  // m_output = memory::NodeId{}; // <- null
+}
+
+} // namespace denox::compiler

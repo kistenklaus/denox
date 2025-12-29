@@ -226,7 +226,7 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 }
 
 void BasicPoolShader::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    OpImpl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
@@ -279,9 +279,6 @@ void BasicPoolShader::implement(
                                     "- IN_LAYOUT:  {}\n"
                                     "- OUT_LAYOUT: {}\n",
                                     in.format, out.format));
-
-  dispatch.setInputDesc(fmt::format("{}[{}]", in.format, in.channels));
-  dispatch.setOutputDesc(fmt::format("{}[{}]", out.format, out.channels));
 }
 memory::string BasicPoolShader::name(unsigned int, unsigned int) const {
   return "basic-pool";

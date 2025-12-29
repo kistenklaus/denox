@@ -1,26 +1,25 @@
 #pragma once
 
-#include "denox/compiler/Options.hpp"
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/implement/shaders/IShader.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
+#include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/memory/hypergraph/ConstGraph.hpp"
+#include <cassert>
 
 namespace denox::compiler::shaders {
 
-class CopyTransformShader : public IShader {
-public:
+class DirectConvShader final : public compiler::IShader {
+private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  static constexpr unsigned int IMPLICIT_CONCAT_MODE = 1 << 8;
-  static constexpr unsigned int SINGLE_COPY_CONCAT_MODE = 2 << 8;
-  static constexpr unsigned int EXPLICIT_CONCAT_MODE = 3 << 8;
-  static constexpr unsigned int CONCAT_MODE_MASK = 0xFF << 8;
-  static constexpr unsigned int PATTERN_MASK = 0xFF;
+  static constexpr unsigned int CONV_PATTERN = 0;
+  static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
-  static constexpr bool
-      ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
-
-  CopyTransformShader(spirv::GlslCompiler *compiler, const Options &options);
+public:
+  DirectConvShader(spirv::GlslCompiler *compiler, const Options &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -32,7 +31,11 @@ public:
               const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                   &match) const final override;
 
-  float speedup(unsigned int patternEnc) const final override;
+  std::size_t parameterMemorySize(
+      const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
+      unsigned int pattern,
+      const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match)
+      const final override;
 
   void
   implement(OpImpl &impl,
@@ -46,9 +49,10 @@ public:
 
 private:
   struct Handles {
-    Pattern::NP src0;
-    Pattern::NP src1;
-    Pattern::NP dst;
+    Pattern::NP in;
+    Pattern::EP conv;
+    memory::optional<Pattern::EP> relu;
+    Pattern::NP out;
   };
 
 private:
@@ -56,10 +60,10 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/copy/copy_transform.comp";
+      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/conv/direct_conv.comp";
+  bool m_enableConvReluFusion;
 
-  bool m_enableImplicitConcat;
-
+  unsigned int m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
 };

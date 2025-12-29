@@ -62,11 +62,13 @@ add_library(denox_compiler
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/dce.cpp
     
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/implement.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/implement.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/OpImpl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/ComputeDispatchBuilder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/shaders.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/BasicActivationShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/DirectConvShaderCM.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/DirectConvShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/copy/CopyTransformShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pad/MemoryPadShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pool/BasicPoolShader.cpp
@@ -85,7 +87,6 @@ target_link_libraries(denox_compiler
     denox::onnx
   PUBLIC 
     denox_common
-    denox_symbolic
     denox_spirv
     denox_database
 )

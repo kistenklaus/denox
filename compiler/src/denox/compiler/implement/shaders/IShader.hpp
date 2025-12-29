@@ -1,8 +1,9 @@
 #pragma once
 
-#include "denox/compiler/implement/ImplBuilder.hpp"
 #include "denox/algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/compiler/implement/OpImpl.hpp"
+#include "denox/compiler/specialization/TensorInstance.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include "denox/compiler/frontend/model/ComputeOp.hpp"
@@ -60,7 +61,7 @@ public:
   }
 
   virtual void
-  implement(Impl &impl,
+  implement(OpImpl &impl,
             const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
             unsigned int pattern, unsigned int config,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,

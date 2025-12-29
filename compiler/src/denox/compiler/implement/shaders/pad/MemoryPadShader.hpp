@@ -23,7 +23,7 @@ public:
   }
 
   void
-  implement(Impl &impl,
+  implement(OpImpl &impl,
             const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
             unsigned int pattern, unsigned int config,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
@@ -43,7 +43,8 @@ private:
   spirv::GlslCompiler *m_compiler;
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
-  io::Path m_srcPath = io::Path::cwd() / "compiler/shaders/pad/memory_pad.comp";
+  io::Path m_srcPath =
+      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/pad/memory_pad.comp";
 };
 
 } // namespace denox::compiler::shaders

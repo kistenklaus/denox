@@ -24,7 +24,7 @@ public:
   }
 
   void
-  implement(Impl &impl,
+  implement(OpImpl &impl,
             const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
             unsigned int pattern, unsigned int config,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
@@ -45,7 +45,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::cwd() / "compiler/shaders/slice/memory_slice.comp";
+      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/slice/memory_slice.comp";
 };
 
 } // namespace denox::compiler::shaders

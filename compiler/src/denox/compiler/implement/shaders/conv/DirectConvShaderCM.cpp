@@ -8,7 +8,6 @@
 #include "denox/memory/tensor/BiasDescriptor.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
-#include "denox/memory/tensor/FilterTensor.hpp"
 #include "denox/memory/tensor/FitlerDescriptor.hpp"
 #include <fmt/format.h>
 
@@ -761,7 +760,7 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 }
 
 void DirectConvShaderCM::implement(
-    Impl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    OpImpl &impl, const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
     [[maybe_unused]] unsigned int pattern, unsigned int configKey,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
@@ -861,9 +860,6 @@ void DirectConvShaderCM::implement(
 
   dispatch.setDebugInfo(
       fmt::format("{}-direct-conv-{}", in.format, out.format));
-
-  dispatch.setInputDesc(fmt::format("{}[{}]", in.format, C));
-  dispatch.setOutputDesc(fmt::format("{}[{}]", out.format, K));
 }
 memory::string DirectConvShaderCM::name(unsigned int pattern,
                                         unsigned int) const {

@@ -25,7 +25,7 @@ public:
                   &match) const final override;
 
   void
-  implement(Impl &impl,
+  implement(OpImpl &impl,
             const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
             unsigned int pattern, unsigned int config,
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
@@ -47,7 +47,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::cwd() / "compiler/shaders/activation/basic_activation.comp";
+      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/activation/basic_activation.comp";
 
   uint32_t m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;

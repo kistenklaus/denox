@@ -2,6 +2,7 @@
 #include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
+#include "denox/compiler/lifeness/Lifetimes.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/span.hpp"
@@ -154,7 +155,7 @@ static SpecModel::Graph::NodeHandle specialize_input(
       .channels = input->value().channels,
       .storage = TensorStorage::Optimal,
       .format = TensorFormat::Optimal,
-      .type = TensorDataType::Auto,
+      .type = TensorDataType::Float16,
       .originalNode = input,
       .lifetime = lifetimes.valueLifetimes[*input->id()],
   };
@@ -314,7 +315,7 @@ SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes) {
         .channels = output->value().channels,
         .storage = TensorStorage::Optimal,
         .format = TensorFormat::Optimal,
-        .type = TensorDataType::Auto,
+        .type = TensorDataType::Float16,
         .originalNode = output,
         .lifetime = lifetimes.valueLifetimes[oid],
     };

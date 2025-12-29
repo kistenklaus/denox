@@ -66,6 +66,7 @@ denox::spirv::SpirvTools::SpirvTools(const DeviceInfo &deviceInfo)
     target_env = SPV_ENV_VULKAN_1_4;
     break;
   default:
+    fmt::println("IAM unreachable");
     diag::unreachable();
   }
 
