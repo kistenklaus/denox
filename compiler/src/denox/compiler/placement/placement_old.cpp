@@ -1,0 +1,360 @@
+#include "compiler/placement/placement.hpp"
+#include "compiler/ir/impl/MemoryConstrain.hpp"
+#include "compiler/ir/impl/TensorId.hpp"
+#include "compiler/ir/impl/TensorStorageRequirements.hpp"
+#include "denox/diag/invalid_state.hpp"
+#include "denox/diag/not_implemented.hpp"
+#include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
+#include "denox/memory/container/vector.hpp"
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <limits>
+
+namespace denox::compiler {
+
+CompModel placement(const ImplModel &model) {
+  CompModel compModel;
+  compModel.symGraph = model.symGraph;
+  SymGraph &symGraph = compModel.symGraph;
+
+  compModel.shaderBinaries = model.shaderBinaries;
+
+  for (const auto &computeDispatch : model.dispatches) {
+    memory::optional<memory::string> debug_info;
+    memory::optional<memory::string> name;
+    memory::optional<Sym> memory_reads;
+    memory::optional<Sym> memory_writes;
+    memory::optional<memory::string> input_desc;
+    memory::optional<memory::string> output_desc;
+    if (computeDispatch.meta != nullptr) {
+      debug_info = computeDispatch.meta->debug_info;
+      memory_reads = computeDispatch.meta->memory_reads;
+      memory_writes = computeDispatch.meta->memory_writes;
+      name = computeDispatch.meta->name;
+      input_desc = computeDispatch.meta->input_desc;
+      output_desc = computeDispatch.meta->output_desc;
+    }
+
+    Dispatch dispatch{
+        .binaryId = computeDispatch.binaryId,
+        .workgroupCount = computeDispatch.workgroupCount,
+        .setBindings = {}, // <- handeled after tensor placement.
+        .pushConstants = computeDispatch.pushConstants,
+        .debug_info = debug_info,
+        .name = name,
+        .input_desc = input_desc,
+        .output_desc = output_desc,
+        .memory_reads = memory_reads,
+        .memory_writes = memory_writes,
+    };
+    compModel.dispatches.push_back(std::move(dispatch));
+  }
+
+  static constexpr std::uint64_t u64sential =
+      std::numeric_limits<std::uint64_t>::max();
+  memory::vector<std::uint64_t> tensorIdToViewMap(model.tensors.size(),
+                                                  u64sential);
+
+  // Split into parameters and runtime tensors.
+  memory::dynamic_bitset tensorIsParameter(model.tensors.size(), false);
+  for (const Parameter &param : model.parameters) {
+    tensorIsParameter[param.tensorId.index] = true;
+  }
+  memory::vector<std::uint64_t> runtimeTensorsIndicies; // tensor-ids.
+  memory::vector<std::uint64_t> paramTensorIndicies;
+  memory::vector<std::uint64_t> indexMapping(model.tensors.size());
+  for (std::size_t tid = 0; tid < model.tensors.size(); ++tid) {
+    if (tensorIsParameter[tid]) {
+      indexMapping[tid] = paramTensorIndicies.size();
+      paramTensorIndicies.emplace_back(tid);
+    } else {
+      indexMapping[tid] = runtimeTensorsIndicies.size();
+      runtimeTensorsIndicies.emplace_back(tid);
+    }
+  }
+
+  // Create buffers and views for parameters.
+  for (std::size_t p = 0; p < paramTensorIndicies.size(); ++p) {
+    const std::uint64_t tensorId = paramTensorIndicies[p];
+    const TensorStorageRequirements &tensor = model.tensors[tensorId];
+    Buffer buffer{
+        .size = tensor.byteSize,
+        .alignment = tensor.minAlignment,
+    };
+    const std::uint64_t bufferIndex = compModel.buffers.size();
+    compModel.buffers.push_back(buffer);
+    TensorView view{
+        .buffer = bufferIndex,
+        .offset = Sym::Const(0),
+        .size = tensor.byteSize,
+    };
+    const std::uint64_t viewId = compModel.tensors.size();
+    compModel.tensors.push_back(view);
+    tensorIdToViewMap[tensorId] = viewId;
+
+    if (tensor.meta != nullptr) {
+      compModel.tensorInfo.push_back(*tensor.meta);
+    } else {
+      compModel.tensorInfo.push_back(memory::nullopt);
+    }
+  }
+
+  // Create initalizers for parameters.
+  for (const auto &param : model.parameters) {
+    const std::uint64_t tensorId = param.tensorId.index;
+    const std::uint64_t viewId = tensorIdToViewMap[tensorId];
+    compModel.initializers.emplace_back(viewId, param.data);
+  }
+
+  // Create views for runtime tensors.
+  // 1. Determine which runtime tensors have to life in the same
+  //    block. Reduce to a linearly indexed array of blocks.
+  memory::vector<std::uint64_t> unionFind(runtimeTensorsIndicies.size());
+  for (std::size_t i = 0; i < unionFind.size(); ++i) {
+    unionFind[i] = i;
+  }
+  auto find = [&](std::uint64_t x) {
+    std::uint64_t n = x;
+    do {
+      x = n;
+      n = unionFind[x];
+    } while (x != n);
+    return x;
+  };
+  for (const auto &constrain : model.memoryImplicitConcatConstrains) {
+    const std::uint64_t t0 = constrain.src0.index;
+    const std::uint64_t t1 = constrain.src1.index;
+    const std::uint64_t t2 = constrain.dst.index;
+    if (tensorIsParameter[t0] || tensorIsParameter[t1] ||
+        tensorIsParameter[t2]) {
+      diag::not_implemented();
+    }
+
+    const std::uint64_t i0 = indexMapping[t0];
+    const std::uint64_t i1 = indexMapping[t1];
+    const std::uint64_t i2 = indexMapping[t2];
+
+    const std::uint64_t x0 = find(i0);
+    const std::uint64_t x1 = find(i1);
+    const std::uint64_t x2 = find(i2);
+
+    unionFind[x0] = x0;
+    unionFind[x1] = x0;
+    unionFind[x2] = x0;
+  }
+  // Index compression.
+  // Map union find result of find(indexMapping[tensorId])
+  // to a linear index.
+  memory::vector<std::uint64_t> blockIndicies(runtimeTensorsIndicies.size(),
+                                              u64sential);
+  std::uint64_t blockCount = 0;
+  for (std::size_t t = 0; t < runtimeTensorsIndicies.size(); ++t) {
+    std::uint64_t x0 = find(t);
+    if (blockIndicies[x0] == u64sential) {
+      blockIndicies[x0] = blockCount++;
+    }
+  }
+  struct PlacementConstrain {
+    std::uint64_t tensorId;
+    Sym offset;
+  };
+  struct Block {
+    memory::vector<std::uint64_t> tensorIds;
+    memory::optional<Sym> size;
+    memory::optional<unsigned int> alignment;
+    memory::vector<PlacementConstrain> constrains;
+  };
+  memory::vector<Block> blocks(blockCount);
+  for (std::size_t t = 0; t < runtimeTensorsIndicies.size(); ++t) {
+    std::uint64_t x0 = find(t);
+    std::size_t blockIndex = blockIndicies[x0];
+    blocks[blockIndex].tensorIds.emplace_back(runtimeTensorsIndicies[t]);
+  }
+
+  for (const auto &constrain : model.memoryImplicitConcatConstrains) {
+    const std::uint64_t t0 = constrain.src0.index;
+    const std::uint64_t t1 = constrain.src1.index;
+    const std::uint64_t t2 = constrain.dst.index;
+
+    if (tensorIsParameter[t0] || tensorIsParameter[t1] ||
+        tensorIsParameter[t2]) {
+      diag::not_implemented();
+    }
+
+    const std::uint64_t x0 = find(indexMapping[t0]);
+    const std::uint64_t x1 = find(indexMapping[t1]);
+    const std::uint64_t x2 = find(indexMapping[t2]);
+    assert(x0 == x1);
+    assert(x1 == x2);
+
+    std::size_t blockIndex = blockIndicies[x0];
+    // NOTE: Maybe we did actually need those assertions iam not sure if they where incorrect!
+    // assert(std::ranges::count(blocks[blockIndex].tensorIds, x0) == 0);
+    // assert(std::ranges::count(blocks[blockIndex].tensorIds, x1) == 0);
+    // assert(std::ranges::count(blocks[blockIndex].tensorIds, x2) == 0);
+
+    const auto &t0Tensor = model.tensors[t0];
+    const auto &t2Tensor = model.tensors[t2];
+
+    PlacementConstrain x0Placement;
+    x0Placement.tensorId = t0;
+    x0Placement.offset = Sym::Const(0);
+    PlacementConstrain x1Placement;
+    x1Placement.tensorId = t1;
+    x1Placement.offset = t0Tensor.byteSize;
+    PlacementConstrain x2Placement;
+    x2Placement.tensorId = t2;
+    x2Placement.offset = Sym::Const(0);
+
+    auto &block = blocks[blockIndex];
+    block.constrains.push_back(x0Placement);
+    block.constrains.push_back(x1Placement);
+    block.constrains.push_back(x2Placement);
+    if (block.size.has_value()) {
+      block.size = symGraph.max(*block.size, t2Tensor.byteSize);
+    } else {
+      block.size = t2Tensor.byteSize;
+    }
+    unsigned int alignment =
+        std::max(t2Tensor.minAlignment, t0Tensor.minAlignment);
+    if (block.alignment.has_value()) {
+      block.alignment = std::max(*block.alignment, alignment);
+    } else {
+      block.alignment = alignment;
+    }
+  }
+
+  memory::dynamic_bitset placed(model.tensors.size(), false);
+
+  const std::uint64_t bufferOffset = compModel.buffers.size();
+  for (std::size_t b = 0; b < blocks.size(); ++b) {
+
+    const Block &block = blocks[b];
+
+    // NOTE: Currently not the cleanest implementation just guards that
+    // we do not forget to modify this if we later want to add more constrains.
+    // Is only supposed to work with Implicit Concat constrains.
+    assert(block.constrains.empty() || block.tensorIds.size() == 3);
+
+    const std::uint64_t bufferIndex = b + bufferOffset;
+    Sym size;
+    // 1. determine block size and alignment
+    if (block.size.has_value()) {
+      size = *block.size;
+    } else {
+      // infer size.
+      size = Sym::Const(0);
+      for (std::uint64_t tid : block.tensorIds) {
+        const auto &tensor = model.tensors[tid];
+        size = symGraph.add(size, tensor.byteSize);
+      }
+    }
+    unsigned int alignment;
+    if (block.alignment.has_value()) {
+      alignment = *block.alignment;
+    } else {
+      alignment = 1;
+      for (std::size_t t = 0; t < block.tensorIds.size(); ++t) {
+        const auto &tensor = model.tensors[t];
+        alignment = std::max(alignment, tensor.minAlignment);
+      }
+    }
+
+    Buffer buffer{
+        .size = size,
+        .alignment = alignment,
+    };
+    assert(compModel.buffers.size() == bufferIndex);
+    compModel.buffers.push_back(buffer);
+
+    for (const auto &constrain : block.constrains) {
+      if (placed[constrain.tensorId]) {
+        diag::unreachable();
+      }
+      const auto &tensor = model.tensors[constrain.tensorId];
+      std::uint64_t viewId = compModel.tensors.size();
+      tensorIdToViewMap[constrain.tensorId] = viewId;
+      TensorView view{
+          .buffer = bufferIndex,
+          .offset = constrain.offset,
+          .size = tensor.byteSize,
+      };
+      compModel.tensors.push_back(view);
+      placed[constrain.tensorId] = true;
+    }
+    for (std::uint64_t tensorId : block.tensorIds) {
+      if (placed[tensorId]) {
+        continue;
+      }
+      const auto &tensor = model.tensors[tensorId];
+      // NOTE: Not build for this!
+      // Only handles the trivial case!
+      // We could do more complex stuff here, but i think
+      // this requires a relation aware symbolic engine, which
+      // at this point we do not have.
+      assert(block.constrains.empty());
+      const std::uint64_t viewId = compModel.tensors.size();
+      tensorIdToViewMap[tensorId] = viewId;
+      TensorView view{
+          .buffer = bufferIndex,
+          .offset = Sym::Const(0),
+          .size = tensor.byteSize,
+      };
+      compModel.tensors.push_back(view);
+      placed[tensorId] = true;
+    }
+  }
+
+  for (std::size_t d = 0; d < model.dispatches.size(); ++d) {
+    const auto &computeDispatch = model.dispatches[d];
+    auto &dispatch = compModel.dispatches[d];
+
+    for (const TensorBinding &binding : computeDispatch.bindings) {
+      auto setBindingIt =
+          std::find_if(dispatch.setBindings.begin(), dispatch.setBindings.end(),
+                       [&](const DescriptorSetBinding &setBinding) {
+                         return setBinding.set == binding.set;
+                       });
+      if (setBindingIt == dispatch.setBindings.end()) {
+        DescriptorSetBinding setBinding;
+        setBinding.set = binding.set;
+        dispatch.setBindings.push_back(setBinding);
+        setBindingIt = --dispatch.setBindings.end();
+      }
+      assert(setBindingIt != dispatch.setBindings.end());
+
+      auto bindingIt = std::find_if(
+          setBindingIt->bindings.begin(), setBindingIt->bindings.end(),
+          [&](const DescriptorBinding &descriptorBinding) {
+            return descriptorBinding.binding == binding.binding;
+          });
+      if (bindingIt != setBindingIt->bindings.end()) {
+        diag::invalid_state(); // <- Binding Collision.
+      }
+      std::uint64_t viewId = tensorIdToViewMap[binding.tensorId.index];
+      DescriptorBinding descriptorBinding{};
+      descriptorBinding.binding = binding.binding;
+      descriptorBinding.access = binding.accessFlag;
+      descriptorBinding.tensor = viewId;
+      setBindingIt->bindings.push_back(descriptorBinding);
+    }
+  }
+
+  for (std::size_t i = 0; i < model.inputs.size(); ++i) {
+    InputDesc input = model.inputs[i];
+    input.tensor.index = tensorIdToViewMap[input.tensor.index];
+    compModel.inputs.push_back(input);
+  }
+
+  for (std::size_t o = 0; o < model.outputs.size(); ++o) {
+    OutputDesc output = model.outputs[o];
+    output.tensor.index = tensorIdToViewMap[output.tensor.index];
+    compModel.outputs.push_back(output);
+  }
+
+  return compModel;
+}
+
+} // namespace denox::compiler

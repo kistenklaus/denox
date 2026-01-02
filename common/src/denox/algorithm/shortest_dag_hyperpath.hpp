@@ -6,7 +6,7 @@
 namespace denox::algorithm {
 
 template <typename V, typename E, typename W>
-  requires(std::is_arithmetic_v<W>)
+  // requires(std::is_arithmetic_v<W>)
 memory::optional<memory::vector<memory::EdgeId>>
 shortest_dag_hyperpath(const memory::ConstGraph<V, E, W> &graph,
                        memory::span<const memory::NodeId> starts,

@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.dlpack
-import denox
 # from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
 
 INPUT_CHANNELS_COUNT = 3

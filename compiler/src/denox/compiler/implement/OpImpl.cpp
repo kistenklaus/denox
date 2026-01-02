@@ -54,7 +54,7 @@ OpImpl::registerDispatch(spirv::GlslCompilerInstance glsl, Sym wgX, Sym wgY,
   size_t index = m_dispatches.size();
   m_dispatches.push_back(ComputeDispatch{
       .glsl = std::move(glsl),
-      .pushConstant = {},
+      .pushConstants = {},
       .workgroupCountX = wgX,
       .workgroupCountY = wgY,
       .workgroupCountZ = wgZ,

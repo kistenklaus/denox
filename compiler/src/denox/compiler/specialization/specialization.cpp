@@ -109,6 +109,17 @@ specialize_tensor(const CanoModel::Graph::NodeHandle &node) {
           continue;
       }
 
+      // ------------------------------------------------------------
+      // FIX: CHWC8 requires channels divisible by 8
+      // ------------------------------------------------------------
+      if (f == TensorFormat::SSBO_CHWC8) {
+        if (!node->value().channels.isConstant())
+          continue;
+
+        if (node->value().channels.constant() % 8 != 0)
+          continue;
+      }
+
       out.push_back(TensorSpec{
           .format = f,
           .storage = s,

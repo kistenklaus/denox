@@ -1,10 +1,9 @@
 #pragma once
 
-#include "compiler/ir/comp/CompModel.hpp"
-#include "compiler/ir/impl/ImplModel.hpp"
 
+#include "denox/compiler/placement/MemSchedule.hpp"
+#include "denox/compiler/selection/OptSchedule.hpp"
 namespace denox::compiler {
 
-CompModel placement(const ImplModel &model);
-
+MemSchedule placement(const OptSchedule &schedule);
 }

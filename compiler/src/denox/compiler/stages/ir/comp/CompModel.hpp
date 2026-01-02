@@ -25,7 +25,7 @@ struct Buffer {
   unsigned int alignment;
 };
 
-struct TensorInitalizer {
+struct TensorInitializers {
   std::uint32_t tensor;
   std::vector<std::byte> data;
 };

@@ -20,7 +20,7 @@ struct ComputeDispatchInfo {
 
 struct ComputeDispatch {
   spirv::GlslCompilerInstance glsl;
-  memory::small_vector<PushConstant, 6> pushConstant;
+  memory::small_vector<PushConstant, 6> pushConstants;
   Sym workgroupCountX;
   Sym workgroupCountY;
   Sym workgroupCountZ;
@@ -73,7 +73,7 @@ template <> struct fmt::formatter<denox::compiler::ComputeDispatch> {
     return fmt::format_to(ctx.out(),
                           "{{glsl_src={}, pushConstants={}, wgX={}, wgY={}, "
                           "wgZ={}, bindings={}, info={}}}",
-                          d.glsl.getSourcePath(), d.pushConstant.size(),
+                          d.glsl.getSourcePath(), d.pushConstants.size(),
                           d.workgroupCountX, d.workgroupCountY,
                           d.workgroupCountZ, d.bindings, d.info);
   }

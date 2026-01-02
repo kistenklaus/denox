@@ -10,17 +10,6 @@
 
 namespace denox::compiler {
 
-struct TensorShapeExtent {
-  memory::optional<std::string> name;
-  memory::optional<unsigned int> value;
-};
-
-struct TensorShapeDesc {
-  TensorShapeExtent channels;
-  TensorShapeExtent height;
-  TensorShapeExtent width;
-};
-
 struct Features {
   bool coopmat = true;
   bool enableImplicitConcat = true;
@@ -59,6 +48,14 @@ struct SpirvOptions {
   bool optimize;
 };
 
+struct OptimizationAssumption {
+  std::string valueName;
+  uint64_t value;
+};
+
+struct OptimizationAssumptions {
+  std::vector<OptimizationAssumption> valueAssumptions;
+};
 
 struct Options {
   unsigned int dnxVersion;
@@ -68,6 +65,7 @@ struct Options {
   std::vector<InterfaceTensorDescriptor> interfaceDescriptors;
   DescriptorPolicies descriptorPolicies;
   diag::LogLevel loglevel;
+  OptimizationAssumptions assumptions;
 };
 
 } // namespace denox::compiler

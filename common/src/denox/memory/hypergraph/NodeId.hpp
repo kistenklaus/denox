@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <fmt/format.h>
 #include <limits>
 
 namespace denox::memory {
@@ -32,3 +33,12 @@ private:
 };
 
 } // namespace denox::memory
+
+template <> struct fmt::formatter<denox::memory::NodeId> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const denox::memory::NodeId &nid, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "<{}>", static_cast<std::uint64_t>(nid));
+  }
+};

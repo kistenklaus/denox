@@ -3,6 +3,7 @@
 #include "denox/compiler/implement/shaders/conv/DirectConvShader.hpp"
 #include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
 #include "denox/compiler/implement/shaders/copy/CopyTransformShader.hpp"
+#include "denox/compiler/implement/shaders/noop/NoOp.hpp"
 #include "denox/compiler/implement/shaders/pad/MemoryPadShader.hpp"
 #include "denox/compiler/implement/shaders/pool/BasicPoolShader.hpp"
 #include "denox/compiler/implement/shaders/slice/MemorySliceShader.hpp"
@@ -14,6 +15,8 @@ namespace denox::compiler::shaders {
 std::vector<std::unique_ptr<IShader>>
 get_all_shaders(spirv::GlslCompiler *compiler, const Options &options) {
   std::vector<std::unique_ptr<IShader>> shaders;
+  shaders.push_back(std::make_unique<compiler::NoOp>());
+
   shaders.push_back(std::make_unique<compiler::shaders::DirectConvShaderCM>(
       compiler, options));
 
@@ -32,6 +35,8 @@ get_all_shaders(spirv::GlslCompiler *compiler, const Options &options) {
       compiler, options));
   shaders.push_back(std::make_unique<compiler::shaders::CopyTransformShader>(
       compiler, options));
+
+
   return shaders;
 }
 } // namespace denox::compiler::shaders

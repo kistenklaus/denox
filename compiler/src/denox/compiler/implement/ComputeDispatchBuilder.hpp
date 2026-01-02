@@ -17,7 +17,7 @@ public:
 
   void addBinding(uint32_t set, uint32_t binding, Access access,
                   memory::NodeId nodeId);
-  void addPushConstant(PushConstant pc) { self().pushConstant.push_back(pc); }
+  void addPushConstant(PushConstant pc) { self().pushConstants.push_back(pc); }
   void setName(memory::string_view name) { self().info.name = name; };
   void setDebugInfo(memory::string_view debugInfo);
   void setSourcePath(const io::Path &path) { self().info.srcPath = path; }

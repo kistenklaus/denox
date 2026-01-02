@@ -5,9 +5,6 @@
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include "denox/spirv/SpirvTools.hpp"
-#include <chrono>
-#include <exception>
-#include <ratio>
 
 namespace denox::compiler {
 
@@ -22,9 +19,7 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
 
   const auto shaders = shaders::get_all_shaders(&glslCompiler, options);
 
-  float sum = 0;
   for (const auto &shader : shaders) {
-    auto start = std::chrono::high_resolution_clock::now();
 
     const ShaderCapabilities &caps = shader->capabilities();
     for (uint32_t p = 0; p < caps.patterns.size(); ++p) {
@@ -56,23 +51,10 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
           auto opImpl = supergraphBuilder.beginOp(inputs, output);
           shader->implement(opImpl, model.graph, p, config, m,
                             supergraphBuilder.symGraph());
-
-          auto s2 = std::chrono::high_resolution_clock::now();
-
           opImpl.finish();
-
-          auto dur = std::chrono::high_resolution_clock::now() - s2;
-          auto durms = std::chrono::duration_cast<
-              std::chrono::duration<float, std::milli>>(dur);
-          // fmt::println("impl-took {}ms", durms.count());
         }
       }
     }
-    auto dur = std::chrono::high_resolution_clock::now() - start;
-    auto durms =
-        std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-            dur);
-    fmt::println("{} took {}ms", shader->name(0, 0), durms.count());
   }
   // fmt::println("total: {}ms", sum);
 

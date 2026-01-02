@@ -334,6 +334,10 @@ public:
 
   const V &get(NodeId node) const { return m_nodeData[*node]; }
   const E &get(EdgeId edge) const { return m_edgeData[*edge]; }
+
+  V &&get_rvalue(NodeId node) { return std::move(m_nodeData[*node]); }
+  E &&get_rvalue(EdgeId edge) { return std::move(m_edgeData[*edge]); }
+
   const W &weight(EdgeId edge) const { return m_edges[*edge].weight; }
 
   denox::memory::span<const NodeId> src(EdgeId edge) const {

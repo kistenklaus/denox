@@ -20,9 +20,9 @@ public:
     const size_t nodeCount = model.graph.nodeCount();
     for (uint32_t n = 0; n < nodeCount; ++n) {
       memory::NodeId nid{n};
-      memory::NodeId _nid = m_graph.addNode(model.graph.get(nid));
+      TensorId tid = createTensor(model.graph.get(nid), nid);
+      memory::NodeId _nid = m_graph.addNode(tid);
       assert(_nid == nid);
-      createTensor(model.graph.get(nid), nid);
     }
 
     m_inputs.assign(model.inputs.begin(), model.inputs.end());
@@ -36,7 +36,8 @@ public:
   SuperGraph finish() {
 
     return SuperGraph{
-        .graph = memory::ConstGraph<TensorInstance, SuperGraphEdge>(std::move(m_graph)),
+        .graph =
+            memory::ConstGraph<TensorId, SuperGraphEdge>(std::move(m_graph)),
         .tensors = std::move(m_tensors),
         .inputs = m_inputs,
         .outputs = m_outputs,
@@ -69,7 +70,17 @@ private:
     Sym spatialSize = m_symGraph.mul(instance.width, instance.height);
     Sym byteSize = m_symGraph.mul(
         spatialSize, m_symGraph.mul(instance.channels, size_of(instance.type)));
-    return createTensor(byteSize, align_of(instance.type), nodeId);
+    TensorId id = createTensor(byteSize, align_of(instance.type), nodeId);
+    m_tensors[id.index].info = TensorInfo {
+      .width = instance.width,
+      .height = instance.height,
+      .channels = instance.channels,
+      .storage = instance.storage,
+      .format = instance.format,
+      .type = instance.type
+    };
+
+    return id;
   }
 
   TensorId createTensor(Sym size, uint16_t alignment) {
@@ -85,7 +96,7 @@ private:
 
 private:
   memory::vector<memory::optional<TensorId>> m_nodeTensorMapping;
-  memory::AdjGraph<TensorInstance, SuperGraphEdge> m_graph;
+  memory::AdjGraph<TensorId, SuperGraphEdge> m_graph;
   memory::vector<Tensor> m_tensors;
 
   memory::small_vector<memory::NodeId, 2> m_inputs;

@@ -6,6 +6,7 @@
 #include "denox/compiler/implement/Supergraph.hpp"
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
+#include "denox/compiler/selection/selection.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/io/fs/File.hpp"
@@ -40,20 +41,20 @@ int main() {
   options.deviceInfo = deviceInfo;
 
   compiler::InterfaceTensorDescriptor albedo;
-  albedo.name = "input";
+  albedo.name = "albedo";
   albedo.format = TensorFormat::Optimal;
   albedo.storage = TensorStorage::Optimal;
   albedo.dtype = TensorDataType::Float16;
   albedo.widthValueName = "W";
   albedo.heightValueName = "H";
 
-  // compiler::InterfaceTensorDescriptor norm;
-  // norm.name = "norm";
-  // norm.format = TensorFormat::Optimal;
-  // norm.storage = TensorStorage::Optimal;
-  // norm.dtype = TensorDataType::Float16;
-  // norm.widthValueName = "W";
-  // norm.heightValueName = "H";
+  compiler::InterfaceTensorDescriptor norm;
+  norm.name = "norm";
+  norm.format = TensorFormat::Optimal;
+  norm.storage = TensorStorage::Optimal;
+  norm.dtype = TensorDataType::Float16;
+  norm.widthValueName = "W";
+  norm.heightValueName = "H";
 
   compiler::InterfaceTensorDescriptor output;
   output.name = "output";
@@ -61,7 +62,10 @@ int main() {
   output.storage = TensorStorage::Optimal;
   output.dtype = TensorDataType::Float16;
 
-  options.interfaceDescriptors = {albedo, output};
+  options.interfaceDescriptors = {albedo, norm, output};
+
+  options.assumptions.valueAssumptions.emplace_back("H", 1080);
+  options.assumptions.valueAssumptions.emplace_back("W", 1920);
 
   while (true) {
 
@@ -76,7 +80,7 @@ int main() {
 
     compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
 
-    // fmt::println("SPEC:\n{}", specModel);
+    fmt::println("SPEC:\n{}", specModel);
 
     compiler::ConstModel constModel = compiler::dce(specModel);
 
@@ -87,10 +91,24 @@ int main() {
     compiler::SuperGraph supergraph =
         compiler::implement(constModel, cano.symGraph, options);
 
-    auto durms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(std::chrono::high_resolution_clock::now() - start);
+    // fmt::println("SuperGraph:\n{}", supergraph);
+
+
+    auto durms =
+        std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+            std::chrono::high_resolution_clock::now() - start);
     fmt::println("implement took {}ms", durms.count());
 
-    // fmt::println("SuperGraph:\n{}", supergraph);
+    auto db = Db::open(io::Path::cwd() / "gpu.db");
+
+    auto schedule = compiler::select_schedule(std::move(supergraph), db, model, options);
+    fmt::println("OptSchedule:\n{}", schedule);
+
+
+    // auto cschedule = compiler::compile_shaders() {
+    //
+    // }
+
     break;
   }
 }
