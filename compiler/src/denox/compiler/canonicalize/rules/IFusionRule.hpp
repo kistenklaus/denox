@@ -4,7 +4,7 @@
 #include "denox/algorithm/pattern_matching/LinkedGraphMatch.hpp"
 #include "denox/common/TensorDescriptor.hpp"
 #include "denox/compiler/frontend/model/ComputeOp.hpp"
-#include "denox/compiler/frontend/model/ComputeTensor.hpp"
+
 namespace denox::compiler::cano {
 
 class IFusionRule {

@@ -23,6 +23,7 @@ public:
   bool isDevice() const;
   bool isHost() const;
   const DeviceTensor &device() const;
+  DeviceTensor &device();
   const HostTensor &host() const;
   TensorShape shape() const;
   std::size_t rank() const;

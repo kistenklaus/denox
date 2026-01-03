@@ -15,11 +15,11 @@ static void import_tensor(details::ImportState &state,
   const memory::string &name = tensor.name();
   if (tensor.has_segment()) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Tensor \"{}\" contains segment, not supported by vkcnn.",
+        "denox: Tensor \"{}\" contains segment, not supported by denox.",
         name));
   }
   if (state.tensors.contains(name)) {
-    fmt::println("vkcnn: [Warning]: Tensor \"{}\" is defined multiple times, "
+    DENOX_WARN("Tensor \"{}\" is defined multiple times, "
                  "ignoring second occurrence.",
                  name);
     return;
@@ -46,17 +46,6 @@ static void import_graph(details::ImportState &state,
       runtime_inputs.push_back(&in);
     }
   }
-  // if (runtime_inputs.size() != 1) {
-  //   throw std::runtime_error(
-  //       fmt::format("vkcnn: Expected exactly one runtime input (image). Got
-  //       {}",
-  //                   runtime_inputs.size()));
-  // }
-
-  // if (graph.output().size() != 1) {
-  //   throw std::runtime_error(fmt::format(
-  //       "vkcnn: Expected exactly one output. Got {}", graph.output_size()));
-  // }
 
   for (const auto &input : runtime_inputs) {
     // We probably need a special function for input / output

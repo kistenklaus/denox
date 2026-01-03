@@ -61,6 +61,9 @@ CanoModel canonicalize(const Model &model) {
       rule->apply(symGraph, match);
     }
   }
+
+  // NOTE: root is dropped implicity
+
   CanoModel m{
       .graph = std::move(graph),
       .inputs = std::move(inputs),

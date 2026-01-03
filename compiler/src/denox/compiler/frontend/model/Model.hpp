@@ -6,7 +6,6 @@
 #include "denox/common/PoolFunction.hpp"
 #include "denox/common/TensorDataType.hpp"
 #include "denox/compiler/frontend/model/ComputeOp.hpp"
-#include "denox/compiler/frontend/model/ComputeTensor.hpp"
 #include "denox/compiler/frontend/model/ModelControlBlock.hpp"
 #include "denox/compiler/frontend/model/Tensor.hpp"
 #include "denox/memory/container/string_view.hpp"
@@ -31,32 +30,34 @@ public:
       : m_controlBlock(std::make_unique<details::model::ModelControlBlock>(
             *o.m_controlBlock)) {}
 
-  TensorHandle input(const std::string &name, Sym width, Sym height, Sym channels,
-               TensorDataType type = TensorDataType::Auto);
+  TensorHandle input(const std::string &name, Sym width, Sym height,
+                     Sym channels, TensorDataType type = TensorDataType::Auto);
 
-  TensorHandle conv2d(const TensorHandle &src, //
-                memory::FilterTensorConstView W,
-                memory::optional<memory::BiasTensorConstView> B,
-                AutoPadMode autoPad, memory::uvec2 stride,
-                memory::optional<memory::uvec2> padding, memory::uvec2 dilation,
-                memory::optional<memory::Dtype> atype = memory::nullopt) const;
+  TensorHandle
+  conv2d(const TensorHandle &src, //
+         memory::FilterTensorConstView W,
+         memory::optional<memory::BiasTensorConstView> B, AutoPadMode autoPad,
+         memory::uvec2 stride, memory::optional<memory::uvec2> padding,
+         memory::uvec2 dilation,
+         memory::optional<memory::Dtype> atype = memory::nullopt) const;
 
-  TensorHandle activation(const TensorHandle &src, ActivationFunction func) const;
+  TensorHandle activation(const TensorHandle &src,
+                          ActivationFunction func) const;
 
   TensorHandle upsample(const TensorHandle &src, unsigned int scalingFactor,
-                  FilterMode mode) const;
+                        FilterMode mode) const;
 
   TensorHandle pool(const TensorHandle &src, memory::uvec2 kernelSize,
-              memory::uvec2 padding, memory::uvec2 stride,
-              memory::uvec2 dilation, PoolFunction poolFunc) const;
+                    memory::uvec2 padding, memory::uvec2 stride,
+                    memory::uvec2 dilation, PoolFunction poolFunc) const;
 
   TensorHandle concat(const TensorHandle &src0, const TensorHandle &src1) const;
 
-  TensorHandle pad(const TensorHandle &src0, Sym left, Sym right, Sym top, Sym bottom,
-             PaddingMode mode) const;
+  TensorHandle pad(const TensorHandle &src0, Sym left, Sym right, Sym top,
+                   Sym bottom, PaddingMode mode) const;
 
   TensorHandle slice(const TensorHandle &src0, Sym left, Sym right, Sym top,
-               Sym bottom) const;
+                     Sym bottom) const;
 
   void output(const TensorHandle &src, const std::string &name);
 

@@ -80,7 +80,7 @@ int main() {
                                      spirv::SpirvDebugInfoLevel::Strip);
 
     compiler::Model model = compiler::frontend(onnx, options);
-    // fmt::println("MODEL:\n{}", model);
+    fmt::println("MODEL:\n{}", model);
 
     compiler::CanoModel cano = compiler::canonicalize(model);
 
@@ -96,26 +96,17 @@ int main() {
 
     // fmt::println("DCE:\n{}", constModel);
 
-    auto start = std::chrono::high_resolution_clock::now();
-
     compiler::SuperGraph supergraph =
         compiler::implement(constModel, cano.symGraph, &glslCompiler, options);
 
     // fmt::println("SuperGraph:\n{}", supergraph);
 
-    auto durms =
-        std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-            std::chrono::high_resolution_clock::now() - start);
-    // fmt::println("implement took {}ms", durms.count());
-
     auto db = Db::open(io::Path::cwd() / "gpu.db");
 
     auto optschedule =
         compiler::select_schedule(std::move(supergraph), db, model, options);
-    // fmt::println("OptSchedule:\n{}", optschedule);
 
     auto memschedule = compiler::placement(optschedule);
-    // fmt::println("MemSchedule:\n{}", memschedule);
 
     auto schedule = compiler::compile_shaders(std::move(memschedule), model, db,
                                               &glslCompiler, options);
@@ -123,7 +114,6 @@ int main() {
     compiler::rebind_descriptors(schedule, options, &tools);
 
     auto sprog = compiler::compile_symbols(schedule, model, options);
-
 
     db.atomic_writeback();
 

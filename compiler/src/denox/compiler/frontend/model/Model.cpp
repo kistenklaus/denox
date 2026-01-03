@@ -6,6 +6,7 @@
 #include "denox/compiler/frontend/model/NamedValue.hpp"
 #include "denox/diag/unreachable.hpp"
 #include <algorithm>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 
@@ -16,7 +17,7 @@ TensorHandle Model::input(const std::string &name, Sym width, Sym height,
 
   memory::NodeId id = m_controlBlock->hypergraph.addNode(
       TensorDescriptor{width, height, channels, TensorStorage::Optimal,
-                       TensorFormat::Optimal, dtype});
+                       TensorFormat::Optimal, dtype, name});
 
   m_controlBlock->inputs.push_back(ModelInterfaceDescriptor{id, name});
 
@@ -253,7 +254,8 @@ TensorHandle Model::slice(const TensorHandle &src0, Sym left, Sym right,
 }
 
 void Model::output(const TensorHandle &src, const std::string &name) {
-
+  fmt::println("{} != {}", src.name(), name);
+  assert(src.name() == name);
   m_controlBlock->outputs.push_back(
       ModelInterfaceDescriptor{src.m_nodeId, name});
 }
@@ -277,8 +279,8 @@ memory::string Model::to_string() const {
   auto inputNames = getInputNames();
   for (const auto &inputName : inputNames) {
     auto input = *getInput(inputName);
-    str.append(fmt::format("- Input: (TensorID: {})\n",
-                           static_cast<std::uint64_t>(input.m_nodeId)));
+    str.append(fmt::format("- Input: \"{}\"\n",
+                           m_controlBlock->hypergraph.get(input.m_nodeId).name));
 
     if (input.channels().isSymbolic()) {
       str.append(
@@ -306,8 +308,8 @@ memory::string Model::to_string() const {
   auto outputNames = getOutputNames();
   for (const auto &outputName : outputNames) {
     auto output = *getOutput(outputName);
-    str.append(fmt::format("- Output: (TensorID: {})\n",
-                           static_cast<std::uint64_t>(output.m_nodeId)));
+    str.append(fmt::format("- Output: \"{}\"\n",
+                           m_controlBlock->hypergraph.get(output.m_nodeId).name));
     if (output.channels().isSymbolic()) {
       str.append(
           fmt::format("    C: [{}] <- SymInt\n", (output.channels()).sym()));
@@ -345,16 +347,14 @@ memory::string Model::to_string() const {
       if (s != 0) {
         in.append(", ");
       }
-      in.append(fmt::format("{}", static_cast<std::uint64_t>(srcs[s])));
+      in.append(fmt::format("{}", m_controlBlock->hypergraph.get(srcs[s]).name));
     }
     if (srcs.size() > 1) {
       in.append(")");
     }
 
-    std::string out =
-        fmt::format("{}", static_cast<std::uint64_t>(edge.edge().dst()));
 
-    std::string inout = fmt::format("{} -> {}", in, out);
+    std::string inout = fmt::format("{} -> {}", in, m_controlBlock->hypergraph.get(edge.edge().dst()).name);
 
     switch (op.tag()) {
     case ComputeOpKind::None:

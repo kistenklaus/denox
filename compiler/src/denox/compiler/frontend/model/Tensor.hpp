@@ -1,6 +1,7 @@
 #pragma once
 
 #include "denox/compiler/frontend/model/ModelControlBlock.hpp"
+#include "denox/memory/container/string_view.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include "denox/symbolic/Symbolic.hpp"
 
@@ -52,11 +53,19 @@ public:
 
   std::uint64_t id() const { return static_cast<std::uint64_t>(m_nodeId); }
 
+  memory::string_view name() const {
+    return m_controlBlock->hypergraph.get(m_nodeId).name;
+  }
+
+  void setName(memory::string_view name) {
+    m_controlBlock->hypergraph.get(m_nodeId).name = name;
+  }
+
   TensorHandle() : m_nodeId(memory::NodeId(0)), m_controlBlock(nullptr) {}
 
 private:
   TensorHandle(memory::NodeId id,
-                   details::model::ModelControlBlock *controlBlock)
+               details::model::ModelControlBlock *controlBlock)
       : m_nodeId(id), m_controlBlock(controlBlock) {}
 
   memory::NodeId m_nodeId;

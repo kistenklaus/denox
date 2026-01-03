@@ -1,9 +1,9 @@
 #pragma once
 
 #include "denox/compiler/dce/ConstModel.hpp"
-#include "denox/compiler/implement/ParamCache.hpp"
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/OpImpl.hpp"
+#include "denox/compiler/implement/ParamCache.hpp"
 #include "denox/compiler/implement/SuperGraphEdge.hpp"
 #include "denox/compiler/implement/Supergraph.hpp"
 #include "denox/compiler/implement/Tensor.hpp"
@@ -72,14 +72,14 @@ private:
     Sym byteSize = m_symGraph.mul(
         spatialSize, m_symGraph.mul(instance.channels, size_of(instance.type)));
     TensorId id = createTensor(byteSize, align_of(instance.type), nodeId);
-    m_tensors[id.index].info = TensorInfo {
-      .width = instance.width,
-      .height = instance.height,
-      .channels = instance.channels,
-      .storage = instance.storage,
-      .format = instance.format,
-      .type = instance.type
-    };
+    m_tensors[id.index].info =
+        TensorInfo{.name = instance.originalNode->value().name,
+                   .width = instance.width,
+                   .height = instance.height,
+                   .channels = instance.channels,
+                   .storage = instance.storage,
+                   .format = instance.format,
+                   .type = instance.type};
 
     return id;
   }

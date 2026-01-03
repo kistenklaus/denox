@@ -2,6 +2,7 @@
 #include "denox/compiler/frontend/model/NamedValue.hpp"
 #include "denox/compiler/implement/PushConstant.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
+#include <algorithm>
 #include <fmt/base.h>
 #include <fmt/ostream.h>
 
@@ -16,7 +17,20 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
   memory::vector<Sym::symbol> symbols;
   memory::dynamic_bitset symbolAdded(schedule.symGraph.symbolCount());
 
-  const auto &require_symbol = [&](Sym sym) -> Sym {
+  const auto &inputs = schedule.inputs;
+  const auto &outputs = schedule.outputs;
+
+  const auto is_input = [&](uint64_t tid) -> bool {
+    return std::ranges::find(inputs, tid) != inputs.end();
+  };
+  const auto is_output = [&](uint64_t tid) -> bool {
+    return std::ranges::find(outputs, tid) != outputs.end();
+  };
+  const auto is_interface = [&](uint64_t tid) {
+    return is_input(tid) || is_output(tid);
+  };
+
+  const auto require_symbol = [&](Sym sym) -> Sym {
     Sym s = schedule.symGraph.resolve(sym);
     if (s.isConstant()) {
       return s;
@@ -35,10 +49,11 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     namedValue.value = require_symbol(namedValue.value);
   }
 
-  for (auto &view : schedule.tensors) {
+  for (size_t tid = 0; tid < schedule.tensors.size(); ++tid) {
+    auto& view = schedule.tensors[tid];
     view.size = require_symbol(view.size);
     view.offset = require_symbol(view.offset);
-    if (options.debugInfo == DebugInfo::Enable) {
+    if (is_interface(tid) || options.debugInfo == DebugInfo::Enable) {
       view.info.width = require_symbol(view.info.width);
       view.info.height = require_symbol(view.info.height);
       view.info.channels = require_symbol(view.info.channels);
@@ -97,10 +112,11 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     buffer.size = remap[buffer.size];
   }
 
-  for (auto &view : schedule.tensors) {
+  for (size_t tid = 0; tid < schedule.tensors.size(); ++tid) {
+    auto& view = schedule.tensors[tid];
     view.size = remap[view.size];
     view.offset = remap[view.offset];
-    if (options.debugInfo == DebugInfo::Enable) {
+    if (is_interface(tid) || options.debugInfo == DebugInfo::Enable) {
       view.info.width = remap[view.info.width];
       view.info.height = remap[view.info.height];
       view.info.channels = remap[view.info.channels];

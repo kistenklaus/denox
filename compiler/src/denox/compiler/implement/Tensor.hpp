@@ -3,12 +3,15 @@
 #include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
+#include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/string.hpp"
 #include "denox/symbolic/Sym.hpp"
 #include <fmt/format.h>
 
 namespace denox::compiler {
 
 struct TensorInfo {
+  memory::optional<memory::string> name;
   Sym width;
   Sym height;
   Sym channels;
@@ -44,6 +47,9 @@ template <> struct fmt::formatter<denox::compiler::TensorInfo> {
       first = false;
     };
 
+    if (info.name) {
+      emit("name", *info.name);
+    }
     emit("width", info.width);
     emit("height", info.height);
     emit("channels", info.channels);

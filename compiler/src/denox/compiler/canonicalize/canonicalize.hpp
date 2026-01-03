@@ -2,7 +2,6 @@
 
 #include "denox/compiler/canonicalize/CanoModel.hpp"
 #include "denox/compiler/frontend/model/ComputeOp.hpp"
-#include "denox/compiler/frontend/model/ComputeTensor.hpp"
 #include "denox/compiler/frontend/model/Model.hpp"
 
 namespace denox::compiler {

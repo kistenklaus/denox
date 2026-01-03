@@ -31,6 +31,11 @@ const DeviceTensor &Tensor::device() const {
   return *std::get<memory::shared_ptr<DeviceTensor>>(m_rep);
 }
 
+DeviceTensor &Tensor::device() {
+  assert(isDevice());
+  return *std::get<memory::shared_ptr<DeviceTensor>>(m_rep);
+}
+
 const HostTensor &Tensor::host() const {
   assert(isHost());
   return *std::get<memory::shared_ptr<HostTensor>>(m_rep);

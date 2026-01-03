@@ -3,6 +3,7 @@
 #include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
+#include "denox/memory/container/string.hpp"
 #include "denox/symbolic/Sym.hpp"
 #include <fmt/core.h>
 
@@ -15,6 +16,7 @@ struct TensorDescriptor {
   TensorStorage storage;
   TensorFormat format;
   TensorDataType type;
+  memory::string name = "unset-sential";
 };
 
 } // namespace denox

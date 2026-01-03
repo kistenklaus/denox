@@ -161,17 +161,24 @@ table ShaderBinary {
 
 table Model {
   version: Version;
-  info:ModelInfo; 
   required_features:[RuntimeFeature];
+  info:ModelInfo; 
+
   tensors:[Tensor];
+  tensor_infos:[TensorInfo];
+  initializers:[TensorInitializer];
+
+  inputs:[uint32];
+  outputs:[uint32];
+
   buffers:[Buffer];
+
   dispatches:[Dispatch];
   dispatch_infos:[DispatchInfo];
+
   shader_binaries:[ShaderBinary];
+
   sym_ir:SymIR;
-  initializers:[TensorInitializer];
-  inputs:[TensorInfo];
-  outputs:[TensorInfo];
   value_names:[ValueName];
 }
 
