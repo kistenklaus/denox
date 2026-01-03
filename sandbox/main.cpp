@@ -8,6 +8,7 @@
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/compiler/placement/placement.hpp"
+#include "denox/compiler/rebind_descriptors/rebind_descriptors.hpp"
 #include "denox/compiler/selection/selection.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
@@ -114,6 +115,10 @@ int main() {
 
     auto schedule = compiler::compile_shaders(std::move(memschedule), model, db,
                                               &glslCompiler, options);
+
+    compiler::rebind_descriptors(schedule, options, &tools);
+
+    db.atomic_writeback();
 
     fmt::println("[100%] \x1b[1m\x1B[32mSerialize dnx artefact ./net.dnx");
     break;

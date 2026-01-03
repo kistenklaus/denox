@@ -33,7 +33,7 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
       uint32_t percentage = static_cast<uint32_t>(
           std::floor(static_cast<float>((pp + 1)) * 50.0f /
                      static_cast<float>(totalPatterns + 1)));
-      fmt::println("[{:>3}%] \x1B[34mMapping compute shader \x1b[1m{}\x1B[0m\x1B[34m to opgraph.\x1B[0m", percentage, shader->name(p, 0));
+      fmt::println("[{:>3}%] \x1B[34mGenerating \x1b[1m{}\x1B[0m\x1B[34m GLSL compute shader configurations\x1B[0m", percentage, shader->name(p, 0));
 
       const auto &pattern = caps.patterns[p];
       std::unordered_set<uint64_t> edgeExists;

@@ -10,13 +10,18 @@
 #include "denox/diag/unreachable.hpp"
 #include "denox/io/fs/File.hpp"
 #include "flatbuffers/verifier.h"
+#include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cstring>
 #include <db.h>
+#include <filesystem>
+#include <fmt/base.h>
 #include <ratio>
 
 denox::Db denox::Db::open(const io::Path &path) {
   auto out = std::make_shared<DbMapped>();
+  out->m_path = path;
   auto index = std::make_shared<DbIndex>();
   if (!path.exists()) {
     return Db{std::move(out), std::move(index)};
@@ -96,7 +101,8 @@ denox::Db denox::Db::open(const io::Path &path) {
           break;
         }
         out_dispatch.bindings[b].byteSize = binding->tensor_byte_size();
-        out_dispatch.bindings[b].alignment = binding->tensor_min_align();
+        out_dispatch.bindings[b].alignment =
+            static_cast<uint16_t>(binding->tensor_min_align());
       }
 
       if (dispatch->time() != nullptr) {
@@ -176,7 +182,8 @@ bool denox::Db::atomic_writeback() const {
   builder.add_version(0);
   builder.add_shader_binaries(binariesVec);
   builder.add_dispatches(dispatchesVec);
-  builder.Finish();
+  auto db = builder.Finish();
+  denox::db::FinishDbBuffer(fbb, db);
 
   flatbuffers::DetachedBuffer detachedBuffer = fbb.Release();
 
@@ -192,6 +199,9 @@ bool denox::Db::atomic_writeback() const {
   tmpFile.write_exact(
       std::span{reinterpret_cast<const std::byte *>(detachedBuffer.data()),
                 detachedBuffer.size()});
+
+  std::filesystem::rename(tmpPath.str(), m_db->m_path.str());
+
   return true;
 }
 
@@ -207,6 +217,26 @@ denox::Db::query_shader_binary(const SHA256 &srcHash) const {
     uint32_t binaryId = static_cast<uint32_t>(it->second);
     return m_db->binaries[binaryId].spvBinary;
   }
+}
+
+bool denox::Db::insert_binary(const SHA256 &srcHash,
+                              const SpirvBinary &binary) {
+  auto cached = query_shader_binary(srcHash);
+  if (cached) {
+    if (!std::ranges::equal(binary.spv, cached->spv)) {
+      DENOX_ERROR("Failed to insert binary into database: SHA256 collision in "
+                  "database.");
+      diag::invalid_state();
+    }
+    return false;
+  }
+  uint32_t binaryId = static_cast<uint32_t>(m_db->binaries.size());
+  m_index->binary_index.emplace(srcHash, binaryId);
+  m_db->binaries.emplace_back(DbShaderBinary{
+      .hash = srcHash,
+      .spvBinary = binary,
+  });
+  return true;
 }
 
 std::optional<std::chrono::duration<float, std::milli>>
@@ -231,7 +261,7 @@ denox::Db::query_dispatch_latency(const SHA256 &srcHash,
   const auto &bucket = it->second;
 
   // linear search
-  for (uint32_t dispatch_index : bucket) {
+  for (size_t dispatch_index : bucket) {
     const auto &dispatch = m_db->dispatches[dispatch_index];
     if (dispatch.workgroupCountX != workgroupCountX) {
       continue;
@@ -280,11 +310,11 @@ bool denox::Db::insert_dispatch(const SHA256 &srcHash,
       DbShaderBinary binary;
       binary.hash = srcHash;
       binary.spvBinary = spvBinary;
-      binaryId = m_db->binaries.size();
+      binaryId = static_cast<uint32_t>(m_db->binaries.size());
       m_db->binaries.push_back(binary);
       m_index->binary_index[srcHash] = binaryId;
     } else {
-      binaryId = it->second;
+      binaryId = static_cast<uint32_t>(it->second);
       const auto &existing = m_db->binaries[binaryId].spvBinary;
 
       if (existing.spv.size() != spvBinary.spv.size()) {
@@ -314,7 +344,7 @@ bool denox::Db::insert_dispatch(const SHA256 &srcHash,
   if (it != m_index->dispatch_buckets.end()) {
     const auto &bucket = it->second;
     // linear search
-    for (uint32_t dispatch_index : bucket) {
+    for (size_t dispatch_index : bucket) {
       const auto &dispatch = m_db->dispatches[dispatch_index];
       if (dispatch.workgroupCountX != workgroupCountX) {
         continue;

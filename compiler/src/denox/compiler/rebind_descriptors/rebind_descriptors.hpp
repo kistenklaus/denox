@@ -1,9 +1,12 @@
 #pragma once
 
-#include "Options.hpp"
-#include "compiler/ir/comp/CompModel.hpp"
+#include "denox/compiler/Options.hpp"
+#include "denox/compiler/compile_shaders/SpvSchedule.hpp"
+#include "denox/spirv/SpirvTools.hpp"
+
 namespace denox::compiler {
 
-void rebind_descriptors(CompModel &compModel, const Options& options);
+void rebind_descriptors(SpvSchedule &compModel, const Options &options, 
+    spirv::SpirvTools* spirvTools);
 
 }

@@ -8,8 +8,8 @@ struct DbTensorBinding {
   uint32_t set;
   uint32_t binding;
   Access access;
-  uint32_t byteSize;
-  uint32_t alignment;
+  uint64_t byteSize;
+  uint16_t alignment;
 };
 
 }

@@ -31,6 +31,8 @@ public:
                        std::span<const DbTensorBinding> bindings,
                        const SpirvBinary &binary);
 
+  bool insert_binary(const SHA256 &srcHash, const SpirvBinary &binary);
+
   // insert_dispatch, invalidates the span!
   std::span<const DbShaderBinary> binaries() const;
 

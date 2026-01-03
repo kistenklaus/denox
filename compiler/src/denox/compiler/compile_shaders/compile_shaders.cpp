@@ -107,13 +107,18 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
 
   for (size_t u = 0; u < units.size(); ++u) {
     auto &unit = units[u];
-    const uint32_t percentage = 50 + static_cast<uint32_t>(std::floor(
-        static_cast<float>(u+1) * 40.0f / static_cast<float>(units.size())));
-    fmt::println("[{:>3}%] \x1B[32mBuilding SPIR-V compute shader {}\x1B[0m", percentage,
+    const uint32_t percentage =
+        50 +
+        static_cast<uint32_t>(std::floor(static_cast<float>(u + 1) * 40.0f /
+                                         static_cast<float>(units.size())));
+    fmt::println("[{:>3}%] \x1B[32mBuilding SPIR-V compute shader {}\x1B[0m",
+                 percentage,
                  unit.glsl.getSourcePath().relative_to(io::Path::cwd()));
 
-
     SpirvBinary binary = *unit.glsl.compile();
+    [[maybe_unused]] const bool inserted //
+        = db.insert_binary(unit.hash, binary);
+    assert(inserted);
     binaries[unit.binaryId] = std::move(binary);
   }
 
