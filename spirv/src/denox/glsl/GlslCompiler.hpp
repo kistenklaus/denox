@@ -2,6 +2,7 @@
 
 #include "denox/device_info/DeviceInfo.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
+#include "denox/glsl/SourceShaCache.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include "denox/spirv/SpirvTools.hpp"
@@ -31,6 +32,8 @@ private:
   void * /*TBuiltInResource*/ m_buildInResource;
   SpirvDebugInfoLevel m_debugInfo;
   bool m_optimize;
+
+  SourceShaCache m_shaCache;
 };
 
 } // namespace denox::spirv

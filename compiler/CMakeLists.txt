@@ -77,11 +77,15 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/BasicUpsampleShader.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/selection/selection.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/placement/placement.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/compile_shaders/compile_shaders.cpp
 )
 
 target_include_directories(denox_compiler
   PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 target_link_libraries(denox_compiler 

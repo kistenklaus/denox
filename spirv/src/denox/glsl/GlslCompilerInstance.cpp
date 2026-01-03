@@ -168,4 +168,12 @@ CompilationResult GlslCompilerInstance::compile() {
 
   return binary;
 }
+
+SHA256 GlslCompilerInstance::fast_sha256() const {
+  SHA256Builder hasher = m_compiler->m_shaCache.cachedSHA(m_sourcePath, m_src);
+  hasher.update(std::span{reinterpret_cast<const uint8_t *>(m_preamble.data()),
+                          m_preamble.size()});
+  return hasher.finalize();
+}
+
 } // namespace denox::spirv

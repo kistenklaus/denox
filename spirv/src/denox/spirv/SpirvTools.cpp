@@ -147,7 +147,6 @@ denox::spirv::SpirvTools::SpirvTools(const DeviceInfo &deviceInfo)
   optimizer->SetMessageConsumer(logger);
   optimizer->SetTargetEnv(target_env);
   optimizer->SetValidateAfterAll(true);
-
   optimizer->RegisterPerformancePasses();
 }
 
@@ -189,8 +188,8 @@ bool denox::spirv::SpirvTools::optimize(SpirvBinary &binary) {
 
   spvtools::OptimizerOptions optOptions;
   optOptions.set_run_validator(false);
-  optOptions.set_preserve_bindings(true);
   optOptions.set_validator_options(default_validator_options());
+  optOptions.set_preserve_bindings(true);
   optOptions.set_preserve_spec_constants(true);
 
   std::vector<uint32_t> original = binary.spv;
@@ -208,7 +207,7 @@ bool denox::spirv::SpirvTools::rebind(
   std::span<uint32_t> spirv = binary.spv;
   assert(spirv.size() > 5);
 
-  const uint32_t magic = spirv[0];
+  [[maybe_unused]] const uint32_t magic = spirv[0];
   assert(magic == MagicNumber);
 
   uint32_t pc = 5;

@@ -3,12 +3,12 @@
 #include "denox/algorithm/shortest_dag_hyperpath.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
-#include "denox/diag/invalid_state.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
-#include <exception>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <limits>
 #include <stdexcept>
 
@@ -18,6 +18,9 @@ using weight_type = std::chrono::duration<float, std::milli>;
 
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             const Model &model, const Options &options) {
+
+  fmt::println(
+      "[ 50%] \x1b[1m\x1b[32mSelecting optimal schedule of compute dispatches\x1b[0m");
 
   // eval symgraph!
   memory::small_vector<SymSpec, 4> symSpecs;
@@ -49,15 +52,14 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     memory::NodeId _nid = weightedSupergraph.addNode(tid);
     assert(_nid == nid);
   }
-
   for (size_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
     memory::EdgeId eid{e};
     auto &&edge = supergraph.graph.get_rvalue(eid);
 
     weight_type opLatency{};
     for (const auto &dispatch : edge.dispatches) {
-      SHA256Builder sha;
-      dispatch.glsl.sha256(sha);
+      SHA256 hash = dispatch.glsl.fast_sha256();
+
       memory::small_vector<uint8_t, 4 * 10> pcbuf;
       for (const auto &pc : dispatch.pushConstants) {
         int64_t value;
@@ -110,9 +112,8 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
       uint32_t workgroupCountZ =
           static_cast<uint32_t>(*eval[dispatch.workgroupCountZ]);
 
-      auto query =
-          db.query_dispatch_latency(sha.finalize(), pcbuf, workgroupCountX,
-                                    workgroupCountY, workgroupCountZ);
+      auto query = db.query_dispatch_latency(hash, pcbuf, workgroupCountX,
+                                             workgroupCountY, workgroupCountZ);
       if (query) {
         opLatency += *query;
       } else {
@@ -220,8 +221,6 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     assert(tensorRemap[tid].has_value());
     outputs.push_back(*tensorRemap[tid]);
   }
-
-  fmt::println("dispatches: {}", dispatches.size());
 
   return OptSchedule{
       .symGraph = std::move(supergraph.symGraph),

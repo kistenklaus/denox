@@ -1,6 +1,7 @@
 #pragma once
 
 #include "denox/compiler/dce/ConstModel.hpp"
+#include "denox/compiler/implement/ParamCache.hpp"
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/OpImpl.hpp"
 #include "denox/compiler/implement/SuperGraphEdge.hpp"
@@ -103,6 +104,7 @@ private:
   memory::small_vector<memory::NodeId, 2> m_outputs;
   SymGraph m_symGraph;
   bool m_writeParameters = true;
+  ParamCache m_paramCache;
 };
 
 } // namespace denox::compiler

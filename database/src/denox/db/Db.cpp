@@ -204,7 +204,7 @@ denox::Db::query_shader_binary(const SHA256 &srcHash) const {
   if (it == m_index->binary_index.end()) {
     return std::nullopt;
   } else {
-    uint32_t binaryId = it->second;
+    uint32_t binaryId = static_cast<uint32_t>(it->second);
     return m_db->binaries[binaryId].spvBinary;
   }
 }

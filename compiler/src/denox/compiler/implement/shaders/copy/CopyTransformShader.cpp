@@ -427,7 +427,7 @@ memory::string CopyTransformShader::name(unsigned int,
   } else if (config & SINGLE_COPY_TAG) {
     return "single-copy-concat";
   } else {
-    return fmt::format("explicit-concat-{}", config);
+    return fmt::format("explicit-concat", config);
   }
 }
 

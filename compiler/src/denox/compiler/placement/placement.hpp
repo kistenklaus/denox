@@ -6,4 +6,5 @@
 namespace denox::compiler {
 
 MemSchedule placement(const OptSchedule &schedule);
+
 }

@@ -1,6 +1,7 @@
 #include "denox/compiler/implement/OpImpl.hpp"
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/SuperGraphBuilder.hpp"
+#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -13,16 +14,15 @@ TensorId OpImpl::createParameter(const memory::FilterDescriptor &descriptor,
     alignment = 16;
   } else {
     // TODO should probably be a call to align_of
-    alignment = descriptor.type.alignment();
+    alignment = static_cast<uint16_t>(descriptor.type.alignment());
   }
   TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
   if (m_superBuilder->m_writeParameters) {
-    memory::FilterTensor tensor{
-        descriptor,
-        data,
-    };
-    memory::vector<std::byte> data(tensor.span().begin(), tensor.span().end());
-    m_parameters.emplace_back(id, std::move(data));
+    auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
+    m_parameters.push_back(Parameter {
+        .tensorId = id,
+        .data = std::move(bytes),
+        });
   }
   return id;
 }
@@ -34,16 +34,15 @@ TensorId OpImpl::createParameter(const memory::BiasDescriptor &descriptor,
   if (descriptor.layout.isVectorized()) {
     alignment = 16;
   } else {
-    alignment = descriptor.type.alignment();
+    alignment = static_cast<uint16_t>(descriptor.type.alignment());
   }
   TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
   if (m_superBuilder->m_writeParameters) {
-    memory::BiasTensor tensor{
-        descriptor,
-        data,
-    };
-    memory::vector<std::byte> data(tensor.span().begin(), tensor.span().end());
-    m_parameters.emplace_back(id, std::move(data));
+    auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
+    m_parameters.push_back(Parameter{
+        .tensorId = id,
+        .data = std::move(bytes),
+    });
   }
   return id;
 }
@@ -59,6 +58,7 @@ OpImpl::registerDispatch(spirv::GlslCompilerInstance glsl, Sym wgX, Sym wgY,
       .workgroupCountY = wgY,
       .workgroupCountZ = wgZ,
       .bindings = {},
+      .info = {},
   });
   return ComputeDispatchBuilder(index, this);
 }

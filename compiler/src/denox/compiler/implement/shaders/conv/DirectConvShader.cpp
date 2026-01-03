@@ -184,9 +184,9 @@ memory::string DirectConvShader::name(unsigned int pattern,
                                         unsigned int) const {
   switch (pattern) {
   case CONV_PATTERN:
-    return "direct-conv";
+    return "direct-conv-cm";
   case CONV_ACTIVATION_PATTERN:
-    return "direct-conv+activation";
+    return "direct-conv-cm+activation";
   default:
     diag::unreachable();
   }
