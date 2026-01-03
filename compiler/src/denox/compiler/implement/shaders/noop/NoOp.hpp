@@ -23,14 +23,16 @@ public:
   }
 
   void
-  implement(OpImpl &impl,
-            const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-            unsigned int pattern, unsigned int config,
-            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
-            SymGraph &symGraph) const final override {}
+  implement([[maybe_unused]] OpImpl &impl,
+            [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
+                &opGraph,
+            [[maybe_unused]] unsigned int pattern,
+            [[maybe_unused]] unsigned int config,
+            [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance,
+                                                              ComputeOp> &match,
+            [[maybe_unused]] SymGraph &symGraph) const final override {}
 
-  memory::string name(unsigned int pattern,
-                      unsigned int config) const final override {
+  memory::string name(unsigned int, unsigned int) const final override {
     return "noop";
   }
 
@@ -43,8 +45,6 @@ private:
 private:
   ShaderCapabilities m_capabilities;
   Handles m_handles;
-
-
 };
 
 } // namespace denox::compiler

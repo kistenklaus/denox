@@ -57,6 +57,11 @@ struct OptimizationAssumptions {
   std::vector<OptimizationAssumption> valueAssumptions;
 };
 
+enum class DebugInfo {
+  Strip,
+  Enable,
+};
+
 struct Options {
   unsigned int dnxVersion;
   Features features;
@@ -66,6 +71,7 @@ struct Options {
   DescriptorPolicies descriptorPolicies;
   diag::LogLevel loglevel;
   OptimizationAssumptions assumptions;
+  DebugInfo debugInfo;
 };
 
 } // namespace denox::compiler

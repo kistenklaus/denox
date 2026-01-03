@@ -23,9 +23,11 @@ NoOp::NoOp() {
 }
 
 memory::vector<unsigned int> NoOp::acceptMatch(
-    const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+    [[maybe_unused]] const memory::ConstGraph<TensorInstance, ComputeOp>
+        &opGraph,
     [[maybe_unused]] unsigned int pattern,
-    const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match) const {
+    [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+        &match) const {
   const auto in = opGraph.get(match[m_handles.in]);
   const auto out = opGraph.get(match[m_handles.out]);
 

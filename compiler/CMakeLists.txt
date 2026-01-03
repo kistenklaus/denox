@@ -83,6 +83,8 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/compile_shaders/compile_shaders.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/rebind_descriptors/rebind_descriptors.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/compile_symbols/compile_symbols.cpp
 )
 
 target_include_directories(denox_compiler

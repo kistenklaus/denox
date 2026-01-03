@@ -2,6 +2,7 @@
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/compile_shaders/compile_shaders.hpp"
+#include "denox/compiler/compile_symbols/compile_symbols.hpp"
 #include "denox/compiler/dce/dce.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
 #include "denox/compiler/implement/Supergraph.hpp"
@@ -70,10 +71,13 @@ int main() {
   options.assumptions.valueAssumptions.emplace_back("H", 1080);
   options.assumptions.valueAssumptions.emplace_back("W", 1920);
 
+  options.debugInfo = denox::compiler::DebugInfo::Enable;
+
   while (true) {
 
     spirv::SpirvTools tools(options.deviceInfo);
-    spirv::GlslCompiler glslCompiler(&tools, options.deviceInfo, spirv::SpirvDebugInfoLevel::Strip);
+    spirv::GlslCompiler glslCompiler(&tools, options.deviceInfo,
+                                     spirv::SpirvDebugInfoLevel::Strip);
 
     compiler::Model model = compiler::frontend(onnx, options);
     // fmt::println("MODEL:\n{}", model);
@@ -117,6 +121,9 @@ int main() {
                                               &glslCompiler, options);
 
     compiler::rebind_descriptors(schedule, options, &tools);
+
+    auto sprog = compiler::compile_symbols(schedule, model, options);
+
 
     db.atomic_writeback();
 
