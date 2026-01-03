@@ -1,14 +1,15 @@
 #pragma once
 
-#include "compiler/ir/SymTable.hpp"
-#include "compiler/ir/comp/CompModel.hpp"
-#include <dnx.h>
+#include "denox/compiler/Options.hpp"
+#include "denox/compiler/compile_shaders/SpvSchedule.hpp"
+#include "denox/compiler/compile_symbols/SymProgram.hpp"
+#include "denox/compiler/frontend/model/Model.hpp"
+#include "denox/memory/container/vector.hpp"
 
-namespace denox::dnx {
+namespace denox::compiler {
 
-flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
-                                      const compiler::SymIR &symIR,
-                                      const compiler::SymTable &symTable,
-                                      const std::string& inputName,
-                                      const std::string& outputName);
+memory::vector<std::byte> serialize(const compiler::SpvSchedule &schedule,
+                                    const SymProgram &sprog,
+                                    const Model& model,
+                                    const Options &options);
 }

@@ -95,6 +95,8 @@ public:
 
   memory::string to_string() const;
 
+  const ModelMeta &meta() const { return m_controlBlock->meta; }
+
 private:
   std::unique_ptr<details::model::ModelControlBlock> m_controlBlock;
 };

@@ -11,6 +11,7 @@
 #include "denox/compiler/placement/placement.hpp"
 #include "denox/compiler/rebind_descriptors/rebind_descriptors.hpp"
 #include "denox/compiler/selection/selection.hpp"
+#include "denox/compiler/serialize/serialize.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
@@ -18,8 +19,6 @@
 #include "denox/io/fs/Path.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include "denox/spirv/SpirvTools.hpp"
-#include <chrono>
-#include <fmt/base.h>
 #include <fmt/format.h>
 
 using namespace denox;
@@ -80,7 +79,7 @@ int main() {
                                      spirv::SpirvDebugInfoLevel::Strip);
 
     compiler::Model model = compiler::frontend(onnx, options);
-    fmt::println("MODEL:\n{}", model);
+    // fmt::println("MODEL:\n{}", model);
 
     compiler::CanoModel cano = compiler::canonicalize(model);
 
@@ -115,9 +114,17 @@ int main() {
 
     auto sprog = compiler::compile_symbols(schedule, model, options);
 
+    auto dnxbuf = compiler::serialize(schedule, sprog, model, options);
+
     db.atomic_writeback();
 
-    fmt::println("[100%] \x1b[1m\x1B[32mSerialize dnx artefact ./net.dnx");
+    io::File artefact =
+        io::File::open(io::Path::cwd() / "net.dnx",
+                       io::File::OpenMode::Create | io::File::OpenMode::Write |
+                           io::File::OpenMode::Truncate);
+    fmt::println(
+        "[100%] \x1b[1m\x1B[32mSerialize dnx artefact -> net.dnx\x1B[0m");
+    artefact.write_exact(dnxbuf);
     break;
   }
 }

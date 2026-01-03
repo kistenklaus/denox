@@ -1,7 +1,6 @@
 #pragma once
 
 #include "denox/compiler/compile_shaders/SpvDispatch.hpp"
-#include "denox/compiler/implement/Tensor.hpp"
 #include "denox/compiler/placement/Buffer.hpp"
 #include "denox/compiler/placement/TensorInitalizer.hpp"
 #include "denox/compiler/placement/TensorView.hpp"

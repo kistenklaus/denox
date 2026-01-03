@@ -1,4 +1,5 @@
 #include "denox/compiler/implement/OpImpl.hpp"
+#include "denox/common/TensorDataType.hpp"
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/SuperGraphBuilder.hpp"
 #include <fmt/base.h>
@@ -7,7 +8,8 @@
 namespace denox::compiler {
 
 TensorId OpImpl::createParameter(const memory::FilterDescriptor &descriptor,
-                                 memory::FilterTensorConstView data) {
+                                 memory::FilterTensorConstView data,
+                                 TensorStorage storage, TensorFormat format) {
   size_t bytes = descriptor.byteSize();
   uint16_t alignment;
   if (descriptor.layout.isVectorized()) {
@@ -17,18 +19,24 @@ TensorId OpImpl::createParameter(const memory::FilterDescriptor &descriptor,
     alignment = static_cast<uint16_t>(descriptor.type.alignment());
   }
   TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
+
+  m_superBuilder->m_tensors[id.index].info.storage = storage;
+  m_superBuilder->m_tensors[id.index].info.format = format;
+  m_superBuilder->m_tensors[id.index].info.type = tensor_data_type_from_memory_type(descriptor.type);
+
   if (m_superBuilder->m_writeParameters) {
     auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
-    m_parameters.push_back(Parameter {
+    m_parameters.push_back(Parameter{
         .tensorId = id,
         .data = std::move(bytes),
-        });
+    });
   }
   return id;
 }
 
 TensorId OpImpl::createParameter(const memory::BiasDescriptor &descriptor,
-                                 memory::BiasTensorConstView data) {
+                                 memory::BiasTensorConstView data,
+                                 TensorStorage storage, TensorFormat format) {
   size_t bytes = descriptor.byteSize();
   uint16_t alignment;
   if (descriptor.layout.isVectorized()) {
@@ -37,6 +45,11 @@ TensorId OpImpl::createParameter(const memory::BiasDescriptor &descriptor,
     alignment = static_cast<uint16_t>(descriptor.type.alignment());
   }
   TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
+
+  m_superBuilder->m_tensors[id.index].info.storage = storage;
+  m_superBuilder->m_tensors[id.index].info.format = format;
+  m_superBuilder->m_tensors[id.index].info.type = tensor_data_type_from_memory_type(descriptor.type);
+
   if (m_superBuilder->m_writeParameters) {
     auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
     m_parameters.push_back(Parameter{

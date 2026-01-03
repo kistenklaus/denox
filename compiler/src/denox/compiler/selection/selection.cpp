@@ -19,8 +19,8 @@ using weight_type = std::chrono::duration<float, std::milli>;
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             const Model &model, const Options &options) {
 
-  fmt::println(
-      "[ 50%] \x1b[1m\x1b[32mSelecting optimal schedule of compute dispatches\x1b[0m");
+  fmt::println("[ 50%] \x1b[1m\x1b[32mSelecting optimal schedule of compute "
+               "dispatches\x1b[0m");
 
   // eval symgraph!
   memory::small_vector<SymSpec, 4> symSpecs;
@@ -78,6 +78,10 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
           case memory::DtypeKind::I32:
             value = pc.i32();
             break;
+          case memory::DtypeKind::U64:
+          case memory::DtypeKind::I64:
+            diag::not_implemented();
+            break;
           }
         }
         switch (pc.type().kind()) {
@@ -102,6 +106,10 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
           std::memcpy(pcbuf.data() + offset, &x, sizeof(int32_t));
           break;
         }
+        case memory::DtypeKind::U64:
+        case memory::DtypeKind::I64:
+          diag::not_implemented();
+          break;
         }
       }
 

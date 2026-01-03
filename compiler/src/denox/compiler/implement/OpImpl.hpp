@@ -1,5 +1,7 @@
 #pragma once
 
+#include "denox/common/TensorFormat.hpp"
+#include "denox/common/TensorStorage.hpp"
 #include "denox/compiler/implement/ComputeDispatch.hpp"
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
@@ -25,10 +27,14 @@ public:
   friend class ComputeDispatchBuilder;
 
   TensorId createParameter(const memory::FilterDescriptor &descriptor,
-                           memory::FilterTensorConstView data);
+                           memory::FilterTensorConstView data,
+                           TensorStorage storage = TensorStorage::StorageBuffer,
+                           TensorFormat format = TensorFormat::Optimal);
 
   TensorId createParameter(const memory::BiasDescriptor &descriptor,
-                           memory::BiasTensorConstView data);
+                           memory::BiasTensorConstView data,
+                           TensorStorage storage = TensorStorage::StorageBuffer,
+                           TensorFormat format = TensorFormat::Optimal);
 
   ComputeDispatchBuilder registerDispatch(spirv::GlslCompilerInstance glsl,
                                           Sym wgX, Sym wgY = Sym::Const(1),

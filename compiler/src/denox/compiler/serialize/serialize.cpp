@@ -1,710 +1,623 @@
-#include "dnx/serialize.hpp"
-#include "compiler/ir/SymTable.hpp"
+#include "denox/compiler/serialize/serialize.hpp"
 #include "denox/algorithm/align_up.hpp"
+#include "denox/common/Access.hpp"
+#include "denox/common/TensorDataType.hpp"
+#include "denox/compiler/compile_shaders/SpvDispatch.hpp"
+#include "denox/compiler/placement/TensorInitalizer.hpp"
+#include "denox/device_info/query/query_resource_limits.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/not_implemented.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/diag/unreachable.hpp"
-#include "denox/memory/container/vector.hpp"
-#include "dnx.h"
-#include <fmt/printf.h>
+#include "denox/memory/dtype/f16.hpp"
+#include "denox/memory/dtype/f32.hpp"
+#include "denox/memory/dtype/f64.hpp"
+#include "denox/spirv/SpirvBinary.hpp"
+#include "flatbuffers/flatbuffer_builder.h"
+#include "flatbuffers/vector.h"
+#include <concepts>
+#include <dnx.h>
+#include <limits>
 
-namespace denox::dnx {
+namespace denox::compiler {
 
-flatbuffers::DetachedBuffer serialize(const compiler::CompModel &compModel,
-                                      const compiler::SymIR &symIR,
-                                      const compiler::SymTable &symTable,
-                                      const std::string &inputName,
-                                      const std::string &outputName) {
-  flatbuffers::FlatBufferBuilder fbb(1 << 16);
-
-  // TODO: add_info.
-  // TODO: required_features
-  memory::vector<flatbuffers::Offset<Tensor>> tensors;
-  tensors.reserve(compModel.tensors.size());
-  for (std::size_t t = 0; t < compModel.tensors.size(); ++t) {
-    ScalarSource offset_type;
-    flatbuffers::Offset<void> offset;
-
-    const auto &tensor = compModel.tensors[t];
-    if (tensor.offset.isSymbolic()) {
-      offset_type = ScalarSource_symbolic;
-      auto symRef =
-          CreateSymRef(fbb, static_cast<std::uint32_t>(tensor.offset.sym()));
-      offset = symRef.Union();
-    } else {
-
-      offset_type = ScalarSource_literal;
-      memory::vector<std::uint8_t> literalBytes(sizeof(std::uint64_t));
-      std::uint64_t v = static_cast<std::uint64_t>(tensor.offset.constant());
-
-      std::memcpy(literalBytes.data(), &v, sizeof(std::uint64_t));
-
-      auto literalBytesVec = fbb.CreateVector(literalBytes);
-      auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
-      offset = literal.Union();
-    }
-
-    ScalarSource size_type;
-    flatbuffers::Offset<void> size;
-    if (tensor.size.isSymbolic()) {
-      size_type = ScalarSource_symbolic;
-      auto symRef =
-          CreateSymRef(fbb, static_cast<std::uint32_t>(tensor.size.sym()));
-      size = symRef.Union();
-    } else {
-      size_type = ScalarSource_literal;
-      std::uint64_t v = static_cast<std::uint64_t>(tensor.size.constant());
-      auto literalBytesVec = fbb.CreateVector(
-          reinterpret_cast<std::uint8_t *>(&v), sizeof(std::uint64_t));
-      auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
-      size = literal.Union();
-    }
-
-    TensorBuilder tensorBuilder(fbb);
-    tensorBuilder.add_offset_type(offset_type);
-    tensorBuilder.add_offset(offset);
-    tensorBuilder.add_buffer(static_cast<std::uint32_t>(tensor.buffer));
-    tensorBuilder.add_size_type(size_type);
-    tensorBuilder.add_size(size);
-    tensors.push_back(tensorBuilder.Finish());
-  }
-  auto tensorsVec = fbb.CreateVector(tensors);
-
-  memory::vector<flatbuffers::Offset<Buffer>> buffers;
-  buffers.reserve(compModel.buffers.size());
-  for (std::size_t b = 0; b < compModel.buffers.size(); ++b) {
-    const auto &buffer = compModel.buffers[b];
-    ScalarSource size_type = ScalarSource_NONE;
-    flatbuffers::Offset<void> size;
-    if (buffer.size.isSymbolic()) {
-      size_type = ScalarSource_symbolic;
-      auto symRef =
-          CreateSymRef(fbb, static_cast<std::uint32_t>(buffer.size.sym()));
-      size = symRef.Union();
-    } else {
-      size_type = ScalarSource_literal;
-      std::uint64_t v = static_cast<std::uint64_t>(buffer.size.constant());
-      auto literalBytesVec = fbb.CreateVector(
-          reinterpret_cast<const std::uint8_t *>(&v), sizeof(std::uint64_t));
-      auto literal = CreateScalarLiteral(fbb, ScalarType_U64, literalBytesVec);
-      size = literal.Union();
-    }
-    BufferBuilder bufferBuilder(fbb);
-    bufferBuilder.add_size_type(size_type);
-    bufferBuilder.add_size(size);
-    bufferBuilder.add_alignment(static_cast<std::uint16_t>(buffer.alignment));
-    buffers.push_back(bufferBuilder.Finish());
-  }
-  auto buffersVec = fbb.CreateVector(buffers);
-
-  memory::vector<flatbuffers::Offset<dnx::ShaderBinary>> binaries;
-  binaries.reserve(compModel.shaderBinaries.size());
-  for (const auto &shaderBinary : compModel.shaderBinaries) {
-    auto spvVec = fbb.CreateVector(shaderBinary.spv);
-    binaries.push_back(CreateShaderBinary(fbb, spvVec));
-  }
-
-  auto shaderBinariesVec = fbb.CreateVector(binaries);
-
-  memory::vector<flatbuffers::Offset<void>> dispatches;
-  memory::vector<std::uint8_t> dispatchTypes;
-  dispatches.reserve(compModel.dispatches.size());
-  dispatchTypes.reserve(compModel.dispatches.size());
-  for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
-    const auto &dispatch = compModel.dispatches[d];
-
-    auto entryPointStr = fbb.CreateString("main");
-
-    memory::vector<flatbuffers::Offset<DescriptorSetBinding>> setBindings;
-    setBindings.reserve(dispatch.setBindings.size());
-    for (std::size_t s = 0; s < dispatch.setBindings.size(); ++s) {
-      const auto &set = dispatch.setBindings[s];
-      memory::vector<flatbuffers::Offset<DescriptorBinding>> bindings;
-      bindings.reserve(set.bindings.size());
-      for (std::size_t b = 0; b < set.bindings.size(); ++b) {
-        const auto &binding = set.bindings[b];
-        denox::dnx::Access access;
-        switch (binding.access) {
-        case compiler::AccessFlag::ReadOnly:
-          access = Access_ReadOnly;
-          break;
-        case compiler::AccessFlag::WriteOnly:
-          access = Access_WriteOnly;
-          break;
-        case compiler::AccessFlag::ReadWrite:
-          access = Access_ReadWrite;
-          break;
-        }
-        bindings.push_back(CreateDescriptorBinding(
-            fbb, static_cast<std::uint16_t>(binding.binding), access,
-            static_cast<std::uint32_t>(binding.tensor)));
-      }
-      auto bindingsVec = fbb.CreateVector(bindings);
-      auto setBinding = CreateDescriptorSetBinding(
-          fbb, static_cast<std::uint16_t>(set.set), bindingsVec);
-      setBindings.push_back(setBinding);
-    }
-    auto setBindingsVec = fbb.CreateVector(setBindings);
-
-    std::uint64_t size = 0;
-    memory::vector<flatbuffers::Offset<PushConstantField>> pushConstantFields;
-    pushConstantFields.reserve(dispatch.pushConstants.size());
-    for (std::size_t p = 0; p < dispatch.pushConstants.size(); ++p) {
-      const compiler::PushConstant &pc = dispatch.pushConstants[p];
-      ScalarType type;
-      switch (pc.type().kind()) {
-      case memory::DtypeKind::F16:
-        type = ScalarType_F16;
-        break;
-      case memory::DtypeKind::F32:
-        type = ScalarType_F32;
-        break;
-      case memory::DtypeKind::F64:
-        type = ScalarType_F64;
-        break;
-      case memory::DtypeKind::U32:
-        type = ScalarType_U32;
-        break;
-      case memory::DtypeKind::I32:
-        type = ScalarType_I32;
-        break;
-      default:
-        diag::unreachable();
-      }
-      std::uint64_t offset = algorithm::align_up(size, pc.type().alignment());
-      size = offset + pc.type().size();
-      ScalarSource source_type;
-      flatbuffers::Offset<void> source;
-      if (pc.isDynamic()) {
-        source_type = ScalarSource_symbolic;
-        auto symRef =
-            CreateSymRef(fbb, static_cast<std::uint32_t>(pc.dynamic()));
-        source = symRef.Union();
-      } else {
-        source_type = ScalarSource_literal;
-        switch (type) {
-        case ScalarType_I32: {
-          std::int32_t v = pc.i32();
-          source =
-              CreateScalarLiteral(
-                  fbb, type,
-                  fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
-                                   sizeof(std::int32_t)))
-                  .Union();
-          break;
-        }
-        case ScalarType_U32: {
-          std::uint32_t v = pc.u32();
-          source =
-              CreateScalarLiteral(
-                  fbb, type,
-                  fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
-                                   sizeof(std::uint32_t)))
-                  .Union();
-          break;
-        }
-        case ScalarType_I16:
-        case ScalarType_U16:
-        case ScalarType_I64:
-        case ScalarType_U64:
-        case ScalarType_F16:
-        case ScalarType_F32:
-        case ScalarType_F64:
-          diag::not_implemented();
-          break;
-        }
-      }
-
-      auto field = CreatePushConstantField(
-          fbb, type, static_cast<std::uint16_t>(offset), source_type, source);
-      pushConstantFields.push_back(field);
-    }
-
-    auto fieldsVec = fbb.CreateVector(pushConstantFields);
-
-    PushConstantBuilder pushConstantBuilder(fbb);
-    pushConstantBuilder.add_size(static_cast<std::uint16_t>(size));
-    pushConstantBuilder.add_fields(fieldsVec);
-
-    auto pushConstant = pushConstantBuilder.Finish();
-
-    std::array<ScalarSource, 3> workgroupCounts_type;
-    std::array<flatbuffers::Offset<void>, 3> workgroupCounts;
-    for (std::size_t i = 0; i < 3; ++i) {
-      Sym count = dispatch.workgroupCount[i];
-      if (count.isSymbolic()) {
-        workgroupCounts_type[i] = ScalarSource_symbolic;
-        auto symRef =
-            CreateSymRef(fbb, static_cast<std::uint32_t>(count.sym()));
-        workgroupCounts[i] = symRef.Union();
-      } else {
-        workgroupCounts_type[i] = ScalarSource_literal;
-        std::uint32_t v = static_cast<std::uint32_t>(count.constant());
-        auto vbytes = fbb.CreateVector(
-            reinterpret_cast<const std::uint8_t *>(&v), sizeof(std::uint32_t));
-        auto literal = CreateScalarLiteral(fbb, ScalarType_U32, vbytes);
-        workgroupCounts[i] = literal.Union();
-      }
-    }
-
-    ComputeDispatchBuilder computeDispatchBuilder(fbb);
-    computeDispatchBuilder.add_binary_id(dispatch.binaryId);
-    computeDispatchBuilder.add_entry_point(entryPointStr);
-    computeDispatchBuilder.add_bindings(setBindingsVec);
-    computeDispatchBuilder.add_push_constant(pushConstant);
-    computeDispatchBuilder.add_workgroup_count_x_type(workgroupCounts_type[0]);
-    computeDispatchBuilder.add_workgroup_count_x(workgroupCounts[0]);
-    computeDispatchBuilder.add_workgroup_count_y_type(workgroupCounts_type[1]);
-    computeDispatchBuilder.add_workgroup_count_y(workgroupCounts[1]);
-    computeDispatchBuilder.add_workgroup_count_z_type(workgroupCounts_type[2]);
-    computeDispatchBuilder.add_workgroup_count_z(workgroupCounts[2]);
-
-    dispatches.push_back(computeDispatchBuilder.Finish().Union());
-    dispatchTypes.push_back(Dispatch_ComputeDispatch);
-  }
-  auto dispatchesVec = fbb.CreateVector(dispatches);
-  auto dispatchTypesVec = fbb.CreateVector(dispatchTypes);
-
-  memory::vector<flatbuffers::Offset<DispatchInfo>> dispatchInfos;
-  dispatchInfos.reserve(compModel.dispatches.size());
-
-  constexpr bool ENABLE_DEBUG_INFO = true;
-  for (std::size_t d = 0; d < compModel.dispatches.size(); ++d) {
-    const auto &dispatch = compModel.dispatches[d];
-    if (ENABLE_DEBUG_INFO) {
-      const auto &debug_info = dispatch.debug_info;
-      const auto &memory_reads = dispatch.memory_reads;
-      const auto &memory_writes = dispatch.memory_writes;
-      flatbuffers::Offset<flatbuffers::String> debug_info_str;
-      flatbuffers::Offset<flatbuffers::String> name_str;
-      flatbuffers::Offset<flatbuffers::String> input_desc;
-      flatbuffers::Offset<flatbuffers::String> output_desc;
-      flatbuffers::Offset<void> reads;
-      ScalarSource reads_type;
-      flatbuffers::Offset<void> writes;
-      ScalarSource writes_type;
-      if (debug_info) {
-        debug_info_str = fbb.CreateString(debug_info.value());
-      }
-      if (dispatch.name) {
-        name_str = fbb.CreateString(*dispatch.name);
-      }
-      if (dispatch.input_desc) {
-        input_desc = fbb.CreateString(*dispatch.input_desc);
-      }
-      if (dispatch.output_desc) {
-        output_desc = fbb.CreateString(*dispatch.output_desc);
-      }
-      if (memory_reads) {
-        if (memory_reads->isSymbolic()) {
-          reads = CreateSymRef(fbb, static_cast<uint32_t>(memory_reads->sym()))
-                      .Union();
-          reads_type = ScalarSource_symbolic;
-        } else {
-          uint64_t v = static_cast<uint64_t>(memory_reads->constant());
-          reads = CreateScalarLiteral(
-                      fbb, ScalarType_U64,
-                      fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
-                                       sizeof(uint64_t)))
-                      .Union();
-          reads_type = ScalarSource_literal;
-        }
-      }
-      if (memory_writes) {
-        if (memory_writes->isSymbolic()) {
-          writes =
-              CreateSymRef(fbb, static_cast<uint32_t>(memory_writes->sym()))
-                  .Union();
-          writes_type = ScalarSource_symbolic;
-        } else {
-          uint64_t v = static_cast<uint64_t>(memory_writes->constant());
-          writes = CreateScalarLiteral(
-                       fbb, ScalarType_U64,
-                       fbb.CreateVector(reinterpret_cast<const uint8_t *>(&v),
-                                        sizeof(uint64_t)))
-                       .Union();
-          writes_type = ScalarSource_literal;
-        }
-      }
-      DispatchInfoBuilder info(fbb);
-      if (debug_info) {
-        info.add_debug_info(debug_info_str);
-      }
-      if (dispatch.name) {
-        info.add_name(name_str);
-      }
-      if (dispatch.input_desc) {
-        info.add_input_desc(input_desc);
-      }
-      if (dispatch.output_desc) {
-        info.add_output_desc(output_desc);
-      }
-      if (memory_reads) {
-        info.add_memory_reads(reads);
-        info.add_memory_reads_type(reads_type);
-      }
-      if (memory_writes) {
-        info.add_memory_writes(writes);
-        info.add_memory_writes_type(writes_type);
-      }
-      dispatchInfos.push_back(info.Finish());
-    }
-  }
-
-  auto dispatchInfosVec = fbb.CreateVector(dispatchInfos);
-
-  memory::vector<dnx::SymIROp> irops;
-  irops.reserve(symIR.ops.size());
-  for (std::size_t o = 0; o < symIR.ops.size(); ++o) {
-    const auto &op = symIR.ops[o];
-    dnx::SymIROpCode opcode;
-    switch (op.opcode) {
-    case compiler::SymIROpCode::Add_SS:
-      opcode = SymIROpCode_ADD;
-      break;
-    case compiler::SymIROpCode::Add_SC:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_ADD | SymIROpCode_RHSC);
-      break;
-    case compiler::SymIROpCode::Sub_SS:
-      opcode = SymIROpCode_SUB;
-      break;
-    case compiler::SymIROpCode::Sub_SC:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_SUB | SymIROpCode_RHSC);
-      break;
-    case compiler::SymIROpCode::Sub_CS:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_SUB | SymIROpCode_LHSC);
-      break;
-    case compiler::SymIROpCode::Mul_SS:
-      opcode = SymIROpCode_MUL;
-      break;
-    case compiler::SymIROpCode::Mul_SC:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_MUL | SymIROpCode_RHSC);
-      break;
-    case compiler::SymIROpCode::Div_SS:
-      opcode = SymIROpCode_DIV;
-      break;
-    case compiler::SymIROpCode::Div_SC:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_DIV | SymIROpCode_RHSC);
-      break;
-    case compiler::SymIROpCode::Div_CS:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_DIV | SymIROpCode_LHSC);
-      break;
-    case compiler::SymIROpCode::Mod_SS:
-      opcode = SymIROpCode_MOD;
-      break;
-    case compiler::SymIROpCode::Mod_SC:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_MOD | SymIROpCode_RHSC);
-      break;
-    case compiler::SymIROpCode::Mod_CS:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_MOD | SymIROpCode_LHSC);
-      break;
-    case compiler::SymIROpCode::Min_SS:
-      opcode = SymIROpCode_MIN;
-      break;
-    case compiler::SymIROpCode::Min_SC:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_MIN | SymIROpCode_RHSC);
-      break;
-    case compiler::SymIROpCode::Max_SS:
-      opcode = SymIROpCode_MAX;
-      break;
-    case compiler::SymIROpCode::Max_SC:
-      opcode =
-          static_cast<dnx::SymIROpCode>(SymIROpCode_MAX | SymIROpCode_RHSC);
-      break;
-    default:
-      diag::unreachable();
-    }
-    irops.emplace_back(opcode, op.lhs, op.rhs);
-  }
-  auto iropsVec = fbb.CreateVectorOfStructs(irops.data(), irops.size());
-
-  SymIRBuilder symIRBuilder(fbb);
-  symIRBuilder.add_var_count(static_cast<std::uint16_t>(symIR.varCount));
-  symIRBuilder.add_ops(iropsVec);
-  auto sym_ir = symIRBuilder.Finish();
-
-  memory::vector<flatbuffers::Offset<TensorInitializer>> initializers;
-
-  for (std::size_t i = 0; i < compModel.initializers.size(); ++i) {
-    const auto &initializer = compModel.initializers[i];
-
-    auto data = fbb.CreateVector(
-        reinterpret_cast<const std::uint8_t *>(initializer.data.data()),
-        initializer.data.size());
-
-    auto tensorInitializer =
-        CreateTensorInitializer(fbb, initializer.tensor, data);
-    initializers.push_back(tensorInitializer);
-  }
-  auto initializersVec = fbb.CreateVector(initializers);
-
-  memory::vector<flatbuffers::Offset<TensorInfo>> inputs;
-  inputs.reserve(compModel.inputs.size());
-  for (std::size_t i = 0; i < compModel.inputs.size(); ++i) {
-    const auto &input = compModel.inputs[i];
-
-    ScalarSource channels_type = ScalarSource_literal;
-    std::uint32_t c = input.channels;
-    flatbuffers::Offset<void> channels =
-        CreateScalarLiteral(
-            fbb, ScalarType_U32,
-            fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&c),
-                             sizeof(std::uint32_t)))
-            .Union();
-
-    ScalarSource width_type;
-    flatbuffers::Offset<void> width;
-
-    if (input.extent.x.isSymbolic()) {
-      width_type = ScalarSource_symbolic;
-      auto symRef = CreateSymRef(
-          fbb, static_cast<std::uint32_t>(input.extent.x.symbol()));
-      width = symRef.Union();
-    } else {
-      width_type = ScalarSource_literal;
-      std::uint32_t v = static_cast<std::uint32_t>(input.extent.x.constant());
-      width = CreateScalarLiteral(
-                  fbb, ScalarType_U32,
-                  fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
-                                   sizeof(std::uint32_t)))
-                  .Union();
-    }
-
-    ScalarSource height_type;
-    flatbuffers::Offset<void> height;
-    if (input.extent.y.isSymbolic()) {
-      height_type = ScalarSource_symbolic;
-      auto symRef = CreateSymRef(
-          fbb, static_cast<std::uint32_t>(input.extent.y.symbol()));
-      height = symRef.Union();
-    } else {
-      height_type = ScalarSource_literal;
-      std::uint32_t v = static_cast<std::uint32_t>(input.extent.y.constant());
-      height = CreateScalarLiteral(
-                   fbb, ScalarType_U32,
-                   fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
-                                    sizeof(std::uint32_t)))
-                   .Union();
-    }
-
-    dnx::TensorLayout layout = dnx::TensorLayout_HWC;
-    switch (input.layout.kind()) {
-    case memory::ActivationLayoutKind::CHW:
-      layout = dnx::TensorLayout_CHW;
-      break;
-    case memory::ActivationLayoutKind::HWC8:
-    case memory::ActivationLayoutKind::HWC:
-      layout = dnx::TensorLayout_HWC;
-      break;
-    case memory::ActivationLayoutKind::CHWC8:
-      layout = dnx::TensorLayout_CHWC8;
-      break;
-    case memory::ActivationLayoutKind::CHWC4:
-    case memory::ActivationLayoutKind::CHWC16:
-      diag::invalid_state();
-    default:
-      diag::unreachable();
-    }
-
-    auto nameStr = fbb.CreateString(inputName);
-
-    dnx::ScalarType dtype;
-    switch (input.dtype.kind()) {
-    case memory::DtypeKind::F16:
-      dtype = dnx::ScalarType::ScalarType_F16;
-      break;
-    case memory::DtypeKind::F32:
-      dtype = dnx::ScalarType::ScalarType_F32;
-      break;
-    case memory::DtypeKind::F64:
-      dtype = dnx::ScalarType::ScalarType_F64;
-      break;
-    case memory::DtypeKind::U32:
-      dtype = dnx::ScalarType::ScalarType_U32;
-      break;
-    case memory::DtypeKind::I32:
-      dtype = dnx::ScalarType::ScalarType_I32;
-      break;
-    default:
-      diag::unreachable();
-    }
-
-    TensorInfoBuilder builder{fbb};
-    builder.add_tensor(static_cast<std::uint32_t>(input.tensor.index));
-    builder.add_channels_type(channels_type);
-    builder.add_channels(channels);
-    builder.add_width_type(width_type);
-    builder.add_width(width);
-    builder.add_height_type(height_type);
-    builder.add_height(height);
-    builder.add_layout(layout);
-    builder.add_type(dtype);
-    builder.add_name(nameStr);
-
-    inputs.push_back(builder.Finish());
-  }
-
-  auto inputsVec = fbb.CreateVector(inputs);
-
-  memory::vector<flatbuffers::Offset<TensorInfo>> outputs;
-  outputs.reserve(compModel.outputs.size());
-  for (std::size_t o = 0; o < compModel.outputs.size(); ++o) {
-    const auto &output = compModel.outputs[o];
-
-    ScalarSource channels_type = ScalarSource_literal;
-    std::uint32_t c = output.channels;
-    flatbuffers::Offset<void> channels =
-        CreateScalarLiteral(
-            fbb, ScalarType_U32,
-            fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&c),
-                             sizeof(std::uint32_t)))
-            .Union();
-
-    ScalarSource width_type;
-    flatbuffers::Offset<void> width;
-
-    if (output.extent.x.isSymbolic()) {
-      width_type = ScalarSource_symbolic;
-      auto symRef = CreateSymRef(
-          fbb, static_cast<std::uint32_t>(output.extent.x.symbol()));
-      width = symRef.Union();
-    } else {
-      width_type = ScalarSource_literal;
-      std::uint32_t v = static_cast<std::uint32_t>(output.extent.x.constant());
-      width = CreateScalarLiteral(
-                  fbb, ScalarType_U32,
-                  fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
-                                   sizeof(std::uint32_t)))
-                  .Union();
-    }
-
-    ScalarSource height_type;
-    flatbuffers::Offset<void> height;
-    if (output.extent.y.isSymbolic()) {
-      height_type = ScalarSource_symbolic;
-      auto symRef = CreateSymRef(
-          fbb, static_cast<std::uint32_t>(output.extent.y.symbol()));
-      height = symRef.Union();
-    } else {
-      height_type = ScalarSource_literal;
-      std::uint32_t v = static_cast<std::uint32_t>(output.extent.y.constant());
-      height = CreateScalarLiteral(
-                   fbb, ScalarType_U32,
-                   fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
-                                    sizeof(std::uint32_t)))
-                   .Union();
-    }
-    dnx::TensorLayout layout;
-    switch (output.layout.kind()) {
-    case memory::ActivationLayoutKind::CHW:
-      layout = dnx::TensorLayout_CHW;
-      break;
-    case memory::ActivationLayoutKind::HWC8:
-    case memory::ActivationLayoutKind::HWC:
-      layout = dnx::TensorLayout_HWC;
-      break;
-    case memory::ActivationLayoutKind::CHWC8:
-      layout = dnx::TensorLayout_CHWC8;
-      break;
-    case memory::ActivationLayoutKind::CHWC4:
-    case memory::ActivationLayoutKind::CHWC16:
-      diag::invalid_state();
-    }
-
-    auto nameStr = fbb.CreateString(outputName);
-
-    dnx::ScalarType dtype;
-    switch (output.dtype.kind()) {
-    case memory::DtypeKind::F16:
-      dtype = dnx::ScalarType::ScalarType_F16;
-      break;
-    case memory::DtypeKind::F32:
-      dtype = dnx::ScalarType::ScalarType_F32;
-      break;
-    case memory::DtypeKind::F64:
-      dtype = dnx::ScalarType::ScalarType_F64;
-      break;
-    case memory::DtypeKind::U32:
-      dtype = dnx::ScalarType::ScalarType_U32;
-      break;
-    case memory::DtypeKind::I32:
-      dtype = dnx::ScalarType::ScalarType_I32;
-      break;
-    }
-
-    TensorInfoBuilder builder{fbb};
-    builder.add_tensor(static_cast<std::uint32_t>(output.tensor.index));
-    builder.add_channels_type(channels_type);
-    builder.add_channels(channels);
-    builder.add_width_type(width_type);
-    builder.add_width(width);
-    builder.add_height_type(height_type);
-    builder.add_height(height);
-    builder.add_layout(layout);
-    builder.add_type(dtype);
-    builder.add_name(nameStr);
-
-    outputs.push_back(builder.Finish());
-  }
-
-  auto outputsVec = fbb.CreateVector(outputs);
-
-  memory::vector<flatbuffers::Offset<denox::dnx::ValueName>> valueNames;
-  for (const auto &[sym, name] : symTable.symbolNames) {
-    auto nameStr = fbb.CreateString(name);
-    flatbuffers::Offset<void> value;
-    ScalarSource value_type;
-    if (sym.isConstant()) {
-
-      value_type = ScalarSource_literal;
-      std::uint64_t v = static_cast<std::uint64_t>(sym.constant());
-      value = CreateScalarLiteral(
-                  fbb, ScalarType_U64,
-                  fbb.CreateVector(reinterpret_cast<const std::uint8_t *>(&v),
-                                   sizeof(std::uint64_t)))
-                  .Union();
-    } else {
-      value_type = ScalarSource_symbolic;
-      value = CreateSymRef(fbb, static_cast<std::uint32_t>(sym.sym())).Union();
-    }
-
-    valueNames.push_back(CreateValueName(fbb, nameStr, value_type, value));
-  }
-
-  auto valueNamesVec = fbb.CreateVector(valueNames);
-
-  ModelBuilder mb(fbb);
-  mb.add_version(Version::Version_DNX_VERSION_1_0);
-  mb.add_tensors(tensorsVec);
-  mb.add_buffers(buffersVec);
-  mb.add_dispatches_type(dispatchTypesVec);
-  mb.add_dispatches(dispatchesVec);
-  mb.add_dispatch_infos(dispatchInfosVec);
-  mb.add_shader_binaries(shaderBinariesVec);
-  mb.add_sym_ir(sym_ir);
-  mb.add_initializers(initializersVec);
-  mb.add_inputs(inputsVec);
-  mb.add_outputs(outputsVec);
-  mb.add_value_names(valueNamesVec);
-
-  auto model = mb.Finish();
-
-  FinishModelBuffer(fbb, model);
-  flatbuffers::DetachedBuffer detachedBuffer = fbb.Release();
-  flatbuffers::Verifier v(detachedBuffer.data(), detachedBuffer.size());
-  if (!VerifyModelBuffer(v)) {
-    diag::invalid_state();
-  }
-  return detachedBuffer;
+static denox::dnx::Version serialize_version(unsigned int version) {
+  return denox::dnx::Version_DNX_VERSION_1_0;
 }
 
-} // namespace denox::dnx
+static flatbuffers::Offset<flatbuffers::Vector<uint32_t>>
+serialize_required_features(flatbuffers::FlatBufferBuilder &fbb) {
+  memory::vector<uint32_t> requiredFeatures;
+  requiredFeatures.push_back(denox::dnx::RuntimeFeature_CooperativeMatrix);
+  return fbb.CreateVector<uint32_t>(requiredFeatures.data(),
+                                    requiredFeatures.size());
+}
+
+static flatbuffers::Offset<denox::dnx::ModelInfo>
+serialize_model_info(flatbuffers::FlatBufferBuilder &fbb,
+                     const ModelMeta &meta) {
+
+  flatbuffers::Offset<flatbuffers::String> producer = 0;
+  flatbuffers::Offset<flatbuffers::String> producer_version = 0;
+  flatbuffers::Offset<flatbuffers::String> model_version = 0;
+
+  if (meta.producerName) {
+    producer = fbb.CreateString(*meta.producerName);
+  }
+  if (meta.producerVersion) {
+    producer_version = fbb.CreateString(*meta.producerVersion);
+  }
+  if (meta.modelVersion) {
+    model_version = fbb.CreateString(*meta.modelVersion);
+  }
+  return dnx::CreateModelInfo(fbb, producer, producer_version, model_version);
+}
+
+static denox::dnx::ScalarType serialize_type(memory::Dtype type) {
+  switch (type.kind()) {
+  case memory::DtypeKind::F16:
+    return denox::dnx::ScalarType_F16;
+  case memory::DtypeKind::F32:
+    return denox::dnx::ScalarType_F32;
+  case memory::DtypeKind::F64:
+    return denox::dnx::ScalarType_F64;
+  case memory::DtypeKind::U32:
+    return denox::dnx::ScalarType_U32;
+  case memory::DtypeKind::I32:
+    return denox::dnx::ScalarType_I32;
+  case memory::DtypeKind::U64:
+    return denox::dnx::ScalarType_U64;
+  case memory::DtypeKind::I64:
+    return denox::dnx::ScalarType_I64;
+  }
+  diag::unreachable();
+}
+
+static denox::dnx::ScalarType serialize_type(TensorDataType type) {
+  switch (type) {
+  case TensorDataType::Auto:
+    DENOX_ERROR("Failed to serialize: found auto type in final artefact");
+    diag::invalid_state();
+  case TensorDataType::Float16:
+    return denox::dnx::ScalarType_F16;
+  case TensorDataType::Float32:
+    return denox::dnx::ScalarType_F32;
+  case TensorDataType::Float64:
+    return denox::dnx::ScalarType_F64;
+  }
+  diag::unreachable();
+}
+
+static denox::dnx::TensorFormat serialize_tensor_format(TensorFormat format) {
+  switch (format) {
+  case TensorFormat::Optimal:
+    return denox::dnx::TensorFormat::TensorFormat_UNKNOWN;
+  case TensorFormat::SSBO_HWC:
+    return denox::dnx::TensorFormat_SSBO_HWC;
+  case TensorFormat::SSBO_CHW:
+    return denox::dnx::TensorFormat_SSBO_CHW;
+  case TensorFormat::SSBO_CHWC8:
+    return denox::dnx::TensorFormat_SSBO_CHWC8;
+  case TensorFormat::TEX_RGBA:
+    return denox::dnx::TensorFormat_TEX_RGBA;
+  case TensorFormat::TEX_RGB:
+    return denox::dnx::TensorFormat_TEX_RGB;
+  case TensorFormat::TEX_RG:
+    return denox::dnx::TensorFormat_TEX_RG;
+  case TensorFormat::TEX_R:
+    return denox::dnx::TensorFormat_TEX_R;
+  }
+  diag::unreachable();
+}
+
+static denox::dnx::TensorStorage
+serialize_tensor_storage(TensorStorage storage) {
+  switch (storage) {
+  case TensorStorage::Optimal:
+    DENOX_ERROR("Failed to serialize: found optimal storage in final artefact");
+    diag::invalid_state();
+  case TensorStorage::StorageBuffer:
+    return denox::dnx::TensorStorage_StorageBuffer;
+  case TensorStorage::StorageImage:
+    return denox::dnx::TensorStorage_StorageImage;
+  case TensorStorage::SampledStorageImage:
+    return denox::dnx::TensorStorage_SampledStorageImage;
+  }
+  diag::unreachable();
+}
+
+static denox::dnx::Access serialize_access(denox::Access access) {
+  switch (access) {
+  case Access::ReadOnly:
+    return denox::dnx::Access_ReadOnly;
+  case Access::WriteOnly:
+    return denox::dnx::Access_WriteOnly;
+  case Access::ReadWrite:
+    return denox::dnx::Access_ReadWrite;
+  }
+  diag::unreachable();
+}
+
+template <typename T>
+static flatbuffers::Offset<denox::dnx::ScalarLiteral>
+serialize_literal(flatbuffers::FlatBufferBuilder &fbb, T value,
+                  denox::dnx::ScalarType type) {
+  memory::vector<uint8_t> bytes;
+  switch (type) {
+  case dnx::ScalarType_I16: {
+    bytes.resize(2);
+    int16_t x{static_cast<int16_t>(value)};
+    std::memcpy(bytes.data(), &x, 2);
+    break;
+  }
+  case dnx::ScalarType_U16: {
+    bytes.resize(2);
+    uint16_t x{static_cast<uint16_t>(value)};
+    std::memcpy(bytes.data(), &x, 2);
+    break;
+  }
+  case dnx::ScalarType_I32: {
+    bytes.resize(4);
+    int32_t x{static_cast<int32_t>(value)};
+    std::memcpy(bytes.data(), &x, 4);
+    break;
+  }
+  case dnx::ScalarType_U32: {
+    bytes.resize(4);
+    uint32_t x{static_cast<uint32_t>(value)};
+    std::memcpy(bytes.data(), &x, 4);
+    break;
+  }
+  case dnx::ScalarType_I64: {
+    bytes.resize(8);
+    int64_t x{static_cast<int64_t>(value)};
+    std::memcpy(bytes.data(), &x, 4);
+    break;
+  }
+  case dnx::ScalarType_U64: {
+    bytes.resize(8);
+    uint64_t x{static_cast<uint64_t>(value)};
+    std::memcpy(bytes.data(), &x, 8);
+    break;
+  }
+  case dnx::ScalarType_F16:
+  case dnx::ScalarType_F32:
+  case dnx::ScalarType_F64:
+    diag::unreachable();
+  }
+  auto boffset = fbb.CreateVector<uint8_t>(bytes.data(), bytes.size());
+  return dnx::CreateScalarLiteral(fbb, type, boffset);
+}
+
+static flatbuffers::Offset<denox::dnx::SymRef>
+serialize_symbol(flatbuffers::FlatBufferBuilder &fbb, Sym::symbol symbol) {
+  return dnx::CreateSymRef(fbb, static_cast<uint32_t>(symbol));
+}
+
+static std::pair<denox::dnx::ScalarSource, flatbuffers::Offset<void>>
+serialize_scalar(flatbuffers::FlatBufferBuilder &fbb, Sym sym,
+                 memory::Dtype type) {
+  if (sym.isSymbolic()) {
+    return std::make_pair(denox::dnx::ScalarSource_symbolic,
+                          serialize_symbol(fbb, sym.sym()).Union());
+  } else {
+    auto dtype = serialize_type(type);
+    return std::make_pair(
+        denox::dnx::ScalarSource_literal,
+        serialize_literal(fbb, sym.constant(), dtype).Union());
+  }
+}
+
+static flatbuffers::Offset<denox::dnx::TensorInfo>
+serialize_tensor_info(flatbuffers::FlatBufferBuilder &fbb,
+                      const TensorInfo &info) {
+
+  auto [width_type, width] =
+      serialize_scalar(fbb, info.width, memory::Dtype::U32);
+  auto [height_type, height] =
+      serialize_scalar(fbb, info.height, memory::Dtype::U32);
+  auto [channel_type, channels] =
+      serialize_scalar(fbb, info.channels, memory::Dtype::U32);
+
+  auto format = serialize_tensor_format(info.format);
+  auto storage = serialize_tensor_storage(info.storage);
+  auto type = serialize_type(info.type);
+
+  flatbuffers::Offset<flatbuffers::String> name = 0;
+  if (info.name) {
+    name = fbb.CreateString(*info.name);
+  }
+
+  return dnx::CreateTensorInfo(fbb, width_type, width, //
+                               height_type, height,    //
+                               channel_type, channels, //
+                               format, storage, type, name);
+}
+
+static flatbuffers::Offset<denox::dnx::Tensor>
+serialize_tensor(flatbuffers::FlatBufferBuilder &fbb,
+                 const TensorView &tensor) {
+  auto [offset_type, offset] =
+      serialize_scalar(fbb, tensor.offset, memory::Dtype::U32);
+  auto [size_type, size] =
+      serialize_scalar(fbb, tensor.offset, memory::Dtype::U32);
+  auto info = serialize_tensor_info(fbb, tensor.info);
+  return dnx::CreateTensor(fbb,
+                           static_cast<uint32_t>(tensor.buffer), //
+                           offset_type, offset,                  //
+                           size_type, size, info);
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::Tensor>>>
+serialize_tensors(flatbuffers::FlatBufferBuilder &fbb,
+                  const memory::span<const TensorView> tensors) {
+  memory::vector<flatbuffers::Offset<denox::dnx::Tensor>> offsets(
+      tensors.size());
+  for (size_t t = 0; t < tensors.size(); ++t) {
+    offsets[t] = serialize_tensor(fbb, tensors[t]);
+  }
+  return fbb.CreateVector<denox::dnx::Tensor>(offsets.data(), offsets.size());
+}
+
+static flatbuffers::Offset<denox::dnx::TensorInitializer>
+serialize_initializer(flatbuffers::FlatBufferBuilder &fbb,
+                      const TensorInitializer &initializer) {
+  auto data = fbb.CreateVector<uint8_t>(
+      reinterpret_cast<const uint8_t *>(initializer.data.data()),
+      initializer.data.size());
+  return dnx::CreateTensorInitializer(fbb, initializer.tensor, data);
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::TensorInitializer>>>
+serialize_initializers(flatbuffers::FlatBufferBuilder &fbb,
+                       memory::span<const TensorInitializer> initializers) {
+
+  memory::vector<flatbuffers::Offset<denox::dnx::TensorInitializer>> offsets(
+      initializers.size());
+  for (size_t i = 0; i < initializers.size(); ++i) {
+    offsets[i] = serialize_initializer(fbb, initializers[i]);
+  }
+
+  return fbb.CreateVector<denox::dnx::TensorInitializer>(offsets.data(),
+                                                         offsets.size());
+}
+
+static flatbuffers::Offset<flatbuffers::Vector<uint32_t>>
+serialize_inputs(flatbuffers::FlatBufferBuilder &fbb,
+                 memory::span<const uint64_t> inputs) {
+  memory::vector<uint32_t> in(inputs.size());
+  for (size_t i = 0; i < in.size(); ++i) {
+    in[i] = static_cast<uint32_t>(inputs[i]);
+  }
+  return fbb.CreateVector<uint32_t>(in.data(), in.size());
+}
+
+static flatbuffers::Offset<flatbuffers::Vector<uint32_t>>
+serialize_outputs(flatbuffers::FlatBufferBuilder &fbb,
+                  memory::span<const uint64_t> outputs) {
+  memory::vector<uint32_t> out(outputs.size());
+  for (size_t o = 0; o < out.size(); ++o) {
+    out[o] = static_cast<uint32_t>(outputs[o]);
+  }
+  return fbb.CreateVector<uint32_t>(out.data(), out.size());
+}
+
+static flatbuffers::Offset<denox::dnx::Buffer>
+serialize_buffer(flatbuffers::FlatBufferBuilder &fbb, const Buffer &buffer) {
+  auto [size_type, size] =
+      serialize_scalar(fbb, buffer.size, memory::Dtype::U64);
+  return dnx::CreateBuffer(fbb, size_type, size, buffer.alignment);
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::Buffer>>>
+serialize_buffers(flatbuffers::FlatBufferBuilder &fbb,
+                  const memory::span<const Buffer> buffers) {
+  memory::vector<flatbuffers::Offset<denox::dnx::Buffer>> offsets(buffers.size());
+  for (size_t b = 0; b < buffers.size(); ++b) {
+    offsets[b] = serialize_buffer(fbb, buffers[b]);
+  }
+  return fbb.CreateVector<denox::dnx::Buffer>(offsets.data(), offsets.size());
+}
+
+static flatbuffers::Offset<denox::dnx::DescriptorBinding>
+serialize_descriptor_binding(flatbuffers::FlatBufferBuilder &fbb,
+                             const TensorBinding &binding) {
+  auto access = serialize_access(binding.accessFlag);
+  return dnx::CreateDescriptorBinding(
+      fbb, static_cast<uint16_t>(binding.binding), access,
+      static_cast<uint32_t>(binding.tensorId.index));
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::DescriptorBinding>>>
+serialize_descriptor_bindings(flatbuffers::FlatBufferBuilder &fbb,
+                              memory::span<const TensorBinding> bindings) {
+  memory::vector<flatbuffers::Offset<denox::dnx::DescriptorBinding>> offsets(
+      bindings.size());
+  for (size_t b = 0; b < bindings.size(); ++b) {
+    offsets[b] = serialize_descriptor_binding(fbb, bindings[b]);
+  }
+  return fbb.CreateVector<denox::dnx::DescriptorBinding>(offsets.data(),
+                                                         offsets.size());
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::DescriptorSetBinding>>>
+serialize_descriptor_set_bindings(flatbuffers::FlatBufferBuilder &fbb,
+                                  memory::span<const TensorBinding> bindings) {
+  if (bindings.empty()) {
+    return fbb.CreateVector<denox::dnx::DescriptorSetBinding>(nullptr, 0);
+  }
+  uint32_t maxSet = 0;
+  for (const auto &b : bindings) {
+    maxSet = std::max(maxSet, b.set);
+  }
+  uint32_t setCount = maxSet + 1;
+  memory::vector<memory::vector<TensorBinding>> setBindings(setCount);
+  for (const auto &b : bindings) {
+    setBindings[b.set].push_back(b);
+  }
+  memory::vector<flatbuffers::Offset<denox::dnx::DescriptorSetBinding>> offsets(
+      setCount);
+  for (uint32_t s = 0; s < setCount; ++s) {
+    auto bindings = serialize_descriptor_bindings(fbb, setBindings[s]);
+    offsets[s] = dnx::CreateDescriptorSetBinding(fbb, static_cast<uint16_t>(s),
+                                                 bindings);
+  }
+  return fbb.CreateVector<denox::dnx::DescriptorSetBinding>(offsets.data(),
+                                                            offsets.size());
+}
+
+static flatbuffers::Offset<denox::dnx::PushConstant>
+serialize_push_constant(flatbuffers::FlatBufferBuilder &fbb,
+                        memory::span<const PushConstant> pushConstants) {
+  size_t offset = 0;
+  memory::vector<flatbuffers::Offset<denox::dnx::PushConstantField>> offsets(
+      pushConstants.size());
+  for (size_t p = 0; p < pushConstants.size(); ++p) {
+    const auto &pc = pushConstants[p];
+    offset = algorithm::align_up(offset, pc.type().alignment());
+    auto type = serialize_type(pc.type());
+
+    auto [source_type, source] = serialize_scalar(fbb, pc.sym(), pc.type());
+    offsets[p] = dnx::CreatePushConstantField(
+        fbb, type, static_cast<uint16_t>(offset), source_type, source);
+
+    offset += pc.type().size();
+  }
+  assert(offset <= std::numeric_limits<uint16_t>::max());
+  uint16_t size = static_cast<uint16_t>(offset);
+  auto fields = fbb.CreateVector<denox::dnx::PushConstantField>(offsets.data(),
+                                                                offsets.size());
+  return dnx::CreatePushConstant(fbb, size, fields);
+}
+
+static flatbuffers::Offset<dnx::DispatchInfo>
+serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
+                        const ComputeDispatchInfo &info) {
+
+  flatbuffers::Offset<flatbuffers::String> name = 0;
+  flatbuffers::Offset<flatbuffers::String> debug_info = 0;
+  flatbuffers::Offset<flatbuffers::String> src_path = 0;
+
+  denox::dnx::ScalarSource memory_reads_type = denox::dnx::ScalarSource_NONE;
+  flatbuffers::Offset<void> memory_reads = 0;
+
+  denox::dnx::ScalarSource memory_writes_type = denox::dnx::ScalarSource_NONE;
+  flatbuffers::Offset<void> memory_writes = 0;
+
+  if (info.name) {
+    name = fbb.CreateString(*info.name);
+  }
+  if (info.debug_info) {
+    debug_info = fbb.CreateString(*info.debug_info);
+  }
+  if (info.srcPath) {
+    src_path = fbb.CreateString(info.srcPath->str());
+  }
+  if (info.memoryReads) {
+    auto [type, ptr] =
+        serialize_scalar(fbb, *info.memoryReads, memory::Dtype::U64);
+    memory_reads_type = type;
+    memory_reads = ptr;
+  }
+  if (info.memoryWrites) {
+    auto [type, ptr] =
+        serialize_scalar(fbb, *info.memoryWrites, memory::Dtype::U64);
+    memory_writes_type = type;
+    memory_writes = ptr;
+  }
+
+  return dnx::CreateDispatchInfo(fbb, name, debug_info, src_path,
+                                 memory_reads_type, memory_reads,
+                                 memory_writes_type, memory_writes);
+}
+
+static flatbuffers::Offset<denox::dnx::ComputeDispatch>
+serialize_dispatch(flatbuffers::FlatBufferBuilder &fbb,
+                   const SpvDispatch &dispatch) {
+  auto [workgroupCountX_type, workgroupCountX] =
+      serialize_scalar(fbb, dispatch.workgroupCountX, memory::Dtype::U32);
+  auto [workgroupCountY_type, workgroupCountY] =
+      serialize_scalar(fbb, dispatch.workgroupCountY, memory::Dtype::U32);
+  auto [workgroupCountZ_type, workgroupCountZ] =
+      serialize_scalar(fbb, dispatch.workgroupCountZ, memory::Dtype::U32);
+  auto entry_point = fbb.CreateString("main");
+  auto bindings = serialize_descriptor_set_bindings(fbb, dispatch.bindings);
+  auto pc = serialize_push_constant(fbb, dispatch.pushConstants);
+  auto info = serialize_dispatch_info(fbb, dispatch.info);
+  return dnx::CreateComputeDispatch(
+      fbb, dispatch.binaryId, workgroupCountX_type, workgroupCountX,
+      workgroupCountY_type, workgroupCountY, workgroupCountZ_type,
+      workgroupCountZ, entry_point, bindings, pc, info);
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::ComputeDispatch>>>
+serialize_dispatches(flatbuffers::FlatBufferBuilder &fbb,
+                     memory::span<const SpvDispatch> dispatches) {
+
+  memory::vector<flatbuffers::Offset<denox::dnx::ComputeDispatch>> offsets(
+      dispatches.size());
+  for (size_t d = 0; d < dispatches.size(); ++d) {
+    offsets[d] = serialize_dispatch(fbb, dispatches[d]);
+  }
+  return fbb.CreateVector<denox::dnx::ComputeDispatch>(offsets.data(),
+                                                       offsets.size());
+}
+
+static flatbuffers::Offset<denox::dnx::ShaderBinary>
+serialize_shader_binary(flatbuffers::FlatBufferBuilder &fbb,
+                        const SpirvBinary &binary) {
+  return dnx::CreateShaderBinary(fbb, fbb.CreateVector(binary.spv));
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::ShaderBinary>>>
+serialize_shader_binaries(flatbuffers::FlatBufferBuilder &fbb,
+                          memory::span<const SpirvBinary> binaries) {
+
+  memory::vector<flatbuffers::Offset<denox::dnx::ShaderBinary>> offsets(
+      binaries.size());
+  for (size_t s = 0; s < binaries.size(); ++s) {
+    offsets[s] = serialize_shader_binary(fbb, binaries[s]);
+  }
+  return fbb.CreateVector<denox::dnx::ShaderBinary>(offsets.data(),
+                                                    offsets.size());
+}
+
+static denox::dnx::SymIROpCode serialize_symir_opcode(const SymIROpCode code) {
+  switch (code) {
+  case SymIROpCode::Add_SS:
+    return denox::dnx::SymIROpCode_ADD;
+  case compiler::SymIROpCode::Add_SC:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_ADD |
+                                         denox::dnx::SymIROpCode_RHSC);
+  case compiler::SymIROpCode::Sub_SS:
+    return denox::dnx::SymIROpCode_SUB;
+  case compiler::SymIROpCode::Sub_SC:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_SUB |
+                                         denox::dnx::SymIROpCode_RHSC);
+  case compiler::SymIROpCode::Sub_CS:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_SUB |
+                                         denox::dnx::SymIROpCode_LHSC);
+  case compiler::SymIROpCode::Mul_SS:
+    return denox::dnx::SymIROpCode_MUL;
+  case compiler::SymIROpCode::Mul_SC:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MUL |
+                                         denox::dnx::SymIROpCode_RHSC);
+  case compiler::SymIROpCode::Div_SS:
+    return denox::dnx::SymIROpCode_DIV;
+  case compiler::SymIROpCode::Div_SC:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_DIV |
+                                         denox::dnx::SymIROpCode_RHSC);
+  case compiler::SymIROpCode::Div_CS:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_DIV |
+                                         denox::dnx::SymIROpCode_LHSC);
+  case compiler::SymIROpCode::Mod_SS:
+    return denox::dnx::SymIROpCode_MOD;
+  case compiler::SymIROpCode::Mod_SC:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MOD |
+                                         denox::dnx::SymIROpCode_RHSC);
+  case compiler::SymIROpCode::Mod_CS:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MOD |
+                                         denox::dnx::SymIROpCode_LHSC);
+  case compiler::SymIROpCode::Min_SS:
+    return denox::dnx::SymIROpCode_MIN;
+  case compiler::SymIROpCode::Min_SC:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MIN |
+                                         denox::dnx::SymIROpCode_RHSC);
+  case compiler::SymIROpCode::Max_SS:
+    return denox::dnx::SymIROpCode_MAX;
+  case compiler::SymIROpCode::Max_SC:
+    return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MAX |
+                                         denox::dnx::SymIROpCode_RHSC);
+  default:
+    diag::unreachable();
+  }
+}
+
+static denox::dnx::SymIROp serialize_symir_op(const SymIROp &op) {
+  denox::dnx::SymIROpCode opcode = serialize_symir_opcode(op.opcode);
+  return denox::dnx::SymIROp(opcode, op.lhs, op.rhs);
+}
+
+static flatbuffers::Offset<flatbuffers::Vector<const denox::dnx::SymIROp *>>
+serialize_symir_ops(flatbuffers::FlatBufferBuilder &fbb,
+                    const memory::span<const SymIROp> ops) {
+  memory::vector<denox::dnx::SymIROp> out(ops.size());
+  for (size_t pc = 0; pc < ops.size(); ++pc) {
+    out[pc] = serialize_symir_op(ops[pc]);
+  }
+  return fbb.CreateVectorOfStructs<denox::dnx::SymIROp>(out.data(), out.size());
+}
+
+static flatbuffers::Offset<denox::dnx::SymIR>
+serialize_symir(flatbuffers::FlatBufferBuilder &fbb, const SymIR &symir) {
+  uint16_t varCount = static_cast<uint16_t>(symir.varCount);
+  auto ops = serialize_symir_ops(fbb, symir.ops);
+  return dnx::CreateSymIR(fbb, varCount, ops);
+}
+
+static flatbuffers::Offset<denox::dnx::ValueName>
+serialize_value_name(flatbuffers::FlatBufferBuilder &fbb,
+                     const NamedValue &namedValue) {
+  auto name = fbb.CreateString(namedValue.name);
+  auto [value_type, value] =
+      serialize_scalar(fbb, namedValue.value, memory::Dtype::I64);
+  return dnx::CreateValueName(fbb, name, value_type, value);
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::ValueName>>>
+serialize_value_names(flatbuffers::FlatBufferBuilder &fbb,
+                      memory::span<const NamedValue> namedValues) {
+  memory::vector<flatbuffers::Offset<denox::dnx::ValueName>> offsets(
+      namedValues.size());
+  for (size_t i = 0; i < namedValues.size(); ++i) {
+    offsets[i] = serialize_value_name(fbb, namedValues[i]);
+  }
+  return fbb.CreateVector<denox::dnx::ValueName>(offsets.data(),
+                                                 offsets.size());
+}
+
+memory::vector<std::byte> serialize(const compiler::SpvSchedule &schedule,
+                                    const SymProgram &sprog, const Model &model,
+                                    const Options &options) {
+
+  const unsigned int dnxVersion = options.dnxVersion;
+
+  flatbuffers::FlatBufferBuilder fbb(1 << 16);
+
+  auto version = serialize_version(dnxVersion);
+  auto required_features = serialize_required_features(fbb);
+  auto model_info = serialize_model_info(fbb, model.meta());
+  auto tensors = serialize_tensors(fbb, schedule.tensors);
+  auto initializers = serialize_initializers(fbb, schedule.initializers);
+  auto inputs = serialize_inputs(fbb, schedule.inputs);
+  auto outputs = serialize_outputs(fbb, schedule.outputs);
+  auto buffers = serialize_buffers(fbb, schedule.buffers);
+  auto dispatches = serialize_dispatches(fbb, schedule.dispatches);
+  auto binaries = serialize_shader_binaries(fbb, schedule.binaries);
+  auto symir = serialize_symir(fbb, sprog.ir);
+  auto value_names = serialize_value_names(fbb, sprog.namedValues);
+
+  auto dnx = dnx::CreateModel(fbb, version, required_features, model_info,
+                              tensors, initializers, inputs, outputs, buffers,
+                              dispatches, binaries, symir, value_names);
+  dnx::FinishModelBuffer(fbb, dnx);
+  auto buffer = fbb.Release();
+
+  flatbuffers::Verifier v(buffer.data(), buffer.size());
+  if (!dnx::VerifyModelBuffer(v)) {
+    DENOX_ERROR("Invalid DNX artefact: failed to verify");
+    diag::invalid_state();
+  }
+  memory::vector<std::byte> outbuf(buffer.size());
+  std::memcpy(outbuf.data(), buffer.data(), buffer.size());
+  return outbuf;
+}
+
+} // namespace denox::compiler

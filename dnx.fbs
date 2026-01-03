@@ -56,6 +56,13 @@ table DescriptorSetBinding {
   set:ushort;
   bindings:[DescriptorBinding];
 }
+table DispatchInfo {
+  name:string;
+  debug_info:string;
+  src_path:string;
+  memory_reads:ScalarSource;
+  memory_writes:ScalarSource;
+}
 
 table ComputeDispatch {
   binary_id:uint32;
@@ -65,38 +72,40 @@ table ComputeDispatch {
   entry_point:string;
   bindings:[DescriptorSetBinding];
   push_constant: PushConstant; 
+
+  info:DispatchInfo;
 }
 
-union Dispatch {
-  ComputeDispatch,
-}
 
-table DispatchInfo {
-  name:string;
-  debug_info:string;
-  input_desc:string;
-  output_desc:string;
-  memory_reads:ScalarSource;
-  memory_writes:ScalarSource;
-}
 
 table Buffer {
   size:ScalarSource;
   alignment:ushort;
 }
 
-enum TensorLayout:ubyte {
-  HWC,
-  CHW,
-  CHWC8,
+enum TensorFormat:ushort {
+  UNKNOWN,
+  SSBO_HWC,
+  SSBO_CHW,
+  SSBO_CHWC8,
+  TEX_RGBA,
+  TEX_RGB,
+  TEX_RG,
+  TEX_R
+}
+
+enum TensorStorage:ushort{
+  StorageBuffer,
+  StorageImage,
+  SampledStorageImage,
 }
 
 table TensorInfo {
-  tensor:uint32;
   width:ScalarSource; 
   height:ScalarSource; 
   channels:ScalarSource;
-  layout:TensorLayout;
+  format:TensorFormat;
+  storage:TensorStorage;
   type:ScalarType;
   name:string;
 }
@@ -105,6 +114,7 @@ table Tensor {
   buffer:uint;
   offset:ScalarSource;
   size:ScalarSource;
+  info:TensorInfo;
 }
 
 enum SymIROpCode:uint16 {
@@ -165,7 +175,6 @@ table Model {
   info:ModelInfo; 
 
   tensors:[Tensor];
-  tensor_infos:[TensorInfo];
   initializers:[TensorInitializer];
 
   inputs:[uint32];
@@ -173,8 +182,7 @@ table Model {
 
   buffers:[Buffer];
 
-  dispatches:[Dispatch];
-  dispatch_infos:[DispatchInfo];
+  dispatches:[ComputeDispatch];
 
   shader_binaries:[ShaderBinary];
 

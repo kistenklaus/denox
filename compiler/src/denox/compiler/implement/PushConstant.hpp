@@ -1,6 +1,7 @@
 #pragma once
 
 #include "denox/diag/invalid_state.hpp"
+#include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/dtype/dtype.hpp"
@@ -39,6 +40,10 @@ public:
       break;
     case memory::DtypeKind::I32:
       m_type |= PushConstantType_I32;
+      break;
+    case memory::DtypeKind::U64:
+    case memory::DtypeKind::I64:
+      diag::not_implemented();
       break;
     }
     if (symbol.isSymbolic()) {
@@ -100,6 +105,25 @@ public:
   }
 
   Sym::symbol dynamic() const { return m_value.symbol; }
+  Sym sym() const {
+    if (isDynamic()) {
+      return Sym::Symbol(dynamic());
+    } else {
+      switch (type().kind()) {
+      case memory::DtypeKind::F16:
+      case memory::DtypeKind::F32:
+      case memory::DtypeKind::F64:
+      case memory::DtypeKind::U64:
+      case memory::DtypeKind::I64:
+        diag::invalid_state();
+      case memory::DtypeKind::U32:
+        return Sym::Const(static_cast<int64_t>(i32()));
+      case memory::DtypeKind::I32:
+        return Sym::Const(static_cast<int64_t>(u32()));
+      }
+    }
+    diag::unreachable();
+  }
   std::uint32_t u32() const { return m_value.u32; }
   std::int32_t i32() const { return m_value.i32; }
 

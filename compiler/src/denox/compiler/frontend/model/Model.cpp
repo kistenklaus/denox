@@ -254,7 +254,6 @@ TensorHandle Model::slice(const TensorHandle &src0, Sym left, Sym right,
 }
 
 void Model::output(const TensorHandle &src, const std::string &name) {
-  fmt::println("{} != {}", src.name(), name);
   assert(src.name() == name);
   m_controlBlock->outputs.push_back(
       ModelInterfaceDescriptor{src.m_nodeId, name});

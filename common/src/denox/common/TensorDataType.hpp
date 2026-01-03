@@ -1,6 +1,7 @@
 #pragma once
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/unreachable.hpp"
+#include "denox/memory/dtype/dtype.hpp"
 #include <fmt/core.h>
 
 namespace denox {
@@ -39,6 +40,25 @@ static inline uint16_t align_of(TensorDataType dtype) {
   }
   diag::unreachable();
 }
+
+static inline TensorDataType
+tensor_data_type_from_memory_type(memory::Dtype type) {
+  switch (type.kind()) {
+  case memory::DtypeKind::F16:
+    return TensorDataType::Float16;
+  case memory::DtypeKind::F32:
+    return TensorDataType::Float32;
+  case memory::DtypeKind::F64:
+    return TensorDataType::Float64;
+  case memory::DtypeKind::U32:
+  case memory::DtypeKind::I32:
+  case memory::DtypeKind::U64:
+  case memory::DtypeKind::I64:
+    diag::invalid_state();
+  }
+  diag::unreachable();
+}
+
 } // namespace denox
 
 template <> struct fmt::formatter<denox::TensorDataType> {

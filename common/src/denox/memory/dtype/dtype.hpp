@@ -14,14 +14,17 @@ enum class DtypeKind : std::uint8_t {
   F32 = 1,
   F64 = 2,
   U32 = 3,
-  I32 = 4
+  I32 = 4,
+  U64 = 5,
+  I64 = 6
 };
 
 namespace details::dtype {
 
 struct Dtype {
-  static constexpr std::array<std::size_t, 5> sizes = {2, 4, 8, 4, 4};
-  static constexpr std::array<std::size_t, 5> alignments = {2, 4, 8, 4, 4};
+  static constexpr std::array<std::size_t, 7> sizes = {2, 4, 8, 4, 4, 8, 8};
+  static constexpr std::array<std::size_t, 7> alignments = {2, 4, 8, 4,
+                                                            4, 8, 8};
 
   constexpr Dtype(DtypeKind kind) : m_kind(kind) {}
 
@@ -59,6 +62,9 @@ public:
   static constexpr details::dtype::Dtype U32{DtypeKind::U32};
   static constexpr details::dtype::Dtype I32{DtypeKind::I32};
 
+  static constexpr details::dtype::Dtype U64{DtypeKind::U64};
+  static constexpr details::dtype::Dtype I64{DtypeKind::I64};
+
   std::size_t size() const { return m_type.size(); }
   std::size_t alignment() const { return m_type.alignment(); }
 
@@ -82,6 +88,10 @@ public:
       return "uint32";
     case DtypeKind::I32:
       return "uint32";
+    case DtypeKind::U64:
+      return "uint64";
+    case DtypeKind::I64:
+      return "int64";
     default:
       diag::unreachable();
     }
