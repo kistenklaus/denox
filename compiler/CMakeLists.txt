@@ -87,6 +87,11 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/compile_symbols/compile_symbols.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/serialize/serialize.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/assumed_symeval/assumed_symeval.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/populate.cpp
 )
 
 target_include_directories(denox_compiler

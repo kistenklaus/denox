@@ -8,7 +8,7 @@
 namespace denox::compiler::shaders {
 
 DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
-                                       const Options &options)
+                                       const CompileOptions &options)
     : m_compiler(compiler),
       m_enableConvReluFusion(options.features.enableConvReluFusion),
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),

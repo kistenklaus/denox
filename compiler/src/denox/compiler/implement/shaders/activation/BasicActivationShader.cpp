@@ -57,7 +57,7 @@ static constexpr std::array<BasicActivationConfig, 5> CONFIGS = {
     }};
 
 BasicActivationShader::BasicActivationShader(spirv::GlslCompiler *compiler,
-                                             const Options &options)
+                                             const CompileOptions &options)
     : m_compiler(compiler),
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
       m_maxComputeWorkGroupInvocations(

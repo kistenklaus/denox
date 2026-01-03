@@ -4,7 +4,6 @@
 #include "parser/action.hpp"
 #include "parser/lex/lex.hpp"
 #include "parser/parse_commands.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <iterator>
 #include <optional>

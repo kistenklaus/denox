@@ -6,7 +6,6 @@
 #include "denox/compiler/frontend/model/NamedValue.hpp"
 #include "denox/diag/unreachable.hpp"
 #include <algorithm>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 

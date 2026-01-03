@@ -19,7 +19,7 @@ static bool is_output(const denox::compiler::SpvSchedule &schedule,
 }
 
 void denox::compiler::rebind_descriptors(SpvSchedule &schedule,
-                                         const Options &options,
+                                         const CompileOptions &options,
                                          spirv::SpirvTools *spirvTools) {
 
   std::vector<std::pair<bool, std::vector<spirv::SpirvDescriptorRebind>>>

@@ -6,7 +6,7 @@
 
 denox::compiler::Model
 denox::compiler::frontend(memory::span<const std::byte> raw,
-                          const Options &options) {
+                          const CompileOptions &options) {
   Model model = denox::onnx::read(raw, options);
 
   const auto inputNames = model.getInputNames();

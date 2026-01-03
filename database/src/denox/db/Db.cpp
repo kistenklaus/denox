@@ -16,7 +16,7 @@
 #include <cstring>
 #include <db.h>
 #include <filesystem>
-#include <fmt/base.h>
+#include <fmt/format.h>
 #include <ratio>
 
 denox::Db denox::Db::open(const io::Path &path) {
@@ -441,3 +441,7 @@ void denox::Db::add_dispatch_benchmark_result(
   dispatch.time->latency_ns = static_cast<uint64_t>(mean);
   dispatch.time->std_derivation_ns = static_cast<uint64_t>(std);
 }
+const denox::io::Path &denox::Db::path() const {
+  return m_db->m_path;
+}
+

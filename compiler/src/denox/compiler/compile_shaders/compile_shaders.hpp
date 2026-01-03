@@ -10,5 +10,5 @@ namespace denox::compiler {
 
 SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                             spirv::GlslCompiler *glslCompiler,
-                            const Options &options);
+                            const CompileOptions &options);
 }

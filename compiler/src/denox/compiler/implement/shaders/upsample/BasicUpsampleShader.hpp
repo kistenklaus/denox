@@ -10,7 +10,7 @@ class BasicUpsampleShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicUpsampleShader(spirv::GlslCompiler *compiler, const Options &options);
+  BasicUpsampleShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
 
   memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,

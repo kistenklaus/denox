@@ -30,7 +30,7 @@ static void import_tensor(details::ImportState &state,
 
 static void import_graph(details::ImportState &state,
                          const ::onnx::GraphProto &graph,
-                         const compiler::Options &options) {
+                         const compiler::CompileOptions &options) {
   if (graph.sparse_initializer_size() != 0) {
     throw std::runtime_error("vkcnn: Model contains sparse initializers are "
                              "not supported by vkcnn.");
@@ -67,7 +67,7 @@ static void import_graph(details::ImportState &state,
 }
 
 compiler::Model read(memory::span<const std::byte> raw,
-                     const compiler::Options &options) {
+                     const compiler::CompileOptions &options) {
   try {
     ::onnx::ModelProto onnx;
     if (!onnx.ParseFromArray(raw.data(), static_cast<int>(raw.size_bytes()))) {

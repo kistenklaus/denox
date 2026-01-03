@@ -19,6 +19,6 @@ enum ValueInfoImportContext {
 void import_value_info(ImportState &state,
                        const ::onnx::ValueInfoProto &valueInfo,
                        ValueInfoImportContext context,
-                       const compiler::Options& options);
+                       const compiler::CompileOptions& options);
 
 } // namespace denox::onnx::details

@@ -6,7 +6,7 @@
 
 namespace denox::compiler {
 
-void rebind_descriptors(SpvSchedule &compModel, const Options &options, 
+void rebind_descriptors(SpvSchedule &schedule, const CompileOptions &options, 
     spirv::SpirvTools* spirvTools);
 
 }

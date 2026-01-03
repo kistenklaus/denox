@@ -1,13 +1,12 @@
 #include "denox/compiler/compile_shaders/compile_shaders.hpp"
 #include "denox/common/SHA256.hpp"
 #include "denox/compiler/Options.hpp"
+#include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/frontend/model/Model.hpp"
 #include "denox/db/Db.hpp"
-#include "denox/db/DbTensorBinding.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/memory/container/hashmap.hpp"
-#include <fmt/base.h>
-#include <fmt/ostream.h>
+#include <fmt/format.h>
 #include <limits>
 
 namespace denox::compiler {
@@ -16,7 +15,7 @@ static constexpr uint32_t u32sential = std::numeric_limits<uint32_t>::max();
 
 SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                             [[maybe_unused]] spirv::GlslCompiler *glslCompiler,
-                            const Options &options) {
+                            const CompileOptions &options) {
   assert(glslCompiler != nullptr); // only to make lifetime intent visible
 
   memory::vector<SpvDispatch> dispatches;
@@ -54,26 +53,8 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
         .info = dispatch.info,
     });
   }
-
-  // eval symgraph with assumed dimensions!
-  memory::small_vector<SymSpec, 4> symSpecs;
-  for (const auto &assumption : options.assumptions.valueAssumptions) {
-    auto it = std::ranges::find_if(
-        model.valueNames(), [&](const NamedValue &namedValue) {
-          return namedValue.name == assumption.valueName;
-        });
-    if (it == model.valueNames().end()) {
-      continue;
-    }
-    auto namedValue = *it;
-    if (namedValue.value.isConstant()) {
-      continue;
-    }
-    Sym::symbol symbol = namedValue.value.sym();
-    int64_t value = static_cast<int64_t>(assumption.value);
-    symSpecs.push_back(SymSpec{.symbol = symbol, .value = value});
-  }
-  SymGraphEval eval = schedule.symGraph.eval(symSpecs);
+  SymGraphEval eval =
+      assumed_symeval(schedule.symGraph, model.valueNames(), options);
 
   // collect binaries.
   memory::vector<SpirvBinary> binaries(targets.size());

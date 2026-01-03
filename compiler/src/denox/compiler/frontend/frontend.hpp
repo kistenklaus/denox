@@ -6,7 +6,7 @@
 
 namespace denox::compiler {
 
-Model frontend(memory::span<const std::byte> raw, const Options &options);
+Model frontend(memory::span<const std::byte> raw, const CompileOptions &options);
 
 }
 

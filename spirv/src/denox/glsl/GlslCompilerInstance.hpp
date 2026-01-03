@@ -5,7 +5,6 @@
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/spirv/CompilationResult.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 
 namespace denox::spirv {

@@ -180,7 +180,7 @@ static SpecModel::Graph::NodeHandle specialize_input(
   return dummyNode;
 }
 
-SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes) {
+SpecModel specialize(const CanoModel &model, const Lifetimes &lifetimes) {
   SpecModel spec;
 
   memory::hash_map<std::uint64_t, std::vector<SpecModel::Graph::NodeHandle>>

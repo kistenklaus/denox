@@ -1,6 +1,7 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
+#include "denox/compiler/compile.hpp"
 #include "denox/compiler/compile_shaders/compile_shaders.hpp"
 #include "denox/compiler/compile_symbols/compile_symbols.hpp"
 #include "denox/compiler/dce/dce.hpp"
@@ -9,6 +10,7 @@
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/compiler/placement/placement.hpp"
+#include "denox/compiler/populate.hpp"
 #include "denox/compiler/rebind_descriptors/rebind_descriptors.hpp"
 #include "denox/compiler/selection/selection.hpp"
 #include "denox/compiler/serialize/serialize.hpp"
@@ -30,7 +32,7 @@ int main() {
   std::vector<std::byte> onnx(file.size());
   file.read_exact(onnx);
 
-  compiler::Options options{};
+  compiler::CompileOptions options{};
   ApiVersion env = ApiVersion::VULKAN_1_4;
   DeviceInfo deviceInfo = denox::query_driver_device_info(env, memory::nullopt);
   options.deviceInfo = deviceInfo;
@@ -72,59 +74,68 @@ int main() {
 
   options.debugInfo = denox::compiler::DebugInfo::Enable;
 
-  while (true) {
+  auto db = Db::open(io::Path::cwd() / "gpu.db");
+  denox::populate(db, onnx, options);
+  auto dnxbuf = denox::compile(onnx, db, options);
 
-    spirv::SpirvTools tools(options.deviceInfo);
-    spirv::GlslCompiler glslCompiler(&tools, options.deviceInfo,
-                                     spirv::SpirvDebugInfoLevel::Strip);
+  db.atomic_writeback();
 
-    compiler::Model model = compiler::frontend(onnx, options);
-    // fmt::println("MODEL:\n{}", model);
-
-    compiler::CanoModel cano = compiler::canonicalize(model);
-
-    // fmt::println("CANO:\n{}", cano);
-
-    compiler::Lifetimes lifetimes = compiler::lifeness(cano);
-
-    compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
-
-    // fmt::println("SPEC:\n{}", specModel);
-
-    compiler::ConstModel constModel = compiler::dce(specModel);
-
-    // fmt::println("DCE:\n{}", constModel);
-
-    compiler::SuperGraph supergraph =
-        compiler::implement(constModel, cano.symGraph, &glslCompiler, options);
-
-    // fmt::println("SuperGraph:\n{}", supergraph);
-
-    auto db = Db::open(io::Path::cwd() / "gpu.db");
-
-    auto optschedule =
-        compiler::select_schedule(std::move(supergraph), db, model, options);
-
-    auto memschedule = compiler::placement(optschedule);
-
-    auto schedule = compiler::compile_shaders(std::move(memschedule), model, db,
-                                              &glslCompiler, options);
-
-    compiler::rebind_descriptors(schedule, options, &tools);
-
-    auto sprog = compiler::compile_symbols(schedule, model, options);
-
-    auto dnxbuf = compiler::serialize(schedule, sprog, model, options);
-
-    db.atomic_writeback();
-
-    io::File artefact =
-        io::File::open(io::Path::cwd() / "net.dnx",
-                       io::File::OpenMode::Create | io::File::OpenMode::Write |
-                           io::File::OpenMode::Truncate);
-    fmt::println(
-        "[100%] \x1b[1m\x1B[32mSerialize dnx artefact -> net.dnx\x1B[0m");
-    artefact.write_exact(dnxbuf);
-    break;
-  }
+  // while (true) {
+  //
+  //   spirv::SpirvTools tools(options.deviceInfo);
+  //   spirv::GlslCompiler glslCompiler(&tools, options.deviceInfo,
+  //                                    spirv::SpirvDebugInfoLevel::Strip);
+  //
+  //   compiler::Model model = compiler::frontend(onnx, options);
+  //   // fmt::println("MODEL:\n{}", model);
+  //
+  //   compiler::CanoModel cano = compiler::canonicalize(model);
+  //
+  //   // fmt::println("CANO:\n{}", cano);
+  //
+  //   compiler::Lifetimes lifetimes = compiler::lifeness(cano);
+  //
+  //   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
+  //
+  //   // fmt::println("SPEC:\n{}", specModel);
+  //
+  //   compiler::ConstModel constModel = compiler::dce(specModel);
+  //
+  //   // fmt::println("DCE:\n{}", constModel);
+  //
+  //   compiler::SuperGraph supergraph =
+  //       compiler::implement(constModel, cano.symGraph, &glslCompiler,
+  //       options);
+  //
+  //   // fmt::println("SuperGraph:\n{}", supergraph);
+  //
+  //   auto db = Db::open(io::Path::cwd() / "gpu.db");
+  //
+  //   auto optschedule =
+  //       compiler::select_schedule(std::move(supergraph), db, model, options);
+  //
+  //   auto memschedule = compiler::placement(optschedule);
+  //
+  //   auto schedule = compiler::compile_shaders(std::move(memschedule), model,
+  //   db,
+  //                                             &glslCompiler, options);
+  //
+  //   compiler::rebind_descriptors(schedule, options, &tools);
+  //
+  //   auto sprog = compiler::compile_symbols(schedule, model, options);
+  //
+  //   auto dnxbuf = compiler::serialize(schedule, sprog, model, options);
+  //
+  //   db.atomic_writeback();
+  //
+  //   io::File artefact =
+  //       io::File::open(io::Path::cwd() / "net.dnx",
+  //                      io::File::OpenMode::Create | io::File::OpenMode::Write
+  //                      |
+  //                          io::File::OpenMode::Truncate);
+  //   fmt::println(
+  //       "[100%] \x1b[1m\x1B[32mSerialize dnx artefact -> net.dnx\x1B[0m");
+  //   artefact.write_exact(dnxbuf);
+  //   break;
+  // }
 }

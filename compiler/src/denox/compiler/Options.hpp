@@ -62,7 +62,7 @@ enum class DebugInfo {
   Enable,
 };
 
-struct Options {
+struct CompileOptions {
   unsigned int dnxVersion;
   Features features;
   SpirvOptions spirv;

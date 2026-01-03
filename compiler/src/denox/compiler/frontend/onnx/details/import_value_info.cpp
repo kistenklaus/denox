@@ -7,7 +7,6 @@
 #include "denox/memory/container/optional.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 
-#include <fmt/base.h>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
@@ -21,7 +20,7 @@ void maybe_set_device_float_type_from_dtype(DeviceTensor &dev, Dtype onnxElem) {
 void import_value_info(ImportState &state,
                        const ::onnx::ValueInfoProto &valueInfo,
                        ValueInfoImportContext context,
-                       const compiler::Options &options) {
+                       const compiler::CompileOptions &options) {
   const memory::string &name = valueInfo.name();
   if (name.empty())
     throw std::runtime_error("vkcnn: \"\" is not a valid tensor name.");
@@ -94,8 +93,7 @@ void import_value_info(ImportState &state,
     }
 
     auto interfaceDescriptor = std::ranges::find_if(
-        options.interfaceDescriptors,
-        [&](const auto &tensorDescriptor) {
+        options.interfaceDescriptors, [&](const auto &tensorDescriptor) {
           return tensorDescriptor.name == name;
         });
 
@@ -329,8 +327,7 @@ void import_value_info(ImportState &state,
   }
 
   auto interfaceDescriptor = std::ranges::find_if(
-      options.interfaceDescriptors,
-      [&](const auto &tensorDescriptor) {
+      options.interfaceDescriptors, [&](const auto &tensorDescriptor) {
         return tensorDescriptor.name == name;
       });
 
@@ -431,9 +428,8 @@ void import_value_info(ImportState &state,
               diag::invalid_argument();
             }
             if (!lookup) {
-              state.output.assignValueName(
-                  *interfaceDescriptor->widthValueName,
-                  dev.handle().channels());
+              state.output.assignValueName(*interfaceDescriptor->widthValueName,
+                                           dev.handle().channels());
             }
           }
         }

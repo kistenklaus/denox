@@ -4,7 +4,6 @@
 #include "onnx.pb.h"
 #include <db.h>
 #include <dnx.h>
-#include <fmt/base.h>
 #include <iterator>
 #include <stdexcept>
 

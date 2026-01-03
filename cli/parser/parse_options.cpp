@@ -5,7 +5,7 @@
 #include "io/IOEndpoint.hpp"
 #include "parser/errors.hpp"
 #include "parser/parse_artefact.hpp"
-#include <fmt/base.h>
+#include <fmt/format.h>
 #include <google/protobuf/extension_set.h>
 #include <stdexcept>
 

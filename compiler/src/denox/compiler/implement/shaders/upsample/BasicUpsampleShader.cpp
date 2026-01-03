@@ -64,7 +64,7 @@ static std::array<BasicUpsampleConfig, 5> CONFIGS{
 };
 
 BasicUpsampleShader::BasicUpsampleShader(spirv::GlslCompiler *compiler,
-                                         const Options &options)
+                                         const CompileOptions &options)
     : m_compiler(compiler),
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),

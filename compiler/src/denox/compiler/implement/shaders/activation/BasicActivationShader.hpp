@@ -12,7 +12,7 @@ class BasicActivationShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicActivationShader(spirv::GlslCompiler *compiler, const Options &options);
+  BasicActivationShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;

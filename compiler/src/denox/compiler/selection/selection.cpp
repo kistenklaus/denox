@@ -2,6 +2,7 @@
 #include "denox/algorithm/align_up.hpp"
 #include "denox/algorithm/shortest_dag_hyperpath.hpp"
 #include "denox/common/TensorFormat.hpp"
+#include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/memory/container/small_vector.hpp"
@@ -17,30 +18,12 @@ namespace denox::compiler {
 using weight_type = std::chrono::duration<float, std::milli>;
 
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
-                            const Model &model, const Options &options) {
+                            const Model &model, const CompileOptions &options) {
 
   fmt::println("[ 50%] \x1b[1m\x1b[32mSelecting optimal schedule of compute "
                "dispatches\x1b[0m");
 
-  // eval symgraph!
-  memory::small_vector<SymSpec, 4> symSpecs;
-  for (const auto &assumption : options.assumptions.valueAssumptions) {
-    auto it = std::ranges::find_if(
-        model.valueNames(), [&](const NamedValue &namedValue) {
-          return namedValue.name == assumption.valueName;
-        });
-    if (it == model.valueNames().end()) {
-      continue;
-    }
-    auto namedValue = *it;
-    if (namedValue.value.isConstant()) {
-      continue;
-    }
-    Sym::symbol symbol = namedValue.value.sym();
-    int64_t value = static_cast<int64_t>(assumption.value);
-    symSpecs.push_back(SymSpec{.symbol = symbol, .value = value});
-  }
-  SymGraphEval eval = supergraph.symGraph.eval(symSpecs);
+  SymGraphEval eval = assumed_symeval(supergraph.symGraph, model.valueNames(), options);
 
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> weightedSupergraph;
   // 1. Add all nodes

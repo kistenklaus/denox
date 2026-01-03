@@ -9,5 +9,5 @@
 namespace denox::compiler::shaders {
 
 std::vector<std::unique_ptr<IShader>>
-get_all_shaders(spirv::GlslCompiler *compiler, const Options &options);
+get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options);
 }

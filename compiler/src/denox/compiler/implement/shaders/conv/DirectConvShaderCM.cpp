@@ -465,7 +465,7 @@ static std::vector<DirectConvConfig> CONFIGS = {
 };
 
 DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
-                                       const Options &options)
+                                       const CompileOptions &options)
     : m_compiler(compiler),
       m_enableConvReluFusion(options.features.enableConvReluFusion),
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),

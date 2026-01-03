@@ -19,7 +19,7 @@ private:
   static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
 public:
-  DirectConvShaderCM(spirv::GlslCompiler *compiler, const Options &options);
+  DirectConvShaderCM(spirv::GlslCompiler *compiler, const CompileOptions &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;

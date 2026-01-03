@@ -6,6 +6,6 @@
 
 namespace denox::compiler {
 
-SpecModel specialize(CanoModel &model, const Lifetimes &lifetimes);
+SpecModel specialize(const CanoModel &model, const Lifetimes &lifetimes);
 
 }

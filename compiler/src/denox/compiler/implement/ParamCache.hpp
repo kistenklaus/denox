@@ -6,7 +6,6 @@
 #include "denox/memory/tensor/BiasDescriptor.hpp"
 #include "denox/memory/tensor/BiasTensor.hpp"
 #include "denox/memory/tensor/FilterTensor.hpp"
-#include <fmt/base.h>
 #include <fmt/ostream.h>
 #include <memory>
 namespace denox::compiler {

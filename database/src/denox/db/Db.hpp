@@ -46,6 +46,8 @@ public:
       std::chrono::duration<float, std::milli> latency,
       std::chrono::duration<float, std::milli> std_derivation);
 
+  const io::Path &path() const;
+
 private:
   Db(std::shared_ptr<struct DbMapped> db,
      std::shared_ptr<struct DbIndex> index);

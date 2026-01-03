@@ -5,7 +5,6 @@
 #include "parser/errors.hpp"
 #include "parser/parse_artefact.hpp"
 #include "parser/parse_options.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
 #include <string>

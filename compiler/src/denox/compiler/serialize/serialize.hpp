@@ -11,5 +11,5 @@ namespace denox::compiler {
 memory::vector<std::byte> serialize(const compiler::SpvSchedule &schedule,
                                     const SymProgram &sprog,
                                     const Model& model,
-                                    const Options &options);
+                                    const CompileOptions &options);
 }

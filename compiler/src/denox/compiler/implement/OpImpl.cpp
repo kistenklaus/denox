@@ -2,7 +2,6 @@
 #include "denox/common/TensorDataType.hpp"
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/SuperGraphBuilder.hpp"
-#include <fmt/base.h>
 #include <stdexcept>
 
 namespace denox::compiler {

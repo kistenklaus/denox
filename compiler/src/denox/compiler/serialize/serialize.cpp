@@ -20,7 +20,7 @@
 
 namespace denox::compiler {
 
-static denox::dnx::Version serialize_version(unsigned int version) {
+static denox::dnx::Version serialize_version([[maybe_unused]] unsigned int version) {
   return denox::dnx::Version_DNX_VERSION_1_0;
 }
 
@@ -585,7 +585,7 @@ serialize_value_names(flatbuffers::FlatBufferBuilder &fbb,
 
 memory::vector<std::byte> serialize(const compiler::SpvSchedule &schedule,
                                     const SymProgram &sprog, const Model &model,
-                                    const Options &options) {
+                                    const CompileOptions &options) {
 
   const unsigned int dnxVersion = options.dnxVersion;
 

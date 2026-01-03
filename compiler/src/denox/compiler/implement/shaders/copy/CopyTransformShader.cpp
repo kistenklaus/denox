@@ -71,7 +71,7 @@ static std::array<CopyTransformConfig, 5> CONFIGS{
 };
 
 CopyTransformShader::CopyTransformShader(spirv::GlslCompiler *compiler,
-                                         const Options &options)
+                                         const CompileOptions &options)
     : m_compiler(compiler),
       m_enableImplicitConcat(options.features.enableImplicitConcat),
       m_maxComputeWorkGroupInvocations(

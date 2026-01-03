@@ -20,7 +20,7 @@ public:
   static constexpr bool
       ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
 
-  CopyTransformShader(spirv::GlslCompiler *compiler, const Options &options);
+  CopyTransformShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;

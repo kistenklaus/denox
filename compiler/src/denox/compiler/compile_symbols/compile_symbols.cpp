@@ -7,7 +7,7 @@
 namespace denox::compiler {
 
 SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
-                           const Options &options) {
+                           const CompileOptions &options) {
 
   fmt::println("[ 98%] \x1B[32mBuilding SymIR\x1b[0m");
 

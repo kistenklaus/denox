@@ -6,6 +6,6 @@
 
 namespace denox::onnx {
 
-compiler::Model read(memory::span<const std::byte> raw, const compiler::Options& options);
+compiler::Model read(memory::span<const std::byte> raw, const compiler::CompileOptions& options);
 
 }
