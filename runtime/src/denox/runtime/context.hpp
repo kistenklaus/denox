@@ -83,7 +83,7 @@ public:
 
   void copy(VmaAllocation dst, const void *src, size_t size);
 
-  void copy(void *dst, VmaAllocation src, size_t size);
+  void copy(void *dst, VmaAllocation src, size_t size, size_t srcOffset = 0);
 
   void cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src, size_t size,
                size_t dstOffset = 0, size_t srcOffset = 0);

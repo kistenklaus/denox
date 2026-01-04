@@ -1,7 +1,7 @@
 #include "denox/symbolic/SymGraphEval.hpp"
 #include "denox/symbolic/Symbolic.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 memory::optional<Sym::value_type>
 SymGraphEval::operator[](const Sym &sym) const {

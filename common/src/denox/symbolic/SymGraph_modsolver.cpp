@@ -2,7 +2,7 @@
 #include "denox/algorithm/lcm.hpp"
 #include <limits>
 
-namespace denox::compiler {
+namespace denox {
 
   denox::memory::optional<SymGraph::value_type> SymGraph::modsolve_resume(symbol lhs,
                                                               Sym m) {

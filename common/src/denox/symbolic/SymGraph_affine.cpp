@@ -3,7 +3,7 @@
 #include "denox/algorithm/lower_bound.hpp"
 #include "denox/memory/container/optional.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 void SymGraph::affine_add_sym(AffineExpr &lhs, symbol s, value_type factor) {
   if (factor == 0)

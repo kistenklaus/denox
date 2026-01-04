@@ -4,7 +4,7 @@
 #include <cassert>
 #include <limits>
 
-namespace denox::compiler {
+namespace denox {
 
 SymGraphEval SymGraph::eval(memory::span<const SymSpec> symSpecs) const {
   memory::vector<memory::optional<Sym::value_type>> dp(m_expressions.size());

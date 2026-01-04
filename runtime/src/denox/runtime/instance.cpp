@@ -1,180 +1,79 @@
 #include "instance.hpp"
 #include "context.hpp"
-#include "dnx.h"
-#include "dnx_parse_helpers.hpp"
+#include "denox/diag/not_implemented.hpp"
+#include "denox/symbolic/SymIR.hpp"
 #include "model.hpp"
 #include "vma.hpp"
 #include <algorithm>
 #include <cstring>
-#include <filesystem>
+#include <fmt/format.h>
 #include <forward_list>
+#include <iterator>
 #include <stdexcept>
 #include <variant>
 #include <vulkan/vulkan_core.h>
 
 namespace denox {
 
-static std::vector<std::int64_t>
-interpret_symir(const dnx::Model *dnx, std::span<const int64_t> variables) {
-  std::size_t varCount = dnx->sym_ir()->var_count();
-  std::size_t opCount = dnx->sym_ir()->ops()->size();
-  std::vector<std::int64_t> dp(varCount + opCount);
-  assert(varCount == variables.size());
+static std::vector<runtime::Buffer>
+create_buffers(const runtime::ModelHandle &model, const SymIREval &symeval) {
+  const auto modelBuffers = model->buffers();
+  std::size_t bufferCount = modelBuffers.size();
 
-  // Variable initialization:
-  for (uint32_t sid = 0; sid < variables.size(); ++sid) {
-    assert(variables[sid] != -1);
-    dp[sid] = variables[sid];
-  }
-
-  for (std::uint64_t pc = 0; pc < opCount; ++pc) {
-    const dnx::SymIROp *op = dnx->sym_ir()->ops()->Get(pc);
-    std::uint64_t rx = pc + varCount;
-    std::int64_t lhs;
-    if (op->opcode() & dnx::SymIROpCode_LHSC) {
-      lhs = op->lhs();
-    } else {
-      lhs = dp[static_cast<std::uint64_t>(op->lhs())];
-    }
-    std::int64_t rhs;
-    if (op->opcode() & dnx::SymIROpCode_RHSC) {
-      rhs = op->rhs();
-    } else {
-      rhs = dp[static_cast<std::uint64_t>(op->rhs())];
-    }
-
-    std::underlying_type_t<dnx::SymIROpCode> opcode =
-        op->opcode() & ~(dnx::SymIROpCode_LHSC | dnx::SymIROpCode_RHSC);
-    switch (opcode) {
-    case dnx::SymIROpCode_NOP:
-      break;
-    case dnx::SymIROpCode_ADD:
-      dp[rx] = lhs + rhs;
-      break;
-    case dnx::SymIROpCode_SUB:
-      dp[rx] = lhs - rhs;
-      break;
-    case dnx::SymIROpCode_MUL:
-      dp[rx] = lhs * rhs;
-      break;
-    case dnx::SymIROpCode_DIV:
-      dp[rx] = lhs / rhs;
-      break;
-    case dnx::SymIROpCode_MOD: {
-      dp[rx] = lhs % rhs;
-      if (dp[rx] < 0) {
-        dp[rx] += rhs;
-      }
-      break;
-    }
-    case dnx::SymIROpCode_MIN:
-      dp[rx] = std::min(lhs, rhs);
-      break;
-    case dnx::SymIROpCode_MAX:
-      dp[rx] = std::max(lhs, rhs);
-      break;
-    default:
-      throw std::runtime_error("Invalid sym instruction.");
-    }
-  }
-  return dp;
-}
-
-static runtime::InstanceTensorInfo
-parse_tensor_info(const dnx::Model *dnx, const dnx::TensorInfo *tensorInfo,
-                  std::span<const std::int64_t> symbolValues) {
-  runtime::InstanceTensorInfo info;
-  std::memset(&info, 0, sizeof(runtime::InstanceTensorInfo));
-  info.name = tensorInfo->name()->c_str();
-  info.tensor = tensorInfo->tensor();
-  info.channels.value = dnx::parseUnsignedScalarSource(
-      tensorInfo->channels_type(), tensorInfo->channels(), symbolValues);
-  info.channels.name = dnx::reverse_value_name_search(
-      dnx, tensorInfo->channels_type(), tensorInfo->channels());
-
-  info.width.value = dnx::parseUnsignedScalarSource(
-      tensorInfo->width_type(), tensorInfo->width(), symbolValues);
-  info.width.name = dnx::reverse_value_name_search(
-      dnx, tensorInfo->width_type(), tensorInfo->width());
-  info.height.value = dnx::parseUnsignedScalarSource(
-      tensorInfo->height_type(), tensorInfo->height(), symbolValues);
-  info.height.name = dnx::reverse_value_name_search(
-      dnx, tensorInfo->height_type(), tensorInfo->height());
-  return info;
-}
-
-static std::vector<runtime::InstanceBuffer>
-create_buffers(runtime::Context *ctx, const runtime::Model *m,
-               const runtime::Instance *mi) {
-  const std::span<const std::int64_t> symbolValues = mi->symbolValues;
-  const dnx::Model *dnx = m->dnx;
-  std::size_t bufferCount = dnx->buffers()->size();
-  std::vector<runtime::InstanceBuffer> buffers(bufferCount);
+  std::vector<runtime::Buffer> buffers(bufferCount);
 
   for (std::size_t b = 0; b < bufferCount; ++b) {
-    const dnx::Buffer *buffer = dnx->buffers()->Get(b);
+    const runtime::ModelBuffer &buffer = modelBuffers[b];
 
-    std::uint64_t size = dnx::parseUnsignedScalarSource(
-        buffer->size_type(), buffer->size(), symbolValues);
+    uint64_t size = static_cast<uint64_t>(symeval[buffer.size]);
 
-    // Check if input:
-    bool isInput = std::find_if(mi->inputs.begin(), mi->inputs.end(),
-                                [&](const runtime::InstanceTensorInfo &info) {
-                                  const dnx::Tensor *tensor =
-                                      m->dnx->tensors()->Get(info.tensor);
-                                  return tensor->buffer() == b;
-                                }) != mi->inputs.end();
-    bool isOutput = std::find_if(mi->outputs.rbegin(), mi->outputs.rend(),
-                                 [&](const runtime::InstanceTensorInfo &info) {
-                                   const dnx::Tensor *tensor =
-                                       m->dnx->tensors()->Get(info.tensor);
-                                   return tensor->buffer() == b;
-                                 }) != mi->outputs.rend();
-    bool isInitialized =
-        std::find_if(dnx->initializers()->begin(), dnx->initializers()->end(),
-                     [&](const dnx::TensorInitializer *initalizer) {
-                       const auto &tensor = mi->tensors[initalizer->tensor()];
-                       return tensor.buffer == b;
-                     }) != dnx->initializers()->end();
+    bool isInput =
+        std::ranges::find_if(buffer.tensors, [&](const uint32_t &tensor) {
+          return model->tensors()[tensor].isInput;
+        }) != buffer.tensors.end();
+
+    bool isOutput =
+        std::ranges::find_if(buffer.tensors, [&](const uint32_t &tensor) {
+          return model->tensors()[tensor].isOutput;
+        }) != buffer.tensors.end();
+
+    bool isParam =
+        std::ranges::find_if(buffer.tensors, [&](const uint32_t &tensor) {
+          return model->tensors()[tensor].isParam;
+        }) != buffer.tensors.end();
 
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    if (isInput || isInitialized) {
+    if (isInput || isParam) {
       usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     }
     if (isOutput) {
       usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     }
 
-    runtime::Buffer runtimeBuffer = ctx->createBuffer(size, usage);
-    runtime::InstanceBuffer instanceBuffer;
-    instanceBuffer.buffer = runtimeBuffer;
-    instanceBuffer.size = size;
-    buffers[b] = instanceBuffer;
+    buffers[b] = model->context()->createBuffer(size, usage);
   }
-
   return buffers;
 }
 
-static void upload_initalizers(runtime::Context *ctx,
-                               const runtime::Instance *mi) {
-  const auto *dnx = mi->model->dnx;
-  std::size_t initalizerCount = dnx->initializers()->size();
+static void upload_initalizers(const runtime::ModelHandle &model,
+                               const SymIREval &symeval,
+                               memory::span<const runtime::Buffer> buffers) {
+  const auto initializers = model->initializers();
+  std::size_t initalizerCount = initializers.size();
+
+  const runtime::ContextHandle &ctx = model->context();
 
   std::vector<runtime::Buffer> stagingBuffers(initalizerCount);
 
   for (std::size_t i = 0; i < initalizerCount; ++i) {
-    const dnx::TensorInitializer *initalizer = dnx->initializers()->Get(i);
-    const void *data = initalizer->data()->data();
-    const runtime::InstanceTensor &tensor = mi->tensors[initalizer->tensor()];
-    const runtime::InstanceBuffer &buffer = mi->buffers[tensor.buffer];
-    assert(initalizer->data()->size() == tensor.size);
-    runtime::Buffer stage = ctx->createBuffer(
-        tensor.size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    const runtime::ModelInitializer &init = initializers[i];
+    stagingBuffers[i] = ctx->createBuffer(
+        init.data.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
-    ctx->copy(stage.allocation, data, tensor.size);
-    stagingBuffers[i] = stage;
+    ctx->copy(stagingBuffers[i].allocation, init.data.data(), init.data.size());
   }
 
+  // tmp command pools.
   VkCommandPool cmdPool = ctx->createCommandPool();
   VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
   ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_HOST_BIT,
@@ -182,11 +81,15 @@ static void upload_initalizers(runtime::Context *ctx,
                         VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
 
   for (std::size_t i = 0; i < initalizerCount; ++i) {
-    const dnx::TensorInitializer *initializer = dnx->initializers()->Get(i);
-    const auto &stage = stagingBuffers[i];
-    const runtime::InstanceTensor &tensor = mi->tensors[initializer->tensor()];
-    const runtime::InstanceBuffer &buffer = mi->buffers[tensor.buffer];
-    ctx->cmdCopy(cmd, buffer.buffer, stage, tensor.size, tensor.offset, 0);
+    const auto &init = initializers[i];
+    const runtime::ModelTensor tensor = model->tensors()[init.tensor];
+    const uint64_t offset = static_cast<uint64_t>(symeval[tensor.offset]);
+    // sort of assumed here, but might also work without it, but preferable
+    // the initializers should have the same size as the tensor beeing
+    // initialized.
+    assert(static_cast<size_t>(symeval[tensor.size]) == init.data.size());
+    ctx->cmdCopy(cmd, buffers[tensor.buffer], stagingBuffers[i],
+                 init.data.size(), offset, 0);
   }
 
   ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
@@ -197,46 +100,26 @@ static void upload_initalizers(runtime::Context *ctx,
   }
 }
 
-static std::vector<runtime::InstanceTensor>
-create_tensors(const runtime::Model *m, const runtime::Instance *mi) {
-  const std::span<const std::int64_t> symbolValues = mi->symbolValues;
-  const dnx::Model *dnx = m->dnx;
-  std::size_t tensorCount = dnx->tensors()->size();
-  std::vector<runtime::InstanceTensor> tensors(tensorCount);
-
-  for (std::size_t t = 0; t < tensorCount; ++t) {
-    const dnx::Tensor *tensor = dnx->tensors()->Get(t);
-    const std::uint64_t size = dnx::parseUnsignedScalarSource(
-        tensor->size_type(), tensor->size(), symbolValues);
-    const std::uint64_t offset = dnx::parseUnsignedScalarSource(
-        tensor->offset_type(), tensor->offset(), symbolValues);
-
-    runtime::InstanceTensor instanceTensor{};
-    instanceTensor.size = size;
-    instanceTensor.offset = offset;
-    instanceTensor.buffer = tensor->buffer();
-    tensors[t] = instanceTensor;
-  }
-  return tensors;
-}
-
-static VkDescriptorPool create_descriptor_pool(runtime::Context *ctx,
-                                               const runtime::Model *m) {
-  return ctx->createDescriptorPool(m->descriptorPoolRequirements.maxSets,
-                                   m->descriptorPoolRequirements.poolSizes);
+static VkDescriptorPool create_descriptor_pool(runtime::ModelHandle &model) {
+  return model->context()->createDescriptorPool(
+      model->descriptorPoolRequirements().maxSets,
+      model->descriptorPoolRequirements().poolSizes);
 }
 
 static std::vector<runtime::InstanceCmd>
-create_cmds(runtime::Context *ctx, const runtime::Model *m,
-            const runtime::Instance *mi) {
-  std::span<const std::int64_t> symbolValues = mi->symbolValues;
-  const dnx::Model *dnx = m->dnx;
-  std::uint64_t cmdCount = m->cmds.size();
-  std::vector<runtime::InstanceCmd> cmds;
+create_cmds(const runtime::ModelHandle &model, const SymIREval &symeval,
+            memory::span<const runtime::Buffer> buffers,
+            VkDescriptorPool descriptorPool) {
+  const runtime::ContextHandle &ctx = model->context();
+
+  const auto modelCmds = model->cmds();
+  uint32_t cmdCount = static_cast<uint32_t>(modelCmds.size());
+
+  memory::vector<runtime::InstanceCmd> cmds;
   cmds.reserve(cmdCount * 2);
 
   for (std::size_t pc = 0; pc < cmdCount; ++pc) {
-    const auto &cmd = m->cmds[pc];
+    const auto &cmd = modelCmds[pc];
     if (std::holds_alternative<runtime::ModelBarrier>(cmd)) {
       const runtime::ModelBarrier barrier =
           std::get<runtime::ModelBarrier>(cmd);
@@ -247,9 +130,13 @@ create_cmds(runtime::Context *ctx, const runtime::Model *m,
       for (std::size_t b = 0; b < barrier.bufferBarriers.size(); ++b) {
         const runtime::ModelBufferBarrier &bufferBarrier =
             barrier.bufferBarriers[b];
-        const runtime::InstanceTensor &tensor =
-            mi->tensors[bufferBarrier.tensorId];
-        const runtime::InstanceBuffer &buffer = mi->buffers[tensor.buffer];
+
+        const runtime::ModelTensor &tensor =
+            model->tensors()[bufferBarrier.tensorId];
+        uint64_t offset = static_cast<uint64_t>(symeval[tensor.offset]);
+        uint64_t size = static_cast<uint64_t>(symeval[tensor.size]);
+
+        const runtime::Buffer &buffer = buffers[tensor.buffer];
 
         VkBufferMemoryBarrier &out = bufferMemoryBarriers[b];
         out.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -258,75 +145,67 @@ create_cmds(runtime::Context *ctx, const runtime::Model *m,
         out.dstAccessMask = bufferBarrier.dstAccess;
         out.srcQueueFamilyIndex = ctx->getQueueFamily();
         out.dstQueueFamilyIndex = ctx->getQueueFamily();
-        out.buffer = buffer.buffer.vkbuffer;
-        out.offset = tensor.offset;
-        out.size = tensor.size;
+        out.buffer = buffer.vkbuffer;
+        out.offset = offset;
+        out.size = size;
       }
       cmds.emplace_back(instanceBarrier);
     } else if (std::holds_alternative<runtime::ModelDispatch>(cmd)) {
       const runtime::ModelDispatch &dispatch =
           std::get<runtime::ModelDispatch>(cmd);
       runtime::InstanceDispatch instanceDispatch;
-      instanceDispatch.dispatch = &dispatch;
+      instanceDispatch.modelDispatch = &dispatch;
+
       std::vector<VkDescriptorSetLayout> descriptorSetLayouts(
           dispatch.descriptorSets.size());
       for (std::size_t s = 0; s < descriptorSetLayouts.size(); ++s) {
         descriptorSetLayouts[s] =
             dispatch.descriptorSets[s].descriptorSetLayout;
       }
-      instanceDispatch.descriptorSets =
-          new VkDescriptorSet[dispatch.descriptorSets.size()];
-      ctx->allocDescriptorSets(mi->descriptorPool, descriptorSetLayouts,
-                               instanceDispatch.descriptorSets);
 
-      // Parse workgroup count (i.e. dispatch size).
-      instanceDispatch.workgroupCounts = new std::uint32_t[3];
-      instanceDispatch.workgroupCounts[0] = dnx::parseUnsignedScalarSource(
-          dispatch.dispatch->workgroup_count_x_type(),
-          dispatch.dispatch->workgroup_count_x(), symbolValues);
-      instanceDispatch.workgroupCounts[1] = dnx::parseUnsignedScalarSource(
-          dispatch.dispatch->workgroup_count_y_type(),
-          dispatch.dispatch->workgroup_count_y(), symbolValues);
-      instanceDispatch.workgroupCounts[2] = dnx::parseUnsignedScalarSource(
-          dispatch.dispatch->workgroup_count_z_type(),
-          dispatch.dispatch->workgroup_count_z(), symbolValues);
+      instanceDispatch.descriptorSets.resize(dispatch.descriptorSets.size());
 
-      if (dispatch.info) {
-        if (dispatch.info->debug_info()) {
-          instanceDispatch.debug_info = dispatch.info->debug_info()->str();
-        }
-        if (dispatch.info->name()) {
-          instanceDispatch.name = dispatch.info->name()->str();
-        }
-        if (dispatch.info->input_desc()) {
-          instanceDispatch.input_desc = dispatch.info->input_desc()->str();
-        }
-        if (dispatch.info->output_desc()) {
-          instanceDispatch.output_desc = dispatch.info->output_desc()->str();
-        }
-        if (dispatch.info->memory_reads()) {
-          instanceDispatch.memory_reads = dnx::parseUnsignedScalarSource(
-              dispatch.info->memory_reads_type(), dispatch.info->memory_reads(),
-              symbolValues);
-        }
-        if (dispatch.info->memory_writes()) {
-          instanceDispatch.memory_writes = dnx::parseUnsignedScalarSource(
-              dispatch.info->memory_writes_type(),
-              dispatch.info->memory_writes(), symbolValues);
-        }
-      }
+      ctx->allocDescriptorSets(descriptorPool, descriptorSetLayouts,
+                               instanceDispatch.descriptorSets.data());
+
+      instanceDispatch.workgroupCountX =
+          static_cast<uint32_t>(symeval[dispatch.workgroupCountX]);
+      instanceDispatch.workgroupCountY =
+          static_cast<uint32_t>(symeval[dispatch.workgroupCountY]);
+      instanceDispatch.workgroupCountZ =
+          static_cast<uint32_t>(symeval[dispatch.workgroupCountZ]);
 
       // Build push constant buffer.
-      std::size_t pushConstantRange =
-          dispatch.dispatch->push_constant()->size();
-      void *pushConstantBuffer = malloc(pushConstantRange);
-      for (std::size_t f = 0;
-           f < dispatch.dispatch->push_constant()->fields()->size(); ++f) {
-        const dnx::PushConstantField *field =
-            dispatch.dispatch->push_constant()->fields()->Get(f);
-        dnx::memcpyPushConstantField(pushConstantBuffer, field, symbolValues);
+      uint16_t pcRange = dispatch.pushConstantRange;
+      instanceDispatch.pc.resize(pcRange);
+      for (const auto &[offset, pc] : dispatch.pushConstants) {
+        int64_t value = symeval[pc.sym()];
+        switch (pc.type().kind()) {
+        case memory::DtypeKind::F16:
+        case memory::DtypeKind::F32:
+        case memory::DtypeKind::F64:
+          diag::not_implemented();
+        case memory::DtypeKind::U32: {
+          uint32_t x = static_cast<uint32_t>(value);
+          std::memcpy(instanceDispatch.pc.data() + offset, &x, 4);
+          break;
+        }
+        case memory::DtypeKind::I32: {
+          int32_t x = static_cast<int32_t>(value);
+          std::memcpy(instanceDispatch.pc.data() + offset, &x, 4);
+          break;
+        }
+        case memory::DtypeKind::U64: {
+          uint64_t x = static_cast<uint64_t>(value);
+          std::memcpy(instanceDispatch.pc.data() + offset, &x, 8);
+          break;
+        }
+        case memory::DtypeKind::I64: {
+          std::memcpy(instanceDispatch.pc.data() + offset, &value, 8);
+          break;
+        }
+        }
       }
-      instanceDispatch.pushConstantValues = pushConstantBuffer;
 
       cmds.emplace_back(instanceDispatch);
     } else {
@@ -337,42 +216,40 @@ create_cmds(runtime::Context *ctx, const runtime::Model *m,
   return cmds;
 }
 
-void update_descriptor_sets(runtime::Context *ctx,
-                            const runtime::Instance *mi) {
-  std::forward_list<VkDescriptorBufferInfo>
-      bufferInfos; // simply holds storage.
+void update_descriptor_sets(const runtime::ModelHandle &model,
+                            const SymIREval &symeval,
+                            memory::span<const runtime::Buffer> buffers,
+                            memory::span<const runtime::InstanceCmd> cmds) {
+  std::forward_list<VkDescriptorBufferInfo> monotone_allocator;
+
   std::vector<VkWriteDescriptorSet> writeInfos;
-  for (std::size_t pc = 0; pc < mi->cmds.size(); ++pc) {
-    const auto &cmd = mi->cmds[pc];
+  for (std::size_t pc = 0; pc < cmds.size(); ++pc) {
+    const auto &cmd = cmds[pc];
     if (std::holds_alternative<runtime::InstanceDispatch>(cmd)) {
       const runtime::InstanceDispatch &dispatch =
           std::get<runtime::InstanceDispatch>(cmd);
-      const runtime::ModelDispatch &modelDispatch = *dispatch.dispatch;
-      const dnx::ComputeDispatch *dnxDispatch = modelDispatch.dispatch;
-      for (std::size_t s = 0; s < dnxDispatch->bindings()->size(); ++s) {
-        const dnx::DescriptorSetBinding *setBinding =
-            dnxDispatch->bindings()->Get(s);
-        for (std::size_t b = 0; b < setBinding->bindings()->size(); ++b) {
-          const dnx::DescriptorBinding *binding =
-              setBinding->bindings()->Get(b);
-          const runtime::InstanceTensor &tensor =
-              mi->tensors[binding->tensor()];
-          const runtime::InstanceBuffer &buffer = mi->buffers[tensor.buffer];
+      const runtime::ModelDispatch &modelDispatch = *dispatch.modelDispatch;
+
+      for (std::size_t s = 0; s < modelDispatch.descriptorSets.size(); ++s) {
+        for (const auto &binding : modelDispatch.descriptorSets[s].bindings) {
+          const runtime::ModelTensor &tensor = model->tensors()[binding.tensor];
+          const uint64_t offset = static_cast<uint64_t>(symeval[tensor.offset]);
+          const uint64_t size = static_cast<uint64_t>(symeval[tensor.size]);
 
           VkWriteDescriptorSet writeInfo;
           writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
           writeInfo.pNext = nullptr;
           writeInfo.dstSet = dispatch.descriptorSets[s];
-          writeInfo.dstBinding = binding->binding();
+          writeInfo.dstBinding = binding.binding;
           writeInfo.dstArrayElement = 0;
           writeInfo.descriptorCount = 1; // array elements.
           writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
           VkDescriptorBufferInfo bufferInfo;
-          bufferInfo.buffer = buffer.buffer.vkbuffer;
-          bufferInfo.offset = tensor.offset;
-          bufferInfo.range = tensor.size;
-          bufferInfos.push_front(bufferInfo);
-          writeInfo.pBufferInfo = &bufferInfos.front();
+          bufferInfo.buffer = buffers[tensor.buffer].vkbuffer,
+          bufferInfo.offset = offset;
+          bufferInfo.range = size;
+          monotone_allocator.push_front(bufferInfo);
+          writeInfo.pBufferInfo = &monotone_allocator.front();
           writeInfo.pImageInfo = nullptr;
           writeInfo.pTexelBufferView = nullptr;
           writeInfos.push_back(writeInfo);
@@ -380,200 +257,368 @@ void update_descriptor_sets(runtime::Context *ctx,
       }
     }
   }
-  ctx->updateDescriptorSets(writeInfos);
+  model->context()->updateDescriptorSets(writeInfos);
 }
 
-int create_runtime_instance(RuntimeContext context, RuntimeModel model,
-                            std::uint64_t width, std::uint64_t height,
-                            std::uint64_t channels, RuntimeInstance *instance) {
-  assert(context);
-  assert(model);
-  runtime::Context *ctx = reinterpret_cast<runtime::Context *>(context);
-  const runtime::Model *m = reinterpret_cast<runtime::Model *>(model);
-  const dnx::Model *dnx = m->dnx;
+runtime::Instance::Instance(const ModelHandle &model,
+                            memory::span<const SymSpec> specs)
+    : m_model(model), m_symeval(model->symir().eval(specs)) {
+  m_buffers = create_buffers(m_model, m_symeval);
+  upload_initalizers(m_model, m_symeval, m_buffers);
+  m_descriptorPool = create_descriptor_pool(m_model);
+  m_cmds = create_cmds(m_model, m_symeval, m_buffers, m_descriptorPool);
+  update_descriptor_sets(m_model, m_symeval, m_buffers, m_cmds);
+}
 
-  std::size_t inputCount = m->dnx->inputs()->size();
-  if (inputCount != 1) {
-    return -1;
+runtime::Instance::~Instance() { release(); }
+
+void runtime::Instance::release() {
+  const auto &ctx = m_model->context();
+  assert(ctx);
+  ctx->destroyDescriptorPool(m_descriptorPool);
+  for (const auto &buffer : m_buffers) {
+    ctx->destroyBuffer(buffer);
   }
+  m_model = nullptr;
+  m_descriptorPool = VK_NULL_HANDLE;
+  m_cmds.clear();
+  m_buffers.clear();
+}
 
-  runtime::Instance *mi = new runtime::Instance(m);
-
-  // 1. Interpret symbolic ir, based on the dynamicExtent specializations.
-  {
-    std::vector<int64_t> variables(dnx->sym_ir()->var_count(), -1);
-    for (int i = 0; i < dnx->inputs()->size(); ++i) {
-      const auto &input = dnx->inputs()->Get(i);
-      if (input->height_type() == dnx::ScalarSource_symbolic) {
-        const dnx::SymRef *symref = input->height_as_symbolic();
-        if (symref->sid() < variables.size()) {
-          variables[symref->sid()] = height;
-        }
-      } else {
-        uint64_t h =
-            dnx::parseUnsignedScalarLiteral(input->height_as_literal());
-        if (h != height) {
-          throw std::invalid_argument(fmt::format(
-              "Got height {}, expected non symbolic height {}", height, h));
-        }
-      }
-      if (input->width_type() == dnx::ScalarSource_symbolic) {
-        const dnx::SymRef *symref = input->width_as_symbolic();
-        if (symref->sid() < variables.size()) {
-          variables[symref->sid()] = width;
-        }
-      } else {
-        uint64_t w = dnx::parseUnsignedScalarLiteral(input->width_as_literal());
-        if (w != width) {
-          throw std::invalid_argument(fmt::format(
-              "Got width {}, expected non symbolic width {}", width, w));
-        }
-      }
-      if (input->channels_type() == dnx::ScalarSource_symbolic) {
-        const dnx::SymRef *symref = input->channels_as_symbolic();
-        if (symref->sid() < variables.size()) {
-          variables[symref->sid()] = channels;
-        }
-        uint64_t c =
-            dnx::parseUnsignedScalarLiteral(input->channels_as_literal());
-        if (c != channels) {
-          throw std::invalid_argument(
-              fmt::format("Got channels {}, expected non symbolic channels {}",
-                          channels, c));
-        }
-      }
+std::shared_ptr<runtime::Instance>
+runtime::Instance::make(const ModelHandle &model,
+                        memory::span<const ValueSpec> specs) {
+  memory::vector<SymSpec> symSpecs;
+  for (const auto &spec : specs) {
+    auto it =
+        std::ranges::find_if(model->valueNames(), [&](const ValueName &vn) {
+          return vn.name == spec.name;
+        });
+    if (it == model->valueNames().end()) {
+      continue;
     }
-    mi->symbolValues = interpret_symir(dnx, variables);
+    if (it->value.isSymbolic()) {
+      symSpecs.emplace_back(it->value.sym(), spec.value);
+    }
   }
-
-  // 2. Collect input & outputs.
-  for (std::size_t i = 0; i < dnx->inputs()->size(); ++i) {
-    mi->inputs.push_back(
-        parse_tensor_info(dnx, dnx->inputs()->Get(i), mi->symbolValues));
-  }
-  for (std::size_t o = 0; o < dnx->outputs()->size(); ++o) {
-    mi->outputs.push_back(
-        parse_tensor_info(dnx, dnx->outputs()->Get(o), mi->symbolValues));
-  }
-
-  // 3. Create buffers and parse tensor views.
-  mi->tensors = create_tensors(m, mi);
-  mi->buffers = create_buffers(ctx, m, mi);
-  upload_initalizers(ctx, mi);
-
-  mi->descriptorPool = create_descriptor_pool(ctx, m);
-
-  mi->cmds = create_cmds(ctx, m, mi);
-
-  update_descriptor_sets(ctx, mi);
-
-  *instance = mi;
-  return 0;
+  return make(model, symSpecs);
 }
 
-int create_runtime_instance_with_resolved_symbols(RuntimeContext context,
-                                                  RuntimeModel model,
-                                                  int dynamicExtentCount,
-                                                  Extent *dynamicExtents,
-                                                  RuntimeInstance *instance) {
-  assert(context);
-  assert(model);
-  runtime::Context *ctx = reinterpret_cast<runtime::Context *>(context);
-  const runtime::Model *m = reinterpret_cast<runtime::Model *>(model);
-  const dnx::Model *dnx = m->dnx;
+void runtime::Instance::infer(void *const *pInputs, void **pOutputs) const {
+  const auto &ctx = m_model->context();
+  const auto inputs = m_model->inputs();
+  const auto outputs = m_model->outputs();
 
-  runtime::Instance *mi = new runtime::Instance(m);
+  memory::vector<runtime::Buffer> inputStages(inputs.size());
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    const runtime::ModelTensor &tensor = m_model->tensors()[inputs[i]];
+    const uint64_t size = static_cast<uint64_t>(m_symeval[tensor.size]);
+    inputStages[i] = ctx->createBuffer(
+        size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+    ctx->copy(inputStages[i].allocation, pInputs[i], size);
+  }
 
-  // 1. Interpret symbolic ir, based on the dynamicExtent specializations.
-  {
-    std::vector<int64_t> variables(dnx->sym_ir()->var_count(), -1);
+  memory::vector<runtime::Buffer> outputStages(outputs.size());
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    const runtime::ModelTensor &tensor = m_model->tensors()[outputs[i]];
+    const uint64_t size = static_cast<uint64_t>(m_symeval[tensor.size]);
 
-    for (uint32_t i = 0; i < dynamicExtentCount; ++i) {
-      const std::string_view name = dynamicExtents[i].name;
-      const uint64_t value = dynamicExtents[i].value;
+    outputStages[i] =
+        ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                          VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+    ctx->copy(outputStages[i].allocation, pOutputs[i], size);
+  }
 
-      bool found = false;
-      for (uint32_t v = 0; v < dnx->value_names()->size(); ++v) {
-        const auto &value_name = dnx->value_names()->Get(v);
-        if (value_name->name()->string_view() == name) {
-          found = true;
+  VkCommandPool cmdPool = ctx->createCommandPool();
+  VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
 
-          if (value_name->value_type() == dnx::ScalarSource_symbolic) {
-            const dnx::SymRef *symref = value_name->value_as_symbolic();
-            variables[symref->sid()] = value;
-          } else {
-            uint64_t v =
-                dnx::parseUnsignedScalarLiteral(value_name->value_as_literal());
-            if (v != value) {
-              throw std::runtime_error(
-                  fmt::format("Model contains value {}, but values mismatched. "
-                              "Expected {}, Got {}.",
-                              name, v, value));
-            }
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_HOST_BIT,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    const runtime::ModelTensor &tensor = m_model->tensors()[inputs[i]];
+    const uint64_t size = static_cast<uint64_t>(m_symeval[tensor.size]);
+    const uint64_t offset = static_cast<uint64_t>(m_symeval[tensor.offset]);
+    ctx->cmdCopy(cmd, m_buffers[tensor.buffer], inputStages[i], size, offset,
+                 0);
+  }
+
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_TRANSFER_WRITE_BIT,
+                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+
+  for (const auto &op : m_cmds) {
+    if (std::holds_alternative<runtime::InstanceDispatch>(op)) {
+      const auto &dispatch = std::get<runtime::InstanceDispatch>(op);
+      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+                        dispatch.modelDispatch->pipeline);
+      vkCmdPushConstants(cmd, dispatch.modelDispatch->pipelineLayout,
+                         VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                         static_cast<uint32_t>(dispatch.pc.size()),
+                         dispatch.pc.data());
+      vkCmdBindDescriptorSets(
+          cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+          dispatch.modelDispatch->pipelineLayout, 0,
+          static_cast<uint32_t>(dispatch.descriptorSets.size()),
+          dispatch.descriptorSets.data(), 0, nullptr);
+      vkCmdDispatch(cmd, dispatch.workgroupCountX, dispatch.workgroupCountY,
+                    dispatch.workgroupCountZ);
+    } else if (std::holds_alternative<runtime::InstanceBarrier>(op)) {
+      const auto &barrier = std::get<runtime::InstanceBarrier>(op);
+      vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
+                           static_cast<uint32_t>(barrier.bufferBarrier.size()),
+                           barrier.bufferBarrier.data(), 0, nullptr);
+    }
+  }
+
+  ctx->cmdMemoryBarrier(
+      cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    const runtime::ModelTensor &tensor = m_model->tensors()[outputs[i]];
+    const uint64_t size = static_cast<uint64_t>(m_symeval[tensor.size]);
+    const uint64_t offset = static_cast<uint64_t>(m_symeval[tensor.offset]);
+    ctx->cmdCopy(cmd, outputStages[i], m_buffers[tensor.buffer], size, 0,
+                 offset);
+  }
+
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_HOST_BIT,
+                        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+
+  ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
+  ctx->destroyCommandPool(cmdPool);
+
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    const runtime::ModelTensor &tensor = m_model->tensors()[outputs[i]];
+    const uint64_t size = static_cast<uint64_t>(m_symeval[tensor.size]);
+    const uint64_t offset = static_cast<uint64_t>(m_symeval[tensor.offset]);
+    ctx->copy(pOutputs[i], outputStages[i].allocation, size, offset);
+  }
+
+  for (const auto &b : inputStages) {
+    ctx->destroyBuffer(b);
+  }
+  for (const auto &b : outputStages) {
+    ctx->destroyBuffer(b);
+  }
+}
+
+runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
+  const auto &ctx = m_model->context();
+
+  const uint32_t queryCount = static_cast<uint32_t>(m_cmds.size()) * 2 + 1;
+  VkQueryPool queryPool = ctx->createTimestampQueryPool(queryCount);
+
+  VkCommandPool cmdPool = ctx->createCommandPool();
+  VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
+
+  ctx->cmdResetQueryPool(cmd, queryPool, 0, queryCount);
+
+  struct Timing {
+    memory::string input_desc;
+    memory::string output_desc;
+    memory::string name;
+    uint32_t start;
+    uint32_t end;
+    uint64_t memoryReads;
+    uint64_t memoryWrites;
+  };
+
+  memory::vector<Timing> timings;
+  uint32_t previousTimestamp = 0;
+  ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
+                         previousTimestamp);
+
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_SHADER_READ_BIT,
+                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+
+  for (const auto &op : m_cmds) {
+    if (std::holds_alternative<runtime::InstanceDispatch>(op)) {
+      const auto &dispatch = std::get<runtime::InstanceDispatch>(op);
+      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+                        dispatch.modelDispatch->pipeline);
+      vkCmdPushConstants(cmd, dispatch.modelDispatch->pipelineLayout,
+                         VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                         static_cast<uint32_t>(dispatch.pc.size()),
+                         dispatch.pc.data());
+      vkCmdBindDescriptorSets(
+          cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+          dispatch.modelDispatch->pipelineLayout, 0,
+          static_cast<uint32_t>(dispatch.descriptorSets.size()),
+          dispatch.descriptorSets.data(), 0, nullptr);
+      vkCmdDispatch(cmd, dispatch.workgroupCountX, dispatch.workgroupCountY,
+                    dispatch.workgroupCountZ);
+      uint32_t start = previousTimestamp;
+      uint32_t end = ++previousTimestamp;
+      ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
+                             end);
+
+      memory::vector<uint32_t> inputs;
+      memory::vector<uint32_t> outputs;
+      for (const auto &set : dispatch.modelDispatch->descriptorSets) {
+        for (const auto &binding : set.bindings) {
+          const auto &tensor = m_model->tensors()[binding.tensor];
+          if (tensor.isParam) {
+            continue;
           }
-          break;
+          if (binding.access == Access::ReadOnly ||
+              binding.access == Access::ReadWrite) {
+            inputs.push_back(binding.tensor);
+          }
+          if (binding.access == Access::WriteOnly ||
+              binding.access == Access::ReadWrite) {
+            outputs.push_back(binding.tensor);
+          }
         }
       }
-      if (!found) {
-        throw std::runtime_error(
-            fmt::format("Model does not contain a dynamic extent {}.", name));
+
+      const auto format_tensor = [](const runtime::ModelTensor &tensor,
+                                    const SymIREval &symeval) {
+        memory::string chan;
+        if (tensor.channels.has_value()) {
+          chan = fmt::format("{}", symeval[*tensor.channels]);
+        } else {
+          chan = "?";
+        }
+
+        if (tensor.format.has_value()) {
+          return fmt::format("{}[{}]", *tensor.format, chan);
+        } else {
+          return fmt::format("UNI[{}]", chan);
+        }
+      };
+
+      memory::string input_desc;
+      if (inputs.size() == 1) {
+        input_desc =
+            format_tensor(m_model->tensors()[inputs.front()], m_symeval);
+      } else {
+        input_desc = "{";
+        for (uint32_t i = 0; i < inputs.size(); ++i) {
+          if (i != 0) {
+            input_desc.push_back(',');
+          }
+          input_desc += format_tensor(m_model->tensors()[inputs[i]], m_symeval);
+        }
+        input_desc.push_back('}');
       }
+
+      memory::string output_desc;
+
+      if (outputs.size() == 1) {
+        output_desc =
+            format_tensor(m_model->tensors()[outputs.front()], m_symeval);
+      } else {
+        output_desc = "{";
+        for (uint32_t i = 0; i < outputs.size(); ++i) {
+          if (i != 0) {
+            output_desc.push_back(',');
+          }
+          output_desc +=
+              format_tensor(m_model->tensors()[outputs[i]], m_symeval);
+        }
+        output_desc.push_back('}');
+      }
+
+      size_t memoryReads = 0;
+      size_t memoryWrites = 0;
+      if (dispatch.modelDispatch->memoryReads) {
+        memoryReads = static_cast<uint64_t>(
+            m_symeval[*dispatch.modelDispatch->memoryReads]);
+      }
+      if (dispatch.modelDispatch->memoryWrites) {
+        memoryWrites = static_cast<uint64_t>(
+            m_symeval[*dispatch.modelDispatch->memoryWrites]);
+      }
+
+      timings.push_back(Timing{
+          .input_desc = input_desc,
+          .output_desc = output_desc,
+          .name = dispatch.modelDispatch->name.value_or("unnamed"),
+          .start = start,
+          .end = end,
+          .memoryReads = memoryReads,
+          .memoryWrites = memoryWrites,
+      });
+    } else if (std::holds_alternative<runtime::InstanceBarrier>(op)) {
+      const auto &barrier = std::get<runtime::InstanceBarrier>(op);
+      vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
+                           static_cast<uint32_t>(barrier.bufferBarrier.size()),
+                           barrier.bufferBarrier.data(), 0, nullptr);
     }
-
-    mi->symbolValues = interpret_symir(dnx, variables);
   }
 
-  // 2. Collect input & outputs.
-  for (std::size_t i = 0; i < dnx->inputs()->size(); ++i) {
-    mi->inputs.push_back(
-        parse_tensor_info(dnx, dnx->inputs()->Get(i), mi->symbolValues));
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_SHADER_READ_BIT,
+                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+
+  ++previousTimestamp;
+  ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,
+                         previousTimestamp);
+
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_HOST_BIT,
+                        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+  ++previousTimestamp;
+
+  ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
+  ctx->destroyCommandPool(cmdPool);
+  memory::vector<uint64_t> timestamps =
+      ctx->getQueryResults(queryPool, previousTimestamp);
+
+  ctx->destroyQueryPool(queryPool);
+
+  memory::vector<InstanceBenchmarkResult::Timing> out(timings.size());
+  for (size_t i = 0; i < timings.size(); ++i) {
+    const auto &t = timings[i];
+
+    out[i].name = t.name;
+    out[i].input = t.input_desc;
+    out[i].output = t.output_desc;
+    out[i].memoryWrites = t.memoryWrites;
+    out[i].memoryReads = t.memoryReads;
+    float duration = ctx->timestampDifference(timestamps, t.start, t.end);
+    out[i].latency = std::chrono::duration<float, std::milli>{duration};
   }
-  for (std::size_t o = 0; o < dnx->outputs()->size(); ++o) {
-    mi->outputs.push_back(
-        parse_tensor_info(dnx, dnx->outputs()->Get(o), mi->symbolValues));
-  }
-
-  // 3. Create buffers and parse tensor views.
-  mi->tensors = create_tensors(m, mi);
-  mi->buffers = create_buffers(ctx, m, mi);
-  upload_initalizers(ctx, mi);
-
-  mi->descriptorPool = create_descriptor_pool(ctx, m);
-
-  mi->cmds = create_cmds(ctx, m, mi);
-
-  update_descriptor_sets(ctx, mi);
-
-  *instance = mi;
-  return 0;
+  return InstanceBenchmarkResult{.timings = std::move(out)};
 }
 
-void destroy_runtime_instance(RuntimeContext context,
-                              RuntimeInstance instance) {
-
-  assert(context);
-  assert(instance);
-  runtime::Context *ctx = static_cast<runtime::Context *>(context);
-  runtime::Instance *mi = static_cast<runtime::Instance *>(instance);
-
-  for (std::size_t d = 0; d < mi->cmds.size(); ++d) {
-    const auto &cmd = mi->cmds[d];
-    if (std::holds_alternative<runtime::InstanceDispatch>(cmd)) {
-      const auto &dispatch = std::get<runtime::InstanceDispatch>(cmd);
-      std::size_t setCount = dispatch.dispatch->descriptorSets.size();
-      delete[] dispatch.descriptorSets;
-      delete[] dispatch.workgroupCounts;
-      free(dispatch.pushConstantValues);
-    }
+memory::string runtime::InstanceBenchmarkResult::report() const {
+  memory::string out;
+  uint64_t totalAccesses = 0;
+  float totalDuration = 0;
+  for (const auto &t : timings) {
+    auto s = fmt::format("{:.3f}", t.latency.count());
+    auto pos = s.find('.');
+    auto int_part = s.substr(0, pos);
+    auto frac_part = s.substr(pos + 1);
+    totalDuration += t.latency.count();
+    uint64_t accesses = t.memoryReads + t.memoryWrites;
+    totalAccesses += accesses;
+    float throughput =
+        (static_cast<float>(accesses) / (t.latency.count() * 1e-3f)) * 1e-9f;
+    fmt::println("{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
+                 "\x1B[90m({:>4} GB/s)\x1B[0m    {:.3f}MB",
+                 t.input, t.name, t.output, int_part, frac_part,
+                 static_cast<uint32_t>(std::round(throughput)),
+                 static_cast<float>(accesses) * 1e-6f);
   }
 
-  ctx->destroyDescriptorPool(mi->descriptorPool);
-
-  for (std::size_t b = 0; b < mi->buffers.size(); ++b) {
-    ctx->destroyBuffer(mi->buffers[b].buffer);
-  }
-
-  delete mi;
+  fmt::println("\x1B[31m{:>89} {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
+               "Total time :", totalDuration,
+               std::round((static_cast<float>(totalAccesses) / (totalDuration * 1e-3f)) *
+                   1e-9f));
+  return out;
 }
 
 } // namespace denox

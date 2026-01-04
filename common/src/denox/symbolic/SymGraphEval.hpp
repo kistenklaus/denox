@@ -5,7 +5,7 @@
 #include "denox/symbolic/Sym.hpp"
 #include "denox/symbolic/ssym.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 class Symbolic;
 

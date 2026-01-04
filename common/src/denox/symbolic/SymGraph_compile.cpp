@@ -13,7 +13,7 @@
 #include <map>
 #include <utility>
 
-namespace denox::compiler {
+namespace denox {
 
 std::pair<SymIR, SymRemap>
 SymGraph::compile(memory::span<const symbol> symbols) const {

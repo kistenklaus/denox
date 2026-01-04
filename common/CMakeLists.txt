@@ -29,6 +29,7 @@ add_library(denox_common EXCLUDE_FROM_ALL
   src/denox/symbolic/SymGraph_nonaffine_symbol_cache.cpp
   src/denox/symbolic/SymGraph_sub_entry.cpp
   src/denox/symbolic/SymGraphEval.cpp
+  src/denox/symbolic/SymIR.cpp
 )
 
 target_include_directories(denox_common

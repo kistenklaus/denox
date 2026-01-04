@@ -1,7 +1,9 @@
 #pragma once
 
 #include "denox/compiler/frontend/onnx/details/ImportState.hpp"
+
 namespace onnx {
+
 class NodeProto;
 }
 

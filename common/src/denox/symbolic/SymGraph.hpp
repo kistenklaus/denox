@@ -20,7 +20,7 @@
 #include "denox/symbolic/SymIR.hpp"
 #include "denox/symbolic/SymRemap.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 class SymGraph {
 private:

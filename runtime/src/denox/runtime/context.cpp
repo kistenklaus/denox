@@ -916,8 +916,7 @@ VkDescriptorSet Context::allocDescriptorSet(VkDescriptorPool pool,
 void Context::allocDescriptorSets(
     VkDescriptorPool pool, memory::span<const VkDescriptorSetLayout> layouts,
     VkDescriptorSet *sets) {
-  VkDescriptorSetAllocateInfo allocInfo;
-  std::memset(&allocInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
+  VkDescriptorSetAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   allocInfo.descriptorPool = pool;
   allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
@@ -938,8 +937,8 @@ void Context::copy(VmaAllocation dst, const void *src, size_t size) {
     throw std::runtime_error("Failed to copy memory to allocation.");
   }
 }
-void Context::copy(void *dst, VmaAllocation src, size_t size) {
-  VkResult result = vmaCopyAllocationToMemory(m_vma, src, 0, dst, size);
+void Context::copy(void *dst, VmaAllocation src, size_t size, size_t offset) {
+  VkResult result = vmaCopyAllocationToMemory(m_vma, src, offset, dst, size);
   if (result != VK_SUCCESS) {
     throw std::runtime_error("Failed to copy memory from allocation.");
   }

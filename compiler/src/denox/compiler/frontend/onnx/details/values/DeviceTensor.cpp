@@ -15,19 +15,19 @@ TensorShape DeviceTensor::shape() const {
   const auto &g = w.graph();
   assert(g);
   assert(g == h.graph());
-  memory::vector<compiler::Symbolic> dims;
+  memory::vector<Symbolic> dims;
   dims.reserve(m_rank);
   if (m_rank == 4) {
     // NCHW
-    dims.push_back(compiler::Symbolic{g, Sym::Const(1)});
+    dims.push_back(Symbolic{g, Sym::Const(1)});
   }
-  dims.push_back(compiler::Symbolic{g, m_handle.channels()});
+  dims.push_back(Symbolic{g, m_handle.channels()});
   dims.push_back(h);
   dims.push_back(w);
   return TensorShape{g, std::move(dims)};
 }
 
-const compiler::SymGraph *DeviceTensor::graph() const {
+const SymGraph *DeviceTensor::graph() const {
   assert(m_handle.width().graph());
   assert(m_handle.width().graph() == m_handle.height().graph());
   return m_handle.width().graph();

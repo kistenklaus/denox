@@ -4,8 +4,7 @@
 
 namespace denox::onnx::details {
 
-TensorShape::TensorShape(compiler::SymGraph *g,
-                         memory::vector<compiler::Symbolic> dims)
+TensorShape::TensorShape(SymGraph *g, memory::vector<Symbolic> dims)
     : m_graph(std::move(g)), m_dims(std::move(dims)) {
   for (const auto &d : m_dims) {
     if (d.isConstant()) {
@@ -15,12 +14,11 @@ TensorShape::TensorShape(compiler::SymGraph *g,
     }
   }
 }
-TensorShape::TensorShape(compiler::SymGraph *g,
-                         memory::span<const Sym> dims)
+TensorShape::TensorShape(SymGraph *g, memory::span<const Sym> dims)
     : m_graph(g) {
   m_dims.reserve(dims.size());
   for (std::size_t i = 0; i < dims.size(); ++i) {
-    compiler::Symbolic s{m_graph, dims[i]};
+    Symbolic s{m_graph, dims[i]};
     if (s.isConstant()) {
       assert(s.constant() >= 0);
     } else {
@@ -29,17 +27,15 @@ TensorShape::TensorShape(compiler::SymGraph *g,
     m_dims.emplace_back(std::move(s));
   }
 }
-TensorShape::TensorShape(compiler::SymGraph *g,
-                         memory::span<const std::uint64_t> dims)
+TensorShape::TensorShape(SymGraph *g, memory::span<const std::uint64_t> dims)
     : m_graph(g) {
   m_dims.reserve(dims.size());
   for (std::size_t i = 0; i < dims.size(); ++i) {
-    m_dims.emplace_back(
-        m_graph, Sym::Const(static_cast<std::int64_t>(dims[i])));
+    m_dims.emplace_back(m_graph,
+                        Sym::Const(static_cast<std::int64_t>(dims[i])));
   }
 }
-TensorShape::TensorShape(compiler::SymGraph *g,
-                         memory::span<const std::int64_t> dims)
+TensorShape::TensorShape(SymGraph *g, memory::span<const std::int64_t> dims)
     : m_graph(g) {
   m_dims.reserve(dims.size());
   for (std::size_t i = 0; i < dims.size(); ++i) {
@@ -47,9 +43,7 @@ TensorShape::TensorShape(compiler::SymGraph *g,
     m_dims.emplace_back(m_graph, Sym::Const(dims[i]));
   }
 }
-memory::span<const compiler::Symbolic> TensorShape::dims() const {
-  return m_dims;
-}
+memory::span<const Symbolic> TensorShape::dims() const { return m_dims; }
 
 bool TensorShape::isConstant() const {
   for (const auto &d : m_dims)
@@ -63,12 +57,12 @@ bool TensorShape::hasZeroDim() const {
       return true;
   return false;
 }
-compiler::Symbolic TensorShape::numel() const {
-  compiler::Symbolic one{m_graph, Sym::Const(1)};
-  compiler::Symbolic n = one;
+Symbolic TensorShape::numel() const {
+  Symbolic one{m_graph, Sym::Const(1)};
+  Symbolic n = one;
   for (const auto &d : m_dims) {
     if (d.isConstant() && d.constant() == 0)
-      return compiler::Symbolic{m_graph, Sym::Const(0)};
+      return Symbolic{m_graph, Sym::Const(0)};
     n = n * d;
   }
   return n;
@@ -86,7 +80,7 @@ memory::vector<std::uint64_t> TensorShape::toU64() const {
 TensorShape TensorShape::permute(memory::span<const std::int64_t> perm) const {
   assert(perm.size() == m_dims.size());
   assert(isPermutation(perm, m_dims.size()));
-  memory::vector<compiler::Symbolic> v(perm.size());
+  memory::vector<Symbolic> v(perm.size());
   for (size_t i = 0; i < perm.size(); ++i) {
     const size_t p = static_cast<size_t>(perm[i]);
     v[i] = m_dims[p];
@@ -95,19 +89,17 @@ TensorShape TensorShape::permute(memory::span<const std::int64_t> perm) const {
 }
 TensorShape TensorShape::unsqueeze(std::size_t axis) const {
   assert(axis <= m_dims.size());
-  memory::vector<compiler::Symbolic> v = m_dims;
+  memory::vector<Symbolic> v = m_dims;
   v.insert(v.begin() +
-               static_cast<memory::vector<compiler::Symbolic>::difference_type>(
-                   axis),
-           compiler::Symbolic{m_graph, Sym::Const(1)});
+               static_cast<memory::vector<Symbolic>::difference_type>(axis),
+           Symbolic{m_graph, Sym::Const(1)});
   return TensorShape{m_graph, std::move(v)};
 }
 TensorShape TensorShape::squeeze(std::size_t axis) const {
   assert(axis < m_dims.size());
-  memory::vector<compiler::Symbolic> v = m_dims;
-  v.erase(
-      v.begin() +
-      static_cast<memory::vector<compiler::Symbolic>::difference_type>(axis));
+  memory::vector<Symbolic> v = m_dims;
+  v.erase(v.begin() +
+          static_cast<memory::vector<Symbolic>::difference_type>(axis));
   return TensorShape{m_graph, std::move(v)};
 }
 TensorShape TensorShape::broadcast(const TensorShape &a, const TensorShape &b) {
@@ -118,18 +110,15 @@ TensorShape TensorShape::broadcast(const TensorShape &a, const TensorShape &b) {
 
   const size_t ra = a.rank(), rb = b.rank();
   const size_t r = (ra > rb ? ra : rb);
-  memory::vector<compiler::Symbolic> out(
-      r, compiler::Symbolic{g, Sym::Const(1)});
+  memory::vector<Symbolic> out(r, Symbolic{g, Sym::Const(1)});
 
   for (size_t i = 0; i < r; ++i) {
     const bool haveA = (i < ra);
     const bool haveB = (i < rb);
-    const compiler::Symbolic da =
-        haveA ? a.m_dims[ra - 1 - i]
-              : compiler::Symbolic{g, Sym::Const(1)};
-    const compiler::Symbolic db =
-        haveB ? b.m_dims[rb - 1 - i]
-              : compiler::Symbolic{g, Sym::Const(1)};
+    const Symbolic da =
+        haveA ? a.m_dims[ra - 1 - i] : Symbolic{g, Sym::Const(1)};
+    const Symbolic db =
+        haveB ? b.m_dims[rb - 1 - i] : Symbolic{g, Sym::Const(1)};
 
     if (da.isConstant() && da.constant() == 1) {
       out[r - 1 - i] = db;
@@ -144,7 +133,7 @@ TensorShape TensorShape::broadcast(const TensorShape &a, const TensorShape &b) {
   }
   return TensorShape{g, std::move(out)};
 }
-const compiler::Symbolic &TensorShape::operator[](std::size_t i) const {
+const Symbolic &TensorShape::operator[](std::size_t i) const {
   return m_dims[i];
 }
 bool TensorShape::isPermutation(memory::span<const std::int64_t> p,
@@ -165,10 +154,10 @@ bool TensorShape::isPermutation(memory::span<const std::int64_t> p,
 }
 
 TensorShape TensorShape::parse(const ::onnx::TensorShapeProto &shp,
-                               compiler::SymGraph *symGraph,
+                               SymGraph *symGraph,
                                std::string_view tensorName) {
 
-  memory::vector<compiler::Symbolic> dims;
+  memory::vector<Symbolic> dims;
   dims.reserve(static_cast<std::size_t>(shp.dim_size()));
   auto g = symGraph;
   if (!g)

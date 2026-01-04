@@ -4,7 +4,7 @@
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/dce/dce.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
-#include "denox/compiler/implement/PushConstant.hpp"
+#include "denox/common/PushConstant.hpp"
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/Lifetimes.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
@@ -77,7 +77,7 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
   }
 
   // Evaluate symbols to their assumed values!
-  compiler::SymGraphEval symeval = compiler::assumed_symeval(
+  SymGraphEval symeval = compiler::assumed_symeval(
       supergraph.symGraph, model.valueNames(), options);
 
   // Register all dispatches in the database

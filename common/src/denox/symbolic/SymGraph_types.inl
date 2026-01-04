@@ -5,7 +5,7 @@
 #include "denox/symbolic/Sym.hpp"
 #include <cstdint>
 
-namespace denox::compiler::symbolic::details {
+namespace denox::symbolic::details {
 
 using symbol = Sym::symbol;
 using value_type = Sym::value_type;

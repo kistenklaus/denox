@@ -121,7 +121,7 @@ gather([[maybe_unused]] ImportState &state,
   const auto idxDims = idxDimsU64;
 
   // Output shape = replace data[axis] with indices.shape
-  memory::vector<compiler::Symbolic> outSyms;
+  memory::vector<Symbolic> outSyms;
   outSyms.reserve(dataDims.size() - 1 + idxDims.size());
   {
     const auto g = data.shape().graph();

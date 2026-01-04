@@ -1,7 +1,7 @@
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/memory/container/small_vector.hpp"
 
-denox::compiler::SymGraphEval
+denox::SymGraphEval
 denox::compiler::assumed_symeval(const SymGraph &symGraph,
                                  memory::span<const NamedValue> valueNames,
                                  const CompileOptions &options) {

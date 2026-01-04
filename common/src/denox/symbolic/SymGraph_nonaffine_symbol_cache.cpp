@@ -1,6 +1,6 @@
 #include "denox/symbolic/SymGraph.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 SymGraph::symbol
 SymGraph::require_nonaffine_sym(const NonAffineExpr &nonaffine) {

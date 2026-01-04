@@ -4,23 +4,19 @@
 #include "denox/common/TensorDataType.hpp"
 #include "denox/compiler/compile_shaders/SpvDispatch.hpp"
 #include "denox/compiler/placement/TensorInitalizer.hpp"
-#include "denox/device_info/query/query_resource_limits.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/diag/unreachable.hpp"
-#include "denox/memory/dtype/f16.hpp"
-#include "denox/memory/dtype/f32.hpp"
-#include "denox/memory/dtype/f64.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include "flatbuffers/flatbuffer_builder.h"
 #include "flatbuffers/vector.h"
-#include <concepts>
 #include <dnx.h>
 #include <limits>
 
 namespace denox::compiler {
 
-static denox::dnx::Version serialize_version([[maybe_unused]] unsigned int version) {
+static denox::dnx::Version
+serialize_version([[maybe_unused]] unsigned int version) {
   return denox::dnx::Version_DNX_VERSION_1_0;
 }
 
@@ -239,7 +235,7 @@ serialize_tensor(flatbuffers::FlatBufferBuilder &fbb,
   auto [offset_type, offset] =
       serialize_scalar(fbb, tensor.offset, memory::Dtype::U32);
   auto [size_type, size] =
-      serialize_scalar(fbb, tensor.offset, memory::Dtype::U32);
+      serialize_scalar(fbb, tensor.size, memory::Dtype::U32);
   auto info = serialize_tensor_info(fbb, tensor.info);
   return dnx::CreateTensor(fbb,
                            static_cast<uint32_t>(tensor.buffer), //
@@ -314,7 +310,8 @@ static flatbuffers::Offset<
     flatbuffers::Vector<flatbuffers::Offset<denox::dnx::Buffer>>>
 serialize_buffers(flatbuffers::FlatBufferBuilder &fbb,
                   const memory::span<const Buffer> buffers) {
-  memory::vector<flatbuffers::Offset<denox::dnx::Buffer>> offsets(buffers.size());
+  memory::vector<flatbuffers::Offset<denox::dnx::Buffer>> offsets(
+      buffers.size());
   for (size_t b = 0; b < buffers.size(); ++b) {
     offsets[b] = serialize_buffer(fbb, buffers[b]);
   }
@@ -492,46 +489,46 @@ static denox::dnx::SymIROpCode serialize_symir_opcode(const SymIROpCode code) {
   switch (code) {
   case SymIROpCode::Add_SS:
     return denox::dnx::SymIROpCode_ADD;
-  case compiler::SymIROpCode::Add_SC:
+  case SymIROpCode::Add_SC:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_ADD |
                                          denox::dnx::SymIROpCode_RHSC);
-  case compiler::SymIROpCode::Sub_SS:
+  case SymIROpCode::Sub_SS:
     return denox::dnx::SymIROpCode_SUB;
-  case compiler::SymIROpCode::Sub_SC:
+  case SymIROpCode::Sub_SC:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_SUB |
                                          denox::dnx::SymIROpCode_RHSC);
-  case compiler::SymIROpCode::Sub_CS:
+  case SymIROpCode::Sub_CS:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_SUB |
                                          denox::dnx::SymIROpCode_LHSC);
-  case compiler::SymIROpCode::Mul_SS:
+  case SymIROpCode::Mul_SS:
     return denox::dnx::SymIROpCode_MUL;
-  case compiler::SymIROpCode::Mul_SC:
+  case SymIROpCode::Mul_SC:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MUL |
                                          denox::dnx::SymIROpCode_RHSC);
-  case compiler::SymIROpCode::Div_SS:
+  case SymIROpCode::Div_SS:
     return denox::dnx::SymIROpCode_DIV;
-  case compiler::SymIROpCode::Div_SC:
+  case SymIROpCode::Div_SC:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_DIV |
                                          denox::dnx::SymIROpCode_RHSC);
-  case compiler::SymIROpCode::Div_CS:
+  case SymIROpCode::Div_CS:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_DIV |
                                          denox::dnx::SymIROpCode_LHSC);
-  case compiler::SymIROpCode::Mod_SS:
+  case SymIROpCode::Mod_SS:
     return denox::dnx::SymIROpCode_MOD;
-  case compiler::SymIROpCode::Mod_SC:
+  case SymIROpCode::Mod_SC:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MOD |
                                          denox::dnx::SymIROpCode_RHSC);
-  case compiler::SymIROpCode::Mod_CS:
+  case SymIROpCode::Mod_CS:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MOD |
                                          denox::dnx::SymIROpCode_LHSC);
-  case compiler::SymIROpCode::Min_SS:
+  case SymIROpCode::Min_SS:
     return denox::dnx::SymIROpCode_MIN;
-  case compiler::SymIROpCode::Min_SC:
+  case SymIROpCode::Min_SC:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MIN |
                                          denox::dnx::SymIROpCode_RHSC);
-  case compiler::SymIROpCode::Max_SS:
+  case SymIROpCode::Max_SS:
     return denox::dnx::SymIROpCode_MAX;
-  case compiler::SymIROpCode::Max_SC:
+  case SymIROpCode::Max_SC:
     return static_cast<dnx::SymIROpCode>(denox::dnx::SymIROpCode_MAX |
                                          denox::dnx::SymIROpCode_RHSC);
   default:

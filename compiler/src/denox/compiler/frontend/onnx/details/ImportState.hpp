@@ -17,7 +17,7 @@ struct SymbolName {
 
 struct ImportState {
   denox::io::Path externalDir;
-  compiler::SymGraph *symGraph;
+  SymGraph *symGraph;
   compiler::Model output;
 
   std::int64_t ir_version;

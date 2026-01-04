@@ -172,7 +172,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   }
   outU64[A] = sumAlongA;
 
-  memory::vector<compiler::Symbolic> outSyms;
+  memory::vector<Symbolic> outSyms;
   outSyms.reserve(R);
   for (std::size_t ax = 0; ax < R; ++ax)
     outSyms.emplace_back(

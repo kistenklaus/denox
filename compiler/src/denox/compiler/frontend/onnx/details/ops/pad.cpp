@@ -337,9 +337,9 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   // Build out shape
   auto g = hin.shape().graph();
-  memory::vector<compiler::Symbolic> outSyms(r);
+  memory::vector<Symbolic> outSyms(r);
   for (size_t ax = 0; ax < r; ++ax)
-    outSyms[ax] = compiler::Symbolic{
+    outSyms[ax] = Symbolic{
         g, Sym::Const(static_cast<std::int64_t>(outDims[ax]))};
   TensorShape outShape{g, std::move(outSyms)};
 

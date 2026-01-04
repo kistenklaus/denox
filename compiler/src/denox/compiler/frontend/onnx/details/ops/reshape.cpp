@@ -186,7 +186,7 @@ reshape([[maybe_unused]] ImportState &state,
   }
 
   // Build TensorShape from targetDims (all constants now)
-  memory::vector<compiler::Symbolic> outSyms;
+  memory::vector<Symbolic> outSyms;
   outSyms.reserve(targetDims.size());
   const auto g = data.shape().graph();
   for (auto d : targetDims) {

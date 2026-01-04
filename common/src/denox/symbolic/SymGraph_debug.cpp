@@ -4,7 +4,7 @@
 #include <fmt/format.h>
 #include <stdexcept>
 
-namespace denox::compiler {
+namespace denox {
 
 void SymGraph::debugDump() const {
 

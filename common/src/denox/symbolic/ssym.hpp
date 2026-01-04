@@ -3,7 +3,7 @@
 #include "denox/symbolic/Sym.hpp"
 #include <cassert>
 
-namespace denox::compiler {
+namespace denox {
 
 struct sym {
 private:

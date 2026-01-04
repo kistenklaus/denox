@@ -3,7 +3,8 @@
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"
 #include "denox/symbolic/Sym.hpp"
-namespace denox::compiler {
+
+namespace denox {
 class SymGraph;
 
 class SymRemap {

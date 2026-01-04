@@ -1,7 +1,7 @@
 #include "denox/symbolic/SymGraph.hpp"
 #include "denox/memory/container/optional.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 SymGraph::symbol SymGraph::next_sym() {
   Expr expr;

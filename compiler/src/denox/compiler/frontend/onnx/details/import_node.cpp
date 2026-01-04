@@ -1,7 +1,6 @@
 #include "denox/compiler/frontend/onnx/details/import_node.hpp"
 #include "denox/compiler/frontend/onnx/details/ops/ops.hpp"
 #include "denox/compiler/frontend/onnx/details/values/Attribute.hpp"
-#include "denox/diag/unreachable.hpp"
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {

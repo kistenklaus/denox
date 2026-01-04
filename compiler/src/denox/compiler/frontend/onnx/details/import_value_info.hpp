@@ -5,6 +5,7 @@
 #include <fmt/format.h>
 
 namespace onnx {
+
 class ValueInfoProto;
 }
 

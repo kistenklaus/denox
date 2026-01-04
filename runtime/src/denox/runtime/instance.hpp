@@ -1,22 +1,23 @@
 #pragma once
 
 #include "context.hpp"
+#include "denox/common/ValueSpec.hpp"
+#include "denox/memory/tensor/ActivationTensor.hpp"
+#include "denox/symbolic/SymGraphEval.hpp"
 #include "model.hpp"
+#include <algorithm>
 #include <vector>
 
 namespace denox::runtime {
 
 struct InstanceDispatch {
-  const ModelDispatch *dispatch;
-  VkDescriptorSet *descriptorSets;
-  void *pushConstantValues;
-  std::uint32_t *workgroupCounts;
-  std::optional<std::string> debug_info;
-  std::optional<std::string> name;
-  std::optional<std::string> input_desc;
-  std::optional<std::string> output_desc;
-  std::optional<uint64_t> memory_reads;
-  std::optional<uint64_t> memory_writes;
+  const ModelDispatch *modelDispatch;
+  memory::vector<VkDescriptorSet> descriptorSets;
+  memory::vector<std::byte> pc;
+
+  uint32_t workgroupCountX;
+  uint32_t workgroupCountY;
+  uint32_t workgroupCountZ;
 };
 
 struct InstanceBarrier {
@@ -25,45 +26,55 @@ struct InstanceBarrier {
 
 using InstanceCmd = std::variant<InstanceBarrier, InstanceDispatch>;
 
-struct InstanceTensor {
-  std::uint64_t size;
-  std::uint64_t offset;
-  std::uint32_t buffer;
-};
+struct InstanceBenchmarkResult {
+  struct Timing {
+    memory::string name;
+    memory::string input;
+    memory::string output;
+    uint64_t memoryReads;
+    uint64_t memoryWrites;
+    std::chrono::duration<float, std::milli> latency;
+  };
+  memory::vector<Timing> timings;
 
-struct InstanceBuffer {
-  runtime::Buffer buffer;
-  std::uint64_t size;
-};
-
-struct InstanceTensorInfo {
-  const char *name;
-  std::uint32_t tensor;
-  ValueSpec width;
-  ValueSpec height;
-  ValueSpec channels;
+  memory::string report() const;
 };
 
 class Instance {
 public:
-
-  Instance(const ContextHandle context, 
-      const ModelHandle& model) {
-    
+  static std::shared_ptr<Instance>
+  make(const ModelHandle &model, std::initializer_list<ValueSpec> specs) {
+    return make(model, std::span{specs.begin(), specs.end()});
   }
 
-  Instance();
+  static std::shared_ptr<Instance> make(const ModelHandle &model,
+                                        memory::span<const ValueSpec> specs);
+
+  static std::shared_ptr<Instance> make(const ModelHandle &model,
+                                        memory::span<const SymSpec> specs) {
+    return std::shared_ptr<Instance>(new Instance(model, specs));
+  }
+
+  void infer(void *const *inputs, void **outputs) const;
+
+  InstanceBenchmarkResult bench() const;
+
   ~Instance();
+  Instance(const Instance &) = delete;
+  Instance &operator=(const Instance &) = delete;
+  Instance(Instance &&) = delete;
+  Instance &operator=(Instance &&) = delete;
+
+  void release();
 
 private:
-  const Model *model;
-  std::vector<std::int64_t> symbolValues;
-  std::vector<InstanceTensorInfo> inputs;
-  std::vector<InstanceTensorInfo> outputs;
-  std::vector<InstanceBuffer> buffers;
-  std::vector<InstanceTensor> tensors;
-  VkDescriptorPool descriptorPool;
-  std::vector<InstanceCmd> cmds;
+  Instance(const ModelHandle &model, memory::span<const SymSpec> specs);
+
+  ModelHandle m_model;
+  SymIREval m_symeval;
+  VkDescriptorPool m_descriptorPool;
+  memory::vector<InstanceCmd> m_cmds;
+  memory::vector<runtime::Buffer> m_buffers;
 };
 
 using InstanceHandle = std::shared_ptr<Instance>;

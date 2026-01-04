@@ -5,7 +5,6 @@
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/memory/container/optional.hpp"
-#include "denox/symbolic/SymGraph.hpp"
 
 #include <onnx.pb.h>
 
@@ -84,8 +83,8 @@ void import_value_info(ImportState &state,
     }
     // TensorShape::parse
     const auto &shp = ttype.shape();
-    compiler::SymGraph *symGraph = state.symGraph;
-    memory::vector<compiler::Symbolic> dims;
+    SymGraph *symGraph = state.symGraph;
+    memory::vector<Symbolic> dims;
     dims.reserve(static_cast<std::size_t>(shp.dim_size()));
     auto g = symGraph;
     if (!g) {
@@ -285,7 +284,7 @@ void import_value_info(ImportState &state,
               tshape[0].constant()));
         }
       } else {
-        tshape[0] = compiler::Symbolic{state.symGraph, Sym::Const(1)};
+        tshape[0] = Symbolic{state.symGraph, Sym::Const(1)};
       }
     }
 

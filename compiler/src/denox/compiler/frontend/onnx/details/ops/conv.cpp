@@ -180,7 +180,7 @@ memory::vector<Tensor> conv(
   if (Wshape.rank() != 4)
     throw std::runtime_error("vkcnn: Conv: W must be rank-4 (KCRS/OIHW).");
 
-  const compiler::Symbolic K = Wshape[0], C = Wshape[1], R = Wshape[2],
+  const Symbolic K = Wshape[0], C = Wshape[1], R = Wshape[2],
                            S = Wshape[3];
   if (!K.isConstant() || !C.isConstant() || !R.isConstant() || !S.isConstant())
     throw std::runtime_error("vkcnn: Conv: W must have constant K,C,R,S.");
@@ -224,7 +224,7 @@ memory::vector<Tensor> conv(
     HostTensor Bc = B->host().contiguous();
     if (Bc.shape().rank() != 1)
       throw std::runtime_error("vkcnn: Conv: B must be 1-D [K].");
-    const compiler::Symbolic KB = Bc.shape()[0];
+    const Symbolic KB = Bc.shape()[0];
     if (!KB.isConstant() || static_cast<unsigned>(KB.constant()) != k)
       throw std::runtime_error("vkcnn: Conv: B length must equal K.");
     const Dtype bdt = Bc.type();

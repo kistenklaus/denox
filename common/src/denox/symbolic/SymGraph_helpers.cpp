@@ -1,6 +1,6 @@
 #include "denox/symbolic/SymGraph.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 std::pair<SymGraph::value_type, SymGraph::value_type>
 SymGraph::floordivmod(value_type a, value_type b) {

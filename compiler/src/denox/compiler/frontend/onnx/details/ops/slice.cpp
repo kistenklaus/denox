@@ -200,8 +200,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     Sym top = Sym::Const(0);
     Sym bot = H;
 
-    auto norm_index_if_const_neg = [&](Sym idx,
-                                       Sym dim) -> Sym {
+    auto norm_index_if_const_neg = [&](Sym idx, Sym dim) -> Sym {
       if (idx.isConstant() && idx.constant() < 0) {
         return g->add(dim, idx); // dim + (negative)
       }
@@ -314,9 +313,9 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         len = (en - st + (step - 1)) / step; // ceil_div
       }
       // Update view/shape
-      view = view.slice(a, compiler::Symbolic(g, Sym::Const(st)),
-                        compiler::Symbolic(g, Sym::Const(step)));
-      shape[a] = compiler::Symbolic(g, Sym::Const(len));
+      view = view.slice(a, Symbolic(g, Sym::Const(st)),
+                        Symbolic(g, Sym::Const(step)));
+      shape[a] = Symbolic(g, Sym::Const(len));
     } else {
       const int64_t ns = -step;
       if (st < 0)
@@ -340,9 +339,9 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
       // Represent descending order with a negative stride view (no extra
       // reverse).
-      view = view.slice(a, compiler::Symbolic(g, Sym::Const(st)),
-                        compiler::Symbolic(g, Sym::Const(step)));
-      shape[a] = compiler::Symbolic(g, Sym::Const(len));
+      view = view.slice(a, Symbolic(g, Sym::Const(st)),
+                        Symbolic(g, Sym::Const(step)));
+      shape[a] = Symbolic(g, Sym::Const(len));
     }
   }
 

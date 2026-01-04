@@ -15,7 +15,7 @@ public:
   const compiler::TensorHandle &handle() const { return m_handle; }
   compiler::TensorHandle &handle() { return m_handle; }
 
-  const compiler::SymGraph *graph() const;
+  const SymGraph *graph() const;
   bool sameHandleAs(const DeviceTensor &o) const;
   memory::optional<Dtype> type() const;
 

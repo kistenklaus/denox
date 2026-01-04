@@ -1,6 +1,6 @@
 #include "denox/compiler/compile_symbols/compile_symbols.hpp"
 #include "denox/compiler/frontend/model/NamedValue.hpp"
-#include "denox/compiler/implement/PushConstant.hpp"
+#include "denox/common/PushConstant.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include <fmt/format.h>
 

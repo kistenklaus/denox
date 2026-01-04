@@ -291,8 +291,8 @@ HostTensor HostTensor::select(std::size_t axis, std::uint64_t index) const {
   auto g = m_shape.graph();
   auto v = m_view.slice(
       axis,
-      compiler::Symbolic{g, Sym::Const(static_cast<int64_t>(index))},
-      compiler::Symbolic{g, Sym::Const(1)});
+      Symbolic{g, Sym::Const(static_cast<int64_t>(index))},
+      Symbolic{g, Sym::Const(1)});
   v = v.squeeze(axis);
   auto s = m_shape.squeeze(axis);
   return withView(std::move(s), std::move(v));
@@ -302,12 +302,12 @@ HostTensor HostTensor::narrow(std::size_t axis, std::uint64_t start,
                               std::uint64_t length) const {
   auto v = m_view.slice(
       axis,
-      compiler::Symbolic{
+      Symbolic{
           m_shape.graph(),
           Sym::Const(static_cast<std::int64_t>(start))},
-      compiler::Symbolic{m_shape.graph(), Sym::Const(1)});
+      Symbolic{m_shape.graph(), Sym::Const(1)});
   auto sh = m_shape;
-  sh[axis] = compiler::Symbolic{
+  sh[axis] = Symbolic{
       m_shape.graph(), Sym::Const(static_cast<std::int64_t>(length))};
   return withView(std::move(sh), std::move(v));
 }

@@ -1,14 +1,16 @@
 #pragma once
 
-#include "denox/common/ValueSpec.hpp"
-#include "denox/diag/invalid_state.hpp"
-#include "denox/diag/logging.hpp"
-#include "denox/memory/container/hashmap.hpp"
-#include "denox/memory/container/small_vector.hpp"
+#include "denox/common/Access.hpp"
+#include "denox/common/PushConstant.hpp"
+#include "denox/common/TensorDataType.hpp"
+#include "denox/common/TensorFormat.hpp"
+#include "denox/common/TensorStorage.hpp"
+#include "denox/common/ValueName.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/vector.hpp"
-#include "denox/memory/tensor/ActivationTensor.hpp"
 #include "denox/runtime/context.hpp"
+#include "denox/symbolic/Sym.hpp"
+#include "denox/symbolic/SymIR.hpp"
 #include <dnx.h>
 #include <memory>
 #include <variant>
@@ -17,16 +19,35 @@
 
 namespace denox::runtime {
 
+struct ModelDescriptorBinding {
+  uint16_t binding;
+  Access access;
+  uint32_t tensor;
+};
+
 struct ModelDescriptorSet {
   std::uint16_t set;
   VkDescriptorSetLayout descriptorSetLayout;
+  memory::vector<ModelDescriptorBinding> bindings;
 };
 
 struct ModelDispatch {
-  const dnx::ComputeDispatch *dispatch;
-  std::vector<ModelDescriptorSet> descriptorSets;
+  memory::vector<ModelDescriptorSet> descriptorSets;
+  Sym workgroupCountX;
+  Sym workgroupCountY;
+  Sym workgroupCountZ;
+
+  uint16_t pushConstantRange;
+  memory::vector<std::pair<uint16_t, PushConstant>> pushConstants;
+
   VkPipelineLayout pipelineLayout;
   VkPipeline pipeline;
+
+  memory::optional<memory::string> name;
+  memory::optional<memory::string> debugInfo;
+  memory::optional<memory::string> srcPath;
+  memory::optional<Sym> memoryReads;
+  memory::optional<Sym> memoryWrites;
 };
 
 struct ModelBufferBarrier {
@@ -49,18 +70,37 @@ struct ModelBarrier {
 using ModelCmd = std::variant<ModelBarrier, ModelDispatch>;
 
 struct ModelDescriptorPoolRequirements {
-  std::size_t maxSets;
-  std::vector<VkDescriptorPoolSize> poolSizes;
+  uint32_t maxSets;
+  memory::vector<VkDescriptorPoolSize> poolSizes;
 };
 
-struct ModelInput {
-  std::string name;
-  memory::ActivationTensorConstView tensor;
+struct ModelBuffer {
+  Sym size;
+  uint16_t alignment;
+  memory::vector<uint32_t> tensors;
 };
 
-struct ModelOutput {
-  std::string name;
-  memory::ActivationTensor tensor;
+struct ModelTensor {
+  Sym size;
+  Sym offset;
+  uint32_t buffer;
+
+  memory::optional<memory::string> name;
+  memory::optional<Sym> width;
+  memory::optional<Sym> height;
+  memory::optional<Sym> channels;
+  memory::optional<TensorStorage> storage;
+  memory::optional<TensorFormat> format;
+  memory::optional<TensorDataType> dtype;
+
+  bool isInput;
+  bool isOutput;
+  bool isParam;
+};
+
+struct ModelInitializer {
+  uint32_t tensor;
+  memory::vector<std::byte> data;
 };
 
 class Model {
@@ -82,10 +122,22 @@ public:
   Model(Model &&o) = delete;
   Model &operator=(Model &&o) = delete;
 
-  memory::vector<ModelOutput> infer(std::initializer_list<ModelInput> inputs) {
-    return infer(memory::span{inputs});
+  const ContextHandle &context() const { return m_context; }
+  const SymIR& symir() const { return m_symir; }
+  memory::span<const ModelTensor> tensors() const { return m_tensors; }
+  memory::span<const ModelBuffer> buffers() const { return m_buffers; }
+  memory::span<const ModelCmd> cmds() const { return m_cmds; }
+  const ModelDescriptorPoolRequirements &descriptorPoolRequirements() const {
+    return m_descriptorPoolRequirements;
   }
-  memory::vector<ModelOutput> infer(memory::span<const ModelInput> inputs);
+  memory::span<const uint32_t> inputs() const { return m_inputs; }
+  memory::span<const uint32_t> outputs() const { return m_outputs; }
+
+  memory::span<const ModelInitializer> initializers() const {
+    return m_initializers;
+  }
+
+  memory::span<const ValueName> valueNames() const { return m_valueNames; }
 
   void release();
 
@@ -95,10 +147,22 @@ private:
                  memory::span<const std::byte> dnxbuf);
 
   ContextHandle m_context;
-  memory::vector<std::byte> m_dnxbuf;
-  const dnx::Model *m_dnx;
-  std::vector<ModelCmd> m_cmds;
+  // memory::vector<std::byte> m_dnxbuf;
+  // const dnx::Model *m_dnx;
+
+  SymIR m_symir;
+  memory::vector<ModelTensor> m_tensors;
+  memory::vector<ModelBuffer> m_buffers;
+  memory::vector<uint32_t> m_inputs;
+  memory::vector<uint32_t> m_outputs;
+
+  memory::vector<ModelInitializer> m_initializers;
+
+  memory::vector<ValueName> m_valueNames;
+
+  memory::vector<ModelCmd> m_cmds;
   ModelDescriptorPoolRequirements m_descriptorPoolRequirements;
+
   std::weak_ptr<Model> m_selfhandle;
 };
 

@@ -2,7 +2,7 @@
 
 #include "denox/symbolic/SymGraph.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 class Symbolic {
 public:

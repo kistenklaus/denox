@@ -20,12 +20,16 @@
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "denox/memory/tensor/ActivationDescriptor.hpp"
 #include "denox/memory/tensor/ActivationShape.hpp"
 #include "denox/memory/tensor/ActivationTensor.hpp"
 #include "denox/runtime/context.hpp"
+#include "denox/runtime/instance.hpp"
 #include "denox/runtime/model.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include "denox/spirv/SpirvTools.hpp"
+#include <fmt/base.h>
 #include <fmt/format.h>
 
 using namespace denox;
@@ -85,87 +89,47 @@ int main() {
 
   db.atomic_writeback();
 
-  // auto context = denox::runtime::Context::make("*RTX*", ApiVersion::VULKAN_1_4);
-  // denox::runtime::ModelHandle model =
-  //     denox::runtime::Model::make(dnxbuf, context);
-  //
-  //
-  memory::ActivationTensor inputTensor{memory::ActivationDescriptor{
-      .shape =
-          {
-              1920,
-              1080,
-              3,
-          },
-      .layout = memory::ActivationLayout::HWC,
-      .type = memory::Dtype::F16,
-  }};
-  //
-  // auto outputs = model->infer({{"input", inputTensor}});
+  io::File dnx =
+      io::File::open(io::Path::cwd() / "net.dnx",
+                     io::File::OpenMode::Create | io::File::OpenMode::Write |
+                         io::File::OpenMode::Truncate);
+  dnx.write_exact(dnxbuf);
 
-  // denox::populate(db, onnx, options);
-  // denox::runtime::bench(db);
-  // auto dnxbuf = denox::compile(onnx, db, options);
-  // runtime->bench(dnxbuf)->print();
+  uint32_t H = 1080;
+  uint32_t W = 1920;
+  uint32_t C = 3;
 
+  auto model = denox::runtime::Model::make(dnxbuf);
+  auto instance = denox::runtime::Instance::make(model, {{"H", H}, {"W", W}});
 
-
-  // while (true) {
+  // memory::ActivationTensor inputTensor{
+  //     memory::ActivationDescriptor{
+  //         {W, H, C}, memory::ActivationLayout::HWC, memory::Dtype::F16},
+  // };
   //
-  //   spirv::SpirvTools tools(options.deviceInfo);
-  //   spirv::GlslCompiler glslCompiler(&tools, options.deviceInfo,
-  //                                    spirv::SpirvDebugInfoLevel::Strip);
+  // void *inputBuf = inputTensor.data();
+  // std::memset(inputBuf, 0x3C, inputTensor.byteSize());
+  // void **pInputs = &inputBuf;
   //
-  //   compiler::Model model = compiler::frontend(onnx, options);
-  //   // fmt::println("MODEL:\n{}", model);
+  // memory::ActivationTensor outputTensor{
+  //     memory::ActivationDescriptor{
+  //         {W, H, C}, memory::ActivationLayout::HWC, memory::Dtype::F16},
+  // };
   //
-  //   compiler::CanoModel cano = compiler::canonicalize(model);
+  // void *outputBuf = outputTensor.data();
+  // void **pOutputs = &outputBuf;
   //
-  //   // fmt::println("CANO:\n{}", cano);
+  // instance->infer(pInputs, pOutputs);
   //
-  //   compiler::Lifetimes lifetimes = compiler::lifeness(cano);
-  //
-  //   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
-  //
-  //   // fmt::println("SPEC:\n{}", specModel);
-  //
-  //   compiler::ConstModel constModel = compiler::dce(specModel);
-  //
-  //   // fmt::println("DCE:\n{}", constModel);
-  //
-  //   compiler::SuperGraph supergraph =
-  //       compiler::implement(constModel, cano.symGraph, &glslCompiler,
-  //       options);
-  //
-  //   // fmt::println("SuperGraph:\n{}", supergraph);
-  //
-  //   auto db = Db::open(io::Path::cwd() / "gpu.db");
-  //
-  //   auto optschedule =
-  //       compiler::select_schedule(std::move(supergraph), db, model, options);
-  //
-  //   auto memschedule = compiler::placement(optschedule);
-  //
-  //   auto schedule = compiler::compile_shaders(std::move(memschedule), model,
-  //   db,
-  //                                             &glslCompiler, options);
-  //
-  //   compiler::rebind_descriptors(schedule, options, &tools);
-  //
-  //   auto sprog = compiler::compile_symbols(schedule, model, options);
-  //
-  //   auto dnxbuf = compiler::serialize(schedule, sprog, model, options);
-  //
-  //   db.atomic_writeback();
-  //
-  //   io::File artefact =
-  //       io::File::open(io::Path::cwd() / "net.dnx",
-  //                      io::File::OpenMode::Create | io::File::OpenMode::Write
-  //                      |
-  //                          io::File::OpenMode::Truncate);
-  //   fmt::println(
-  //       "[100%] \x1b[1m\x1B[32mSerialize dnx artefact -> net.dnx\x1B[0m");
-  //   artefact.write_exact(dnxbuf);
-  //   break;
+  // for (uint32_t c = 0; c < C; ++c) {
+  //   fmt::println("CHANNEL: {}", c);
+  //   for (uint32_t h = 0; h < H; ++h) {
+  //     for (uint32_t w = 0; w < W; ++w) {
+  //       fmt::print(" {:^7.3f} ", static_cast<float>(outputTensor.at(w, h, c)));
+  //     }
+  //     fmt::println("");
+  //   }
   // }
+
+  fmt::println("{}", instance->bench().report());
 }

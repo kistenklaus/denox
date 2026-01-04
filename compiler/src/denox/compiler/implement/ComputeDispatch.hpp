@@ -1,5 +1,5 @@
 #pragma once
-#include "denox/compiler/implement/PushConstant.hpp"
+#include "denox/common/PushConstant.hpp"
 #include "denox/compiler/implement/TensorBinding.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/io/fs/Path.hpp"

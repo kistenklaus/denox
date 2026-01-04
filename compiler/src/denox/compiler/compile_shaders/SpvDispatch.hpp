@@ -1,7 +1,7 @@
 #pragma once
 
 #include "denox/compiler/implement/ComputeDispatch.hpp"
-#include "denox/compiler/implement/PushConstant.hpp"
+#include "denox/common/PushConstant.hpp"
 #include "denox/compiler/implement/TensorBinding.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include <cstdint>

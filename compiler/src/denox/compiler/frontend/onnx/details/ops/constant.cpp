@@ -71,11 +71,11 @@ memory::vector<Tensor> constant(
   const auto &g = state.symGraph;
 
   auto make_scalar_shape = [&]() -> TensorShape {
-    memory::vector<compiler::Symbolic> dims; // rank-0 (scalar)
+    memory::vector<Symbolic> dims; // rank-0 (scalar)
     return TensorShape{g, std::move(dims)};
   };
   auto make_1d_shape = [&](std::size_t n) -> TensorShape {
-    memory::vector<compiler::Symbolic> dims;
+    memory::vector<Symbolic> dims;
     dims.emplace_back(g, Sym::Const(static_cast<int64_t>(n)));
     return TensorShape{g, std::move(dims)};
   };

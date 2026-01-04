@@ -60,7 +60,7 @@ constant_of_shape([[maybe_unused]] ImportState &state,
   // output shape
   const auto g = state.symGraph;
   assert(g != nullptr);
-  memory::vector<compiler::Symbolic> outDims;
+  memory::vector<Symbolic> outDims;
   outDims.reserve(r);
   for (auto e : extents)
     outDims.emplace_back(g, Sym::Const(static_cast<std::int64_t>(e)));

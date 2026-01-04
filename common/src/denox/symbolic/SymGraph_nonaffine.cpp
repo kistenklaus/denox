@@ -2,7 +2,7 @@
 #include "denox/algorithm/gcd.hpp"
 #include "denox/algorithm/unstable_sort.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 Sym SymGraph::nonaffine_mul(symbol lhs, symbol rhs, bool dno) {
   const Expr a = m_expressions[lhs];

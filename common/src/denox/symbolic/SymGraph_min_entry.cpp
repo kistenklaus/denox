@@ -1,6 +1,6 @@
 #include "denox/symbolic/SymGraph.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 Sym SymGraph::min_xx(Sym lhs, Sym rhs, bool dno) {
   if (lhs.isConstant() && rhs.isConstant()) {

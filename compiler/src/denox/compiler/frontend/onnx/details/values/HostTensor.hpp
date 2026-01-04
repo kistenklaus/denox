@@ -24,7 +24,7 @@ public:
   const memory::shared_ptr<HostTensorStorage> &storage() const;
   size_t rank() const { return m_shape.rank(); }
   bool isConstant() const { return m_shape.isConstant(); }
-  compiler::Symbolic numel() const { return m_shape.numel(); }
+  Symbolic numel() const { return m_shape.numel(); }
   std::size_t elemSize() const { return type().size(); }
   bool isContiguous() const;
   std::size_t sizeBytesIfStatic() const;

@@ -2,7 +2,8 @@
 
 #include "denox/symbolic/Sym.hpp"
 #include <string>
-namespace denox::compiler {
+
+namespace denox {
 
 struct NamedValue {
   std::string name;

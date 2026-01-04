@@ -13,7 +13,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace denox::compiler {
+namespace denox {
 
 class PushConstant {
 public:

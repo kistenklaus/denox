@@ -1,6 +1,6 @@
 #include "denox/symbolic/SymGraph.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 Sym SymGraph::resolve(value_type v) const { return Sym::Const(v); }
 

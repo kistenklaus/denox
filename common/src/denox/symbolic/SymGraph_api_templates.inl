@@ -1,7 +1,7 @@
 #pragma once
 #include "denox/symbolic/SymGraph.hpp"
 
-namespace denox::compiler {
+namespace denox {
 
 template <typename L, typename R>
   requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&

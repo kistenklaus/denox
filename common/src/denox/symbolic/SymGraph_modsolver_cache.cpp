@@ -1,7 +1,7 @@
 #include "denox/symbolic/SymGraph.hpp"
 
 
-namespace denox::compiler {
+namespace denox {
 
 const SymGraph::ModSolverHandle &SymGraph::require_modsolver(Sym sym) {
   auto it = m_modSolverCache.find(sym);
