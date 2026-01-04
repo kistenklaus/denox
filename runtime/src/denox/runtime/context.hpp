@@ -1,17 +1,16 @@
 #pragma once
-#include "denox/common/types.hpp"
+#include "denox/device_info/ApiVersion.hpp"
+#include "denox/memory/container/span.hpp"
+#include "denox/memory/container/vector.hpp"
+#include "vma.hpp"
 #include <cassert>
-#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <fmt/printf.h>
 #include <limits>
-#include <span>
+#include <memory>
 #include <stdexcept>
-#include <vector>
-#include <vma.hpp>
 #include <vulkan/vulkan.h>
-#include <vulkan/vulkan_core.h>
 
 namespace denox::runtime {
 
@@ -22,34 +21,38 @@ struct Buffer {
 
 class Context {
 public:
-  explicit Context(const char *deviceName, VulkanApiVersion target_env);
+  static std::shared_ptr<Context> make(const char *deviceName,
+                                       ApiVersion apiVersion) {
+    return std::shared_ptr<Context>(new Context(deviceName, apiVersion));
+  }
+
   ~Context();
   Context(const Context &) = delete;
   Context(Context &&) = delete;
   Context &operator=(const Context &) = delete;
   Context &operator=(Context &&) = delete;
 
-  Buffer createBuffer(std::size_t size, VkBufferUsageFlags usage,
+  Buffer createBuffer(size_t size, VkBufferUsageFlags usage,
                       VmaAllocationCreateFlags flags = 0);
   void destroyBuffer(const Buffer &buffer);
 
   VkDescriptorSetLayout createDescriptorSetLayout(
-      std::span<const VkDescriptorSetLayoutBinding> bindings);
+      memory::span<const VkDescriptorSetLayoutBinding> bindings);
   void destroyDescriptorSetLayout(VkDescriptorSetLayout layout);
 
-  VkPipelineLayout
-  createPipelineLayout(std::span<const VkDescriptorSetLayout> descriptorLayouts,
-                       std::uint32_t pushConstantRange);
+  VkPipelineLayout createPipelineLayout(
+      memory::span<const VkDescriptorSetLayout> descriptorLayouts,
+      uint32_t pushConstantRange);
   void destroyPipelineLayout(VkPipelineLayout layout);
 
   VkPipeline createComputePipeline(VkPipelineLayout layout,
-                                   std::span<const std::uint32_t> binary,
+                                   memory::span<const uint32_t> binary,
                                    const char *entry);
   void destroyPipeline(VkPipeline pipeline);
 
   VkDescriptorPool
-  createDescriptorPool(std::size_t maxSets,
-                       std::span<const VkDescriptorPoolSize> sizes);
+  createDescriptorPool(uint32_t maxSets,
+                       memory::span<const VkDescriptorPoolSize> sizes);
 
   void destroyDescriptorPool(VkDescriptorPool pool);
 
@@ -57,10 +60,11 @@ public:
                                      VkDescriptorSetLayout layout);
 
   void allocDescriptorSets(VkDescriptorPool pool,
-                           std::span<const VkDescriptorSetLayout> layouts,
+                           memory::span<const VkDescriptorSetLayout> layouts,
                            VkDescriptorSet *sets);
 
-  void updateDescriptorSets(std::span<const VkWriteDescriptorSet> writeInfos);
+  void
+  updateDescriptorSets(memory::span<const VkWriteDescriptorSet> writeInfos);
 
   VkCommandPool createCommandPool();
   void destroyCommandPool(VkCommandPool cmdPool);
@@ -77,12 +81,12 @@ public:
   VkCommandBuffer allocBeginCommandBuffer(VkCommandPool cmdPool);
   void endSubmitWaitCommandBuffer(VkCommandPool cmdPool, VkCommandBuffer cmd);
 
-  void copy(VmaAllocation dst, const void *src, std::size_t size);
+  void copy(VmaAllocation dst, const void *src, size_t size);
 
-  void copy(void *dst, VmaAllocation src, std::size_t size);
+  void copy(void *dst, VmaAllocation src, size_t size);
 
-  void cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src, std::size_t size,
-               std::size_t dstOffset = 0, std::size_t srcOffset = 0);
+  void cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src, size_t size,
+               size_t dstOffset = 0, size_t srcOffset = 0);
 
   void cmdMemoryBarrier(VkCommandBuffer cmd, VkPipelineStageFlags srcStage,
                         VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
@@ -96,7 +100,7 @@ public:
                         VkAccessFlags dstAccess, VkDeviceSize offset = 0,
                         VkDeviceSize size = VK_WHOLE_SIZE);
 
-  std::uint32_t getQueueFamily() const { return m_queueFamily; }
+  uint32_t getQueueFamily() const { return m_queueFamily; }
 
   VkQueryPool createTimestampQueryPool(uint32_t timestampCount) {
     VkQueryPoolCreateInfo createInfo{};
@@ -126,8 +130,9 @@ public:
     vkCmdWriteTimestamp(cmd, stage, queryPool, query);
   }
 
-  std::vector<uint64_t> getQueryResults(VkQueryPool queryPool, uint32_t count) {
-    std::vector<uint64_t> timestamps(count);
+  memory::vector<uint64_t> getQueryResults(VkQueryPool queryPool,
+                                           uint32_t count) {
+    memory::vector<uint64_t> timestamps(count);
     vkGetQueryPoolResults(m_device, queryPool, 0, count,
                           timestamps.size() * sizeof(uint64_t),
                           timestamps.data(), sizeof(uint64_t),
@@ -135,14 +140,14 @@ public:
     return timestamps;
   }
 
-  float timestampDifference(std::span<const uint64_t> timestamps,
+  float timestampDifference(memory::span<const uint64_t> timestamps,
                             uint32_t begin, uint32_t end) {
     uint64_t b = timestamps[begin];
     uint64_t e = timestamps[end];
     return static_cast<float>(e - b) * m_timestampPeriod / 1000000.0f;
   }
 
-  uint64_t timestampNanoDifference(std::span<const uint64_t> timestamps,
+  uint64_t timestampNanoDifference(memory::span<const uint64_t> timestamps,
                                    uint32_t begin, uint32_t end) {
     uint64_t b = timestamps[begin];
     uint64_t e = timestamps[end];
@@ -205,14 +210,19 @@ public:
   }
 
 private:
+  explicit Context(const char *deviceName, ApiVersion target_env);
+
+private:
   VkInstance m_instance;
   VkDebugUtilsMessengerEXT m_debugMessenger;
   VkDevice m_device;
   VkPhysicalDevice m_physicalDevice;
-  std::uint32_t m_queueFamily;
+  uint32_t m_queueFamily;
   VkQueue m_queue;
   VmaAllocator m_vma;
   float m_timestampPeriod;
 };
+
+using ContextHandle = std::shared_ptr<Context>;
 
 } // namespace denox::runtime

@@ -15,10 +15,15 @@
 #include "denox/compiler/selection/selection.hpp"
 #include "denox/compiler/serialize/serialize.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
+#include "denox/device_info/ApiVersion.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/io/fs/Path.hpp"
+#include "denox/memory/tensor/ActivationShape.hpp"
+#include "denox/memory/tensor/ActivationTensor.hpp"
+#include "denox/runtime/context.hpp"
+#include "denox/runtime/model.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include "denox/spirv/SpirvTools.hpp"
 #include <fmt/format.h>
@@ -79,6 +84,31 @@ int main() {
   auto dnxbuf = denox::compile(onnx, db, options);
 
   db.atomic_writeback();
+
+  // auto context = denox::runtime::Context::make("*RTX*", ApiVersion::VULKAN_1_4);
+  // denox::runtime::ModelHandle model =
+  //     denox::runtime::Model::make(dnxbuf, context);
+  //
+  //
+  memory::ActivationTensor inputTensor{memory::ActivationDescriptor{
+      .shape =
+          {
+              1920,
+              1080,
+              3,
+          },
+      .layout = memory::ActivationLayout::HWC,
+      .type = memory::Dtype::F16,
+  }};
+  //
+  // auto outputs = model->infer({{"input", inputTensor}});
+
+  // denox::populate(db, onnx, options);
+  // denox::runtime::bench(db);
+  // auto dnxbuf = denox::compile(onnx, db, options);
+  // runtime->bench(dnxbuf)->print();
+
+
 
   // while (true) {
   //

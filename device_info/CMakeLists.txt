@@ -1,4 +1,3 @@
-include(${PROJECT_SOURCE_DIR}/cmake/vulkan.cmake)
 
 add_library(denox_device_info 
   EXCLUDE_FROM_ALL

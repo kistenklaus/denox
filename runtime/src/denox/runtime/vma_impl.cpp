@@ -4,6 +4,6 @@
 #pragma warning(disable : 4512)
 
 #define VMA_IMPLEMENTATION
-#include <vma.hpp>
+#include "vma.hpp"
 
 #pragma warning(pop)

@@ -1,8 +1,7 @@
+#include "instance.hpp"
 #include "context.hpp"
-#include "denox/runtime.hpp"
 #include "dnx.h"
 #include "dnx_parse_helpers.hpp"
-#include "instance.hpp"
 #include "model.hpp"
 #include "vma.hpp"
 #include <algorithm>
@@ -567,7 +566,6 @@ void destroy_runtime_instance(RuntimeContext context,
       free(dispatch.pushConstantValues);
     }
   }
-
 
   ctx->destroyDescriptorPool(mi->descriptorPool);
 

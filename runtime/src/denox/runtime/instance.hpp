@@ -1,7 +1,6 @@
 #pragma once
 
 #include "context.hpp"
-#include "denox/common/types.hpp"
 #include "model.hpp"
 #include <vector>
 
@@ -40,12 +39,23 @@ struct InstanceBuffer {
 struct InstanceTensorInfo {
   const char *name;
   std::uint32_t tensor;
-  Extent width;
-  Extent height;
-  Extent channels;
+  ValueSpec width;
+  ValueSpec height;
+  ValueSpec channels;
 };
 
-struct Instance {
+class Instance {
+public:
+
+  Instance(const ContextHandle context, 
+      const ModelHandle& model) {
+    
+  }
+
+  Instance();
+  ~Instance();
+
+private:
   const Model *model;
   std::vector<std::int64_t> symbolValues;
   std::vector<InstanceTensorInfo> inputs;
@@ -55,5 +65,7 @@ struct Instance {
   VkDescriptorPool descriptorPool;
   std::vector<InstanceCmd> cmds;
 };
+
+using InstanceHandle = std::shared_ptr<Instance>;
 
 } // namespace denox::runtime

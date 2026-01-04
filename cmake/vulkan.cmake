@@ -1,4 +1,4 @@
-include_guard(GLOBAL)  # or DIRECTORY
+include_guard(GLOBAL) 
 
 include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 

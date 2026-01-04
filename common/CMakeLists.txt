@@ -1,8 +1,3 @@
-include(${PROJECT_SOURCE_DIR}/cmake/fmt.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/spdlog.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/generator.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/warnings.cmake)
-
 add_library(denox_common EXCLUDE_FROM_ALL
   src/denox/algorithm/binary_op_permutations.cpp
   src/denox/memory/dtype/dtype_reference.cpp

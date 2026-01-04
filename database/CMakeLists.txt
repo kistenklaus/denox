@@ -1,7 +1,4 @@
 
-include(${PROJECT_SOURCE_DIR}/cmake/db.cmake)
-
-
 add_library(denox_database 
   EXCLUDE_FROM_ALL
   src/denox/db/Db.cpp

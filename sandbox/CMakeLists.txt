@@ -1,5 +1,4 @@
 
-
 add_executable(sandbox EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
 )
@@ -17,6 +16,7 @@ target_link_libraries(sandbox
     denox_common
     denox_spirv
     denox_database
+    denox_runtime
 )
 
 if (NOT DENOX_DISABLE_WARNINGS)

@@ -7,7 +7,6 @@
 #include <fmt/printf.h>
 #include <stdexcept>
 #include <vector>
-#include <vma.hpp>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
@@ -15,9 +14,9 @@ namespace denox::runtime {
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-              VkDebugUtilsMessageTypeFlagsEXT messageType,
+              [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT messageType,
               const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-              void *pUserData) {
+              [[maybe_unused]] void *pUserData) {
   enum class Severity {
     None,
     Verbose,
@@ -70,8 +69,8 @@ VkResult CreateDebugUtilsMessengerEXT(
     VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
     const VkAllocationCallbacks *pAllocator,
     VkDebugUtilsMessengerEXT *pDebugMessenger) {
-  auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance, "vkCreateDebugUtilsMessengerEXT");
+  auto func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+      vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
   if (func != nullptr) {
     return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
   } else {
@@ -80,12 +79,13 @@ VkResult CreateDebugUtilsMessengerEXT(
 }
 
 VkResult GetPhysicalDeviceCooperativeMatrixPropertiesKHR(
-    VkInstance instance, VkPhysicalDevice physicalDevice, std::uint32_t *count,
+    VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t *count,
     VkCooperativeMatrixPropertiesKHR *properties) {
 
-  auto func = (PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR)
-      vkGetInstanceProcAddr(
-          instance, "vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR");
+  auto func =
+      reinterpret_cast<PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR>(
+          vkGetInstanceProcAddr(
+              instance, "vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR"));
   if (func != nullptr) {
     return func(physicalDevice, count, properties);
   } else {
@@ -96,8 +96,8 @@ VkResult GetPhysicalDeviceCooperativeMatrixPropertiesKHR(
 void DestroyDebugUtilsMessengerEXT(VkInstance instance,
                                    VkDebugUtilsMessengerEXT debugMessenger,
                                    const VkAllocationCallbacks *pAllocator) {
-  auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance, "vkDestroyDebugUtilsMessengerEXT");
+  auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+      vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
   if (func != nullptr) {
     func(instance, debugMessenger, pAllocator);
   }
@@ -106,7 +106,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 static bool checkLayerSupport(const char *layerName) {
   uint32_t layerCount;
   vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-  std::vector<VkLayerProperties> layers(layerCount);
+  memory::vector<VkLayerProperties> layers(layerCount);
   vkEnumerateInstanceLayerProperties(&layerCount, layers.data());
   return std::ranges::find_if(
              layers, [layerName](const VkLayerProperties &layer) {
@@ -154,7 +154,7 @@ static ComputeQueueSelection
 pick_best_compute_queue_family(VkPhysicalDevice phys) {
   uint32_t count = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(phys, &count, nullptr);
-  std::vector<VkQueueFamilyProperties> props(count);
+  memory::vector<VkQueueFamilyProperties> props(count);
   vkGetPhysicalDeviceQueueFamilyProperties(phys, &count, props.data());
 
   int bestScore = std::numeric_limits<int>::min();
@@ -192,11 +192,11 @@ pick_best_compute_queue_family(VkPhysicalDevice phys) {
   return {bestIdx};
 }
 
-Context::Context(const char *deviceName, VulkanApiVersion target_env)
+Context::Context(const char *deviceName, ApiVersion target_env)
     : m_instance(VK_NULL_HANDLE), m_device(VK_NULL_HANDLE),
       m_physicalDevice(VK_NULL_HANDLE), m_queue(VK_NULL_HANDLE) {
 
-  std::uint32_t vulkanApiVersion;
+  uint32_t vulkanApiVersion;
   { // Create instance.
     VkApplicationInfo appInfo;
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -211,35 +211,35 @@ Context::Context(const char *deviceName, VulkanApiVersion target_env)
 #endif
 
     switch (target_env) {
-    case VulkanApiVersion::Vulkan_1_0:
+    case ApiVersion::VULKAN_1_0:
 #ifdef VK_API_VERSION_1_0
       appInfo.apiVersion = VK_API_VERSION_1_0;
 #else
       appInfo.apiVersion = VK_API_VERSION_LATEST;
 #endif
       break;
-    case VulkanApiVersion::Vulkan_1_1:
+    case ApiVersion::VULKAN_1_1:
 #ifdef VK_API_VERSION_1_1
       appInfo.apiVersion = VK_API_VERSION_1_1;
 #else
       appInfo.apiVersion = VK_API_VERSION_LATEST;
 #endif
       break;
-    case VulkanApiVersion::Vulkan_1_2:
+    case ApiVersion::VULKAN_1_2:
 #ifdef VK_API_VERSION_1_2
       appInfo.apiVersion = VK_API_VERSION_1_2;
 #else
       appInfo.apiVersion = VK_API_VERSION_LATEST;
 #endif
       break;
-    case VulkanApiVersion::Vulkan_1_3:
+    case ApiVersion::VULKAN_1_3:
 #ifdef VK_API_VERSION_1_3
       appInfo.apiVersion = VK_API_VERSION_1_3;
 #else
       appInfo.apiVersion = VK_API_VERSION_LATEST;
 #endif
       break;
-    case VulkanApiVersion::Vulkan_1_4:
+    case ApiVersion::VULKAN_1_4:
 #ifdef VK_API_VERSION_1_4
       appInfo.apiVersion = VK_API_VERSION_1_4;
 #else
@@ -259,8 +259,8 @@ Context::Context(const char *deviceName, VulkanApiVersion target_env)
     createInfo.pApplicationInfo = &appInfo;
     createInfo.flags = 0;
 
-    std::vector<const char *> extentions;
-    std::vector<const char *> layers;
+    memory::vector<const char *> extentions;
+    memory::vector<const char *> layers;
 #ifdef __APPLE__
     extentions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
@@ -291,9 +291,9 @@ Context::Context(const char *deviceName, VulkanApiVersion target_env)
     }
 
     createInfo.ppEnabledExtensionNames = extentions.data();
-    createInfo.enabledExtensionCount = extentions.size();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(extentions.size());
     createInfo.ppEnabledLayerNames = layers.data();
-    createInfo.enabledLayerCount = layers.size();
+    createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
     VkResult result = vkCreateInstance(&createInfo, nullptr, &m_instance);
     if (result != VK_SUCCESS) {
       throw std::runtime_error("Failed to create vulkan instance.");
@@ -306,9 +306,9 @@ Context::Context(const char *deviceName, VulkanApiVersion target_env)
   }
   { // Select physical device.
     do {
-      std::uint32_t deviceCount;
+      uint32_t deviceCount;
       vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
-      std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+      memory::vector<VkPhysicalDevice> physicalDevices(deviceCount);
       vkEnumeratePhysicalDevices(m_instance, &deviceCount,
                                  physicalDevices.data());
 
@@ -332,7 +332,7 @@ Context::Context(const char *deviceName, VulkanApiVersion target_env)
 
       std::string devicePattern(deviceName);
 
-      std::vector<VkPhysicalDevice> matches;
+      memory::vector<VkPhysicalDevice> matches;
       for (VkPhysicalDevice d : physicalDevices) {
         VkPhysicalDeviceProperties props;
         vkGetPhysicalDeviceProperties(d, &props);
@@ -379,8 +379,8 @@ Context::Context(const char *deviceName, VulkanApiVersion target_env)
     features.shaderInt16 = VK_TRUE;
   }
 
-  std::vector<const char *> layers;
-  std::vector<const char *> extentions;
+  memory::vector<const char *> layers;
+  memory::vector<const char *> extentions;
 
   void *pNextDevice = nullptr;
 #ifdef VK_API_VERSION_1_1
@@ -581,9 +581,9 @@ Context::Context(const char *deviceName, VulkanApiVersion target_env)
     createInfo.pQueueCreateInfos = &queueCreateInfo;
     createInfo.queueCreateInfoCount = 1;
     createInfo.ppEnabledExtensionNames = extentions.data();
-    createInfo.enabledExtensionCount = extentions.size();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(extentions.size());
     createInfo.ppEnabledLayerNames = layers.data();
-    createInfo.enabledLayerCount = layers.size();
+    createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
     createInfo.pEnabledFeatures = &features;
     VkResult result =
         vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
@@ -664,7 +664,7 @@ Context::~Context() {
   }
 }
 
-Buffer Context::createBuffer(std::size_t size, VkBufferUsageFlags usage,
+Buffer Context::createBuffer(size_t size, VkBufferUsageFlags usage,
                              VmaAllocationCreateFlags flags) {
   VkBufferCreateInfo bufferInfo;
   std::memset(&bufferInfo, 0, sizeof(VkBufferCreateInfo));
@@ -692,12 +692,12 @@ void Context::destroyBuffer(const Buffer &buffer) {
   vmaDestroyBuffer(m_vma, buffer.vkbuffer, buffer.allocation);
 }
 VkDescriptorSetLayout Context::createDescriptorSetLayout(
-    std::span<const VkDescriptorSetLayoutBinding> bindings) {
+    memory::span<const VkDescriptorSetLayoutBinding> bindings) {
   VkDescriptorSetLayoutCreateInfo layoutInfo;
   std::memset(&layoutInfo, 0, sizeof(VkDescriptorSetLayoutCreateInfo));
   layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   layoutInfo.pBindings = bindings.data();
-  layoutInfo.bindingCount = bindings.size();
+  layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 
   VkDescriptorSetLayout layout;
   {
@@ -715,12 +715,12 @@ void Context::destroyDescriptorSetLayout(VkDescriptorSetLayout layout) {
 }
 
 VkPipelineLayout Context::createPipelineLayout(
-    std::span<const VkDescriptorSetLayout> descriptorLayouts,
-    std::uint32_t pushConstantRange) {
+    memory::span<const VkDescriptorSetLayout> descriptorLayouts,
+    uint32_t pushConstantRange) {
   VkPipelineLayoutCreateInfo layoutInfo{};
   std::memset(&layoutInfo, 0, sizeof(VkPipelineLayoutCreateInfo));
   layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  layoutInfo.setLayoutCount = descriptorLayouts.size();
+  layoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorLayouts.size());
   layoutInfo.pSetLayouts = descriptorLayouts.data();
   VkPushConstantRange pushConstant;
   pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -746,7 +746,7 @@ void Context::destroyPipelineLayout(VkPipelineLayout layout) {
   vkDestroyPipelineLayout(m_device, layout, nullptr);
 }
 VkPipeline Context::createComputePipeline(VkPipelineLayout layout,
-                                          std::span<const std::uint32_t> binary,
+                                          memory::span<const uint32_t> binary,
                                           const char *entry) {
   assert(layout != nullptr);
   assert(!binary.empty());
@@ -757,7 +757,7 @@ VkPipeline Context::createComputePipeline(VkPipelineLayout layout,
     std::memset(&shaderInfo, 0, sizeof(VkShaderModuleCreateInfo));
     shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shaderInfo.pCode = binary.data();
-    shaderInfo.codeSize = binary.size() * sizeof(std::uint32_t);
+    shaderInfo.codeSize = binary.size() * sizeof(uint32_t);
     VkResult result =
         vkCreateShaderModule(m_device, &shaderInfo, nullptr, &module);
     if (result != VK_SUCCESS) {
@@ -879,13 +879,13 @@ void Context::endSubmitWaitCommandBuffer(VkCommandPool cmdPool,
   freeCommandBuffer(cmdPool, cmd);
 }
 VkDescriptorPool
-Context::createDescriptorPool(std::size_t maxSets,
-                              std::span<const VkDescriptorPoolSize> sizes) {
+Context::createDescriptorPool(uint32_t maxSets,
+                              memory::span<const VkDescriptorPoolSize> sizes) {
   VkDescriptorPoolCreateInfo poolInfo;
   std::memset(&poolInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
   poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   poolInfo.maxSets = maxSets;
-  poolInfo.poolSizeCount = sizes.size();
+  poolInfo.poolSizeCount = static_cast<uint32_t>(sizes.size());
   poolInfo.pPoolSizes = sizes.data();
 
   VkDescriptorPool pool;
@@ -914,13 +914,13 @@ VkDescriptorSet Context::allocDescriptorSet(VkDescriptorPool pool,
   return set;
 }
 void Context::allocDescriptorSets(
-    VkDescriptorPool pool, std::span<const VkDescriptorSetLayout> layouts,
+    VkDescriptorPool pool, memory::span<const VkDescriptorSetLayout> layouts,
     VkDescriptorSet *sets) {
   VkDescriptorSetAllocateInfo allocInfo;
   std::memset(&allocInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
   allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   allocInfo.descriptorPool = pool;
-  allocInfo.descriptorSetCount = layouts.size();
+  allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
   allocInfo.pSetLayouts = layouts.data();
   VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, sets);
   if (result != VK_SUCCESS) {
@@ -928,25 +928,24 @@ void Context::allocDescriptorSets(
   }
 }
 void Context::updateDescriptorSets(
-    std::span<const VkWriteDescriptorSet> writeInfos) {
-  vkUpdateDescriptorSets(m_device, writeInfos.size(), writeInfos.data(), 0,
-                         nullptr);
+    memory::span<const VkWriteDescriptorSet> writeInfos) {
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeInfos.size()),
+                         writeInfos.data(), 0, nullptr);
 }
-void Context::copy(VmaAllocation dst, const void *src, std::size_t size) {
+void Context::copy(VmaAllocation dst, const void *src, size_t size) {
   VkResult result = vmaCopyMemoryToAllocation(m_vma, src, dst, 0, size);
   if (result != VK_SUCCESS) {
     throw std::runtime_error("Failed to copy memory to allocation.");
   }
 }
-void Context::copy(void *dst, VmaAllocation src, std::size_t size) {
+void Context::copy(void *dst, VmaAllocation src, size_t size) {
   VkResult result = vmaCopyAllocationToMemory(m_vma, src, 0, dst, size);
   if (result != VK_SUCCESS) {
     throw std::runtime_error("Failed to copy memory from allocation.");
   }
 }
-void Context::cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src,
-                      std::size_t size, std::size_t dstOffset,
-                      std::size_t srcOffset) {
+void Context::cmdCopy(VkCommandBuffer cmd, Buffer dst, Buffer src, size_t size,
+                      size_t dstOffset, size_t srcOffset) {
   VkBufferCopy copy;
   copy.size = size;
   copy.srcOffset = srcOffset;

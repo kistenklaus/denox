@@ -48,7 +48,7 @@ std::uint64_t parseUnsignedScalarLiteral(const dnx::ScalarLiteral *literal) {
 std::pair<dnx::ScalarSource, const void *>
 getScalarSourceOfValueName(const dnx::Model *dnx, const char *valueName) {
   for (std::size_t i = 0; i < dnx->value_names()->size(); ++i) {
-    const dnx::ValueName *v = dnx->value_names()->Get(i);
+    const dnx::ValueName *v = dnx->value_names()->Get(static_cast<unsigned int>(i));
     if (std::strcmp(v->name()->c_str(), valueName) == 0) {
       return std::make_pair(v->value_type(), v->value());
     }
@@ -65,7 +65,7 @@ parseUnsignedScalarSource(dnx::ScalarSource scalar_source_type,
     return parseUnsignedScalarLiteral(
         static_cast<const dnx::ScalarLiteral *>(scalar_source));
   case ScalarSource_symbolic:
-    return symbolValues[static_cast<const dnx::SymRef *>(scalar_source)->sid()];
+    return static_cast<uint64_t>(symbolValues[static_cast<const dnx::SymRef *>(scalar_source)->sid()]);
   default:
   case ScalarSource_NONE:
     throw std::runtime_error("invalid scalar source");
@@ -131,7 +131,7 @@ void memcpyPushConstantField(void *dst, const dnx::PushConstantField *field,
                   sizeof(std::uint32_t));
       break;
     case dnx::ScalarSource_symbolic: {
-      std::int32_t v = static_cast<std::uint32_t>(
+      std::int32_t v = static_cast<std::int32_t>(
           symbolValues[field->source_as_symbolic()->sid()]);
       std::memcpy(pDst, &v, sizeof(std::uint32_t));
       break;
@@ -213,7 +213,7 @@ const char* reverse_value_name_search(const dnx::Model* dnx, const dnx::ScalarSo
     const void* source) {
   std::size_t count = dnx->value_names()->size();
   for (std::size_t v = 0; v < count; ++v) {
-    const dnx::ValueName* valueName = dnx->value_names()->Get(v);
+    const dnx::ValueName* valueName = dnx->value_names()->Get(static_cast<unsigned int>(v));
     if (valueName->value_type() != source_type) {
       continue;
     }
@@ -230,7 +230,6 @@ const char* reverse_value_name_search(const dnx::Model* dnx, const dnx::ScalarSo
         continue;
       }
       assert(valueLiteral->bytes()->size() == sourceLiteral->bytes()->size());
-      std::size_t n = valueLiteral->bytes()->size();
       if (std::memcmp(valueLiteral->bytes()->data(), sourceLiteral->bytes()->data(), valueLiteral->bytes()->size()) == 0) {
         return valueName->name()->c_str();
       }
@@ -243,16 +242,24 @@ const dnx::TensorInfo* get_tensor_info_by_name(const dnx::Model* dnx,
     const char* name) {
   std::size_t inputCount = dnx->inputs()->size();
   for (std::size_t i = 0; i< inputCount; ++i) {
-    const dnx::TensorInfo* input = dnx->inputs()->Get(i);
-    if (std::strcmp(input->name()->c_str(), name) == 0) {
-      return input;
+    uint32_t input = dnx->inputs()->Get(static_cast<unsigned int>(i));
+    auto info =  dnx->tensors()->Get(input)->info();
+    if (info == nullptr) {
+      continue;
+    }
+    if (std::strcmp(info->name()->c_str(), name) == 0) {
+      return info;
     }
   }
   std::size_t outputCount = dnx->outputs()->size();
   for (std::size_t o = 0; o < outputCount; ++o)  {
-    const dnx::TensorInfo* output = dnx->outputs()->Get(o);
-    if (std::strcmp(output->name()->c_str(), name) == 0) {
-      return output;
+    uint32_t output = dnx->outputs()->Get(static_cast<unsigned int>(o));
+    auto info = dnx->tensors()->Get(output)->info();
+    if (info == nullptr) {
+      continue;
+    }
+    if (std::strcmp(info->name()->c_str(), name) == 0) {
+      return info;
     }
   }
   return nullptr;

@@ -1,18 +1,14 @@
-#include "context.hpp"
-#include "denox/runtime.hpp"
-#include "dnx.h"
 #include "model.hpp"
+#include "context.hpp"
+#include "dnx.h"
 #include <algorithm>
-#include <variant>
 #include <vulkan/vulkan_core.h>
 
-namespace denox {
+namespace denox::runtime {
 
-static runtime::ModelDispatch
-create_model_dispatch(runtime::Context *ctx, const dnx::Model *dnx,
-                      const dnx::ComputeDispatch *dispatch,
-                      const dnx::DispatchInfo* info) {
-
+static ModelDispatch
+create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
+                      const dnx::ComputeDispatch *dispatch) {
 
   std::size_t descriptorSetCount = dispatch->bindings()->size();
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts(descriptorSetCount);
@@ -21,10 +17,12 @@ create_model_dispatch(runtime::Context *ctx, const dnx::Model *dnx,
   std::vector<VkDescriptorSetLayoutBinding> bindings;
   bindings.reserve(8);
   for (std::size_t s = 0; s < dispatch->bindings()->size(); ++s) {
-    const dnx::DescriptorSetBinding *set = dispatch->bindings()->Get(s);
+    const dnx::DescriptorSetBinding *set =
+        dispatch->bindings()->Get(static_cast<unsigned int>(s));
     bindings.clear();
     for (std::size_t b = 0; b < set->bindings()->size(); ++b) {
-      const dnx::DescriptorBinding *binding = set->bindings()->Get(b);
+      const dnx::DescriptorBinding *binding =
+          set->bindings()->Get(static_cast<unsigned int>(b));
       VkDescriptorSetLayoutBinding descriptorSetLayoutBinding;
       descriptorSetLayoutBinding.binding = binding->binding();
       descriptorSetLayoutBinding.descriptorCount = 1;
@@ -53,7 +51,6 @@ create_model_dispatch(runtime::Context *ctx, const dnx::Model *dnx,
 
   return runtime::ModelDispatch{
       .dispatch = dispatch,
-      .info = info,
       .descriptorSets = std::move(descriptorSets),
       .pipelineLayout = pipelineLayout,
       .pipeline = pipeline,
@@ -67,7 +64,7 @@ enum class TensorState {
 };
 
 static std::optional<runtime::ModelBarrier>
-generate_pipeline_barrier(const dnx::Model *dnx,
+generate_pipeline_barrier([[maybe_unused]] const dnx::Model *dnx,
                           std::vector<TensorState> &tensorStates,
                           const dnx::ComputeDispatch *dispatch) {
 
@@ -75,9 +72,11 @@ generate_pipeline_barrier(const dnx::Model *dnx,
 
   std::vector<runtime::ModelBufferBarrier> bufferBarriers;
   for (std::size_t s = 0; s < dispatch->bindings()->size(); ++s) {
-    const dnx::DescriptorSetBinding *set = dispatch->bindings()->Get(s);
+    const dnx::DescriptorSetBinding *set =
+        dispatch->bindings()->Get(static_cast<unsigned int>(s));
     for (std::size_t b = 0; b < set->bindings()->size(); ++b) {
-      const dnx::DescriptorBinding *binding = set->bindings()->Get(b);
+      const dnx::DescriptorBinding *binding =
+          set->bindings()->Get(static_cast<unsigned int>(b));
       TensorState currentState = tensorStates[binding->tensor()];
       dnx::Access access = binding->access();
       HazardType hazard = None;
@@ -159,15 +158,16 @@ generate_pipeline_barrier(const dnx::Model *dnx,
   }
 }
 
-static void
-collect_descriptor_pool_requirements(const dnx::ComputeDispatch *dispatch,
-                                     runtime::Model *m) {
-  auto &requirements = m->descriptorPoolRequirements;
+static void collect_descriptor_pool_requirements(
+    const dnx::ComputeDispatch *dispatch,
+    ModelDescriptorPoolRequirements &requirements) {
 
   for (std::size_t s = 0; s < dispatch->bindings()->size(); ++s) {
-    const dnx::DescriptorSetBinding *setBinding = dispatch->bindings()->Get(s);
+    const dnx::DescriptorSetBinding *setBinding =
+        dispatch->bindings()->Get(static_cast<unsigned int>(s));
     for (std::size_t b = 0; b < setBinding->bindings()->size(); ++b) {
-      const dnx::DescriptorBinding *binding = setBinding->bindings()->Get(b);
+      // const dnx::DescriptorBinding *binding =
+      // setBinding->bindings()->Get(static_cast<unsigned int>(b));
       const auto it = std::find_if(
           requirements.poolSizes.begin(), requirements.poolSizes.end(),
           [&](const VkDescriptorPoolSize &poolSize) {
@@ -186,102 +186,60 @@ collect_descriptor_pool_requirements(const dnx::ComputeDispatch *dispatch,
   requirements.maxSets += dispatch->bindings()->size();
 }
 
-int create_runtime_model(RuntimeContext context, const void *dnx_buf,
-                         size_t dnxSize, RuntimeModel *out_model) {
-  flatbuffers::Verifier verifier(static_cast<const std::uint8_t *>(dnx_buf),
-                                 dnxSize);
+Model::Model(const ContextHandle &context, memory::span<const std::byte> dnxbuf)
+    : m_context(context), m_dnxbuf(dnxbuf.begin(), dnxbuf.end()) {
+  flatbuffers::Verifier verifier(
+      reinterpret_cast<const uint8_t *>(m_dnxbuf.data()), m_dnxbuf.size());
   if (!denox::dnx::VerifyModelBuffer(verifier)) {
-#ifndef NDEBUG
-    fmt::println("Failed to verify dnx file format.");
-#endif
-    return -1;
+    DENOX_ERROR("Failed to verify dnx file format!");
+    diag::invalid_state();
   }
-  void *dnxBuffer = malloc(dnxSize);
-  std::memcpy(dnxBuffer, dnx_buf, dnxSize);
-  const dnx::Model *dnxModel = dnx::GetModel(dnxBuffer);
-  auto *m = new runtime::Model(dnxBuffer, dnxModel);
-  auto ctx = reinterpret_cast<runtime::Context *>(context);
+  m_dnx = denox::dnx::GetModel(dnxbuf.data());
 
-  const auto *dnx = m->dnx;
+  memory::vector<TensorState> tensorStates(m_dnx->tensors()->size(),
+                                           TensorState::Undefined);
+  for (size_t d = 0; d < m_dnx->dispatches()->size(); ++d) {
+    const dnx::ComputeDispatch *dispatch =
+        m_dnx->dispatches()->Get(static_cast<unsigned int>(d));
+    ModelDispatch modelDispatch =
+        create_model_dispatch(m_context, m_dnx, dispatch);
 
-  std::vector<TensorState> tensorStates(dnx->tensors()->size(),
-                                        TensorState::Undefined);
-
-  for (std::size_t d = 0; d < dnx->dispatches()->size(); ++d) {
-    dnx::Dispatch dispatch_type =
-        dnx->dispatches_type()->GetEnum<dnx::Dispatch>(d);
-    switch (dispatch_type) {
-    case dnx::Dispatch_ComputeDispatch: {
-      const dnx::ComputeDispatch *dispatch =
-          dnx->dispatches()->GetAs<dnx::ComputeDispatch>(d);
-      const dnx::DispatchInfo* info = nullptr;
-
-      if (dnx->dispatch_infos() != nullptr) {
-        assert(d < dnx->dispatch_infos()->size());
-        info = dnx->dispatch_infos()->Get(d);
-      }
-
-      // Create pipeline and layouts.
-      runtime::ModelDispatch modelDispatch =
-          create_model_dispatch(ctx, dnx, dispatch, info);
-
-      // Schedule pipeline barrier cmd.
-      if (std::optional<runtime::ModelBarrier> barrier =
-              generate_pipeline_barrier(dnx, tensorStates, dispatch)) {
-        m->cmds.push_back(*barrier);
-      }
-
-      // Schedule dispatch cmd.
-      m->cmds.push_back(modelDispatch);
-
-      collect_descriptor_pool_requirements(dispatch, m);
-      break;
+    if (std::optional<ModelBarrier> barrier =
+            generate_pipeline_barrier(m_dnx, tensorStates, dispatch)) {
+      m_cmds.emplace_back(*barrier);
     }
-    case dnx::Dispatch_NONE:
-    default:
-      throw std::runtime_error("invalid dnx file format!");
-    }
+    m_cmds.emplace_back(modelDispatch);
+    collect_descriptor_pool_requirements(dispatch,
+                                         m_descriptorPoolRequirements);
   }
-
-  *out_model = m;
-  return 0;
 }
 
-void destroy_runtime_model(RuntimeContext context, RuntimeModel model) {
-  assert(context != nullptr);
-  assert(model != nullptr);
-  auto ctx = reinterpret_cast<runtime::Context *>(context);
-  auto m = reinterpret_cast<runtime::Model *>(model);
+Model::~Model() { release(); }
 
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
-  std::vector<VkPipelineLayout> pipelineLayouts;
-  std::vector<VkPipeline> pipelines;
-  for (const auto &cmd : m->cmds) {
-    if (std::holds_alternative<runtime::ModelDispatch>(cmd)) {
-      const runtime::ModelDispatch &dispatch =
-          std::get<runtime::ModelDispatch>(cmd);
+void Model::release() {
+  for (const auto &cmd : m_cmds) {
+    if (std::holds_alternative<ModelDispatch>(cmd)) {
+      const auto &dispatch = std::get<ModelDispatch>(cmd);
       for (const auto &set : dispatch.descriptorSets) {
-        descriptorSetLayouts.push_back(set.descriptorSetLayout);
+        m_context->destroyDescriptorSetLayout(set.descriptorSetLayout);
       }
-      pipelineLayouts.push_back(dispatch.pipelineLayout);
-      pipelines.push_back(dispatch.pipeline);
+      m_context->destroyPipelineLayout(dispatch.pipelineLayout);
+      m_context->destroyPipeline(dispatch.pipeline);
     }
   }
-
-  for (const auto &pipeline : pipelines) {
-    ctx->destroyPipeline(pipeline);
-  }
-
-  for (const auto &pipelineLayout : pipelineLayouts) {
-    ctx->destroyPipelineLayout(pipelineLayout);
-  }
-
-  for (const auto &setLayout : descriptorSetLayouts) {
-    ctx->destroyDescriptorSetLayout(setLayout);
-  }
-
-  free(m->dnxBuffer);
-  delete m;
+  m_descriptorPoolRequirements.poolSizes.clear();
+  m_descriptorPoolRequirements.maxSets = 0;
+  m_context = nullptr;
+  m_dnxbuf.clear();
+  m_dnx = nullptr;
+  m_cmds.clear();
 }
 
-} // namespace denox
+memory::vector<ModelOutput>
+Model::infer(memory::span<const ModelInput> inputs) {
+  // determine ValueSpecs. 
+
+  return {};
+}
+
+} // namespace denox::runtime

@@ -1,5 +1,3 @@
-include(${PROJECT_SOURCE_DIR}/cmake/onnx.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/dnx.cmake)
 
 add_library(denox_compiler
   EXCLUDE_FROM_ALL
