@@ -12,6 +12,8 @@
 
 namespace denox::runtime {
 
+#define DENOX_QUITE
+
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
               [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT messageType,

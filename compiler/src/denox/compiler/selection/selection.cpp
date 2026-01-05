@@ -198,6 +198,12 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     assert(tensorRemap[tensorUf[p.tensorId.index]].has_value());
     p.tensorId.index = *tensorRemap[tensorUf[p.tensorId.index]];
   }
+  for (auto& c : memoryConstrains) {
+    c.dst.index = *tensorRemap[tensorUf[c.dst.index]];
+    c.src0.index = *tensorRemap[tensorUf[c.src0.index]];
+    c.src1.index = *tensorRemap[tensorUf[c.src1.index]];
+  }
+
   // rebind inputs
   memory::vector<uint64_t> inputs;
   for (const auto &nid : supergraph.inputs) {

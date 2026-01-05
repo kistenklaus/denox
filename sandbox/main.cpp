@@ -2,7 +2,6 @@
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/compile.hpp"
-#include "denox/runtime/db.hpp"
 #include "denox/compiler/compile_shaders/compile_shaders.hpp"
 #include "denox/compiler/compile_symbols/compile_symbols.hpp"
 #include "denox/compiler/dce/dce.hpp"
@@ -85,30 +84,32 @@ int main() {
 
   options.debugInfo = denox::compiler::DebugInfo::Enable;
 
-  auto db = Db::open(io::Path::cwd() / "gpu.db");
-  denox::populate(db, onnx, options);
-  auto dnxbuf = denox::compile(onnx, db, options);
-
-  db.atomic_writeback();
-
-  io::File dnx =
-      io::File::open(io::Path::cwd() / "net.dnx",
-                     io::File::OpenMode::Create | io::File::OpenMode::Write |
-                         io::File::OpenMode::Truncate);
-  dnx.write_exact(dnxbuf);
-
   uint32_t H = 1080;
   uint32_t W = 1920;
   uint32_t C = 3;
 
+  auto context =  runtime::Context::make("*RTX*", ApiVersion::VULKAN_1_4);;
 
-  auto rdb = denox::runtime::Db::open(db);
+  auto db = Db::open(io::Path::cwd() / "gpu.db");
+  {
+    auto dnxbuf = denox::compile(onnx, db, options);
+    auto model = denox::runtime::Model::make(dnxbuf, context);
+    auto instance = denox::runtime::Instance::make(model, {{"H", H}, {"W", W}});
+    fmt::println("{}", instance->bench().report());
+  }
+
+  denox::populate(db, onnx, options);
+
+  db.atomic_writeback();
+
+  auto rdb = denox::runtime::Db::open(context, db);
   rdb->bench();
 
-  //
-  // auto model = denox::runtime::Model::make(dnxbuf);
-  // auto instance = denox::runtime::Instance::make(model, {{"H", H}, {"W", W}});
+  auto dnxbuf = denox::compile(onnx, db, options);
+  auto model = denox::runtime::Model::make(dnxbuf, context);
+  auto instance = denox::runtime::Instance::make(model, {{"H", H}, {"W", W}});
 
+  fmt::println("{}", instance->bench().report());
   // memory::ActivationTensor inputTensor{
   //     memory::ActivationDescriptor{
   //         {W, H, C}, memory::ActivationLayout::HWC, memory::Dtype::F16},
@@ -132,7 +133,8 @@ int main() {
   //   fmt::println("CHANNEL: {}", c);
   //   for (uint32_t h = 0; h < H; ++h) {
   //     for (uint32_t w = 0; w < W; ++w) {
-  //       fmt::print(" {:^7.3f} ", static_cast<float>(outputTensor.at(w, h, c)));
+  //       fmt::print(" {:^7.3f} ", static_cast<float>(outputTensor.at(w, h,
+  //       c)));
   //     }
   //     fmt::println("");
   //   }

@@ -105,7 +105,8 @@ static memory::vector<uint32_t> select_targets_from_candidates(
   }
 
   // ------------------------------------------------------------
-  // Phase 2: SEM-based selection, excluding in-flight
+  // Phase 2: SEM-based selection (no replacement, no in-flight,
+  // exclude already-converged dispatches)
   // ------------------------------------------------------------
   struct Item {
     uint32_t candidateIndex; // index into candidates
@@ -118,18 +119,28 @@ static memory::vector<uint32_t> select_targets_from_candidates(
   items.reserve(candidates.size());
 
   for (uint32_t i = 0; i < candidates.size(); ++i) {
-    // Exclude anything already in flight
     uint32_t d = candidates[i];
     const auto &dispatch = dispatches[d];
 
-    double priority;
+    // Exclude dispatches with no data yet from SEM phase
     if (!dispatch.time.has_value()) {
-      priority = std::numeric_limits<double>::infinity();
+      items.emplace_back(i, std::numeric_limits<double>::infinity());
+      continue;
+    }
+
+    const auto &t = *dispatch.time;
+    const uint64_t n = t.samples;
+
+    // SEM / mean priority (larger = worse)
+    double priority;
+
+    if (n > 1 && t.std_derivation_ns > 0 && t.latency_ns > 0) {
+      double sem = static_cast<double>(t.std_derivation_ns) /
+                   std::sqrt(static_cast<double>(n));
+
+      priority = sem / static_cast<double>(t.latency_ns);
     } else {
-      double n = static_cast<double>(dispatch.time->samples);
-      double sigma = static_cast<double>(dispatch.time->std_derivation_ns);
-      priority = (n > 0.0) ? sigma / std::sqrt(n)
-                           : std::numeric_limits<double>::infinity();
+      priority = std::numeric_limits<double>::infinity();
     }
 
     items.push_back({i, priority});
@@ -541,7 +552,7 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
   };
 }
 
-static void print_progress_report(const denox::Db &db,
+static bool print_progress_report(const denox::Db &db,
                                   const runtime::DbBenchOptions &options) {
   const auto dispatches = db.dispatches();
   const uint64_t total = dispatches.size();
@@ -594,8 +605,10 @@ static void print_progress_report(const denox::Db &db,
                "minSamples pending: {} | "
                "precision pending: {} | "
                "no data: {}",
-               static_cast<uint64_t>(std::round(progress)), converged, total,
+               static_cast<uint64_t>(std::floor(progress)), converged, total,
                insufficientSamples, insufficientPrecision, noData);
+
+  return converged == total;
 }
 
 void denox::runtime::Db::bench(const DbBenchOptions &options) {
@@ -608,7 +621,8 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
   memory::vector<uint32_t> iota(m_db.dispatches().size());
   std::iota(iota.begin(), iota.end(), 0);
 
-  while (true) {
+  bool running = !print_progress_report(m_db, options)t
+  while (running) {
     memory::vector<uint32_t> targets = select_targets_from_candidates(
         state, m_db, iota, EPOCH_SIZE, options.minSamples);
     Epoch epoch = create_epoch(m_context, m_db, targets);
@@ -623,7 +637,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
                                          timing.std_derivation);
     }
 
-    print_progress_report(m_db, options);
+    running = !print_progress_report(m_db, options);
 
     if (options.saveProgress) {
       m_db.atomic_writeback();
