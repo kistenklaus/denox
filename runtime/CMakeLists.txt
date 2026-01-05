@@ -7,6 +7,9 @@ add_library(denox_runtime EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/model.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/instance.cpp
 
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/db.cpp
+
+
 )
 
 target_compile_features(denox_runtime PUBLIC cxx_std_20)
@@ -27,6 +30,7 @@ PUBLIC
   denox_device_info
   denox_spirv
   denox_common
+  denox_database
 )
 
 if (NOT DENOX_DISABLE_WARNINGS)

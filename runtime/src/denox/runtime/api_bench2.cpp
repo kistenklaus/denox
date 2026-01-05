@@ -2,6 +2,7 @@
 #include "Db.hpp"
 #include "context.hpp"
 #include "denox/runtime.hpp"
+#include "denox/runtime/db.hpp"
 #include "shader/GlslCompiler.hpp"
 #include "shader/ShaderBinary.hpp"
 #include "vma.hpp"
@@ -23,9 +24,9 @@ using namespace std::chrono_literals;
 
 namespace denox {
 
-static constexpr std::chrono::duration MIN_GLOBAL_WARMUP = 10s;
+// static constexpr std::chrono::duration MIN_GLOBAL_WARMUP = 10s;
 static constexpr size_t BATCH_SIZE = 10;
-static constexpr size_t JIT_WARMUP_ITERATIONS = 3;
+static constexpr size_t JIT_WARMUP_ITERATIONS = 0;
 static constexpr size_t L2_WARMUP_ITERATIONS = 50;
 
 static constexpr size_t PIPELINE_STAGES = 2;
@@ -537,7 +538,7 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
     if (!batches[next].targets.empty()) {
       read_batch(ctx, batches[next]);
       uint64_t total_samples = 0;
-      for (const auto& dispatch : db.dispatches) {
+      for (const auto &dispatch : db.dispatches) {
         total_samples += dispatch.time.samples;
       }
 
@@ -552,7 +553,7 @@ int bench_runtime_instance(RuntimeContext context, const char *dbfile,
         minSamples = std::min(db.dispatches[i].time.samples, minSamples);
         maxSamples = std::max(db.dispatches[i].time.samples, maxSamples);
         double SEM = db.dispatches[i].time.std_derivation_ns /
-            std::sqrt(db.dispatches[i].time.samples);
+                     std::sqrt(db.dispatches[i].time.samples);
         maxSEM = std::max(maxSEM, SEM);
       }
       fmt::println("max-std: {}ms", maxVar * 1e-6);

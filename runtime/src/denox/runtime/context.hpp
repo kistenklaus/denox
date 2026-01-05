@@ -11,12 +11,13 @@
 #include <memory>
 #include <stdexcept>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 namespace denox::runtime {
 
 struct Buffer {
-  VkBuffer vkbuffer;
-  VmaAllocation allocation;
+  VkBuffer vkbuffer = VK_NULL_HANDLE;
+  VmaAllocation allocation = VK_NULL_HANDLE;
 };
 
 class Context {
@@ -73,6 +74,12 @@ public:
   void freeCommandBuffer(VkCommandPool cmdPool, VkCommandBuffer cmd);
 
   void beginCommandBuffer(VkCommandBuffer cmd);
+  void resetCommandBuffer(VkCommandBuffer cmd) {
+    VkResult result = vkResetCommandBuffer(cmd, 0);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to reset command buffer!");
+    }
+  }
   void endCommandBuffer(VkCommandBuffer cmd);
 
   void submit(VkCommandBuffer cmd);
@@ -188,6 +195,7 @@ public:
       throw std::runtime_error("Failed to reset fence.");
     }
   }
+  void destroyFence(VkFence fence) { vkDestroyFence(m_device, fence, nullptr); }
 
   void submit(VkCommandBuffer cmd, VkFence fence) {
     VkSubmitInfo submitInfo;
@@ -208,6 +216,16 @@ public:
       }
     }
   }
+
+  void resetDescriptorPool(VkDescriptorPool pool) {
+    VkResult result = vkResetDescriptorPool(m_device, pool, 0);
+    if (result != VK_SUCCESS) {
+      throw std::runtime_error("Failed to reset descriptor pool");
+    }
+  }
+
+  VkInstance vkInstance() const { return m_instance; }
+  VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
 
 private:
   explicit Context(const char *deviceName, ApiVersion target_env);

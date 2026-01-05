@@ -2,6 +2,7 @@
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/compile.hpp"
+#include "denox/runtime/db.hpp"
 #include "denox/compiler/compile_shaders/compile_shaders.hpp"
 #include "denox/compiler/compile_symbols/compile_symbols.hpp"
 #include "denox/compiler/dce/dce.hpp"
@@ -25,6 +26,7 @@
 #include "denox/memory/tensor/ActivationShape.hpp"
 #include "denox/memory/tensor/ActivationTensor.hpp"
 #include "denox/runtime/context.hpp"
+#include "denox/runtime/db.hpp"
 #include "denox/runtime/instance.hpp"
 #include "denox/runtime/model.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
@@ -99,8 +101,13 @@ int main() {
   uint32_t W = 1920;
   uint32_t C = 3;
 
-  auto model = denox::runtime::Model::make(dnxbuf);
-  auto instance = denox::runtime::Instance::make(model, {{"H", H}, {"W", W}});
+
+  auto rdb = denox::runtime::Db::open(db);
+  rdb->bench();
+
+  //
+  // auto model = denox::runtime::Model::make(dnxbuf);
+  // auto instance = denox::runtime::Instance::make(model, {{"H", H}, {"W", W}});
 
   // memory::ActivationTensor inputTensor{
   //     memory::ActivationDescriptor{
@@ -131,5 +138,5 @@ int main() {
   //   }
   // }
 
-  fmt::println("{}", instance->bench().report());
+  // fmt::println("{}", instance->bench().report());
 }
