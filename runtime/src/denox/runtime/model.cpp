@@ -361,7 +361,7 @@ static void collect_descriptor_pool_requirements(
 
 static std::pair<ModelDescriptorPoolRequirements, memory::vector<ModelCmd>>
 parse_cmds(const ContextHandle &context, const dnx::Model *dnx,
-    memory::span<const ModelTensor> tensors) {
+           memory::span<const ModelTensor> tensors) {
 
   ModelDescriptorPoolRequirements descriptorPoolRequirements{};
   memory::vector<ModelCmd> cmds;
@@ -370,8 +370,8 @@ parse_cmds(const ContextHandle &context, const dnx::Model *dnx,
   for (size_t d = 0; d < dnx->dispatches()->size(); ++d) {
     const dnx::ComputeDispatch *dispatch =
         dnx->dispatches()->Get(static_cast<unsigned int>(d));
-    ModelDispatch modelDispatch = create_model_dispatch(context, dnx, dispatch, 
-        tensors);
+    ModelDispatch modelDispatch =
+        create_model_dispatch(context, dnx, dispatch, tensors);
 
     if (std::optional<ModelBarrier> barrier =
             generate_pipeline_barrier(dnx, tensorStates, dispatch)) {

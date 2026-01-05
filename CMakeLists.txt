@@ -22,14 +22,12 @@ include(cmake/vma.cmake)
 
 
 add_subdirectory(common)
-# add_subdirectory(symbolic)
 add_subdirectory(device_info)
 add_subdirectory(spirv)
 add_subdirectory(database)
 add_subdirectory(compiler)
-
 add_subdirectory(runtime)
-
+add_subdirectory(cli)
 add_subdirectory(sandbox)
 
 #

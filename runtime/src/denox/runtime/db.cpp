@@ -444,8 +444,7 @@ static void record_batch(VkCommandBuffer cmd, const runtime::ContextHandle &ctx,
 
 static void read_batch(const runtime::ContextHandle &ctx,
                        const EpochStage &stage, const Batch &batch,
-                       memory::span<Timing> timings,
-                       memory::span<uint64_t> samplesInFlight) {
+                       memory::span<Timing> timings) { 
   const size_t N = batch.dispatches.size();
   const uint32_t QUERY_COUNT = static_cast<uint32_t>(N * 2);
 
@@ -520,8 +519,7 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
     ctx->waitFence(epoch.stages[next].fence);
     ctx->resetFence(epoch.stages[next].fence);
     if (!batches[next].dispatches.empty()) {
-      read_batch(ctx, epoch.stages[next], batches[next], timings,
-                 samplesInFlight);
+      read_batch(ctx, epoch.stages[next], batches[next], timings);
       sampleCount += batches[next].dispatches.size();
     }
     batches[next] =
@@ -543,7 +541,7 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
   for (size_t i = 0; i < PIPELINE_STAGES; ++i) {
     ctx->waitFence(epoch.stages[i].fence);
     if (!batches[i].dispatches.empty()) {
-      read_batch(ctx, epoch.stages[i], batches[i], timings, samplesInFlight);
+      read_batch(ctx, epoch.stages[i], batches[i], timings);
     }
   }
 
@@ -621,7 +619,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
   memory::vector<uint32_t> iota(m_db.dispatches().size());
   std::iota(iota.begin(), iota.end(), 0);
 
-  bool running = !print_progress_report(m_db, options)t
+  bool running = !print_progress_report(m_db, options);
   while (running) {
     memory::vector<uint32_t> targets = select_targets_from_candidates(
         state, m_db, iota, EPOCH_SIZE, options.minSamples);

@@ -1,5 +1,8 @@
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
+#include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
+
+static constexpr int64_t DEFAULT_ASSUMPTION = 1920;
 
 denox::SymGraphEval
 denox::compiler::assumed_symeval(const SymGraph &symGraph,
@@ -22,5 +25,5 @@ denox::compiler::assumed_symeval(const SymGraph &symGraph,
     int64_t value = static_cast<int64_t>(assumption.value);
     symSpecs.push_back(SymSpec{.symbol = symbol, .value = value});
   }
-  return symGraph.eval(symSpecs);
+  return symGraph.eval(symSpecs, DEFAULT_ASSUMPTION);
 }

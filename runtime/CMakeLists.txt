@@ -1,12 +1,9 @@
 
 add_library(denox_runtime EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/vma_impl.cpp
-  # ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/dnx_parse_helpers.cpp
-
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/context.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/model.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/instance.cpp
-
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/db.cpp
 
 

@@ -32,9 +32,9 @@ struct DescriptorPolicies {
 
 struct InterfaceTensorDescriptor {
   std::string name;
-  TensorFormat format;
-  TensorStorage storage;
-  TensorDataType dtype;
+  TensorFormat format = TensorFormat::Optimal;
+  TensorStorage storage = TensorStorage::Optimal;
+  TensorDataType dtype = TensorDataType::Auto;
   std::optional<std::string> heightValueName;
   std::optional<uint32_t> height;
   std::optional<std::string> widthValueName;

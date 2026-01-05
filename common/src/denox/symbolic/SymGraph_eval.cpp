@@ -6,7 +6,7 @@
 
 namespace denox {
 
-SymGraphEval SymGraph::eval(memory::span<const SymSpec> symSpecs) const {
+SymGraphEval SymGraph::eval(memory::span<const SymSpec> symSpecs, Sym::value_type defaultVarValue) const {
   memory::vector<memory::optional<Sym::value_type>> dp(m_expressions.size());
 
   for (const auto &spec : symSpecs) {
@@ -28,7 +28,7 @@ SymGraphEval SymGraph::eval(memory::span<const SymSpec> symSpecs) const {
     const auto &expr = m_expressions[e];
     switch (expr.expr) {
     case symbolic::details::ExprType::Identity:
-      dp[e] = memory::nullopt;
+      dp[e] = defaultVarValue;
       break;
     case symbolic::details::ExprType::NonAffine: {
       const auto &nonaffine = m_nonAffineCache.expressions[expr.lhs.sym()];

@@ -176,7 +176,7 @@ public:
     return sub(0, sym, dno);
   }
 
-  SymGraphEval eval(memory::span<const SymSpec> symSpecs) const;
+  SymGraphEval eval(memory::span<const SymSpec> symSpecs, Sym::value_type defaultVarValue = 0) const;
 
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;
