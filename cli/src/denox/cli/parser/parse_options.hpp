@@ -60,3 +60,23 @@ parse_type(std::span<const Token> tokens,
            denox::memory::hash_map<denox::memory::string,
                                    denox::compiler::InterfaceTensorDescriptor>
                &tensorDescriptors);
+
+uint32_t
+parse_use_descriptor_sets(std::span<const Token> tokens,
+                          denox::compiler::DescriptorPolicies *policies);
+
+uint32_t parse_assume(
+    std::span<const Token> tokens,
+    denox::memory::hash_map<denox::memory::string, int64_t> &assumptions);
+
+uint32_t parse_specialize(
+    std::span<const Token> tokens,
+    denox::memory::hash_map<denox::memory::string, int64_t> &assumptions);
+
+uint32_t parse_samples(std::span<const Token> tokens, uint32_t *samples);
+
+uint32_t parse_relative_error(std::span<const Token> tokens,
+                              float* relative_error);
+
+uint32_t parse_input(std::span<const Token> tokens,
+                     denox::memory::optional<IOEndpoint> *endpoint);

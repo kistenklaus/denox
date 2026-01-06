@@ -72,14 +72,11 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     dispatch.workgroupCountY = require_symbol(dispatch.workgroupCountY);
     dispatch.workgroupCountZ = require_symbol(dispatch.workgroupCountZ);
 
-    if (options.debugInfo == DebugInfo::Enable) {
-      if (dispatch.info.memoryReads.has_value()) {
-        dispatch.info.memoryReads = require_symbol(*dispatch.info.memoryReads);
-      }
-      if (dispatch.info.memoryWrites.has_value()) {
-        dispatch.info.memoryWrites =
-            require_symbol(*dispatch.info.memoryWrites);
-      }
+    if (dispatch.info.memoryReads.has_value()) {
+      dispatch.info.memoryReads = require_symbol(*dispatch.info.memoryReads);
+    }
+    if (dispatch.info.memoryWrites.has_value()) {
+      dispatch.info.memoryWrites = require_symbol(*dispatch.info.memoryWrites);
     }
   }
 
@@ -95,13 +92,11 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     dispatch.workgroupCountY = remap[dispatch.workgroupCountY];
     dispatch.workgroupCountZ = remap[dispatch.workgroupCountZ];
 
-    if (options.debugInfo == DebugInfo::Enable) {
-      if (dispatch.info.memoryReads.has_value()) {
-        dispatch.info.memoryReads = remap[*dispatch.info.memoryReads];
-      }
-      if (dispatch.info.memoryWrites.has_value()) {
-        dispatch.info.memoryWrites = remap[*dispatch.info.memoryWrites];
-      }
+    if (dispatch.info.memoryReads.has_value()) {
+      dispatch.info.memoryReads = remap[*dispatch.info.memoryReads];
+    }
+    if (dispatch.info.memoryWrites.has_value()) {
+      dispatch.info.memoryWrites = remap[*dispatch.info.memoryWrites];
     }
   }
 

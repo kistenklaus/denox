@@ -3,6 +3,7 @@
 #include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
+#include "denox/common/ValueSpec.hpp"
 #include "denox/device_info/DeviceInfo.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/memory/container/optional.hpp"
@@ -48,13 +49,8 @@ struct SpirvOptions {
   bool optimize;
 };
 
-struct OptimizationAssumption {
-  std::string valueName;
-  uint64_t value;
-};
-
 struct OptimizationAssumptions {
-  std::vector<OptimizationAssumption> valueAssumptions;
+  std::vector<ValueSpec> valueAssumptions;
 };
 
 enum class DebugInfo {

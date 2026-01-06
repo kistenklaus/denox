@@ -1,6 +1,9 @@
 #include "instance.hpp"
 #include "context.hpp"
+#include "denox/diag/invalid_state.hpp"
 #include "denox/diag/not_implemented.hpp"
+#include "denox/memory/tensor/ActivationDescriptor.hpp"
+#include "denox/memory/tensor/ActivationLayout.hpp"
 #include "denox/symbolic/SymIR.hpp"
 #include "model.hpp"
 #include "vma.hpp"
@@ -8,6 +11,7 @@
 #include <cstring>
 #include <fmt/format.h>
 #include <forward_list>
+#include <iostream>
 #include <iterator>
 #include <stdexcept>
 #include <variant>
@@ -304,7 +308,7 @@ runtime::Instance::make(const ModelHandle &model,
   return make(model, symSpecs);
 }
 
-void runtime::Instance::infer(void *const *pInputs, void **pOutputs) const {
+void runtime::Instance::infer(const void **pInputs, void **pOutputs) const {
   const auto &ctx = m_model->context();
   const auto inputs = m_model->inputs();
   const auto outputs = m_model->outputs();
@@ -607,18 +611,73 @@ memory::string runtime::InstanceBenchmarkResult::report() const {
     totalAccesses += accesses;
     float throughput =
         (static_cast<float>(accesses) / (t.latency.count() * 1e-3f)) * 1e-9f;
-    fmt::println("{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
-                 "\x1B[90m({:>4} GB/s)\x1B[0m    {:.3f}MB",
-                 t.input, t.name, t.output, int_part, frac_part,
-                 static_cast<uint32_t>(std::round(throughput)),
-                 static_cast<float>(accesses) * 1e-6f);
+    std::cerr << fmt::format(
+                     "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
+                     "\x1B[90m({:>4} GB/s)\x1B[0m    {:.3f}MB",
+                     t.input, t.name, t.output, int_part, frac_part,
+                     static_cast<uint32_t>(std::round(throughput)),
+                     static_cast<float>(accesses) * 1e-6f)
+              << std::endl;
+    ;
   }
 
-  fmt::println("\x1B[31m{:>89} {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
-               "Total time :", totalDuration,
-               std::round((static_cast<float>(totalAccesses) / (totalDuration * 1e-3f)) *
-                   1e-9f));
+  std::cerr << fmt::format(
+                   "\x1B[31m{:>89} {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
+                   "Total time :", totalDuration,
+                   std::round((static_cast<float>(totalAccesses) /
+                               (totalDuration * 1e-3f)) *
+                              1e-9f))
+            << std::endl;
   return out;
+}
+
+denox::memory::ActivationDescriptor
+runtime::Instance::getOutputDesc(uint32_t o) const {
+  auto output = m_model->tensors()[m_model->outputs()[o]];
+
+  memory::optional<memory::ActivationLayout> layout;
+  memory::optional<memory::Dtype> dtype;
+
+  switch (*output.format) {
+  case TensorFormat::Optimal:
+    diag::invalid_state();
+  case TensorFormat::SSBO_HWC:
+    layout = denox::memory::ActivationLayout::HWC;
+    break;
+  case TensorFormat::SSBO_CHW:
+    layout = denox::memory::ActivationLayout::CHW;
+    break;
+  case TensorFormat::SSBO_CHWC8:
+    layout = denox::memory::ActivationLayout::CHWC8;
+    break;
+  case TensorFormat::TEX_RGBA:
+  case TensorFormat::TEX_RGB:
+  case TensorFormat::TEX_RG:
+  case TensorFormat::TEX_R:
+    diag::not_implemented();
+  }
+
+  switch (*output.dtype) {
+  case TensorDataType::Auto:
+    diag::invalid_state();
+  case TensorDataType::Float16:
+    dtype = denox::memory::Dtype::F16;
+    break;
+  case TensorDataType::Float32:
+    dtype = denox::memory::Dtype::F32;
+    break;
+  case TensorDataType::Float64:
+    dtype = denox::memory::Dtype::F64;
+    break;
+  }
+
+  return denox::memory::ActivationDescriptor{
+      {static_cast<unsigned int>(m_symeval[*output.width]),
+       static_cast<unsigned int>(m_symeval[*output.height]),
+       static_cast<unsigned int>(m_symeval[*output.channels])},
+      *layout,
+      *dtype,
+  };
 }
 
 } // namespace denox

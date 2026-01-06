@@ -1,6 +1,8 @@
 #include "denox/cli/parser/lex/tokens/literal.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/device_info/ApiVersion.hpp"
+#include <charconv>
+#include <optional>
 
 std::optional<std::uint64_t> LiteralToken::parse_unsigned() const noexcept {
   auto sv = view();
@@ -200,4 +202,15 @@ bool LiteralToken::is_path() const noexcept {
 denox::io::Path LiteralToken::as_path() const {
   assert(is_path());
   return denox::io::Path{view()};
+}
+
+std::optional<float> LiteralToken::parse_float() const noexcept {
+  float value = 0.0f;
+  const char *begin = m_value.data();
+  const char *end = begin + m_value.size();
+  auto [ptr, ec] =
+      std::from_chars(begin, end, value, std::chars_format::general);
+  if (ec != std::errc{} || ptr != end)
+    return std::nullopt;
+  return value;
 }

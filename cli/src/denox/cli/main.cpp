@@ -1,12 +1,13 @@
-
-
 #include "alloc/monotone_alloc.hpp"
 #include "denox/cli/compile.hpp"
+#include "denox/cli/infer.hpp"
 #include "denox/cli/parser/parse.hpp"
+#include "denox/cli/populate.hpp"
+#include "denox/cli/bench.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include <fmt/base.h>
+#include <fmt/ostream.h>
 #include <fmt/printf.h>
-#include <stdexcept>
 
 int main(int argc, char **argv) {
 
@@ -17,9 +18,16 @@ int main(int argc, char **argv) {
     compile(action.compile());
     break;
   case ActionKind::Infer:
+    infer(action.infer());
+    break;
   case ActionKind::Bench:
+    bench(action.bench());
+    break;
   case ActionKind::Populate:
+    populate(action.populate());
+    break;
   case ActionKind::Help:
+    denox::diag::not_implemented();
   case ActionKind::Version:
     denox::diag::not_implemented();
     break;

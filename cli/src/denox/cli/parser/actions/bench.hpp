@@ -10,13 +10,17 @@
 struct BenchAction {
   Artefact target;
 
+  // device info query
+  denox::memory::optional<denox::memory::string> deviceName;
+  denox::ApiVersion apiVersion;
+
   // db bench options (only valid if target is a database)
   denox::runtime::DbBenchOptions benchOptions;
 
   // all following options are only valid if the target is a onnx artefact
   // compile options.
   std::optional<DbArtefact> database;
-  std::optional<denox::compiler::CompileOptions> options;
+  denox::compiler::CompileOptions options;
 
   // dnx bench spec. (only valid if target is a onnx or dnx artefact)
   denox::memory::vector<denox::ValueSpec> valueSpecs;

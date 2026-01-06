@@ -69,10 +69,10 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
         50 +
         static_cast<uint32_t>(std::floor(static_cast<float>(i + 1) * 50.0f /
                                          static_cast<float>(units.size())));
-    logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{}", percentage,
+    logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{} {}", percentage,
                 logger.green(),
                 units[i].glsl.getSourcePath().relative_to(io::Path::cwd()),
-                units[i].hash, logger.reset());
+                logger.reset(), units[i].hash);
 
     SpirvBinary binary = *units[i].glsl.compile();
     db.insert_binary(units[i].hash, binary);

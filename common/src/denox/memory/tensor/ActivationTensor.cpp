@@ -65,4 +65,14 @@ ActivationTensorConstView::operator[](unsigned int linearIndex) const {
                                m_desc.type);
 }
 
-} // namespace denox::compiler
+void ActivationTensorView::assignFrom(const ActivationTensorConstView &view) {
+  for (unsigned int h = 0; h < shape().h; ++h) {
+    for (unsigned int w = 0; w < shape().w; ++w) {
+      for (unsigned int c = 0; c < shape().c; ++c) {
+        this->at(w, h, c) = view.at(w, h, c);
+      }
+    }
+  }
+}
+
+} // namespace denox::memory

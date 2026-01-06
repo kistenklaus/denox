@@ -18,6 +18,10 @@ enum class OptionToken {
   Type,
 
   InputSize,
+  UseDescriptorSets,
+  Specialize,
+  Samples,
+  RelativeError,
 
   TargetEnv, //
   Device,    //
@@ -99,6 +103,18 @@ struct fmt::formatter<OptionToken> : fmt::formatter<std::string_view> {
       break;
     case OptionToken::InputSize:
       name = "input-size";
+      break;
+    case OptionToken::UseDescriptorSets:
+      name = "use-descriptor-sets";
+      break;
+    case OptionToken::Specialize:
+      name = "specialize";
+      break;
+    case OptionToken::Samples:
+      name = "samples";
+      break;
+    case OptionToken::RelativeError:
+      name = "relative-error";
       break;
     }
 

@@ -78,6 +78,19 @@ std::optional<OptionToken> parse_option(std::string_view str) {
   if (str == "input-size") {
     return OptionToken::InputSize;
   }
+  if (str == "use-descriptor-sets") {
+    return OptionToken::UseDescriptorSets;
+  }
+  if (str == "spec" || str == "specialize") {
+    return OptionToken::Specialize;
+  }
+  
+  if (str == "samples") {
+    return OptionToken::Samples;
+  }
+  if (str == "relative-error") {
+    return OptionToken::RelativeError;
+  }
 
   return std::nullopt;
 }

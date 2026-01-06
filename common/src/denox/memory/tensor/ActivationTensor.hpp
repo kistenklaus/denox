@@ -5,6 +5,7 @@
 #include "denox/memory/dtype/dtype_reference.hpp"
 #include "denox/memory/tensor/ActivationDescriptor.hpp"
 #include <cassert>
+#include <concepts>
 #include <cstring>
 #include <fmt/core.h>
 #include <functional>
@@ -115,6 +116,7 @@ public:
   }
 
   template <typename Alloc = std::allocator<std::byte>>
+    requires (!std::same_as<Alloc, ActivationTensor>)
   explicit ActivationTensor(ActivationDescriptor descriptor,
                             const Alloc &alloc = {})
       : m_desc(descriptor) {

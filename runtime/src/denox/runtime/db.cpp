@@ -444,7 +444,7 @@ static void record_batch(VkCommandBuffer cmd, const runtime::ContextHandle &ctx,
 
 static void read_batch(const runtime::ContextHandle &ctx,
                        const EpochStage &stage, const Batch &batch,
-                       memory::span<Timing> timings) { 
+                       memory::span<Timing> timings) {
   const size_t N = batch.dispatches.size();
   const uint32_t QUERY_COUNT = static_cast<uint32_t>(N * 2);
 
@@ -551,7 +551,8 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
 }
 
 static bool print_progress_report(const denox::Db &db,
-                                  const runtime::DbBenchOptions &options) {
+                                  const runtime::DbBenchOptions &options,
+                                  diag::Logger &logger) {
   const auto dispatches = db.dispatches();
   const uint64_t total = dispatches.size();
 
@@ -599,12 +600,12 @@ static bool print_progress_report(const denox::Db &db,
   float progress =
       static_cast<float>(converged) / static_cast<float>(total) * 100.0f;
 
-  fmt::println("[{:>3}%] converged: {} / {} | "
-               "minSamples pending: {} | "
-               "precision pending: {} | "
-               "no data: {}",
-               static_cast<uint64_t>(std::floor(progress)), converged, total,
-               insufficientSamples, insufficientPrecision, noData);
+  logger.info("[{:>3}%] converged: {} / {} | "
+              "minSamples pending: {} | "
+              "precision pending: {} | "
+              "no data: {}",
+              static_cast<uint64_t>(std::floor(progress)), converged, total,
+              insufficientSamples, insufficientPrecision, noData);
 
   return converged == total;
 }
@@ -614,12 +615,14 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
 
   BenchmarkState state = create_benchmark_state(m_context);
 
+  diag::Logger logger("runtime.bench.db", true);
+
   // global warmup (10s or something, to send gpu out of boost)
 
   memory::vector<uint32_t> iota(m_db.dispatches().size());
   std::iota(iota.begin(), iota.end(), 0);
 
-  bool running = !print_progress_report(m_db, options);
+  bool running = !print_progress_report(m_db, options, logger);
   while (running) {
     memory::vector<uint32_t> targets = select_targets_from_candidates(
         state, m_db, iota, EPOCH_SIZE, options.minSamples);
@@ -635,7 +638,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
                                          timing.std_derivation);
     }
 
-    running = !print_progress_report(m_db, options);
+    running = !print_progress_report(m_db, options, logger);
 
     if (options.saveProgress) {
       m_db.atomic_writeback();

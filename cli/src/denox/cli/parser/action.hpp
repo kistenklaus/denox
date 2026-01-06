@@ -57,12 +57,27 @@ public:
     return std::get<InferAction>(m_value);
   }
 
+  InferAction &infer() noexcept {
+    assert(kind() == ActionKind::Infer);
+    return std::get<InferAction>(m_value);
+  }
+
   const BenchAction &bench() const noexcept {
     assert(kind() == ActionKind::Bench);
     return std::get<BenchAction>(m_value);
   }
 
+  BenchAction &bench() noexcept {
+    assert(kind() == ActionKind::Bench);
+    return std::get<BenchAction>(m_value);
+  }
+
   const PopulateAction &populate() const noexcept {
+    assert(kind() == ActionKind::Populate);
+    return std::get<PopulateAction>(m_value);
+  }
+
+  PopulateAction &populate() noexcept {
     assert(kind() == ActionKind::Populate);
     return std::get<PopulateAction>(m_value);
   }

@@ -19,6 +19,7 @@ include(cmake/onnx.cmake)
 include(cmake/dnx.cmake)
 include(cmake/db.cmake)
 include(cmake/vma.cmake)
+include(cmake/png.cmake)
 
 
 add_subdirectory(common)

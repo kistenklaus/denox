@@ -39,6 +39,7 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
     severity = Severity::Error;
   }
+  return VK_FALSE;
   switch (severity) {
   case Severity::None:
     return VK_FALSE;

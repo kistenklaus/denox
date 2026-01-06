@@ -34,6 +34,6 @@ void compile(CompileAction &action) {
     break;
   }
   case IOEndpointKind::Pipe:
-    Pipe{}.write_all(dnxbuf);
+    Pipe{}.write_exact(dnxbuf);
   }
 }

@@ -57,6 +57,7 @@ Action parse_compile(std::span<const Token> tokens) {
   denox::memory::hash_map<denox::memory::string,
                           denox::compiler::InterfaceTensorDescriptor>
       tensorDescriptors;
+  denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
 
   // parse remaining arguments
   uint32_t i = 1;
@@ -146,6 +147,16 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_use_descriptor_sets(tail, &options.descriptorPolicies))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_assume(tail, assumptions))) {
+      i += jump;
+      continue;
+    }
+
     // --- nothing matched ---
     throw ParseError(
         fmt::format("invalid option {}", describe_token(tokens[i])));
@@ -161,6 +172,10 @@ Action parse_compile(std::span<const Token> tokens) {
   for (auto &[name, interface] : tensorDescriptors) {
     interface.name = name;
     options.interfaceDescriptors.push_back(interface);
+  }
+
+  for (auto &[name, value] : assumptions) {
+    options.assumptions.valueAssumptions.emplace_back(name, value);
   }
 
   IOEndpoint out = output.value_or([&]() -> IOEndpoint {
@@ -184,21 +199,560 @@ Action parse_compile(std::span<const Token> tokens) {
 }
 
 Action parse_populate(std::span<const Token> tokens) {
-  std::optional<OnnxArtefact> model;
-  std::optional<DbArtefact> database;
+  if (tokens.empty()) {
+    throw ParseError("missing input model");
+  }
+  if (tokens.size() < 2) {
+    throw ParseError(fmt::format("populate expectes two positional arguments"));
+  }
 
-  denox::diag::not_implemented();
+  const auto &dbToken = tokens.front();
+  if (dbToken.kind() != TokenKind::Literal) {
+    throw ParseError(fmt::format(
+        "expected database path as first argument, got {}", dbToken));
+  }
+  if (!dbToken.literal().is_path()) {
+    throw ParseError(
+        fmt::format("expected database path as first argument, got {}",
+                    dbToken.literal().view()));
+  }
+  DbArtefact database(dbToken.literal().as_path());
+
+  // --- Parse input artefact (first positional) ---
+  ArtefactParseResult inputRes = parse_artefact(tokens[1]);
+  if (inputRes.artefact && inputRes.artefact->kind() != ArtefactKind::Onnx) {
+    throw ParseError(
+        fmt::format("expected ONNX model as second argument, got {}",
+                    inputRes.artefact->kind()));
+  }
+  if (inputRes.error.has_value()) {
+    switch (*inputRes.error) {
+    case ArtefactParseError::NotAnArtefactToken:
+      denox::diag::invalid_state();
+    case ArtefactParseError::PathDoesNotExist:
+      throw ParseError(fmt::format("Path does not exist"));
+    case ArtefactParseError::UnrecognizedFormat:
+      throw ParseError(fmt::format("Unregonized format"));
+    case ArtefactParseError::DatabasePiped:
+      throw ParseError(fmt::format("Databases cannot be piped"));
+    case ArtefactParseError::AmbiguousFormat:
+      throw ParseError(fmt::format("Input format is ambiguous"));
+    }
+  }
+  OnnxArtefact model = inputRes.artefact->onnx();
+  denox::compiler::CompileOptions options{};
+  denox::memory::optional<denox::memory::string> deviceName;
+  denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
+
+  bool spirv_nonSemanticDebugInfo = false;
+  bool spirv_debugInfo = false;
+
+  denox::memory::hash_map<denox::memory::string,
+                          denox::compiler::InterfaceTensorDescriptor>
+      tensorDescriptors;
+  denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
+
+  // parse remaining arguments
+  uint32_t i = 2;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    // --- positional arguments are not allowed here ---
+    if (tokens[i].kind() == TokenKind::Literal ||
+        tokens[i].kind() == TokenKind::Pipe) {
+      throw ParseError(fmt::format("unexpected positional argument {}",
+                                   describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_target_env(tail, &apiVersion))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_device(tail, &deviceName))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_optimize(tail, &options.spirv.optimize))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_non_semantic_debug_info(
+             tail, &spirv_nonSemanticDebugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_debug_info(tail, &spirv_debugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_coopmat(tail, &options.features.coopmat))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_fusion(tail,
+                                     &options.features.enableConvReluFusion))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_memory_concat(
+             tail, &options.features.enableImplicitConcat))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_shape(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_storage(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_format(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_type(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_assume(tail, assumptions))) {
+      i += jump;
+      continue;
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+  if (spirv_nonSemanticDebugInfo) {
+    options.spirv.debugInfo =
+        denox::spirv::SpirvDebugInfoLevel::ForceNonSemanticDebugInfo;
+  } else if (spirv_debugInfo) {
+    options.spirv.debugInfo = denox::spirv::SpirvDebugInfoLevel::Enable;
+  }
+
+  for (auto &[name, interface] : tensorDescriptors) {
+    interface.name = name;
+    options.interfaceDescriptors.push_back(interface);
+  }
+
+  for (auto &[name, value] : assumptions) {
+    options.assumptions.valueAssumptions.emplace_back(name, value);
+  }
+
+  return PopulateAction{
+      .model = std::move(model),
+      .database = std::move(database),
+      .deviceName = deviceName,
+      .apiVersion = apiVersion,
+      .options = options,
+  };
 }
 
 Action parse_bench(std::span<const Token> tokens) {
-  denox::diag::not_implemented();
+  if (tokens.empty()) {
+    throw ParseError("missing input model");
+  }
+
+  // --- Parse input artefact (first positional) ---
+  ArtefactParseResult inputRes = parse_artefact(tokens.front());
+  if (inputRes.error.has_value()) {
+    switch (*inputRes.error) {
+    case ArtefactParseError::NotAnArtefactToken:
+      denox::diag::invalid_state();
+    case ArtefactParseError::PathDoesNotExist:
+      throw ParseError(fmt::format("Path does not exist"));
+    case ArtefactParseError::UnrecognizedFormat:
+      throw ParseError(fmt::format("Unregonized format"));
+    case ArtefactParseError::DatabasePiped:
+      throw ParseError(fmt::format("Databases cannot be piped"));
+    case ArtefactParseError::AmbiguousFormat:
+      throw ParseError(fmt::format("Input format is ambiguous"));
+    }
+  }
+  Artefact model = *inputRes.artefact;
+  denox::memory::optional<IOEndpoint> output;
+  denox::memory::optional<DbArtefact> database;
+  denox::compiler::CompileOptions options{};
+  denox::memory::optional<denox::memory::string> deviceName;
+  denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
+
+  denox::runtime::DbBenchOptions dbBenchOptions;
+
+  bool spirv_nonSemanticDebugInfo = false;
+  bool spirv_debugInfo = false;
+
+  denox::memory::hash_map<denox::memory::string,
+                          denox::compiler::InterfaceTensorDescriptor>
+      tensorDescriptors;
+  denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
+
+  denox::memory::hash_map<denox::memory::string, int64_t> valueSpecMap;
+
+  // parse remaining arguments
+  uint32_t i = 1;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    // --- positional arguments are not allowed here ---
+    if (tokens[i].kind() == TokenKind::Literal ||
+        tokens[i].kind() == TokenKind::Pipe) {
+      throw ParseError(fmt::format("unexpected positional argument {}",
+                                   describe_token(tokens[i])));
+    }
+
+    // --- options with arguments ---
+    if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_database(tail, &database))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_target_env(tail, &apiVersion))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_device(tail, &deviceName))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_optimize(tail, &options.spirv.optimize))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_non_semantic_debug_info(
+             tail, &spirv_nonSemanticDebugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_debug_info(tail, &spirv_debugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_coopmat(tail, &options.features.coopmat))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_fusion(tail,
+                                     &options.features.enableConvReluFusion))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_memory_concat(
+             tail, &options.features.enableImplicitConcat))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_shape(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_storage(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_format(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_type(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_use_descriptor_sets(tail, &options.descriptorPolicies))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_assume(tail, assumptions))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_specialize(tail, valueSpecMap))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_samples(tail, &dbBenchOptions.minSamples))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_relative_error(tail, &dbBenchOptions.maxRelativeError))) {
+      i += jump;
+      continue;
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+  if (spirv_nonSemanticDebugInfo) {
+    options.spirv.debugInfo =
+        denox::spirv::SpirvDebugInfoLevel::ForceNonSemanticDebugInfo;
+  } else if (spirv_debugInfo) {
+    options.spirv.debugInfo = denox::spirv::SpirvDebugInfoLevel::Enable;
+  }
+
+  for (auto &[name, interface] : tensorDescriptors) {
+    interface.name = name;
+    options.interfaceDescriptors.push_back(interface);
+  }
+
+  for (auto &[name, value] : assumptions) {
+    options.assumptions.valueAssumptions.emplace_back(name, value);
+  }
+
+  denox::memory::vector<denox::ValueSpec> valueSpecs;
+  for (auto &[name, value] : valueSpecMap) {
+    valueSpecs.emplace_back(name, value);
+  }
+
+  return BenchAction{
+      .target = std::move(model),
+
+      .deviceName = deviceName,
+      .apiVersion = apiVersion,
+
+      .benchOptions = dbBenchOptions,
+
+      .database = std::move(database),
+      .options = options,
+
+      .valueSpecs = std::move(valueSpecs),
+  };
 }
 
 Action parse_infer(std::span<const Token> tokens) {
-  denox::diag::not_implemented();
+  if (tokens.empty()) {
+    throw ParseError("missing input model");
+  }
+
+  // --- Parse input artefact (first positional) ---
+  ArtefactParseResult inputRes = parse_artefact(tokens.front());
+  if (inputRes.artefact && inputRes.artefact->kind() == ArtefactKind::Database) {
+    throw ParseError(
+        fmt::format("expected model as first argument, got {}",
+                    inputRes.artefact->kind()));
+  }
+  if (inputRes.error.has_value()) {
+    switch (*inputRes.error) {
+    case ArtefactParseError::NotAnArtefactToken:
+      denox::diag::invalid_state();
+    case ArtefactParseError::PathDoesNotExist:
+      throw ParseError(fmt::format("Path does not exist"));
+    case ArtefactParseError::UnrecognizedFormat:
+      throw ParseError(fmt::format("Unregonized format"));
+    case ArtefactParseError::DatabasePiped:
+      throw ParseError(fmt::format("Databases cannot be piped"));
+    case ArtefactParseError::AmbiguousFormat:
+      throw ParseError(fmt::format("Input format is ambiguous"));
+    }
+  }
+  Artefact model = *inputRes.artefact;
+  denox::memory::optional<DbArtefact> database;
+  denox::compiler::CompileOptions options{};
+  denox::memory::optional<denox::memory::string> deviceName;
+  denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
+
+  bool spirv_nonSemanticDebugInfo = false;
+  bool spirv_debugInfo = false;
+
+  denox::memory::hash_map<denox::memory::string,
+                          denox::compiler::InterfaceTensorDescriptor>
+      tensorDescriptors;
+  denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
+
+  denox::memory::optional<IOEndpoint> input;
+  denox::memory::optional<IOEndpoint> output;
+
+  // parse remaining arguments
+  uint32_t i = 1;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    // --- positional arguments are not allowed here ---
+    if (tokens[i].kind() == TokenKind::Literal ||
+        tokens[i].kind() == TokenKind::Pipe) {
+      throw ParseError(fmt::format("unexpected positional argument {}",
+                                   describe_token(tokens[i])));
+    }
+
+    // --- options with arguments ---
+    if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_input(tail, &input))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_database(tail, &database))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_target_env(tail, &apiVersion))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_device(tail, &deviceName))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_optimize(tail, &options.spirv.optimize))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_non_semantic_debug_info(
+             tail, &spirv_nonSemanticDebugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_debug_info(tail, &spirv_debugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_coopmat(tail, &options.features.coopmat))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_fusion(tail,
+                                     &options.features.enableConvReluFusion))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_feature_memory_concat(
+             tail, &options.features.enableImplicitConcat))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_shape(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_storage(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_format(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_type(tail, tensorDescriptors))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_use_descriptor_sets(tail, &options.descriptorPolicies))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_assume(tail, assumptions))) {
+      i += jump;
+      continue;
+    }
+
+
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+  if (spirv_nonSemanticDebugInfo) {
+    options.spirv.debugInfo =
+        denox::spirv::SpirvDebugInfoLevel::ForceNonSemanticDebugInfo;
+  } else if (spirv_debugInfo) {
+    options.spirv.debugInfo = denox::spirv::SpirvDebugInfoLevel::Enable;
+  }
+
+  for (auto &[name, interface] : tensorDescriptors) {
+    interface.name = name;
+    options.interfaceDescriptors.push_back(interface);
+  }
+
+  for (auto &[name, value] : assumptions) {
+    options.assumptions.valueAssumptions.emplace_back(name, value);
+  }
+
+  if (!input.has_value()) {
+    throw ParseError(fmt::format("requires --input argument"));
+  }
+
+  IOEndpoint out = output.value_or([&]() -> IOEndpoint {
+    switch (input->kind()) {
+    case IOEndpointKind::Path:
+      return input->path().with_filename("a");
+    case IOEndpointKind::Pipe:
+      return Pipe{};
+    }
+    denox::diag::unreachable();
+  }());
+
+  return InferAction{
+      .model = std::move(model),
+      .input = *input,
+      .output = out,
+      .deviceName = deviceName,
+      .apiVersion = apiVersion,
+      .database = std::move(database),
+      .options = options,
+  };
 }
 
-Action parse_version(std::span<const Token> tokens) {
+Action parse_version(std::span<const Token> valueSpecMap) {
   return Action::version();
 }
 

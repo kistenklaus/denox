@@ -2,6 +2,11 @@
 
 add_executable(denox EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/alloc/monotone_alloc.cpp
+
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/io/Pipe.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/png/PngInputStream.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/png/PngOutputStream.cpp
+
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/lex/tokens/command.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/lex/tokens/literal.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/lex/tokens/option.cpp
@@ -14,6 +19,9 @@ add_executable(denox EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/parse_options.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/compile.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/populate.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/infer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/bench.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/main.cpp
 )
@@ -31,6 +39,7 @@ target_link_libraries(denox
     denox::onnx
     denox::dnx
     denox::db
+    denox::png
     denox_compiler
     denox_common
     denox_spirv

@@ -19,6 +19,10 @@ public:
   const std::string &value() const noexcept { return m_value; }
   std::string_view view() const noexcept { return m_value; }
   bool is_unsigned_int() const noexcept { return parse_unsigned().has_value(); }
+
+  bool is_float() const noexcept { return parse_float().has_value(); }
+  float as_float() const noexcept { return *parse_float(); }
+
   bool is_signed_int() const noexcept { return parse_signed().has_value(); }
   std::uint64_t as_unsigned_int() const {
     auto v = parse_unsigned();
@@ -88,6 +92,7 @@ private:
   std::optional<std::uint64_t> parse_unsigned() const noexcept;
 
   std::optional<std::int64_t> parse_signed() const noexcept;
+  std::optional<float> parse_float() const noexcept;
 
   std::optional<denox::ApiVersion> parse_target_env() const noexcept;
 

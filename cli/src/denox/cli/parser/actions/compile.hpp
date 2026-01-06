@@ -12,6 +12,7 @@ struct CompileAction {
   // device info query
   denox::memory::optional<denox::memory::string> deviceName;
   denox::ApiVersion apiVersion;
+
   // compile options.
   std::optional<DbArtefact> database;
   denox::compiler::CompileOptions options;

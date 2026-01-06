@@ -12,7 +12,7 @@ denox::compiler::assumed_symeval(const SymGraph &symGraph,
   for (const auto &assumption : options.assumptions.valueAssumptions) {
     auto it =
         std::ranges::find_if(valueNames, [&](const NamedValue &namedValue) {
-          return namedValue.name == assumption.valueName;
+          return namedValue.name == assumption.name;
         });
     if (it == valueNames.end()) {
       continue;

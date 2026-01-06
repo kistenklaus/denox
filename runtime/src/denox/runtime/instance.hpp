@@ -55,9 +55,11 @@ public:
     return std::shared_ptr<Instance>(new Instance(model, specs));
   }
 
-  void infer(void *const *inputs, void **outputs) const;
+  void infer(const void **inputs, void **outputs) const;
 
   InstanceBenchmarkResult bench() const;
+
+  denox::memory::ActivationDescriptor getOutputDesc(uint32_t o) const;
 
   ~Instance();
   Instance(const Instance &) = delete;

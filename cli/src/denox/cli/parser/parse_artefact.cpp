@@ -5,6 +5,7 @@
 #include <db.h>
 #include <dnx.h>
 
+#include <fmt/base.h>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <onnx.pb.h>
@@ -88,15 +89,14 @@ ArtefactParseResult parse_artefact(const Token &token) {
     return ArtefactParseResult::failure(ArtefactParseError::NotAnArtefactToken);
 
   case TokenKind::Pipe: {
-    const Pipe &pipe = token.pipe();
-    std::vector<std::byte> data = pipe.read_all();
+    std::vector<std::byte> data = Pipe{}.read_all();
 
     if (data.empty()) {
       return ArtefactParseResult::failure(
           ArtefactParseError::UnrecognizedFormat);
     }
 
-    auto res = resolve_artefact(data, IOEndpoint(pipe));
+    auto res = resolve_artefact(data, IOEndpoint(Pipe{}));
 
     if (res.artefact && res.artefact->kind() == ArtefactKind::Database) {
       return ArtefactParseResult::failure(ArtefactParseError::DatabasePiped);
