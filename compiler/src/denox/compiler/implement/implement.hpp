@@ -9,5 +9,6 @@ namespace denox::compiler {
 
 SuperGraph implement(const ConstModel &model, const SymGraph &symGraph,
     spirv::GlslCompiler* glslCompiler,
-                    const CompileOptions &options);
+                    const CompileOptions &options, 
+                    diag::Logger& logger);
 }

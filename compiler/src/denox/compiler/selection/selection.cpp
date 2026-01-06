@@ -18,12 +18,15 @@ namespace denox::compiler {
 using weight_type = std::chrono::duration<float, std::milli>;
 
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
-                            const Model &model, const CompileOptions &options) {
+                            const Model &model, const CompileOptions &options,
+                            diag::Logger &logger) {
 
-  fmt::println("[ 50%] \x1b[1m\x1b[32mSelecting optimal schedule of compute "
-               "dispatches\x1b[0m");
+  logger.info("[ 50%] {}{}Selecting optimal schedule of compute "
+              "dispatches{}",
+              logger.bold(), logger.green(), logger.reset());
 
-  SymGraphEval eval = assumed_symeval(supergraph.symGraph, model.valueNames(), options);
+  SymGraphEval eval =
+      assumed_symeval(supergraph.symGraph, model.valueNames(), options);
 
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> weightedSupergraph;
   // 1. Add all nodes
@@ -198,7 +201,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     assert(tensorRemap[tensorUf[p.tensorId.index]].has_value());
     p.tensorId.index = *tensorRemap[tensorUf[p.tensorId.index]];
   }
-  for (auto& c : memoryConstrains) {
+  for (auto &c : memoryConstrains) {
     c.dst.index = *tensorRemap[tensorUf[c.dst.index]];
     c.src0.index = *tensorRemap[tensorUf[c.src0.index]];
     c.src1.index = *tensorRemap[tensorUf[c.src1.index]];

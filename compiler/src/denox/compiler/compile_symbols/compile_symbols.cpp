@@ -1,15 +1,16 @@
 #include "denox/compiler/compile_symbols/compile_symbols.hpp"
-#include "denox/compiler/frontend/model/NamedValue.hpp"
 #include "denox/common/PushConstant.hpp"
+#include "denox/compiler/frontend/model/NamedValue.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include <fmt/format.h>
 
 namespace denox::compiler {
 
 SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
-                           const CompileOptions &options) {
+                           const CompileOptions &options,
+                           diag::Logger &logger) {
 
-  fmt::println("[ 98%] \x1B[32mBuilding SymIR\x1b[0m");
+  logger.info("[ 98%] {}Building SymIR{}", logger.green(), logger.reset());
 
   memory::vector<Sym::symbol> symbols;
   memory::dynamic_bitset symbolAdded(schedule.symGraph.symbolCount());

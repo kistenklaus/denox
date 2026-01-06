@@ -11,6 +11,7 @@
 namespace denox::compiler {
 
 SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
-                           const CompileOptions &options);
+                           const CompileOptions &options,
+                           diag::Logger& logger);
 
 } // namespace denox::compiler

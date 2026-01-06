@@ -9,6 +9,7 @@
 namespace denox::compiler {
 
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
-                            const Model &model, const CompileOptions &options);
+                            const Model &model, const CompileOptions &options,
+                            diag::Logger& logger);
 
 } // namespace denox::compiler

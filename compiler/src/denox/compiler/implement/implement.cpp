@@ -10,7 +10,7 @@ namespace denox::compiler {
 
 SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
                      spirv::GlslCompiler *glslCompiler,
-                     const CompileOptions &options) {
+                     const CompileOptions &options, diag::Logger &logger) {
 
   const size_t nodeCount = model.graph.nodeCount();
   SuperGraphBuilder supergraphBuilder(model, symGraphRef);
@@ -30,10 +30,12 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
     const ShaderCapabilities &caps = shader->capabilities();
     for (uint32_t p = 0; p < caps.patterns.size(); ++p, ++pp) {
 
-      uint32_t percentage = static_cast<uint32_t>(
+      const uint32_t percentage = static_cast<uint32_t>(
           std::floor(static_cast<float>((pp + 1)) * 50.0f /
                      static_cast<float>(totalPatterns + 1)));
-      fmt::println("[{:>3}%] \x1B[32mGenerating {} GLSL compute shader configurations\x1B[0m", percentage, shader->name(p, 0));
+      logger.info(
+          "[{:>3}%] {}Generating {} GLSL compute shader configurations{}",
+          percentage, logger.green(), shader->name(p, 0), logger.reset());
 
       const auto &pattern = caps.patterns[p];
       std::unordered_set<uint64_t> edgeExists;

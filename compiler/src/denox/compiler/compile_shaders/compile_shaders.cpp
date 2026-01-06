@@ -15,7 +15,7 @@ static constexpr uint32_t u32sential = std::numeric_limits<uint32_t>::max();
 
 SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                             [[maybe_unused]] spirv::GlslCompiler *glslCompiler,
-                            const CompileOptions &options) {
+                            const CompileOptions &options, diag::Logger& logger) {
   assert(glslCompiler != nullptr); // only to make lifetime intent visible
 
   memory::vector<SpvDispatch> dispatches;
@@ -92,9 +92,10 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
         50 +
         static_cast<uint32_t>(std::floor(static_cast<float>(u + 1) * 40.0f /
                                          static_cast<float>(units.size())));
-    fmt::println("[{:>3}%] \x1B[32mBuilding SPIR-V compute shader {}\x1B[0m",
+    logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{}",
                  percentage,
-                 unit.glsl.getSourcePath().relative_to(io::Path::cwd()));
+                 logger.green(),
+                 unit.glsl.getSourcePath().relative_to(io::Path::cwd()), logger.reset());
 
     SpirvBinary binary = *unit.glsl.compile();
     [[maybe_unused]] const bool inserted //

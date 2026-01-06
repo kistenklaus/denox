@@ -1,10 +1,10 @@
 #include "denox/compiler/populate.hpp"
 #include "denox/algorithm/align_up.hpp"
+#include "denox/common/PushConstant.hpp"
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/dce/dce.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
-#include "denox/common/PushConstant.hpp"
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/Lifetimes.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
@@ -22,6 +22,8 @@
 void denox::populate(Db db, memory::span<const std::byte> onnx,
                      const compiler::CompileOptions &options) {
 
+  diag::Logger logger("denox.populate", true);
+
   spirv::SpirvTools spirvTools(options.deviceInfo);
   spirv::GlslCompiler glslCompiler(&spirvTools, options.deviceInfo,
                                    options.spirv.debugInfo);
@@ -31,8 +33,8 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
   compiler::Lifetimes lifetimes = compiler::lifeness(cano);
   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
   compiler::ConstModel cmodel = compiler::dce(specModel);
-  compiler::SuperGraph supergraph =
-      compiler::implement(cmodel, cano.symGraph, &glslCompiler, options);
+  compiler::SuperGraph supergraph = compiler::implement(
+      cmodel, cano.symGraph, &glslCompiler, options, logger);
 
   // Collect all uncached glsl sources
 
@@ -67,18 +69,18 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
         50 +
         static_cast<uint32_t>(std::floor(static_cast<float>(i + 1) * 50.0f /
                                          static_cast<float>(units.size())));
-    fmt::println("[{:>3}%] \x1B[32mBuilding SPIR-V compute shader {}\x1B[0m",
-                 percentage,
-                 units[i].glsl.getSourcePath().relative_to(io::Path::cwd()),
-                 units[i].hash);
+    logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{}", percentage,
+                logger.green(),
+                units[i].glsl.getSourcePath().relative_to(io::Path::cwd()),
+                units[i].hash, logger.reset());
 
     SpirvBinary binary = *units[i].glsl.compile();
     db.insert_binary(units[i].hash, binary);
   }
 
   // Evaluate symbols to their assumed values!
-  SymGraphEval symeval = compiler::assumed_symeval(
-      supergraph.symGraph, model.valueNames(), options);
+  SymGraphEval symeval = compiler::assumed_symeval(supergraph.symGraph,
+                                                   model.valueNames(), options);
 
   // Register all dispatches in the database
 
@@ -162,5 +164,5 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
     }
   }
 
-  fmt::println("[100%] Database {} populated", db.path());
+  logger.info("[100%] Database {} populated", db.path());
 }

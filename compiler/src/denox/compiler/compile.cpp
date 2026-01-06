@@ -20,6 +20,9 @@
 denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                const compiler::CompileOptions &options) {
+
+  diag::Logger logger("denox.compile", true);
+
   Db db = odb.value_or(Db::open({}));
 
   spirv::SpirvTools spirvTools(options.deviceInfo);
@@ -31,20 +34,19 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::Lifetimes lifetimes = compiler::lifeness(cano);
   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
   compiler::ConstModel cmodel = compiler::dce(specModel);
-  compiler::SuperGraph supergraph =
-      compiler::implement(cmodel, cano.symGraph, &glslCompiler, options);
-  compiler::OptSchedule optSchedule =
-      compiler::select_schedule(std::move(supergraph), db, model, options);
+  compiler::SuperGraph supergraph = compiler::implement(
+      cmodel, cano.symGraph, &glslCompiler, options, logger);
+  compiler::OptSchedule optSchedule = compiler::select_schedule(
+      std::move(supergraph), db, model, options, logger);
   compiler::MemSchedule memSchedule = compiler::placement(optSchedule);
   compiler::SpvSchedule schedule = compiler::compile_shaders(
-      std::move(memSchedule), model, db, &glslCompiler, options);
+      std::move(memSchedule), model, db, &glslCompiler, options, logger);
   compiler::rebind_descriptors(schedule, options, &spirvTools);
   compiler::SymProgram sprog =
-      compiler::compile_symbols(schedule, model, options);
+      compiler::compile_symbols(schedule, model, options, logger);
   memory::vector<std::byte> dnxbuf =
       compiler::serialize(schedule, sprog, model, options);
 
-  fmt::println(
-      "[100%] Built dnx artefact");
+  logger.info("[100%] Built dnx artefact");
   return dnxbuf;
 }
