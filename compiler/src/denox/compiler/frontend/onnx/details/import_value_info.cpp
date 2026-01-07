@@ -401,7 +401,7 @@ void import_value_info(ImportState &state,
             std::optional<Sym> lookup = state.output.getValueByName(
                 *interfaceDescriptor->heightValueName);
             if (lookup && dev.handle().height() != *lookup) {
-              DENOX_ERROR("Input \'{}\' has invalid dynamic height extent.",
+              DENOX_ERROR("Input \'{}\' has invalid dynamic height extent.", // <- HERE
                           name);
               diag::invalid_argument();
             }

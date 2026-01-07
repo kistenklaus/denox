@@ -31,8 +31,8 @@ get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options) {
       std::make_unique<compiler::shaders::MemoryPadShader>(compiler));
   shaders.push_back(
       std::make_unique<compiler::shaders::MemorySliceShader>(compiler));
-  shaders.push_back(std::make_unique<compiler::shaders::BasicActivationShader>(
-      compiler, options));
+  // shaders.push_back(std::make_unique<compiler::shaders::BasicActivationShader>(
+  //     compiler, options));
   shaders.push_back(std::make_unique<compiler::shaders::CopyTransformShader>(
       compiler, options));
 

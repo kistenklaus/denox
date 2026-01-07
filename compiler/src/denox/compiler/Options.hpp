@@ -19,7 +19,7 @@ struct Features {
 
 struct DescriptorPolicy {
   // sets should be selected in order.
-  uint32_t set;
+  uint32_t set = 0;
 };
 
 struct DescriptorPolicies {

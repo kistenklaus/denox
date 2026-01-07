@@ -9,10 +9,13 @@
 #include "vma.hpp"
 #include <algorithm>
 #include <cstring>
+#include <fmt/base.h>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <forward_list>
 #include <iostream>
 #include <iterator>
+#include <spdlog/common.h>
 #include <stdexcept>
 #include <variant>
 #include <vulkan/vulkan_core.h>
@@ -96,6 +99,11 @@ static void upload_initalizers(const runtime::ModelHandle &model,
                  init.data.size(), offset, 0);
   }
 
+  ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_TRANSFER_WRITE_BIT,
+                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+
   ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
   ctx->destroyCommandPool(cmdPool);
 
@@ -129,8 +137,8 @@ create_cmds(const runtime::ModelHandle &model, const SymIREval &symeval,
           std::get<runtime::ModelBarrier>(cmd);
       assert(barrier.imageMemoryBarriers.empty()); // not yet implemented.
       runtime::InstanceBarrier instanceBarrier;
-      std::vector<VkBufferMemoryBarrier> bufferMemoryBarriers(
-          barrier.bufferBarriers.size());
+      instanceBarrier.bufferBarrier.resize(barrier.bufferBarriers.size());
+
       for (std::size_t b = 0; b < barrier.bufferBarriers.size(); ++b) {
         const runtime::ModelBufferBarrier &bufferBarrier =
             barrier.bufferBarriers[b];
@@ -142,7 +150,7 @@ create_cmds(const runtime::ModelHandle &model, const SymIREval &symeval,
 
         const runtime::Buffer &buffer = buffers[tensor.buffer];
 
-        VkBufferMemoryBarrier &out = bufferMemoryBarriers[b];
+        VkBufferMemoryBarrier &out = instanceBarrier.bufferBarrier[b];
         out.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         out.pNext = nullptr;
         out.srcAccessMask = bufferBarrier.srcAccess;
@@ -232,8 +240,11 @@ void update_descriptor_sets(const runtime::ModelHandle &model,
     if (std::holds_alternative<runtime::InstanceDispatch>(cmd)) {
       const runtime::InstanceDispatch &dispatch =
           std::get<runtime::InstanceDispatch>(cmd);
+
+
       const runtime::ModelDispatch &modelDispatch = *dispatch.modelDispatch;
 
+      assert(modelDispatch.descriptorSets.size() == dispatch.descriptorSets.size());
       for (std::size_t s = 0; s < modelDispatch.descriptorSets.size(); ++s) {
         for (const auto &binding : modelDispatch.descriptorSets[s].bindings) {
           const runtime::ModelTensor &tensor = model->tensors()[binding.tensor];
@@ -248,12 +259,11 @@ void update_descriptor_sets(const runtime::ModelHandle &model,
           writeInfo.dstArrayElement = 0;
           writeInfo.descriptorCount = 1; // array elements.
           writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-          VkDescriptorBufferInfo bufferInfo;
+          VkDescriptorBufferInfo& bufferInfo = monotone_allocator.emplace_front();
           bufferInfo.buffer = buffers[tensor.buffer].vkbuffer,
           bufferInfo.offset = offset;
           bufferInfo.range = size;
-          monotone_allocator.push_front(bufferInfo);
-          writeInfo.pBufferInfo = &monotone_allocator.front();
+          writeInfo.pBufferInfo = &bufferInfo;
           writeInfo.pImageInfo = nullptr;
           writeInfo.pTexelBufferView = nullptr;
           writeInfos.push_back(writeInfo);
@@ -331,7 +341,6 @@ void runtime::Instance::infer(const void **pInputs, void **pOutputs) const {
     outputStages[i] =
         ctx->createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-    ctx->copy(outputStages[i].allocation, pOutputs[i], size);
   }
 
   VkCommandPool cmdPool = ctx->createCommandPool();
@@ -357,6 +366,7 @@ void runtime::Instance::infer(const void **pInputs, void **pOutputs) const {
   for (const auto &op : m_cmds) {
     if (std::holds_alternative<runtime::InstanceDispatch>(op)) {
       const auto &dispatch = std::get<runtime::InstanceDispatch>(op);
+
       vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
                         dispatch.modelDispatch->pipeline);
       vkCmdPushConstants(cmd, dispatch.modelDispatch->pipelineLayout,
@@ -376,6 +386,11 @@ void runtime::Instance::infer(const void **pInputs, void **pOutputs) const {
                            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
                            static_cast<uint32_t>(barrier.bufferBarrier.size()),
                            barrier.bufferBarrier.data(), 0, nullptr);
+
+      ctx->cmdMemoryBarrier(
+          cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+          VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
     }
   }
 
@@ -387,8 +402,7 @@ void runtime::Instance::infer(const void **pInputs, void **pOutputs) const {
     const runtime::ModelTensor &tensor = m_model->tensors()[outputs[i]];
     const uint64_t size = static_cast<uint64_t>(m_symeval[tensor.size]);
     const uint64_t offset = static_cast<uint64_t>(m_symeval[tensor.offset]);
-    ctx->cmdCopy(cmd, outputStages[i], m_buffers[tensor.buffer], size, 0,
-                 offset);
+    ctx->cmdCopy(cmd, outputStages[i], m_buffers[tensor.buffer], size, 0, offset);
   }
 
   ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -447,6 +461,7 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
   for (const auto &op : m_cmds) {
     if (std::holds_alternative<runtime::InstanceDispatch>(op)) {
       const auto &dispatch = std::get<runtime::InstanceDispatch>(op);
+
       vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
                         dispatch.modelDispatch->pipeline);
       vkCmdPushConstants(cmd, dispatch.modelDispatch->pipelineLayout,
@@ -460,6 +475,7 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
           dispatch.descriptorSets.data(), 0, nullptr);
       vkCmdDispatch(cmd, dispatch.workgroupCountX, dispatch.workgroupCountY,
                     dispatch.workgroupCountZ);
+
       uint32_t start = previousTimestamp;
       uint32_t end = ++previousTimestamp;
       ctx->cmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPool,

@@ -1,6 +1,7 @@
 #include "denox/compiler/implement/shaders/pool/BasicPoolShader.hpp"
 #include "denox/common/PoolFunction.hpp"
 #include "denox/diag/invalid_state.hpp"
+#include "denox/diag/logging.hpp"
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
@@ -132,6 +133,12 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
   uint32_t cblocksize;
   switch (in.format) {
   case TensorFormat::SSBO_HWC:
+    if (in.channels.constant() % 8 == 0) {
+      cblocksize = 8;
+    } else {
+      cblocksize = 1;
+    }
+    break;
   case TensorFormat::SSBO_CHW:
     cblocksize = 1;
     break;
@@ -173,22 +180,36 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         memory::uvec2 padding, const BasicPoolConfig &config) {
   auto shader = compiler->read(srcPath);
 
+  uint32_t invocC;
+  if (config.invocC) {
+    invocC = *config.invocC;
+  } else {
+    const unsigned int ix = (channels + config.cdiv - 1) / config.cdiv;
+    invocC = ix;
+  }
+
   if (inputFormat == TensorFormat::SSBO_HWC &&
-      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 != 0)) {
-    shader.define("istype", "uint16_t");
-    shader.define("ISTYPE_SIZE", 2);
-    shader.define("ostype", "uint16_t");
-    shader.define("OSTYPE_SIZE", 2);
-    shader.define("IN_LAYOUT_HWC");
-    shader.define("OUT_LAYOUT_HWC");
-  } else if (inputFormat == TensorFormat::SSBO_HWC &&
-             outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0)) {
+      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0) &&
+      (invocC % 8 == 0)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
     shader.define("OSTYPE_SIZE", 16);
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC) {
+    if (channels % 8 == 0) {
+      DENOX_WARN(
+          "BasicPoolShader implements non vectorized layouts for format, "
+          "which may be vectorized, this works, but is suboptimal!");
+    }
+    shader.define("istype", "uint16_t");
+    shader.define("ISTYPE_SIZE", 2);
+    shader.define("ostype", "uint16_t");
+    shader.define("OSTYPE_SIZE", 2);
+    shader.define("IN_LAYOUT_HWC");
+    shader.define("OUT_LAYOUT_HWC");
   } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
              outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");
@@ -201,13 +222,7 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
     throw std::logic_error("Invalid state");
   }
 
-  if (config.invocC) {
-    shader.define("INVOC_C", *config.invocC);
-  } else {
-    assert(config.cdiv != 0);
-    const unsigned int ix = (channels + config.cdiv - 1) / config.cdiv;
-    shader.define("INVOC_C", ix);
-  }
+  shader.define("INVOC_C", invocC);
   shader.define("INVOC_W", config.invocW);
   shader.define("INVOC_H", config.invocH);
   shader.define("WG_C", config.wgC);

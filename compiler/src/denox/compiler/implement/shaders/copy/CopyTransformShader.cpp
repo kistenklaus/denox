@@ -184,7 +184,8 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
                         dst.type, src0.originalNode, src1.originalNode);
 
   auto supported = [&](uint32_t wgC, uint32_t wgW, uint32_t wgH,
-                       uint32_t invocC, TensorFormat format) -> bool {
+                       uint32_t invocC, TensorFormat format,
+                       unsigned int channels) -> bool {
     uint32_t workgroupInvocationCount = wgC * wgW * wgH;
     if (workgroupInvocationCount >= m_maxComputeWorkGroupInvocations) {
       return false;
@@ -201,6 +202,12 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
     uint32_t cblocksize;
     switch (format) {
     case TensorFormat::SSBO_HWC:
+      if (channels % 8 == 0) {
+        cblocksize = 8;
+      } else {
+        cblocksize = 1;
+      }
+      break;
     case TensorFormat::SSBO_CHW:
       cblocksize = 1;
       break;
@@ -228,13 +235,15 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
     for (unsigned int c0 = 0; c0 < CONFIGS.size(); ++c0) {
       const auto &config0 = CONFIGS[c0];
       if (!supported(config0.wgC.value_or(src0.channels.constant()),
-                     config0.wgW, config0.wgH, config0.invocC, src0Format)) {
+                     config0.wgW, config0.wgH, config0.invocC, src0Format,
+                     static_cast<uint32_t>(src0.channels.constant()))) {
         continue;
       }
       for (unsigned int c1 = 0; c1 < CONFIGS.size(); ++c1) {
         const auto &config1 = CONFIGS[c1];
         if (supported(config1.wgC.value_or(src1.channels.constant()),
-                      config1.wgW, config1.wgH, config1.invocC, src1Format)) {
+                      config1.wgW, config1.wgH, config1.invocC, src1Format,
+                      static_cast<uint32_t>(src1.channels.constant()))) {
           configs.push_back((c1 << 16) | (c0 << 8) | EXPLICIT_CONCAT_TAG);
         }
       }
@@ -243,7 +252,7 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
   case ConcatImplementationType::Implicit:
     return {IMPLICIT_CONCAT_TAG};
   case ConcatImplementationType::SingleCopy:
-    throw std::runtime_error("Not implemented HERE");
+    throw std::runtime_error("Not implemented");
   }
   return configs;
 }
@@ -271,24 +280,22 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 
   if (inputFormat == TensorFormat::SSBO_HWC &&
       outputFormat == TensorFormat::SSBO_HWC &&
-      (inputChannels % 8 != 0 || outputChannels % 8 != 0 ||
-       !allowVectorization)) {
-    shader.define("istype", "uint16_t");
-    shader.define("ISTYPE_SIZE", 2);
-    shader.define("ostype", "uint16_t");
-    shader.define("OSTYPE_SIZE", 2);
-    shader.define("IN_LAYOUT_HWC");
-    shader.define("OUT_LAYOUT_HWC");
-  } else if (inputFormat == TensorFormat::SSBO_HWC &&
-             outputFormat == TensorFormat::SSBO_HWC &&
-             (inputChannels % 8 == 0 && outputChannels % 8 == 0 &&
-              allowVectorization)) {
+      (inputChannels % 8 == 0 && outputChannels % 8 == 0) &&
+      (config.invocC % 8 == 0) && allowVectorization) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
     shader.define("OSTYPE_SIZE", 16);
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC) {
+    shader.define("istype", "uint16_t");
+    shader.define("ISTYPE_SIZE", 2);
+    shader.define("ostype", "uint16_t");
+    shader.define("OSTYPE_SIZE", 2);
+    shader.define("IN_LAYOUT_HWC");
+    shader.define("OUT_LAYOUT_HWC");
   } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
              outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");
@@ -351,9 +358,14 @@ void CopyTransformShader::implement(
       std::uint32_t tileY = config0.invocW * config0.wgW;
       std::uint32_t tileZ = config0.invocH * config0.wgH;
 
-      Sym workgroupCountX = symGraph.cdiv(src0.channels, tileX);
-      Sym workgroupCountY = symGraph.cdiv(src0.width, tileY);
-      Sym workgroupCountZ = symGraph.cdiv(src0.height, tileZ);
+      // tileX = 2 * 8 = 16
+      // tileY = 2 * 32 = 64
+      // tileZ = 1 * 1 = 1
+
+      Sym workgroupCountX = symGraph.cdiv(src0.channels, tileX); // 8 / 16 = 1
+      Sym workgroupCountY = symGraph.cdiv(src0.width, tileY); // 1920 / 64 = 30
+      Sym workgroupCountZ =
+          symGraph.cdiv(src0.height, tileZ); // 1080 / 1 = 1080
 
       auto copySrc0Dispatch =
           impl.registerDispatch(std::move(shader0), workgroupCountX,

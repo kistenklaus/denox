@@ -801,9 +801,13 @@ void DirectConvShaderCM::implement(
   std::uint32_t tileY = config.cm_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(in.width, tileY);
-  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ);
+  // tileX = 16 * 2 * 1 = 32
+  // tileY = 16
+  // tileZ = 2 * 8 = 16
+
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX); // 8 / 16 = 1
+  Sym workgroupCountY = symGraph.cdiv(in.width, tileY);     // 1920 / 16 = 120
+  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ);    // 1080 / 16 = 68
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -865,9 +869,9 @@ memory::string DirectConvShaderCM::name(unsigned int pattern,
                                         unsigned int) const {
   switch (pattern) {
   case CONV_PATTERN:
-    return "direct-conv";
+    return "direct-conv-cm";
   case CONV_ACTIVATION_PATTERN:
-    return "direct-conv+activation";
+    return "direct-conv-cm+activation";
   default:
     diag::unreachable();
   }

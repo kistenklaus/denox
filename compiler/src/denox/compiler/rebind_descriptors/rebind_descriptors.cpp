@@ -2,7 +2,6 @@
 #include "denox/spirv/SpirvTools.hpp"
 #include <algorithm>
 #include <dnx.h>
-#include <fmt/format.h>
 #include <limits>
 
 static constexpr size_t MAX_BOUND_DESCRIPTOR_SET = 32; // very high upper bound.

@@ -139,6 +139,12 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
     uint32_t vblocksize;
     switch (format) {
     case TensorFormat::SSBO_HWC:
+      if (in.channels.constant() % 8 == 0) {
+        vblocksize = 8;
+      } else {
+        vblocksize = 1;
+      }
+      break;
     case TensorFormat::SSBO_CHW:
       vblocksize = 1;
       break;
@@ -187,8 +193,24 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   case ActivationFunction::SiLU:
     diag::invalid_state();
   }
+
   if (inputFormat == TensorFormat::SSBO_HWC &&
-      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 != 0)) {
+      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0) &&
+      (config.invocC % 8 == 0)) {
+    shader.define("istype", "uvec4");
+    shader.define("ISTYPE_SIZE", 16);
+    shader.define("ostype", "uvec4");
+    shader.define("OSTYPE_SIZE", 16);
+
+    shader.define("IN_LAYOUT_HWC8");
+    shader.define("OUT_LAYOUT_HWC8");
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC) {
+    if (channels % 8 == 0) {
+      DENOX_WARN(
+          "BasicActivationShader implements non vectorized layouts for format, "
+          "which may be vectorized, this works, but is suboptimal!");
+    }
     // HWC layout (slow path)
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);
@@ -197,15 +219,6 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 
     shader.define("IN_LAYOUT_HWC");
     shader.define("OUT_LAYOUT_HWC");
-  } else if (inputFormat == TensorFormat::SSBO_HWC &&
-             outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0)) {
-    shader.define("istype", "uvec4");
-    shader.define("ISTYPE_SIZE", 16);
-    shader.define("ostype", "uvec4");
-    shader.define("OSTYPE_SIZE", 16);
-
-    shader.define("IN_LAYOUT_HWC8");
-    shader.define("OUT_LAYOUT_HWC8");
   } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
              outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");

@@ -136,6 +136,13 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   uint32_t cblocksize;
   switch (in.format) {
   case TensorFormat::SSBO_HWC:
+    if (in.channels.constant() % 8 == 0) {
+      cblocksize = 8;
+    } else {
+      cblocksize = 1;
+    }
+    break;
+    break;
   case TensorFormat::SSBO_CHW:
     cblocksize = 1;
     break;
@@ -186,22 +193,26 @@ compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 
   if (inputFormat == TensorFormat::SSBO_HWC &&
       outputFormat == TensorFormat::SSBO_HWC &&
-      (channels % 8 != 0 || config.invocC % 8 != 0)) {
-    shader.define("istype", "uint16_t");
-    shader.define("ISTYPE_SIZE", 2);
-    shader.define("ostype", "uint16_t");
-    shader.define("OSTYPE_SIZE", 2);
-    shader.define("IN_LAYOUT_HWC");
-    shader.define("OUT_LAYOUT_HWC");
-  } else if (inputFormat == TensorFormat::SSBO_HWC &&
-             outputFormat == TensorFormat::SSBO_HWC &&
-             (channels % 8 == 0 && config.invocC % 8 == 0)) {
+      (channels % 8 == 0 && config.invocC % 8 == 0)) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
     shader.define("OSTYPE_SIZE", 16);
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+             outputFormat == TensorFormat::SSBO_HWC) {
+    if (channels % 8 == 0) {
+      DENOX_WARN(
+          "BasicUpsampleShader implements non vectorized layouts for format, "
+          "which may be vectorized, this works, but is suboptimal!");
+    }
+    shader.define("istype", "uint16_t");
+    shader.define("ISTYPE_SIZE", 2);
+    shader.define("ostype", "uint16_t");
+    shader.define("OSTYPE_SIZE", 2);
+    shader.define("IN_LAYOUT_HWC");
+    shader.define("OUT_LAYOUT_HWC");
   } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
              outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");
@@ -273,8 +284,7 @@ void BasicUpsampleShader::implement(
   dispatch.setDebugInfo(fmt::format("BasicUpsampleShader\n"
                                     "- IN_LAYOUT:  {}\n"
                                     "- OUT_LAYOUT: {}\n",
-                                    in.format,
-                                    out.format));
+                                    in.format, out.format));
 }
 memory::string BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern,
                                          unsigned int) const {

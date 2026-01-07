@@ -133,6 +133,16 @@ void infer(InferAction &action) {
 
     instance->infer(pInput, pOutput);
 
+    float total = 0;
+    for (uint32_t h = 0; h < output.shape().h; ++h) {
+      for (uint32_t w = 0; w < output.shape().w; ++w) {
+        for (uint32_t c = 0; c < output.shape().c; ++c) {
+          total += static_cast<float>(output.at(w, h, c));
+        }
+      }
+    }
+    fmt::println("TOTAL: {}", total);
+
     if (isPng) {
       PngOutputStream{&outputStream}.write_image(output);
     }

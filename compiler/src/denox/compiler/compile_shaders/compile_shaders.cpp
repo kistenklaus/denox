@@ -7,6 +7,7 @@
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <limits>
 
 namespace denox::compiler {
@@ -98,6 +99,7 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                  unit.glsl.getSourcePath().relative_to(io::Path::cwd()), logger.reset());
 
     SpirvBinary binary = *unit.glsl.compile();
+
     [[maybe_unused]] const bool inserted //
         = db.insert_binary(unit.hash, binary);
     assert(inserted);

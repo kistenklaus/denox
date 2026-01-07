@@ -4,6 +4,7 @@
 #include "denox/compiler/frontend/onnx/details/import_node.hpp"
 #include "denox/compiler/frontend/onnx/details/import_value_info.hpp"
 #include "denox/diag/unreachable.hpp"
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <memory>
 #include <onnx.pb.h>
@@ -69,6 +70,7 @@ static void import_graph(details::ImportState &state,
 compiler::Model read(memory::span<const std::byte> raw,
                      const compiler::CompileOptions &options) {
   try {
+    fmt::println("ALIVE");
     ::onnx::ModelProto onnx;
     if (!onnx.ParseFromArray(raw.data(), static_cast<int>(raw.size_bytes()))) {
       throw std::runtime_error("Failed to parse ONNX protobuf");

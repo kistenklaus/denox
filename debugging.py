@@ -207,7 +207,14 @@ def load_tza_into_model(
 
 # 3x3 convolution module
 def Conv(in_channels, out_channels):
-    return nn.Conv2d(in_channels, out_channels, 3, padding="same", padding_mode="zeros", dtype=torch.float16)
+    return nn.Conv2d(
+        in_channels,
+        out_channels,
+        3,
+        padding="same",
+        padding_mode="zeros",
+        dtype=torch.float16,
+    )
 
 
 # ReLU function
@@ -287,48 +294,48 @@ class UNet(nn.Module):
         # Encoder
         # -------------------------------------------
 
-        x = relu(self.enc_conv0(input))  # enc_conv0
+        x = relu(self.enc_conv0(input))  # 3 -> 32
 
-        x = relu(self.enc_conv1(x))  # enc_conv1
+        x = relu(self.enc_conv1(x))  # 32 -> 32
         x = pool1 = pool(x)  # pool1
-
-        x = relu(self.enc_conv2(x))  # enc_conv2
+        
+        x = relu(self.enc_conv2(x))  # 32 -> 48
         x = pool2 = pool(x)  # pool2
 
-        x = relu(self.enc_conv3(x))  # enc_conv3
+        x = relu(self.enc_conv3(x))  # 48 -> 64
         x = pool3 = pool(x)  # pool3
-
-        x = relu(self.enc_conv4(x))  # enc_conv4
+        
+        x = relu(self.enc_conv4(x))  # 64 -> 80
         x = pool(x)  # pool4
-
+        
         # Bottleneck
-        x = relu(self.enc_conv5a(x))  # enc_conv5a
-        x = relu(self.enc_conv5b(x))  # enc_conv5b
-
+        x = relu(self.enc_conv5a(x))  # 80 -> 96
+        x = relu(self.enc_conv5b(x))  # 96 -> 96
+        
         # Decoder
         # -------------------------------------------
-
+        
         x = upsample(x)  # upsample4
-        x = concat(x, pool3)  # concat4
-        x = relu(self.dec_conv4a(x))  # dec_conv4a
-        x = relu(self.dec_conv4b(x))  # dec_conv4b
-
+        x = concat(x, pool3)  # 96 + 64 -> 160
+        x = relu(self.dec_conv4a(x))  # 160 -> 112
+        x = relu(self.dec_conv4b(x))  # 112 -> 112
+        
         x = upsample(x)  # upsample3
-        x = concat(x, pool2)  # concat3
-        x = relu(self.dec_conv3a(x))  # dec_conv3a
-        x = relu(self.dec_conv3b(x))  # dec_conv3b
-
+        x = concat(x, pool2)  # 112 + 48 -> 160
+        x = relu(self.dec_conv3a(x))  # 160 -> 96
+        x = relu(self.dec_conv3b(x))  # 96 -> 96
+        
         x = upsample(x)  # upsample2
-        x = concat(x, pool1)  # concat2
-        x = relu(self.dec_conv2a(x))  # dec_conv2a
-        x = relu(self.dec_conv2b(x))  # dec_conv2b
-
+        x = concat(x, pool1)  # 96 + 32 -> 128
+        x = relu(self.dec_conv2a(x))  # 128 -> 64
+        x = relu(self.dec_conv2b(x))  # 64 -> 64
+        #
         x = upsample(x)  # upsample1
-        x = concat(x, input)  # concat1
-        x = relu(self.dec_conv1a(x))  # dec_conv1a
-        x = relu(self.dec_conv1b(x))  # dec_conv1b
+        x = concat(x, input)  # 64 + 3 -> 67
+        x = relu(self.dec_conv1a(x))  # 67 -> 64
+        x = relu(self.dec_conv1b(x))  # 64 -> 32
 
-        x = self.dec_conv0(x)  # dec_conv0
+        x = self.dec_conv0(x)  # 32 -> 3
 
         return x
 
@@ -339,14 +346,16 @@ class UNetAlignment(nn.Module):
         self.net = net
 
     def forward(self, input):
-        alignment = self.net.alignment  # ensure even H/W so pool+upsample align perfectly
+        alignment = (
+            self.net.alignment
+        )  # ensure even H/W so pool+upsample align perfectly
         H, W = input.size(2), input.size(3)
         pad_w = (alignment - (W % alignment)) % alignment
         pad_h = (alignment - (H % alignment)) % alignment
         aligned = F.pad(input, (0, pad_w, 0, pad_h), mode="replicate")
         output = self.net(aligned)
         # return output
-        return output[:,:,:H,:W]
+        return output[:, :, :H, :W]
 
 
 rt_ldr = UNetAlignment(UNet(3, 3, False))
@@ -354,7 +363,16 @@ rt_ldr = rt_ldr.to(torch.float16)
 
 load_tza_into_model(rt_ldr, "./rt_ldr.tza")
 
-example_input = torch.ones(1, 3, 64, 64, dtype=torch.float16)
+
+img = Image.open("input.png").convert("RGB")
+
+to_tensor = transforms.ToTensor()
+
+assert torch.cuda.is_available(), "CUDA is NOT available"
+print("CUDA device:", torch.cuda.get_device_name(0))
+device = torch.device("cuda")
+
+example_input = torch.ones(1, 3, 64, 64, dtype=torch.float16, device=device)
 
 program = torch.onnx.export(
     rt_ldr,
@@ -366,39 +384,28 @@ program = torch.onnx.export(
     output_names=["output"],
 )
 program.save("net.onnx")
+print("Saved to net.onnx")
 
-# dnx = Module.compile(
-#     program,
-#     input_shape=Shape(H="H", W="W"),
-#     summary=True,
-#     verbose=True,
-# )
-# dnx.save("net.dnx")
-#
-#
-# img = Image.open("input.png").convert("RGB")
-#
-# to_tensor = transforms.ToTensor()
-# input_tensor: torch.Tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
-#
-# output_tensor = torch.utils.dlpack.from_dlpack(dnx(input_tensor))
+
+
+input_tensor = to_tensor(img).unsqueeze(0).to(device=device, dtype=torch.float16)
+
+
+rt_ldr = rt_ldr.to(device=device, dtype=torch.float16)
+
+# --- 3. Run inference (reference) ---
+with torch.no_grad():
+    output_tensor_ref = rt_ldr(input_tensor)
+
+
+# Remove batch dimension
+output_tensor_ref = output_tensor_ref.squeeze(0)
 # output_tensor = output_tensor.squeeze(0)
+
+output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
 # output_tensor = torch.clamp(output_tensor, 0.0, 1.0)
-#
-# rt_ldr = rt_ldr.eval()
-# device = torch.cuda.current_device()
-# rt_ldr = rt_ldr.to(device=device)
-# input_tensor = input_tensor.to(device=device)
-#
-# output_tensor_ref = rt_ldr(input_tensor)
-#
-# output_tensor_ref = output_tensor_ref.squeeze(0)
-# output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
-#
-# to_pil = transforms.ToPILImage()
-#
-# output_img = to_pil(output_tensor)
-# output_img.save("output.png")
-#
-# output_ref_img = to_pil(output_tensor_ref)
-# output_ref_img.save("output_ref.png")
+
+to_pil = transforms.ToPILImage()
+
+output_img_ref = to_pil(output_tensor_ref)
+output_img_ref.save("output_ref.png")

@@ -139,7 +139,9 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::vector<ComputeDispatch> dispatches;
   memory::vector<MemoryImplicitConcatConstrain> memoryConstrains;
   memory::vector<Parameter> parameters;
+  weight_type totalWeight = {};
   for (const auto &eid : *path) {
+    totalWeight += constWeightedSupergraph.weight(eid);
     auto &&edge = constWeightedSupergraph.get_rvalue(eid);
     if (edge.dispatches.empty() && edge.memoryConstrains.empty() &&
         edge.parameters.empty() && supergraph.graph.src(eid).size() == 1) {
@@ -175,7 +177,9 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     for (auto &&p : std::move(edge.parameters)) {
       parameters.emplace_back(std::move(p));
     }
+
   }
+  fmt::println("total-weight: {}", totalWeight);
 
   memory::vector<memory::optional<uint64_t>> tensorRemap(
       supergraph.tensors.size(), memory::nullopt);

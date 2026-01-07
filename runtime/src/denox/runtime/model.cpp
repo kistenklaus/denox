@@ -1,6 +1,7 @@
 #include "model.hpp"
 #include "context.hpp"
 #include "denox/common/PushConstant.hpp"
+#include "denox/common/SHA256.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/logging.hpp"
@@ -10,6 +11,11 @@
 #include "denox/symbolic/SymIR.hpp"
 #include "dnx.h"
 #include <algorithm>
+#include <fmt/base.h>
+#include <fmt/ostream.h>
+#include <fmt/ranges.h>
+#include <fmt/std.h>
+#include <string_view>
 
 namespace denox::runtime {
 
@@ -119,11 +125,11 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
         break;
       }
 
-      modelBindings.push_back(ModelDescriptorBinding{
+      modelBindings[b] = ModelDescriptorBinding{
           .binding = binding->binding(),
           .access = access,
           .tensor = binding->tensor(),
-      });
+      };
     }
     VkDescriptorSetLayout setLayout = ctx->createDescriptorSetLayout(bindings);
     descriptorSetLayouts[s] = setLayout;
@@ -138,6 +144,7 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
 
   std::uint32_t binaryId = dispatch->binary_id();
   const dnx::ShaderBinary *binary = dnx->shader_binaries()->Get(binaryId);
+
   std::span<const std::uint32_t> spirv(binary->spirv()->data(),
                                        binary->spirv()->size());
   VkPipeline pipeline = ctx->createComputePipeline(
@@ -202,7 +209,7 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
       debugInfo = info->debug_info()->str();
     }
     if (info->src_path()) {
-      debugInfo = info->src_path()->str();
+      srcPath = info->src_path()->str();
     }
     if (info->memory_reads()) {
       memoryReads = parse_sym(info->memory_reads_type(), info->memory_reads());

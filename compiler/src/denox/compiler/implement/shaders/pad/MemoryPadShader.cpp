@@ -108,6 +108,12 @@ memory::vector<unsigned int> MemoryPadShader::acceptMatch(
   uint32_t cblocksize;
   switch (in.format) {
   case TensorFormat::SSBO_HWC:
+    if (in.channels.constant() % 8 == 0) {
+      cblocksize = 8;
+    } else {
+      cblocksize = 1;
+    }
+    break;
   case TensorFormat::SSBO_CHW:
     cblocksize = 1;
     break;
@@ -132,32 +138,35 @@ memory::vector<unsigned int> MemoryPadShader::acceptMatch(
   return configs;
 }
 
-static spirv::GlslCompilerInstance compile(spirv::GlslCompiler *compiler,
-                                    const io::Path &srcPath,
-                                    TensorFormat inputFormat,
-                                    TensorFormat outputFormat,
-                                    unsigned int channels,
-                                    const BasicUpsampleConfig &config) {
+static spirv::GlslCompilerInstance
+compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+        TensorFormat inputFormat, TensorFormat outputFormat,
+        unsigned int channels, const BasicUpsampleConfig &config) {
   auto shader = compiler->read(srcPath);
   shader.define("CH", channels);
 
   if (inputFormat == TensorFormat::SSBO_HWC &&
-      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 != 0)) {
-    shader.define("istype", "uint16_t");
-    shader.define("ISTYPE_SIZE", 2);
-    shader.define("ostype", "uint16_t");
-    shader.define("OSTYPE_SIZE", 2);
-    shader.define("IN_LAYOUT_HWC");
-    shader.define("OUT_LAYOUT_HWC");
-  } else if (inputFormat == TensorFormat::SSBO_HWC &&
-             outputFormat == TensorFormat::SSBO_HWC &&
-             (channels % 8 == 0)) {
+             outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0)
+             && config.invocC % 8 == 0) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
     shader.define("OSTYPE_SIZE", 16);
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
+  } else if (inputFormat == TensorFormat::SSBO_HWC &&
+      outputFormat == TensorFormat::SSBO_HWC) {
+    if (channels % 8 == 0) {
+      DENOX_WARN(
+          "MemoryPadShader implements non vectorized layouts for format, "
+          "which may be vectorized, this works, but is suboptimal!");
+    }
+    shader.define("istype", "uint16_t");
+    shader.define("ISTYPE_SIZE", 2);
+    shader.define("ostype", "uint16_t");
+    shader.define("OSTYPE_SIZE", 2);
+    shader.define("IN_LAYOUT_HWC");
+    shader.define("OUT_LAYOUT_HWC");
   } else if (inputFormat == TensorFormat::SSBO_CHWC8 &&
              outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("istype", "uvec4");
@@ -197,8 +206,8 @@ void MemoryPadShader::implement(
   assert(in.channels == out.channels);
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
-  auto shader = compile(m_compiler, m_srcPath, in.format, out.format,
-                        C, config);
+  auto shader =
+      compile(m_compiler, m_srcPath, in.format, out.format, C, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -229,17 +238,14 @@ void MemoryPadShader::implement(
   dispatch.setName(name(pattern, 0));
   dispatch.setSourcePath(m_srcPath);
 
-  Sym reads = symGraph.mul(in.width, in.height,
-                           C * size_of(in.type));
-  Sym writes = symGraph.mul(out.width, out.height,
-                            C * size_of(out.type));
+  Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
+  Sym writes = symGraph.mul(out.width, out.height, C * size_of(out.type));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
   dispatch.setDebugInfo(fmt::format("MemoryPadShader\n"
                                     "- IN_LAYOUT:  {}\n"
                                     "- OUT_LAYOUT: {}\n",
-                                    in.format,
-                                    out.format));
+                                    in.format, out.format));
 }
 memory::string MemoryPadShader::name(unsigned int, unsigned int) const {
   return "memory-pad";
