@@ -13,7 +13,7 @@ struct MemorySliceConfig {
   unsigned int wgH;
 };
 
-static std::array<MemorySliceConfig, 5> CONFIGS{
+static std::array<MemorySliceConfig, 5> MEMORY_SLICE_CONFIGS{
     MemorySliceConfig{
         .invocC = 2,
         .invocW = 2,
@@ -128,9 +128,9 @@ memory::vector<unsigned int> MemorySliceShader::acceptMatch(
   }
 
   memory::vector<unsigned int> configs;
-  configs.reserve(CONFIGS.size());
-  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    if (CONFIGS[c].invocC % cblocksize == 0) {
+  configs.reserve(MEMORY_SLICE_CONFIGS.size());
+  for (unsigned int c = 0; c < MEMORY_SLICE_CONFIGS.size(); ++c) {
+    if (MEMORY_SLICE_CONFIGS[c].invocC % cblocksize == 0) {
       configs.push_back(c);
     }
   }
@@ -138,7 +138,7 @@ memory::vector<unsigned int> MemorySliceShader::acceptMatch(
 }
 
 static spirv::GlslCompilerInstance
-compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+memory_slice_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         TensorFormat inputFormat, TensorFormat outputFormat,
         unsigned int channels, const MemorySliceConfig &config) {
   auto shader = compiler->read(srcPath);
@@ -188,7 +188,7 @@ void MemorySliceShader::implement(
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
 
-  const MemorySliceConfig &config = CONFIGS[configKey];
+  const MemorySliceConfig &config = MEMORY_SLICE_CONFIGS[configKey];
 
   const auto &patternHandle = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandle.in];
@@ -204,7 +204,7 @@ void MemorySliceShader::implement(
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
   auto shader =
-      compile(m_compiler, m_srcPath, in.format, out.format, C, config);
+      memory_slice_compile(m_compiler, m_srcPath, in.format, out.format, C, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;

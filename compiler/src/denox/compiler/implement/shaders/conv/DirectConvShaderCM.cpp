@@ -25,7 +25,7 @@ struct DirectConvConfig {
   bool async;
 };
 
-static std::vector<DirectConvConfig> CONFIGS = {
+static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     DirectConvConfig{
         .cm_m = 16,
         .cm_k = 16,
@@ -579,9 +579,9 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
   }
 
   std::vector<unsigned int> configs;
-  configs.reserve(CONFIGS.size());
-  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    const auto &config = CONFIGS[c];
+  configs.reserve(DIRECT_CONV_CM_CONFIGS.size());
+  for (unsigned int c = 0; c < DIRECT_CONV_CM_CONFIGS.size(); ++c) {
+    const auto &config = DIRECT_CONV_CM_CONFIGS[c];
     uint32_t sgCount = config.wg_n * config.wg_m;
     if (sgCount > m_maxComputeWorkGroupSize[1]) {
       continue;
@@ -611,7 +611,7 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
 }
 
 static spirv::GlslCompilerInstance
-compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+direct_conv_cm_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int subgroupSize, unsigned int C, unsigned int K,
         TensorFormat inputFormat, TensorFormat outputFormat,
         memory::optional<ActivationFunction> activationFunction,
@@ -765,7 +765,7 @@ void DirectConvShaderCM::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-  const DirectConvConfig &config = CONFIGS[configKey];
+  const DirectConvConfig &config = DIRECT_CONV_CM_CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::EdgeId convId = match[patternHandles.conv];
@@ -791,7 +791,7 @@ void DirectConvShaderCM::implement(
 
   memory::FilterLayout filterLayout = memory::FilterLayout::KCRS;
   memory::BiasLayout biasLayout = memory::BiasLayout::C;
-  auto shader = compile(
+  auto shader = direct_conv_cm_compile(
       m_compiler, m_srcPath, m_subgroupSize, C, K, in.format, out.format,
       activationFunction, memory::uvec2(conv->W->shape().r, conv->W->shape().s),
       conv->padding, conv->stride, conv->B != nullptr, config, //

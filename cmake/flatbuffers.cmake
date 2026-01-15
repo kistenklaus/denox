@@ -1,62 +1,92 @@
 include_guard(GLOBAL)
 include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
-# --- Fetch upstream exactly (always) ---
-set(FLATBUFFERS_BUILD_FLATC     ON  CACHE BOOL "" FORCE)
-set(FLATBUFFERS_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
-set(FLATBUFFERS_INSTALL         OFF CACHE BOOL "" FORCE)
-set(FLATBUFFERS_BUILD_GRPCTEST  OFF CACHE BOOL "" FORCE)
-
-include(FetchContent)
-FetchContent_Declare(
-  flatbuffers
-  URL "https://github.com/google/flatbuffers/archive/refs/tags/v23.5.26.tar.gz"
-  EXCLUDE_FROM_ALL
-)
-FetchContent_MakeAvailable(flatbuffers)
-
-
 # --- Wrapper you link against everywhere ---
-if(NOT TARGET denox_flatbuffers)
+if (NOT TARGET denox_flatbuffers)
   add_library(denox_flatbuffers INTERFACE)
   add_library(denox::flatbuffers ALIAS denox_flatbuffers)
-endif()
-
-
-# Link to whatever name upstream used for the library
-if(TARGET flatbuffers::flatbuffers)
-  target_link_libraries(denox_flatbuffers INTERFACE flatbuffers::flatbuffers)
-elseif(TARGET FlatBuffers::FlatBuffers)
-  target_link_libraries(denox_flatbuffers INTERFACE FlatBuffers::FlatBuffers)
-elseif(TARGET flatbuffers) # legacy/plain
-  target_link_libraries(denox_flatbuffers INTERFACE flatbuffers)
-else()
-  log_error("FlatBuffers library target not found after fetch.")
-endif()
-
-get_target_property(_fb_includes denox_flatbuffers INTERFACE_INCLUDE_DIRECTORIES)
-
-if(_fb_includes)
-  target_include_directories(denox_flatbuffers
-    SYSTEM INTERFACE ${_fb_includes}
-  )
 endif()
 
 # --- Expose flatc path AND target for build deps ---
 set(DENOX_FLATC_EXECUTABLE "" CACHE STRING "Path/genex to flatc")
 set(DENOX_FLATC_TARGET "" CACHE STRING "Target name for flatc")
 
-if(TARGET flatbuffers::flatc)
-  set(DENOX_FLATC_EXECUTABLE "$<TARGET_FILE:flatbuffers::flatc>" CACHE STRING "" FORCE)
-  set(DENOX_FLATC_TARGET "flatbuffers::flatc" CACHE STRING "" FORCE)
-elseif(TARGET flatc)
-  set(DENOX_FLATC_EXECUTABLE "$<TARGET_FILE:flatc>" CACHE STRING "" FORCE)
-  set(DENOX_FLATC_TARGET "flatc" CACHE STRING "" FORCE)
-else()
-  log_error("flatc target not built (ensure FLATBUFFERS_BUILD_FLATC=ON).")
-endif()
+# ============================================================
+# System FlatBuffers
+# ============================================================
+if (DENOX_USE_SYSTEM_FLATBUFFERS)
 
-log_success("✅ flatbuffers available (FetchContent)")
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(FLATBUFFERS REQUIRED flatbuffers)
+
+  # Create an interface target matching your abstraction
+  target_include_directories(denox_flatbuffers SYSTEM INTERFACE
+    ${FLATBUFFERS_INCLUDE_DIRS}
+  )
+
+  target_link_libraries(denox_flatbuffers INTERFACE
+    ${FLATBUFFERS_LIBRARIES}
+  )
+
+  # flatc as a tool
+  find_program(_flatc flatc REQUIRED)
+  set(DENOX_FLATC_EXECUTABLE "${_flatc}" CACHE STRING "" FORCE)
+  set(DENOX_FLATC_TARGET "" CACHE STRING "" FORCE)
+
+  log_success("✅ flatbuffers available (system via pkg-config)")
+
+# ============================================================
+# FetchContent FlatBuffers
+# ============================================================
+else()
+
+  # --- Fetch upstream exactly ---
+  set(FLATBUFFERS_BUILD_FLATC     ON  CACHE BOOL "" FORCE)
+  set(FLATBUFFERS_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
+  set(FLATBUFFERS_INSTALL         OFF CACHE BOOL "" FORCE)
+  set(FLATBUFFERS_BUILD_GRPCTEST  OFF CACHE BOOL "" FORCE)
+
+  include(FetchContent)
+  FetchContent_Declare(
+    flatbuffers
+    URL "https://github.com/google/flatbuffers/archive/refs/tags/v23.5.26.tar.gz"
+    EXCLUDE_FROM_ALL
+  )
+  FetchContent_MakeAvailable(flatbuffers)
+
+  # Link to whatever name upstream used
+  if (TARGET flatbuffers::flatbuffers)
+    target_link_libraries(denox_flatbuffers INTERFACE flatbuffers::flatbuffers)
+  elseif (TARGET FlatBuffers::FlatBuffers)
+    target_link_libraries(denox_flatbuffers INTERFACE FlatBuffers::FlatBuffers)
+  elseif (TARGET flatbuffers) # legacy/plain
+    target_link_libraries(denox_flatbuffers INTERFACE flatbuffers)
+  else()
+    log_error("FlatBuffers library target not found after fetch.")
+  endif()
+
+  # Normalize includes as SYSTEM
+  get_target_property(_fb_includes denox_flatbuffers INTERFACE_INCLUDE_DIRECTORIES)
+  if (_fb_includes)
+    target_include_directories(denox_flatbuffers
+      SYSTEM INTERFACE ${_fb_includes}
+    )
+  endif()
+
+  # flatc as a target
+  if (TARGET flatbuffers::flatc)
+    set(DENOX_FLATC_EXECUTABLE "$<TARGET_FILE:flatbuffers::flatc>" CACHE STRING "" FORCE)
+    set(DENOX_FLATC_TARGET "flatbuffers::flatc" CACHE STRING "" FORCE)
+  elseif (TARGET flatc)
+    set(DENOX_FLATC_EXECUTABLE "$<TARGET_FILE:flatc>" CACHE STRING "" FORCE)
+    set(DENOX_FLATC_TARGET "flatc" CACHE STRING "" FORCE)
+  else()
+    log_error("flatc target not built (ensure FLATBUFFERS_BUILD_FLATC=ON).")
+  endif()
+
+  log_success("✅ flatbuffers available (FetchContent)")
+
+endif()
 
 # ---------- Helper: generate headers and wrap as an INTERFACE lib ----------
 # denox_add_fbs_lib(<target_or_alias> <fbs1> [fbs2 ...]

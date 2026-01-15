@@ -15,6 +15,7 @@ public:
           case IOEndpointKind::Pipe:
             return Pipe{};
           }
+          denox::diag::unreachable();
         }()) {}
   std::size_t read(std::span<std::byte> dst) {
     if (std::holds_alternative<Pipe>(m_source)) {

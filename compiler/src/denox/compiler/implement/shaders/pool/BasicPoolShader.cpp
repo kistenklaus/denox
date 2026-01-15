@@ -16,7 +16,7 @@ struct BasicPoolConfig {
   const unsigned int wgH;
 };
 
-static std::array<BasicPoolConfig, 5> CONFIGS = {
+static std::array<BasicPoolConfig, 5> BASIC_POOL_CONFIGS = {
     BasicPoolConfig{
         .cdiv = 4,
         .invocC = memory::nullopt,
@@ -157,14 +157,14 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
   memory::vector<unsigned int> configs;
-  configs.reserve(CONFIGS.size());
-  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
+  configs.reserve(BASIC_POOL_CONFIGS.size());
+  for (unsigned int c = 0; c < BASIC_POOL_CONFIGS.size(); ++c) {
     unsigned int invocC;
-    if (CONFIGS[c].invocC.has_value()) {
-      invocC = CONFIGS[c].invocC.value();
+    if (BASIC_POOL_CONFIGS[c].invocC.has_value()) {
+      invocC = BASIC_POOL_CONFIGS[c].invocC.value();
     } else {
-      assert(CONFIGS[c].cdiv != 0);
-      invocC = (C + CONFIGS[c].cdiv - 1) / CONFIGS[c].cdiv;
+      assert(BASIC_POOL_CONFIGS[c].cdiv != 0);
+      invocC = (C + BASIC_POOL_CONFIGS[c].cdiv - 1) / BASIC_POOL_CONFIGS[c].cdiv;
     }
     if (invocC % cblocksize == 0) {
       configs.push_back(c);
@@ -174,7 +174,7 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
 }
 
 static spirv::GlslCompilerInstance
-compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+basic_pool_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         TensorFormat inputFormat, TensorFormat outputFormat,
         unsigned int channels, memory::uvec2 kernelSize, memory::uvec2 stride,
         memory::uvec2 padding, const BasicPoolConfig &config) {
@@ -245,7 +245,7 @@ void BasicPoolShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  const BasicPoolConfig &config = CONFIGS[configKey];
+  const BasicPoolConfig &config = BASIC_POOL_CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
@@ -259,7 +259,7 @@ void BasicPoolShader::implement(
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
-  auto shader = compile(m_compiler, m_srcPath, in.format, out.format, C,
+  auto shader = basic_pool_compile(m_compiler, m_srcPath, in.format, out.format, C,
                         pool->kernelSize, pool->stride, pool->padding, config);
 
   unsigned int invocC;

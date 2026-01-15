@@ -8,6 +8,9 @@ target_compile_features(denox_database PUBLIC cxx_std_20)
 set_target_properties(denox_database PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_database PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(denox_database PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (DENOX_UNITY_BUILD) 
+  set_target_properties(denox_database PROPERTIES UNITY_BUILD ON)
+endif()
 
 target_include_directories(denox_database 
   PUBLIC

@@ -18,31 +18,36 @@ namespace denox::spirv {
 
 CompilationResult GlslCompilerInstance::compile() {
 
-  glslang::TShader shader(EShLangCompute);
+  ::glslang::TShader shader(EShLangCompute);
   shader.setSourceFile(m_sourcePath.cstr());
-  shader.setEnvInput(glslang::EShSourceGlsl, EShLangCompute,
-                     glslang::EShClientVulkan, 100);
+  shader.setEnvInput(::glslang::EShSourceGlsl, EShLangCompute,
+                     ::glslang::EShClientVulkan, 100);
 
   switch (m_compiler->m_deviceInfo.apiVersion) {
   case ApiVersion::VULKAN_1_0:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
+    shader.setEnvClient(::glslang::EShClientVulkan,
+                        ::glslang::EShTargetVulkan_1_0);
+    shader.setEnvTarget(::glslang::EShTargetSpv, ::glslang::EShTargetSpv_1_0);
     break;
   case ApiVersion::VULKAN_1_1:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_1);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_3);
+    shader.setEnvClient(::glslang::EShClientVulkan,
+                        ::glslang::EShTargetVulkan_1_1);
+    shader.setEnvTarget(::glslang::EShTargetSpv, ::glslang::EShTargetSpv_1_3);
     break;
   case ApiVersion::VULKAN_1_2:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_2);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_5);
+    shader.setEnvClient(::glslang::EShClientVulkan,
+                        ::glslang::EShTargetVulkan_1_2);
+    shader.setEnvTarget(::glslang::EShTargetSpv, ::glslang::EShTargetSpv_1_5);
     break;
   case ApiVersion::VULKAN_1_3:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_3);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_6);
+    shader.setEnvClient(::glslang::EShClientVulkan,
+                        ::glslang::EShTargetVulkan_1_3);
+    shader.setEnvTarget(::glslang::EShTargetSpv, ::glslang::EShTargetSpv_1_6);
     break;
   case ApiVersion::VULKAN_1_4:
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_4);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_6);
+    shader.setEnvClient(::glslang::EShClientVulkan,
+                        ::glslang::EShTargetVulkan_1_4);
+    shader.setEnvTarget(::glslang::EShTargetSpv, ::glslang::EShTargetSpv_1_6);
     break;
   default:
     diag::unreachable();
@@ -76,10 +81,10 @@ CompilationResult GlslCompilerInstance::compile() {
     diag::unreachable();
   }
 
-  //  =============GLSLANG-FRONTEND-STAGE==============
+  //  =============::glslang-FRONTEND-STAGE==============
   if (!shader.parse(buildInResource, 450, false, messages)) {
     return CompilationError{CompilationStage::GlslangParse,
-                            fmt::format("[glslang-parse]: {}\n{}",
+                            fmt::format("[::glslang-parse]: {}\n{}",
                                         m_sourcePath.str(),
                                         shader.getInfoLog())};
   }
@@ -87,11 +92,11 @@ CompilationResult GlslCompilerInstance::compile() {
   {
     const char *w1 = shader.getInfoLog();
     if (w1 && *w1) { // <- check if empty string.
-      DENOX_WARN("[glslang-parse]: {}\n{}", m_sourcePath.str(), w1);
+      DENOX_WARN("[::glslang-parse]: {}\n{}", m_sourcePath.str(), w1);
     }
   }
 
-  glslang::TProgram program;
+  ::glslang::TProgram program;
   program.addShader(&shader);
   if (!program.link(messages)) {
     return CompilationError{CompilationStage::GlslangLink,
@@ -100,11 +105,11 @@ CompilationResult GlslCompilerInstance::compile() {
   {
     const char *w1 = program.getInfoLog();
     if (w1 && *w1) {
-      DENOX_WARN("[glslang-link]: {}\n{}", m_sourcePath.str(), w1);
+      DENOX_WARN("[::glslang-link]: {}\n{}", m_sourcePath.str(), w1);
     }
   }
 
-  glslang::TIntermediate *intermediate =
+  ::glslang::TIntermediate *intermediate =
       program.getIntermediate(EShLangCompute);
   if (!intermediate) {
     return CompilationError{CompilationStage::GlslangIntermediate,
@@ -112,7 +117,7 @@ CompilationResult GlslCompilerInstance::compile() {
   }
 
   spv::SpvBuildLogger logger;
-  glslang::SpvOptions spvOptions;
+  ::glslang::SpvOptions spvOptions;
   bool enableDebugInfo;
   bool enableNonSemanticDebugInfo;
   switch (m_compiler->m_debugInfo) {
@@ -144,10 +149,10 @@ CompilationResult GlslCompilerInstance::compile() {
   spvOptions.optimizerAllowExpandedIDBound = m_compiler->m_optimize;
 
   memory::vector<std::uint32_t> spirv;
-  glslang::GlslangToSpv(*intermediate, spirv, &logger, &spvOptions);
+  ::glslang::GlslangToSpv(*intermediate, spirv, &logger, &spvOptions);
   memory::string glslangSpvLog = logger.getAllMessages();
   if (!glslangSpvLog.empty()) {
-    DENOX_WARN("[glslang-spirv]: {}\n{}", m_sourcePath.str(), glslangSpvLog);
+    DENOX_WARN("[::glslang-spirv]: {}\n{}", m_sourcePath.str(), glslangSpvLog);
   }
 
   SpirvBinary binary{spirv};

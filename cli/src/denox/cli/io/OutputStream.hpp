@@ -21,6 +21,7 @@ public:
           case IOEndpointKind::Pipe:
             return Pipe{};
           }
+          denox::diag::unreachable();
         }()) {}
 
   std::size_t write(std::span<const std::byte> src) {

@@ -15,6 +15,9 @@ target_compile_features(denox_device_info PUBLIC cxx_std_20)
 set_target_properties(denox_device_info PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_device_info PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(denox_device_info PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (DENOX_UNITY_BUILD) 
+  set_target_properties(denox_device_info PROPERTIES UNITY_BUILD ON)
+endif()
 
 target_include_directories(denox_device_info PUBLIC
    ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -26,11 +29,6 @@ target_link_libraries(denox_device_info
   PUBLIC
     denox_common
 )
-
-target_compile_features(denox_device_info PUBLIC cxx_std_20)
-set_target_properties(denox_device_info PROPERTIES CXX_STANDARD 20)
-set_target_properties(denox_device_info PROPERTIES CXX_STANDARD_REQUIRED ON)
-set_target_properties(denox_device_info PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if (NOT DENOX_DISABLE_WARNINGS)
   denox_enable_strict_warnings(denox_device_info)

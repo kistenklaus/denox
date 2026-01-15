@@ -6,6 +6,11 @@ option(BUILD_PYTHON_BINDING "Build tests" OFF)
 option(BUILD_TESTING "Build tests" ON)
 option(DENOX_SAN "Enables sanitizers" OFF)
 option(DENOX_DISABLE_WARNINGS "Enables sanitizers" OFF)
+option(DENOX_UNITY_BUILD "Enable unity builds" OFF)
+option(DENOX_USE_SYSTEM_FLATBUFFERS
+  "Use system-installed FlatBuffers instead of FetchContent"
+  ON)
+
 
 
 include(cmake/fmt.cmake)
@@ -20,7 +25,6 @@ include(cmake/dnx.cmake)
 include(cmake/db.cmake)
 include(cmake/vma.cmake)
 include(cmake/png.cmake)
-
 
 add_subdirectory(common)
 add_subdirectory(device_info)

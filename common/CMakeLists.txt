@@ -51,6 +51,9 @@ target_compile_features(denox_common PUBLIC cxx_std_20)
 set_target_properties(denox_common PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_common PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(denox_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (DENOX_UNITY_BUILD)
+  set_target_properties(denox_common PROPERTIES UNITY_BUILD ON)
+endif()
 
 
 if (NOT DENOX_DISABLE_WARNINGS)
@@ -61,4 +64,5 @@ if (DENOX_SAN)
   target_compile_options(denox_common PRIVATE -fsanitize=undefined -fsanitize=address)
   target_link_options(denox_common PRIVATE -fsanitize=undefined -fsanitize=address)
 endif()
+
 

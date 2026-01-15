@@ -14,7 +14,7 @@ struct BasicUpsampleConfig {
   unsigned int wgH;
 };
 
-static std::array<BasicUpsampleConfig, 5> CONFIGS{
+static std::array<BasicUpsampleConfig, 5> BASIC_UPSAMPLE_CONFIGS{
     BasicUpsampleConfig{
         // not supported
         .invocC = 2,
@@ -158,9 +158,9 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   }
 
   memory::vector<unsigned int> configs;
-  configs.reserve(CONFIGS.size());
-  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    const auto &config = CONFIGS[c];
+  configs.reserve(BASIC_UPSAMPLE_CONFIGS.size());
+  for (unsigned int c = 0; c < BASIC_UPSAMPLE_CONFIGS.size(); ++c) {
+    const auto &config = BASIC_UPSAMPLE_CONFIGS[c];
     uint32_t wgC = config.wgC.value_or(C);
     uint32_t workgroupInvocations = wgC * config.wgW * config.wgH;
     if (workgroupInvocations > m_maxComputeWorkGroupInvocations) {
@@ -184,7 +184,7 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
 }
 
 static spirv::GlslCompilerInstance
-compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+basic_upsample_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         TensorFormat inputFormat, TensorFormat outputFormat,
         unsigned int channels, unsigned int scalingFactor,
         const BasicUpsampleConfig &config) {
@@ -243,7 +243,7 @@ void BasicUpsampleShader::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-  const BasicUpsampleConfig config = CONFIGS[configKey];
+  const BasicUpsampleConfig config = BASIC_UPSAMPLE_CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
@@ -256,7 +256,7 @@ void BasicUpsampleShader::implement(
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
   assert(C == out.channels.constant());
 
-  auto shader = compile(m_compiler, m_srcPath, in.format, out.format, C,
+  auto shader = basic_upsample_compile(m_compiler, m_srcPath, in.format, out.format, C,
                         upsample.upsample().scalingFactor, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);

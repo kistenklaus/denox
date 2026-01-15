@@ -13,7 +13,7 @@ struct BasicUpsampleConfig {
   unsigned int wgH;
 };
 
-static std::array<BasicUpsampleConfig, 5> CONFIGS{
+static std::array<BasicUpsampleConfig, 5> MEMORY_PAD_CONFIGS{
     BasicUpsampleConfig{
         .invocC = 2,
         .invocW = 2,
@@ -129,9 +129,9 @@ memory::vector<unsigned int> MemoryPadShader::acceptMatch(
     break;
   }
   memory::vector<unsigned int> configs;
-  configs.reserve(CONFIGS.size());
-  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    if (CONFIGS[c].invocC % cblocksize == 0) {
+  configs.reserve(MEMORY_PAD_CONFIGS.size());
+  for (unsigned int c = 0; c < MEMORY_PAD_CONFIGS.size(); ++c) {
+    if (MEMORY_PAD_CONFIGS[c].invocC % cblocksize == 0) {
       configs.push_back(c);
     }
   }
@@ -139,7 +139,7 @@ memory::vector<unsigned int> MemoryPadShader::acceptMatch(
 }
 
 static spirv::GlslCompilerInstance
-compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+memory_pad_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         TensorFormat inputFormat, TensorFormat outputFormat,
         unsigned int channels, const BasicUpsampleConfig &config) {
   auto shader = compiler->read(srcPath);
@@ -193,7 +193,7 @@ void MemoryPadShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  const BasicUpsampleConfig &config = CONFIGS[configKey];
+  const BasicUpsampleConfig &config = MEMORY_PAD_CONFIGS[configKey];
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
@@ -207,7 +207,7 @@ void MemoryPadShader::implement(
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
   auto shader =
-      compile(m_compiler, m_srcPath, in.format, out.format, C, config);
+      memory_pad_compile(m_compiler, m_srcPath, in.format, out.format, C, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;

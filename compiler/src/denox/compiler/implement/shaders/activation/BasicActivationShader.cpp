@@ -14,7 +14,7 @@ struct BasicActivationConfig {
   std::uint32_t wgH;
 };
 
-static constexpr std::array<BasicActivationConfig, 5> CONFIGS = {
+static constexpr std::array<BasicActivationConfig, 5> BASIC_ACTIVATION_CONFIGS = {
     BasicActivationConfig{
         .invocC = 2,
         .invocW = 2,
@@ -119,10 +119,10 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
   assert(in.channels.isConstant());
   auto format = in.format;
   std::vector<unsigned int> configs;
-  configs.reserve(CONFIGS.size());
-  for (unsigned int c = 0; c < CONFIGS.size(); ++c) {
-    const auto &config = CONFIGS[c];
-    uint32_t wgC = CONFIGS[c].wgC.value_or(in.channels.constant());
+  configs.reserve(BASIC_ACTIVATION_CONFIGS.size());
+  for (unsigned int c = 0; c < BASIC_ACTIVATION_CONFIGS.size(); ++c) {
+    const auto &config = BASIC_ACTIVATION_CONFIGS[c];
+    uint32_t wgC = BASIC_ACTIVATION_CONFIGS[c].wgC.value_or(in.channels.constant());
     uint32_t workGroupInvocations = wgC * config.wgH * config.wgW;
     if (workGroupInvocations >= m_maxComputeWorkGroupInvocations) {
       continue;
@@ -169,7 +169,7 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
 }
 
 static spirv::GlslCompilerInstance
-compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+basic_activation_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int subgroupSize, TensorFormat inputFormat,
         TensorFormat outputFormat, unsigned int channels, memory::Dtype atype,
         ActivationFunction activationFunction,
@@ -247,7 +247,7 @@ void BasicActivationShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  const BasicActivationConfig &config = CONFIGS[configKey];
+  const BasicActivationConfig &config = BASIC_ACTIVATION_CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
@@ -260,7 +260,7 @@ void BasicActivationShader::implement(
   assert(in.channels == out.channels);
   uint32_t channels = static_cast<uint32_t>(in.channels.constant());
   auto shader =
-      compile(m_compiler, m_srcPath, m_subgroupSize, in.format, out.format,
+      basic_activation_compile(m_compiler, m_srcPath, m_subgroupSize, in.format, out.format,
               static_cast<unsigned int>(in.channels.constant()),
               memory::Dtype::F16, acti.func, config);
 

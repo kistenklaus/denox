@@ -35,6 +35,9 @@ target_compile_features(denox_runtime PUBLIC cxx_std_20)
 set_target_properties(denox_runtime PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_runtime PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(denox_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (DENOX_UNITY_BUILD)
+  set_target_properties(denox_runtime PROPERTIES UNITY_BUILD ON)
+endif()
 
 target_include_directories(denox_runtime
   PUBLIC

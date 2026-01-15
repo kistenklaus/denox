@@ -53,3 +53,5 @@ cmake-debug-build
 *.gz
 *.tar
 *.pkg
+/src
+/pkg

@@ -27,7 +27,7 @@ struct CopyTransformConfig {
   unsigned int wgH;
 };
 
-static std::array<CopyTransformConfig, 5> CONFIGS{
+static std::array<CopyTransformConfig, 5> COPY_TRANSFORM_CONFIGS{
     CopyTransformConfig{
         .invocC = 2,
         .invocW = 2,
@@ -231,16 +231,16 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
   std::vector<unsigned int> configs;
   switch (implementationType) {
   case ConcatImplementationType::Explicit:
-    configs.reserve(CONFIGS.size() * CONFIGS.size());
-    for (unsigned int c0 = 0; c0 < CONFIGS.size(); ++c0) {
-      const auto &config0 = CONFIGS[c0];
+    configs.reserve(COPY_TRANSFORM_CONFIGS.size() * COPY_TRANSFORM_CONFIGS.size());
+    for (unsigned int c0 = 0; c0 < COPY_TRANSFORM_CONFIGS.size(); ++c0) {
+      const auto &config0 = COPY_TRANSFORM_CONFIGS[c0];
       if (!supported(config0.wgC.value_or(src0.channels.constant()),
                      config0.wgW, config0.wgH, config0.invocC, src0Format,
                      static_cast<uint32_t>(src0.channels.constant()))) {
         continue;
       }
-      for (unsigned int c1 = 0; c1 < CONFIGS.size(); ++c1) {
-        const auto &config1 = CONFIGS[c1];
+      for (unsigned int c1 = 0; c1 < COPY_TRANSFORM_CONFIGS.size(); ++c1) {
+        const auto &config1 = COPY_TRANSFORM_CONFIGS[c1];
         if (supported(config1.wgC.value_or(src1.channels.constant()),
                       config1.wgW, config1.wgH, config1.invocC, src1Format,
                       static_cast<uint32_t>(src1.channels.constant()))) {
@@ -266,7 +266,7 @@ float CopyTransformShader::speedup(unsigned int config) const {
 }
 
 static spirv::GlslCompilerInstance
-compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+copy_transform_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         unsigned int inputChannelOffset, unsigned int inputChannels,
         unsigned int outputChannelOffset, unsigned int outputChannels,
         TensorFormat inputFormat, TensorFormat outputFormat,
@@ -349,9 +349,9 @@ void CopyTransformShader::implement(
     uint32_t dstChannels = static_cast<uint32_t>(dst.channels.constant());
     {
       uint8_t config0Key = (configEnc >> 8) & 0xFF;
-      const CopyTransformConfig &config0 = CONFIGS[config0Key];
+      const CopyTransformConfig &config0 = COPY_TRANSFORM_CONFIGS[config0Key];
       auto shader0 =
-          compile(m_compiler, m_srcPath, 0, src0Channels, 0, dstChannels,
+          copy_transform_compile(m_compiler, m_srcPath, 0, src0Channels, 0, dstChannels,
                   src0.format, dst.format, true, config0);
 
       std::uint32_t tileX = config0.invocC * config0.wgC.value_or(src0Channels);
@@ -395,8 +395,8 @@ void CopyTransformShader::implement(
       uint32_t src1Channels = static_cast<uint32_t>(src1.channels.constant());
 
       uint8_t config1Key = (configEnc >> 16) & 0xFF;
-      const CopyTransformConfig &config1 = CONFIGS[config1Key];
-      auto shader1 = compile(m_compiler, m_srcPath, 0, src1Channels,
+      const CopyTransformConfig &config1 = COPY_TRANSFORM_CONFIGS[config1Key];
+      auto shader1 = copy_transform_compile(m_compiler, m_srcPath, 0, src1Channels,
                              src0Channels, dstChannels, src1.format, dst.format,
                              src0.channels.constant() % 8 == 0, config1);
 
