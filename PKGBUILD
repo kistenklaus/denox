@@ -31,7 +31,10 @@ source=("denox-$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
+  cd "$srcdir/denox-$pkgver"
+
   cmake -S . -B build \
+    -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr
 
@@ -39,6 +42,8 @@ build() {
 }
 
 package() {
+  cd "$srcdir/denox-$pkgver"
+
   DESTDIR="$pkgdir" cmake --install build
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

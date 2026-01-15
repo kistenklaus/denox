@@ -48,3 +48,8 @@ cmake-debug-build
 *.tza
 *.db
 *.mp4
+
+*.zst
+*.gz
+*.tar
+*.pkg
