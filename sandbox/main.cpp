@@ -90,7 +90,7 @@ int main() {
 
   auto context =  runtime::Context::make("*RTX*", ApiVersion::VULKAN_1_4);;
 
-  auto db = Db::open(io::Path::cwd() / "gpu.db");
+  auto db = Db::open(io::Path::home() / "gpu.db");
   {
     auto dnxbuf = denox::compile(onnx, db, options);
     auto model = denox::runtime::Model::make(dnxbuf, context);

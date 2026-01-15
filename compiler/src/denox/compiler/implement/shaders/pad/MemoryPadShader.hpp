@@ -44,7 +44,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/pad/memory_pad.comp";
+      io::Path::home() / "compiler/src/denox/compiler/implement/shaders/pad/memory_pad.comp";
 };
 
 } // namespace denox::compiler::shaders

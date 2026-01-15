@@ -70,7 +70,6 @@ static void import_graph(details::ImportState &state,
 compiler::Model read(memory::span<const std::byte> raw,
                      const compiler::CompileOptions &options) {
   try {
-    fmt::println("ALIVE");
     ::onnx::ModelProto onnx;
     if (!onnx.ParseFromArray(raw.data(), static_cast<int>(raw.size_bytes()))) {
       throw std::runtime_error("Failed to parse ONNX protobuf");
@@ -105,7 +104,7 @@ compiler::Model read(memory::span<const std::byte> raw,
                   fmt::format("{}", onnx.model_version()));
 
     details::ImportState state{
-        .externalDir = denox::io::Path::cwd(),
+        .externalDir = denox::io::Path::home(),
         .symGraph = &controlBlock->symGraph,
         .output = compiler::Model(std::move(controlBlock)),
         .ir_version = onnx.ir_version(),

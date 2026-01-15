@@ -20,12 +20,12 @@
 #include <random>
 #include <vulkan/vulkan_core.h>
 
-static constexpr size_t EPOCH_SIZE = 100;
-static constexpr size_t EPOCH_SAMPLES = 1000;
+static constexpr size_t EPOCH_SIZE = 10;
+static constexpr size_t EPOCH_SAMPLES = 100;
 
-static constexpr size_t BATCH_SIZE = 100;
-static constexpr size_t JIT_WARMUP_ITERATIONS = 0;
-static constexpr size_t L2_WARMUP_ITERATONS = 1;
+static constexpr size_t BATCH_SIZE = 10;
+static constexpr size_t JIT_WARMUP_ITERATIONS = 3;
+static constexpr size_t L2_WARMUP_ITERATONS = 50;
 static constexpr size_t PIPELINE_STAGES = 2;
 
 using namespace denox;

@@ -1,4 +1,34 @@
 
+### Copy shaders into build directory
+set(COMPILER_SHADER_FILES 
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/basic_activation.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv_cm.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/copy/copy_transform.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pad/memory_pad.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pool/basic_pool.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/slice/memory_slice.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/basic_upsample.comp
+)
+
+add_custom_target(denox_compiler_shaders ALL)
+
+foreach(shader IN LISTS COMPILER_SHADER_FILES)
+    file(RELATIVE_PATH rel
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${shader}
+    )
+
+    add_custom_command(
+        TARGET denox_compiler_shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${shader}
+                ${CMAKE_BINARY_DIR}/compiler/${rel}
+        VERBATIM
+    )
+endforeach()
+
+
 add_library(denox_compiler
   EXCLUDE_FROM_ALL
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/frontend/frontend.cpp
@@ -106,6 +136,8 @@ target_link_libraries(denox_compiler
     denox_spirv
     denox_database
 )
+
+add_dependencies(denox_compiler denox_compiler_shaders)
 
 
 target_compile_features(denox_compiler PUBLIC cxx_std_20)

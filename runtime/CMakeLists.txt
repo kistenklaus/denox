@@ -1,3 +1,24 @@
+### Copy shaders into build directory
+set(RUNTIME_SHADER_FILES 
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/warmup.comp
+)
+
+add_custom_target(denox_runtime_shaders ALL)
+
+foreach(shader IN LISTS RUNTIME_SHADER_FILES)
+    file(RELATIVE_PATH rel
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${shader}
+    )
+
+    add_custom_command(
+        TARGET denox_runtime_shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${shader}
+                ${CMAKE_BINARY_DIR}/compiler/${rel}
+        VERBATIM
+    )
+endforeach()
 
 add_library(denox_runtime EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/vma_impl.cpp

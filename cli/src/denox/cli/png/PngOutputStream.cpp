@@ -22,8 +22,6 @@ void PngOutputStream::write_image(
   const uint32_t height = tensor.shape().h;
   const uint32_t channels = tensor.shape().c;
 
-  fmt::println("w = {}", width);
-
   if (channels < 1 || channels > 4) {
     throw std::runtime_error("PNG output supports 1–4 channels only");
   }

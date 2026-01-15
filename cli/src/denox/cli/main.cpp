@@ -5,11 +5,14 @@
 #include "denox/cli/populate.hpp"
 #include "denox/cli/bench.hpp"
 #include "denox/diag/not_implemented.hpp"
+#include "denox/io/fs/Path.hpp"
 #include <fmt/base.h>
 #include <fmt/ostream.h>
 #include <fmt/printf.h>
 
 int main(int argc, char **argv) {
+
+  fmt::println("home = {}", denox::io::Path::home());
 
   auto action = parse_argv(argc, argv);
 

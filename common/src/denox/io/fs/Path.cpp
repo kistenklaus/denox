@@ -1,5 +1,16 @@
 #include "denox/io/fs/Path.hpp"
 
+#if defined(__linux__)
+#include <limits.h>
+#include <unistd.h>
+#endif
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace denox::io {
 
 memory::u8string Path::utf8() const {
@@ -12,9 +23,7 @@ memory::string Path::str() const {
   return memory::string(u8.begin(), u8.end());
 }
 
-const char* Path::cstr() const {
-  return m_native.c_str();
-}
+const char *Path::cstr() const { return m_native.c_str(); }
 
 memory::string Path::filename() const {
   return Path::from_native(m_native.filename()).str();
@@ -100,12 +109,50 @@ bool Path::is_dir() const {
   return std::filesystem::is_directory(m_native, ec);
 }
 
-Path Path::cwd() {
+Path Path::home() {
+  if (const char *env = std::getenv("DENOX_HOME")) {
+    Path p(env);
+    if (!p.empty() && p.exists() && p.is_dir())
+      return p.normalized();
+  }
+
   std::error_code ec;
-  auto p = std::filesystem::current_path(ec);
-  if (ec)
+#if defined(__linux__)
+  char buffer[PATH_MAX];
+  ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer));
+  if (len <= 0) {
+    ec = std::error_code(errno, std::generic_category());
     return {};
-  return from_native(p);
+  }
+  auto exe = Path::from_native(
+      std::filesystem::path(std::string(buffer, static_cast<size_t>(len))));
+#elif defined(__APPLE__)
+  uint32_t size = 0;
+  _NSGetExecutablePath(nullptr, &size);
+  std::string buffer(size, '\0');
+  if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
+    ec = std::make_error_code(std::errc::io_error);
+    return {};
+  }
+  auto exe =
+      Path::from_native(std::filesystem::path(buffer).lexically_normal());
+#elif
+  wchar_t buffer[MAX_PATH];
+  DWORD len = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+  if (len == 0) {
+    ec = std::error_code(GetLastError(), std::system_category());
+    return {};
+  }
+  auto exe = Path::from_native(std::filesystem::path(buffer));
+#endif
+
+  if (!ec && !exe.empty()) {
+    Path home = exe.parent();
+    if (!home.empty() && home.exists() && home.is_dir())
+      return home.normalized();
+  }
+
+  return {};
 }
 
 bool Path::exists(std::error_code &ec) const {

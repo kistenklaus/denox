@@ -1,13 +1,17 @@
 #include "denox/cli/png/PngInputStream.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"
+#include <chrono>
 
+#include <iostream>
 #include <png.h>
 #include <pngconf.h>
 #include <stdexcept>
 
 denox::memory::optional<denox::memory::ActivationTensor>
-PngInputStream::read_image() {
+PngInputStream::read_image(denox::memory::Dtype dtype) {
+  using denox::memory::Dtype;
+
   std::byte sig[8];
   try {
     m_stream->read_exact(sig);
@@ -18,16 +22,19 @@ PngInputStream::read_image() {
   if (png_sig_cmp(reinterpret_cast<png_const_bytep>(sig), 0, 8)) {
     return denox::memory::nullopt;
   }
+
   png_structp png =
       png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
   if (!png) {
     throw std::runtime_error("Failed to create png read struct");
   }
+
   png_infop info = png_create_info_struct(png);
   if (!info) {
     png_destroy_read_struct(&png, nullptr, nullptr);
     throw std::runtime_error("Failed to create png info struct");
   }
+
   if (setjmp(png_jmpbuf(png))) {
     png_destroy_read_struct(&png, &info, nullptr);
     throw std::runtime_error("libpng decode error");
@@ -38,8 +45,8 @@ PngInputStream::read_image() {
         auto *stream = static_cast<InputStream *>(png_get_io_ptr(png_ptr));
         stream->read_exact({reinterpret_cast<std::byte *>(out), count});
       });
-  png_set_sig_bytes(png, 8);
 
+  png_set_sig_bytes(png, 8);
   png_read_info(png, info);
 
   const png_uint_32 width = png_get_image_width(png, info);
@@ -57,13 +64,11 @@ PngInputStream::read_image() {
       color_type == PNG_COLOR_TYPE_GRAY_ALPHA) {
     png_set_gray_to_rgb(png);
   }
-
   if (png_get_valid(png, info, PNG_INFO_tRNS)) {
     png_set_tRNS_to_alpha(png);
   }
 
   png_set_strip_alpha(png);
-
   png_read_update_info(png, info);
 
   const png_uint_32 channels = png_get_channels(png, info);
@@ -75,22 +80,57 @@ PngInputStream::read_image() {
   denox::memory::ActivationDescriptor desc{
       .shape = {width, height, channels},
       .layout = denox::memory::ActivationLayout::HWC,
-      .type = denox::memory::Dtype::F32,
+      .type = dtype,
   };
+
   denox::memory::ActivationTensor tensor{desc};
 
   denox::memory::vector<png_byte> row_u8(width * channels);
-  float *dst = reinterpret_cast<float *>(tensor.data());
 
   constexpr float inv255 = 1.0f / 255.0f;
 
-  for (png_uint_32 y = 0; y < height; ++y) {
-    png_read_row(png, row_u8.data(), nullptr);
-    float *row_dst = dst + y * width * channels;
-    for (png_uint_32 i = 0; i < width * channels; ++i) {
-      row_dst[i] = row_u8[i] * inv255;
+  if (dtype == Dtype::F32) {
+    float *dst = reinterpret_cast<float *>(tensor.data());
+
+    for (png_uint_32 y = 0; y < height; ++y) {
+      png_read_row(png, row_u8.data(), nullptr);
+      float *row_dst = dst + y * width * channels;
+      for (png_uint_32 i = 0; i < width * channels; ++i) {
+        row_dst[i] = row_u8[i] * inv255;
+      }
     }
+  } else if (dtype == Dtype::F16) {
+    static denox::memory::f16 u8_to_f16[256];
+    static bool init = false;
+
+    if (!init) {
+      for (int i = 0; i < 256; ++i) {
+        u8_to_f16[i] =
+            denox::memory::f16(static_cast<float>(i) * (1.0f / 255.0f));
+      }
+      init = true;
+    }
+
+    // Assumes IEEE-754 binary16 storage
+    // Replace `half` with your actual F16 type
+    using half = denox::memory::f16;
+
+    half *dst = reinterpret_cast<half *>(tensor.data());
+
+    for (png_uint_32 y = 0; y < height; ++y) {
+      png_read_row(png, row_u8.data(), nullptr);
+
+      auto *row_dst = dst + y * width * channels;
+      for (png_uint_32 i = 0; i < width * channels; ++i) {
+        // Direct uint8 -> float -> half
+        row_dst[i] = u8_to_f16[row_u8[i]];
+      }
+    }
+  } else {
+    png_destroy_read_struct(&png, &info, nullptr);
+    throw std::runtime_error("Unsupported dtype");
   }
+
   png_read_end(png, nullptr);
   png_destroy_read_struct(&png, &info, nullptr);
   return tensor;

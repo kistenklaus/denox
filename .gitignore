@@ -47,3 +47,4 @@ cmake-debug-build
 *.pt
 *.tza
 *.db
+*.mp4

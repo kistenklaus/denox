@@ -7,8 +7,11 @@
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/runtime/instance.hpp"
+#include "denox/symbolic/SymGraphEval.hpp"
+#include <chrono>
 #include <fmt/base.h>
 #include <fmt/ostream.h>
+#include <iostream>
 
 void infer(InferAction &action) {
 
@@ -49,25 +52,34 @@ void infer(InferAction &action) {
   assert(model->inputs().size() == 1);
   assert(model->outputs().size() == 1);
 
+  struct InstanceCache {
+    denox::memory::vector<denox::SymSpec> spec;
+    denox::runtime::InstanceHandle instance;
+  };
+  denox::memory::optional<InstanceCache> instanceCache;
+
   while (!inputStream.eof()) {
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+
     denox::memory::optional<denox::memory::ActivationTensor> parsed;
-    parsed = PngInputStream{&inputStream}.read_image();
+    parsed = PngInputStream{&inputStream}.read_image(denox::memory::Dtype::F16);
     bool isPng = parsed.has_value();
+
+
 
     if (!parsed) {
       // possibly fallback to raw HWC or something (unless eof ofcause)
       // TODO alternative ways of loading the tensor
     }
 
-    fmt::println("has-image: {}", parsed.has_value());
     if (!parsed.has_value()) {
       break;
     }
 
-    const denox::memory::ActivationTensor &image = *parsed;
 
-    fmt::println("image-shape {}x{}x{}", image.shape().w, image.shape().h,
-                 image.shape().c);
+    const denox::memory::ActivationTensor &image = *parsed;
 
     denox::memory::ActivationDescriptor desc{
         {image.shape().w, image.shape().h, image.shape().c},
@@ -75,9 +87,9 @@ void infer(InferAction &action) {
         denox::memory::Dtype::F16,
     };
 
+
     const denox::memory::ActivationTensor tensor{desc, image};
-    fmt::println("input-shape {}x{}x{}", tensor.shape().w, tensor.shape().h,
-                 tensor.shape().c);
+
 
     auto input = model->tensors()[model->inputs().front()];
     assert(input.width.has_value());
@@ -117,34 +129,50 @@ void infer(InferAction &action) {
                         expected, tensor.shape().c));
       }
     }
-    auto instance = denox::runtime::Instance::make(model, specs);
+
+
+
+    denox::runtime::InstanceHandle instance;
+    if (instanceCache) {
+      auto cachedSpecs = instanceCache->spec;
+      bool equal = cachedSpecs.size() == specs.size();
+      for (size_t i = 0; i < cachedSpecs.size() && equal; ++i) {
+        equal = cachedSpecs[i].symbol == specs[i].symbol &&
+                cachedSpecs[i].value == specs[i].value;
+      }
+      if (equal) {
+        instance = instanceCache->instance;
+      } else {
+        instance = denox::runtime::Instance::make(model, specs);
+        instanceCache.emplace(std::move(specs), instance);
+      }
+    } else {
+      instance = denox::runtime::Instance::make(model, specs);
+      instanceCache.emplace(std::move(specs), instance);
+    }
+
 
     const void *inputData = static_cast<const void *>(tensor.data());
     const void **pInput = &inputData;
 
     auto outdesc = instance->getOutputDesc(0);
 
-    fmt::println("output-shape {}x{}x{}", outdesc.shape.w, outdesc.shape.h,
-                 outdesc.shape.c);
-
     denox::memory::ActivationTensor output{outdesc};
     void *outputData = static_cast<void *>(output.data());
     void **pOutput = &outputData;
 
+
     instance->infer(pInput, pOutput);
 
-    float total = 0;
-    for (uint32_t h = 0; h < output.shape().h; ++h) {
-      for (uint32_t w = 0; w < output.shape().w; ++w) {
-        for (uint32_t c = 0; c < output.shape().c; ++c) {
-          total += static_cast<float>(output.at(w, h, c));
-        }
-      }
-    }
-    fmt::println("TOTAL: {}", total);
 
     if (isPng) {
       PngOutputStream{&outputStream}.write_image(output);
     }
+
+    auto dur = std::chrono::high_resolution_clock::now() - start;
+    std::cerr << fmt::format(
+        "\ndenox-latency: {}\n",
+        std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+            dur)) << std::endl;
   }
 }

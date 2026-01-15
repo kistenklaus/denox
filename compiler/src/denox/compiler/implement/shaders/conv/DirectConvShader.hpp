@@ -60,7 +60,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::cwd() / "compiler/src/denox/compiler/implement/shaders/conv/direct_conv.comp";
+      io::Path::home() / "compiler/src/denox/compiler/implement/shaders/conv/direct_conv.comp";
   bool m_enableConvReluFusion;
 
   unsigned int m_subgroupSize;

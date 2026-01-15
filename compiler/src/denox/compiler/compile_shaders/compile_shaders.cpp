@@ -96,7 +96,7 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
     logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{}",
                  percentage,
                  logger.green(),
-                 unit.glsl.getSourcePath().relative_to(io::Path::cwd()), logger.reset());
+                 unit.glsl.getSourcePath().relative_to(io::Path::home()), logger.reset());
 
     SpirvBinary binary = *unit.glsl.compile();
 
