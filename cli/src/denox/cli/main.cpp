@@ -12,7 +12,7 @@
 
 int main(int argc, char **argv) {
 
-  fmt::println("home = {}", denox::io::Path::home());
+  fmt::println("home = {}", denox::io::Path::assets());
 
   auto action = parse_argv(argc, argv);
 

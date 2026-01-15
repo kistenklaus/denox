@@ -47,7 +47,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::home() / "compiler/src/denox/compiler/implement/shaders/activation/basic_activation.comp";
+      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/activation/basic_activation.comp";
 
   uint32_t m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;

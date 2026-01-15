@@ -1,6 +1,6 @@
 
 
-add_executable(denox EXCLUDE_FROM_ALL
+add_executable(denox
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/alloc/monotone_alloc.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/io/Pipe.cpp
@@ -32,6 +32,12 @@ set_target_properties(denox PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(denox PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+foreach(cfg DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(denox PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${cfg} ${CMAKE_BINARY_DIR}/bin
+    )
+endforeach()
+
 
 target_include_directories(denox PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -50,11 +56,6 @@ target_link_libraries(denox
 )
 
 
-add_dependencies(denox denox_assets)
-set_target_properties(denox PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
 if (NOT DENOX_DISABLE_WARNINGS)
   denox_enable_strict_warnings(denox)
 endif()
@@ -63,8 +64,6 @@ if (DENOX_SAN)
   target_compile_options(denox PRIVATE -fsanitize=undefined -fsanitize=address)
   target_link_options(denox PRIVATE -fsanitize=undefined -fsanitize=address)
 endif()
-
-
 
 
 install(TARGETS denox 

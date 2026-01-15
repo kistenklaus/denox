@@ -56,7 +56,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::home() / "compiler/src/denox/compiler/implement/shaders/copy/copy_transform.comp";
+      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/copy/copy_transform.comp";
 
   bool m_enableImplicitConcat;
 

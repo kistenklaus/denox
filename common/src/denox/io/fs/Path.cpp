@@ -109,7 +109,7 @@ bool Path::is_dir() const {
   return std::filesystem::is_directory(m_native, ec);
 }
 
-Path Path::home() {
+Path Path::assets() {
   if (const char *env = std::getenv("DENOX_HOME")) {
     Path p(env);
     if (!p.empty() && p.exists() && p.is_dir())
@@ -147,7 +147,7 @@ Path Path::home() {
 #endif
 
   if (!ec && !exe.empty()) {
-    Path home = exe.parent();
+    Path home = exe.parent().parent() / "share/denox";
     if (!home.empty() && home.exists() && home.is_dir())
       return home.normalized();
   }

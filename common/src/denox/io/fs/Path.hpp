@@ -45,7 +45,7 @@ public:
   [[nodiscard]] bool exists() const;
   [[nodiscard]] bool is_file() const;
   [[nodiscard]] bool is_dir() const;
-  static Path home();
+  static Path assets();
   friend bool operator==(const Path &a, const Path &b) noexcept;
   friend bool operator!=(const Path &a, const Path &b) noexcept;
   friend bool operator<(const Path &a, const Path &b) noexcept;

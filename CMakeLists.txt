@@ -22,7 +22,6 @@ include(cmake/vma.cmake)
 include(cmake/png.cmake)
 
 
-
 add_subdirectory(common)
 add_subdirectory(device_info)
 add_subdirectory(spirv)
@@ -32,4 +31,7 @@ add_subdirectory(runtime)
 add_subdirectory(cli)
 add_subdirectory(sandbox)
 
-
+install(DIRECTORY
+    ${CMAKE_BINARY_DIR}/share/denox
+    DESTINATION share
+)

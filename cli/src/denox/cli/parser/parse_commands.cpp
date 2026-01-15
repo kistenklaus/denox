@@ -183,7 +183,7 @@ Action parse_compile(std::span<const Token> tokens) {
     case IOEndpointKind::Path:
       return input.endpoint.path().with_extension("dnx");
     case IOEndpointKind::Pipe:
-      return denox::io::Path::home() / "a.dnx";
+      return denox::io::Path::assets() / "a.dnx";
     }
     denox::diag::unreachable();
   }());

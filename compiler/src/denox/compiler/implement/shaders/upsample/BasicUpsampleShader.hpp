@@ -44,7 +44,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::home() / "compiler/src/denox/compiler/implement/shaders/upsample/basic_upsample.comp";
+      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/upsample/basic_upsample.comp";
 
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;

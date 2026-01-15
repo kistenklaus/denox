@@ -47,7 +47,7 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::home() / "compiler/src/denox/compiler/implement/shaders/pool/basic_pool.comp";
+      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/pool/basic_pool.comp";
 };
 
 } // namespace denox::compiler::shaders

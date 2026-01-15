@@ -13,9 +13,10 @@ foreach(shader IN LISTS RUNTIME_SHADER_FILES)
 
     add_custom_command(
         TARGET denox_runtime_shaders
+        POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${shader}
-                ${CMAKE_BINARY_DIR}/compiler/${rel}
+                ${CMAKE_BINARY_DIR}/share/denox/compiler/${rel}
         VERBATIM
     )
 endforeach()
