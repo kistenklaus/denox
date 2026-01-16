@@ -1,6 +1,7 @@
 #include "denox/cli/parser/parse_commands.hpp"
 #include "denox/cli/alloc/monotone_alloc.hpp"
 #include "denox/cli/io/Pipe.hpp"
+#include "denox/cli/parser/action.hpp"
 #include "denox/cli/parser/errors.hpp"
 #include "denox/cli/parser/parse_artefact.hpp"
 #include "denox/cli/parser/parse_options.hpp"
@@ -23,6 +24,10 @@ Action parse_compile(std::span<const Token> tokens) {
     throw ParseError("missing input model");
   }
 
+  if (parse_help(tokens, nullptr)) {
+    return HelpAction(HelpScope::Compile);
+  }
+
   // --- Parse input artefact (first positional) ---
   ArtefactParseResult inputRes = parse_artefact(tokens.front());
   if (inputRes.artefact && inputRes.artefact->kind() != ArtefactKind::Onnx) {
@@ -33,7 +38,7 @@ Action parse_compile(std::span<const Token> tokens) {
   if (inputRes.error.has_value()) {
     switch (*inputRes.error) {
     case ArtefactParseError::NotAnArtefactToken:
-      denox::diag::invalid_state();
+      throw ParseError(fmt::format("expected ONNX model as first argument"));
     case ArtefactParseError::PathDoesNotExist:
       throw ParseError(fmt::format("Path does not exist"));
     case ArtefactParseError::UnrecognizedFormat:
@@ -58,6 +63,8 @@ Action parse_compile(std::span<const Token> tokens) {
                           denox::compiler::InterfaceTensorDescriptor>
       tensorDescriptors;
   denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
+  bool help = false;
+
 
   // parse remaining arguments
   uint32_t i = 1;
@@ -71,6 +78,11 @@ Action parse_compile(std::span<const Token> tokens) {
         tokens[i].kind() == TokenKind::Pipe) {
       throw ParseError(fmt::format("unexpected positional argument {}",
                                    describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_help(tokens, &help))) {
+      i += jump;
+      continue;
     }
 
     // --- options with arguments ---
@@ -162,6 +174,10 @@ Action parse_compile(std::span<const Token> tokens) {
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
 
+  if (help) {
+    return HelpAction(HelpScope::Compile);
+  }
+
   if (spirv_nonSemanticDebugInfo) {
     options.spirv.debugInfo =
         denox::spirv::SpirvDebugInfoLevel::ForceNonSemanticDebugInfo;
@@ -202,6 +218,11 @@ Action parse_populate(std::span<const Token> tokens) {
   if (tokens.empty()) {
     throw ParseError("missing input model");
   }
+
+  if (parse_help(tokens, nullptr)) {
+    return HelpAction(HelpScope::Populate);
+  }
+
   if (tokens.size() < 2) {
     throw ParseError(fmt::format("populate expectes two positional arguments"));
   }
@@ -252,6 +273,8 @@ Action parse_populate(std::span<const Token> tokens) {
       tensorDescriptors;
   denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
 
+  bool help = false;
+
   // parse remaining arguments
   uint32_t i = 2;
   while (i < tokens.size()) {
@@ -264,6 +287,11 @@ Action parse_populate(std::span<const Token> tokens) {
         tokens[i].kind() == TokenKind::Pipe) {
       throw ParseError(fmt::format("unexpected positional argument {}",
                                    describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_help(tokens, &help))) {
+      i += jump;
+      continue;
     }
 
     if ((jump = parse_target_env(tail, &apiVersion))) {
@@ -339,6 +367,10 @@ Action parse_populate(std::span<const Token> tokens) {
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
 
+  if (help) {
+    return HelpAction(HelpScope::Populate);
+  }
+
   if (spirv_nonSemanticDebugInfo) {
     options.spirv.debugInfo =
         denox::spirv::SpirvDebugInfoLevel::ForceNonSemanticDebugInfo;
@@ -367,6 +399,10 @@ Action parse_populate(std::span<const Token> tokens) {
 Action parse_bench(std::span<const Token> tokens) {
   if (tokens.empty()) {
     throw ParseError("missing input model");
+  }
+
+  if (parse_help(tokens, nullptr)) {
+    return HelpAction(HelpScope::Bench);
   }
 
   // --- Parse input artefact (first positional) ---
@@ -404,6 +440,8 @@ Action parse_bench(std::span<const Token> tokens) {
 
   denox::memory::hash_map<denox::memory::string, int64_t> valueSpecMap;
 
+  bool help = false;
+
   // parse remaining arguments
   uint32_t i = 1;
   while (i < tokens.size()) {
@@ -416,6 +454,11 @@ Action parse_bench(std::span<const Token> tokens) {
         tokens[i].kind() == TokenKind::Pipe) {
       throw ParseError(fmt::format("unexpected positional argument {}",
                                    describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_help(tokens, &help))) {
+      i += jump;
+      continue;
     }
 
     // --- options with arguments ---
@@ -522,6 +565,11 @@ Action parse_bench(std::span<const Token> tokens) {
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
 
+  if (help) {
+    return HelpAction(HelpScope::Bench);
+  }
+
+
   if (spirv_nonSemanticDebugInfo) {
     options.spirv.debugInfo =
         denox::spirv::SpirvDebugInfoLevel::ForceNonSemanticDebugInfo;
@@ -563,6 +611,10 @@ Action parse_infer(std::span<const Token> tokens) {
     throw ParseError("missing input model");
   }
 
+  if (parse_help(tokens, nullptr)) {
+    return HelpAction(HelpScope::Infer);
+  }
+
   // --- Parse input artefact (first positional) ---
   ArtefactParseResult inputRes = parse_artefact(tokens.front());
   if (inputRes.artefact && inputRes.artefact->kind() == ArtefactKind::Database) {
@@ -601,6 +653,8 @@ Action parse_infer(std::span<const Token> tokens) {
   denox::memory::optional<IOEndpoint> input;
   denox::memory::optional<IOEndpoint> output;
 
+  bool help = false;
+
   // parse remaining arguments
   uint32_t i = 1;
   while (i < tokens.size()) {
@@ -613,6 +667,11 @@ Action parse_infer(std::span<const Token> tokens) {
         tokens[i].kind() == TokenKind::Pipe) {
       throw ParseError(fmt::format("unexpected positional argument {}",
                                    describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_help(tokens, &help))) {
+      i += jump;
+      continue;
     }
 
     // --- options with arguments ---
@@ -711,6 +770,10 @@ Action parse_infer(std::span<const Token> tokens) {
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
 
+  if (help) {
+    return HelpAction(HelpScope::Infer);
+  }
+
   if (spirv_nonSemanticDebugInfo) {
     options.spirv.debugInfo =
         denox::spirv::SpirvDebugInfoLevel::ForceNonSemanticDebugInfo;
@@ -752,10 +815,10 @@ Action parse_infer(std::span<const Token> tokens) {
   };
 }
 
-Action parse_version(std::span<const Token> valueSpecMap) {
+Action parse_version(std::span<const Token>) {
   return Action::version();
 }
 
-Action parse_help(std::span<const Token> tokens) {
+Action parse_help(std::span<const Token>) {
   return HelpAction(HelpScope::Global);
 }

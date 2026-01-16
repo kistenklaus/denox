@@ -1,0 +1,200 @@
+#include "help.hpp"
+#include <iostream>
+
+static constexpr char global_help[] =
+"Usage denox [OPTIONS] [COMMAND] [ARGS] ...\n"
+"Options:\n"
+"   -V, --version           Print version info and exit\n"
+"   -v, --verbose           Use verbose output (-vv very verbose)\n"
+"   -q, --quiet             Do not print denox log messages\n"
+"   -h, --help              Print help\n"
+"Commands:\n"
+"   compile                 compile ONNX model into dnx artefact\n"
+"   populate                populate denox database with onnx model\n"
+"   infer                   infer dnx model\n"
+"   bench                   benchmark dnx model or database\n"
+"See 'denox <command> --help' for more information on a specific command";
+
+static constexpr char bench_help[] = 
+"Usage denox bench [MODEL] [OPTIONS]\n"
+"Arguments:\n"
+"   [MODEL]                 dnx model or database to benchmark\n"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   --target-env            select vulkan target environment\n"
+"                           vulkan1.0|vulkan1.1|vulkan1.2|vulkan1.3\n"
+"   --device                device name regex (e.g. '*NVIDIA*')\n"
+"\n"
+"   --samples               minimum amount of samples per database entry\n"
+"   --relative-error        minimum relative error to consider database\n"
+"                           entry as converged (default 0.05). Reducing this\n"
+"                           may improve measurement quality, at the cost of\n"
+"                           significantly longer execution.\n"
+"\n"
+"   --spec                  specialize named values of dnx model.\n"
+"                           (for example: 'W=1080 H=1920')" ;
+
+
+static constexpr char compile_help[] =
+"Usage denox compile [ONNX] [OPTIONS]\n"
+"Arguments:\n"
+"   [ONNX]                  Path to ONNX model\n"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   --target-env            select vulkan target environment\n"
+"                           vulkan1.0|vulkan1.1|vulkan1.2|vulkan1.3\n"
+"   --device                device name regex (e.g. '*NVIDIA*')\n"
+"   -o, --output <file>     place output into <file>\n"
+"   -db,--database          databased used for selecting dispatches.\n"
+"                           databases can be created with the populate\n" 
+"                           command and benchmarked with the bench command.\n"
+"                           compile then uses measured latencies to select\n"
+"                           optimal dispatches.\n"
+"   --shape                 specifies names for tensor extents, for example:\n"
+"                           'foo=H:W:C' specifies that the height of the tensor 'foo'\n"
+"                           can be referred to as 'H', the width as 'W' and the\n"
+"                           channel count as 'C'. This option can be given multiple\n"
+"                           times and can refer to input or output tensors.\n"
+"                           If a variable name is used multiple times e.g. X:X:C, it\n"
+"                           implies a constrain. In this example the height and width\n"
+"                           of the tensor would be identical.\n"
+"                           'input=H:W:C output=H:W:C' specifies that input and output\n"
+"                           tensors have the same shape. for example 'foo=ssbo'\n"
+"   --storage               specifies the storage of a tensor.\n"
+"                           supported values are:\n"
+"                            * ssbo    : storage buffer\n"
+"                            * image   : storage images\n"
+"                            * sampler : read with sampler write as storage image\n"
+"   --format                specifies the format of a tensor, for example: 'foo=hwc'\n"
+"                           supported values are:\n"
+"                            * hwc     : storage buffer layout HWC (channel-minor)\n"
+"                            * chw     : storage buffer layout CHW (pixel-minor)\n"
+"                            * rgba    : texture format with 4 channel\n"
+"                            * rgb     : texture format with 3 channels\n"
+"   --type                  overwrite the type of a tensor. for example: 'foo=f16'\n"
+"                           allowed values are f16 | f32.\n"
+"   --assume                specifies assumed values of named variables.\n"
+"                           for example: H=1080 W=1920, assumptions are used \n"
+"                           to select the best performing compute shaders.\n"
+"Features:\n"
+"   --fcoopmat,             Enables compute shaders, which use cooperative\n"
+"   --feature-coopmat       matries, if not specified support is queried from\n"
+"                           the driver.\n"  
+"   --ffusion,              Enables executing multiple layers within the same\n"
+"   --feature-fusion        dispatch. Fusion is enabled by default. Only disable\n"
+"                           for debugging as fusion effects performance significantly\n"
+"   --fmemcat,              Enables implicit concatenation, within memory\n"
+"   --feature-memory-concat by placing tensors memory contigous in memory.\n"
+"                           memcats are only valid for some layouts (e.g. CHWC8)\n"
+"                           and require support for dynamic descriptor offsets.\n"
+"                           memory concats are enabled by default.\n"
+"SPIRV-Options:\n"
+"   --use-descriptor-sets   Forces denox to use specific descriptor sets for\n"
+"                           inputs, outputs, parameters (weights), internal\n"
+"                           readonly and writeonly buffers.\n"
+"                           for example: '--use-descriptor-sets 0 1 2 3 4'.\n"
+"                           By default all dispatches use set=0 for everything.\n"
+"   --spirv-optimize        Enables spirv-opt pass on all compiled spirv.\n"
+"                           spirv-opt generally does not improve runtime\n"
+"                           performance, but may reduce binary size marginally.\n"
+"   --spirv-debug-info      Enables debug information within all compiled spirv.\n"
+"                           Some tools like NVIDIA NSight sometimes require additional\n"
+"                           debug info, use '--spirv-non-semantic-debug-info' to enable\n"
+"                           extra information for profilers.";
+
+static constexpr char infer_help[] = 
+"Usage denox infer [MODEL] [OPTIONS]\n"
+"Arguments:\n"
+"   [MODEL]                 Path to dnx model"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   --target-env            select vulkan target environment\n"
+"                           vulkan1.0|vulkan1.1|vulkan1.2|vulkan1.3\n"
+"   --device                device name regex (e.g. '*NVIDIA*')\n"
+"   -i, --input             path to input image (currently only png)\n"
+"   -o, --output            path to output image (currently only png)";
+
+static constexpr char populate_help[] = 
+"Usage denox populate [DATABASE] [ONNX] [OPTIONS]\n"
+"Arguments:\n"
+"   [DATABASE]              Path to database file. If the file doesn't\n"
+"                           exist the database is created\n"
+"   [ONNX]                  Path to onnx model\n"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   --target-env            select vulkan target environment\n"
+"                           vulkan1.0|vulkan1.1|vulkan1.2|vulkan1.3\n"
+"   --device                device name regex (e.g. '*NVIDIA*')\n"
+"   --shape                 specifies names for tensor extents, for example:\n"
+"                           'foo=H:W:C' specifies that the height of the tensor 'foo'\n"
+"                           can be referred to as 'H', the width as 'W' and the\n"
+"                           channel count as 'C'. This option can be given multiple\n"
+"                           times and can refer to input or output tensors.\n"
+"                           If a variable name is used multiple times e.g. X:X:C, it\n"
+"                           implies a constrain. In this example the height and width\n"
+"                           of the tensor would be identical.\n"
+"                           'input=H:W:C output=H:W:C' specifies that input and output\n"
+"                           tensors have the same shape. for example 'foo=ssbo'\n"
+"   --storage               specifies the storage of a tensor.\n"
+"                           supported values are:\n"
+"                            * ssbo    : storage buffer\n"
+"                            * image   : storage images\n"
+"                            * sampler : read with sampler write as storage image\n"
+"   --format                specifies the format of a tensor, for example: 'foo=hwc'\n"
+"                           supported values are:\n"
+"                            * hwc     : storage buffer layout HWC (channel-minor)\n"
+"                            * chw     : storage buffer layout CHW (pixel-minor)\n"
+"                            * rgba    : texture format with 4 channel\n"
+"                            * rgb     : texture format with 3 channels\n"
+"   --type                  overwrite the type of a tensor. for example: 'foo=f16'\n"
+"                           allowed values are f16 | f32.\n"
+"   --assume                specifies assumed values of named variables.\n"
+"                           for example: H=1080 W=1920, assumptions are used \n"
+"                           to select the best performing compute shaders.\n"
+"Features:\n"
+"   --fcoopmat,             Enables compute shaders, which use cooperative\n"
+"   --feature-coopmat       matries, if not specified support is queried from\n"
+"                           the driver.\n"  
+"   --ffusion,              Enables executing multiple layers within the same\n"
+"   --feature-fusion        dispatch. Fusion is enabled by default. Only disable\n"
+"                           for debugging as fusion effects performance significantly\n"
+"   --fmemcat,              Enables implicit concatenation, within memory\n"
+"   --feature-memory-concat by placing tensors memory contigous in memory.\n"
+"                           memcats are only valid for some layouts (e.g. CHWC8)\n"
+"                           and require support for dynamic descriptor offsets.\n"
+"                           memory concats are enabled by default.\n"
+"SPIRV-Options:\n"
+"   --use-descriptor-sets   Forces denox to use specific descriptor sets for\n"
+"                           inputs, outputs, parameters (weights), internal\n"
+"                           readonly and writeonly buffers.\n"
+"                           for example: '--use-descriptor-sets 0 1 2 3 4'.\n"
+"                           By default all dispatches use set=0 for everything.\n"
+"   --spirv-optimize        Enables spirv-opt pass on all compiled spirv.\n"
+"                           spirv-opt generally does not improve runtime\n"
+"                           performance, but may reduce binary size marginally.\n"
+"   --spirv-debug-info      Enables debug information within all compiled spirv.\n"
+"                           Some tools like NVIDIA NSight sometimes require additional\n"
+"                           debug info, use '--spirv-non-semantic-debug-info' to enable\n"
+"                           extra information for profilers.";
+
+
+void help(HelpAction action) {
+
+  switch (action.scope) {
+  case HelpScope::Global:
+    std::cerr << global_help << std::endl;
+    break;
+  case HelpScope::Bench:
+    std::cerr << bench_help << std::endl;
+    break;
+  case HelpScope::Compile:
+    std::cerr << compile_help << std::endl;
+    break;
+  case HelpScope::Infer:
+    std::cerr << infer_help << std::endl;
+    break;
+  case HelpScope::Populate:
+    std::cerr << populate_help << std::endl;
+    break;
+  }
+}

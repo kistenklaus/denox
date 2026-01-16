@@ -12,7 +12,6 @@ option(DENOX_USE_SYSTEM_FLATBUFFERS
   ON)
 
 
-
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/generator.cmake)

@@ -731,8 +731,8 @@ uint32_t parse_input(std::span<const Token> tokens,
     }
     const auto path = literal.as_path();
     if (path.is_dir()) {
-      throw ParseError(
-          fmt::format("invalid argument to '--input': '{}' is a directory", path));
+      throw ParseError(fmt::format(
+          "invalid argument to '--input': '{}' is a directory", path));
     }
     if (in != nullptr) {
       *in = IOEndpoint{path};
@@ -748,6 +748,21 @@ uint32_t parse_input(std::span<const Token> tokens,
   } else {
     throw ParseError("invalid argument to '--input': expected a path or '-'");
   }
-
 }
 
+uint32_t parse_help(std::span<const Token> tokens, bool *help) {
+  if (tokens.empty()) {
+    return 0;
+  }
+  const auto &head = tokens.front();
+  if (head.kind() != TokenKind::Command) {
+    return 0;
+  }
+  if (head.command() != CommandToken::Help) {
+    return 0;
+  }
+  if (help) {
+    *help = true;
+  }
+  return 1;
+}

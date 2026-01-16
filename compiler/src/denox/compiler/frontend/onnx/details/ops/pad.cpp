@@ -86,11 +86,12 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const DeviceTensor &devIn = dataT.device();
     const TensorShape inS = devIn.shape();
     const std::size_t r = inS.rank();
-    if (r != 3 && r != 4)
+    if (r != 3 && r != 4) {
       throw std::runtime_error(
           fmt::format("vkcnn: Pad \"{}\": device tensor must be rank 3 (CHW) "
                       "or 4 (NCHW); got {}.",
                       nodeName, r));
+    }
 
     // Parse pads -> per-axis before/after (as Sym). If 'axes' present, pads
     // length must be 2*axes.size().
@@ -163,6 +164,8 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
             throw std::runtime_error(fmt::format(
                 "vkcnn: Pad \"{}\": negative pads not supported on device.",
                 nodeName));
+          assert(ax < before.size());
+          assert(ax < after.size());
           before[ax] = Sym::Const(b);
           after[ax] = Sym::Const(a);
         }

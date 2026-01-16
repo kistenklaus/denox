@@ -45,6 +45,9 @@ target_link_libraries(denox_common PUBLIC
 
 target_compile_definitions(denox_common PUBLIC 
   DENOX_VERSION=0
+  DENOX_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+  DENOX_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+  DENOX_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
 )
 
 target_compile_features(denox_common PUBLIC cxx_std_20)

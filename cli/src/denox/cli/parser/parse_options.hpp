@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <span>
 
+uint32_t parse_help(std::span<const Token> tokens, bool *help);
+
 uint32_t parse_spirv_optimize(std::span<const Token> t, bool *v);
 
 uint32_t parse_spirv_non_semantic_debug_info(std::span<const Token> t, bool *v);
