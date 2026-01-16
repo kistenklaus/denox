@@ -4,6 +4,7 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
@@ -16,13 +17,13 @@
 namespace denox::compiler {
 
 using weight_type = std::chrono::duration<float, std::milli>;
+static constexpr weight_type INF_WEIGHT = weight_type::max();
 
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             const Model &model, const CompileOptions &options,
                             diag::Logger &logger) {
 
-  logger.info("[ 50%] {}{}Selecting optimal schedule of compute "
-              "dispatches{}",
+  logger.info("[ 50%] {}{}Selecting compute shader dispatches{}",
               logger.bold(), logger.green(), logger.reset());
 
   SymGraphEval eval =
@@ -111,7 +112,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
       if (query) {
         opLatency += *query;
       } else {
-        opLatency = std::numeric_limits<weight_type>::infinity();
+        opLatency = INF_WEIGHT;
       }
     }
 
@@ -177,9 +178,13 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     for (auto &&p : std::move(edge.parameters)) {
       parameters.emplace_back(std::move(p));
     }
-
   }
-  fmt::println("total-weight: {}", totalWeight);
+  if (totalWeight >= INF_WEIGHT) {
+    logger.warn(fmt::format("{}WARNING: Model contains unbenchmarked "
+                            "dispatches. Selected schedule is "
+                            "most likely suboptimal!{}",
+                            logger.yellow(), logger.reset()));
+  }
 
   memory::vector<memory::optional<uint64_t>> tensorRemap(
       supergraph.tensors.size(), memory::nullopt);

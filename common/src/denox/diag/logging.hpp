@@ -118,7 +118,7 @@ public:
 
   template <typename... Args>
   void warn(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    m_logger->warn(fmt, std::forward<Args>(args)...);
+    m_logger->warn(fmt::format(fmt, std::forward<Args>(args)...));
   }
 
   template <typename T> void warn(const T &msg) { m_logger->warn(msg); }
