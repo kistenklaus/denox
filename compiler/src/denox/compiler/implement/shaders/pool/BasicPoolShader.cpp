@@ -164,7 +164,8 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
       invocC = BASIC_POOL_CONFIGS[c].invocC.value();
     } else {
       assert(BASIC_POOL_CONFIGS[c].cdiv != 0);
-      invocC = (C + BASIC_POOL_CONFIGS[c].cdiv - 1) / BASIC_POOL_CONFIGS[c].cdiv;
+      invocC =
+          (C + BASIC_POOL_CONFIGS[c].cdiv - 1) / BASIC_POOL_CONFIGS[c].cdiv;
     }
     if (invocC % cblocksize == 0) {
       configs.push_back(c);
@@ -175,9 +176,10 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
 
 static spirv::GlslCompilerInstance
 basic_pool_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-        TensorFormat inputFormat, TensorFormat outputFormat,
-        unsigned int channels, memory::uvec2 kernelSize, memory::uvec2 stride,
-        memory::uvec2 padding, const BasicPoolConfig &config) {
+                   TensorFormat inputFormat, TensorFormat outputFormat,
+                   unsigned int channels, memory::uvec2 kernelSize,
+                   memory::uvec2 stride, memory::uvec2 padding,
+                   const BasicPoolConfig &config) {
   auto shader = compiler->read(srcPath);
 
   uint32_t invocC;
@@ -259,8 +261,9 @@ void BasicPoolShader::implement(
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
-  auto shader = basic_pool_compile(m_compiler, m_srcPath, in.format, out.format, C,
-                        pool->kernelSize, pool->stride, pool->padding, config);
+  auto shader =
+      basic_pool_compile(m_compiler, m_srcPath, in.format, out.format, C,
+                         pool->kernelSize, pool->stride, pool->padding, config);
 
   unsigned int invocC;
   if (config.invocC) {
@@ -279,8 +282,8 @@ void BasicPoolShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
-  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
+  dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.width));
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.setName(name(pattern, 0));

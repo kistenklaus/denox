@@ -219,8 +219,8 @@ void MemoryPadShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
-  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
+  dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
 
   dispatch.addPushConstant( //
       PushConstant::Dynamic(out.width, memory::Dtype::U32));

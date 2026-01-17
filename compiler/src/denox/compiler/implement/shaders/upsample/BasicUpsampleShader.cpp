@@ -185,9 +185,9 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
 
 static spirv::GlslCompilerInstance
 basic_upsample_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-        TensorFormat inputFormat, TensorFormat outputFormat,
-        unsigned int channels, unsigned int scalingFactor,
-        const BasicUpsampleConfig &config) {
+                       TensorFormat inputFormat, TensorFormat outputFormat,
+                       unsigned int channels, unsigned int scalingFactor,
+                       const BasicUpsampleConfig &config) {
   auto shader = compiler->read(srcPath);
   shader.enableDenoxPreprocessor();
 
@@ -256,8 +256,9 @@ void BasicUpsampleShader::implement(
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
   assert(C == out.channels.constant());
 
-  auto shader = basic_upsample_compile(m_compiler, m_srcPath, in.format, out.format, C,
-                        upsample.upsample().scalingFactor, config);
+  auto shader =
+      basic_upsample_compile(m_compiler, m_srcPath, in.format, out.format, C,
+                             upsample.upsample().scalingFactor, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -269,8 +270,8 @@ void BasicUpsampleShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
-  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
+  dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.width));
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.setName(name(pattern, 0));

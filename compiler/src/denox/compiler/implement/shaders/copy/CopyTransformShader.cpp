@@ -231,7 +231,8 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
   std::vector<unsigned int> configs;
   switch (implementationType) {
   case ConcatImplementationType::Explicit:
-    configs.reserve(COPY_TRANSFORM_CONFIGS.size() * COPY_TRANSFORM_CONFIGS.size());
+    configs.reserve(COPY_TRANSFORM_CONFIGS.size() *
+                    COPY_TRANSFORM_CONFIGS.size());
     for (unsigned int c0 = 0; c0 < COPY_TRANSFORM_CONFIGS.size(); ++c0) {
       const auto &config0 = COPY_TRANSFORM_CONFIGS[c0];
       if (!supported(config0.wgC.value_or(src0.channels.constant()),
@@ -265,12 +266,12 @@ float CopyTransformShader::speedup(unsigned int config) const {
   }
 }
 
-static spirv::GlslCompilerInstance
-copy_transform_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-        unsigned int inputChannelOffset, unsigned int inputChannels,
-        unsigned int outputChannelOffset, unsigned int outputChannels,
-        TensorFormat inputFormat, TensorFormat outputFormat,
-        bool allowVectorization, const CopyTransformConfig &config) {
+static spirv::GlslCompilerInstance copy_transform_compile(
+    spirv::GlslCompiler *compiler, const io::Path &srcPath,
+    unsigned int inputChannelOffset, unsigned int inputChannels,
+    unsigned int outputChannelOffset, unsigned int outputChannels,
+    TensorFormat inputFormat, TensorFormat outputFormat,
+    bool allowVectorization, const CopyTransformConfig &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("IN_CH_OFFSET", inputChannelOffset);
@@ -350,9 +351,9 @@ void CopyTransformShader::implement(
     {
       uint8_t config0Key = (configEnc >> 8) & 0xFF;
       const CopyTransformConfig &config0 = COPY_TRANSFORM_CONFIGS[config0Key];
-      auto shader0 =
-          copy_transform_compile(m_compiler, m_srcPath, 0, src0Channels, 0, dstChannels,
-                  src0.format, dst.format, true, config0);
+      auto shader0 = copy_transform_compile(
+          m_compiler, m_srcPath, 0, src0Channels, 0, dstChannels, src0.format,
+          dst.format, true, config0);
 
       std::uint32_t tileX = config0.invocC * config0.wgC.value_or(src0Channels);
       std::uint32_t tileY = config0.invocW * config0.wgW;
@@ -370,8 +371,10 @@ void CopyTransformShader::implement(
       auto copySrc0Dispatch =
           impl.registerDispatch(std::move(shader0), workgroupCountX,
                                 workgroupCountY, workgroupCountZ);
-      copySrc0Dispatch.addBinding(0, 0, Access::ReadOnly, src0Id);
-      copySrc0Dispatch.addBinding(0, 1, Access::WriteOnly, dstId);
+      copySrc0Dispatch.addBinding("SRC_SET", "SRC_BINDING", Access::ReadOnly,
+                                  src0Id);
+      copySrc0Dispatch.addBinding("DST_SET", "DST_BINDING", Access::WriteOnly,
+                                  dstId);
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.width));
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.height));
       copySrc0Dispatch.setName("explicit-concat-copy-src0");
@@ -396,9 +399,9 @@ void CopyTransformShader::implement(
 
       uint8_t config1Key = (configEnc >> 16) & 0xFF;
       const CopyTransformConfig &config1 = COPY_TRANSFORM_CONFIGS[config1Key];
-      auto shader1 = copy_transform_compile(m_compiler, m_srcPath, 0, src1Channels,
-                             src0Channels, dstChannels, src1.format, dst.format,
-                             src0.channels.constant() % 8 == 0, config1);
+      auto shader1 = copy_transform_compile(
+          m_compiler, m_srcPath, 0, src1Channels, src0Channels, dstChannels,
+          src1.format, dst.format, src0.channels.constant() % 8 == 0, config1);
 
       std::uint32_t tileX = config1.invocC * config1.wgC.value_or(src1Channels);
       std::uint32_t tileY = config1.invocW * config1.wgW;
@@ -411,8 +414,10 @@ void CopyTransformShader::implement(
       auto copySrc1Dispatch =
           impl.registerDispatch(std::move(shader1), workgroupCountX,
                                 workgroupCountY, workgroupCountZ);
-      copySrc1Dispatch.addBinding(0, 0, Access::ReadOnly, src1Id);
-      copySrc1Dispatch.addBinding(0, 1, Access::WriteOnly, dstId);
+      copySrc1Dispatch.addBinding("SRC_SET", "SRC_BINDING", Access::ReadOnly,
+                                  src1Id);
+      copySrc1Dispatch.addBinding("DST_SET", "DST_BINDING", Access::WriteOnly,
+                                  dstId);
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.width));
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.height));
       copySrc1Dispatch.setName("explicit-concat-copy-src1");

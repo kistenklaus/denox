@@ -139,8 +139,8 @@ memory::vector<unsigned int> MemorySliceShader::acceptMatch(
 
 static spirv::GlslCompilerInstance
 memory_slice_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-        TensorFormat inputFormat, TensorFormat outputFormat,
-        unsigned int channels, const MemorySliceConfig &config) {
+                     TensorFormat inputFormat, TensorFormat outputFormat,
+                     unsigned int channels, const MemorySliceConfig &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("CH", channels);
@@ -203,8 +203,8 @@ void MemorySliceShader::implement(
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
-  auto shader =
-      memory_slice_compile(m_compiler, m_srcPath, in.format, out.format, C, config);
+  auto shader = memory_slice_compile(m_compiler, m_srcPath, in.format,
+                                     out.format, C, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -216,8 +216,8 @@ void MemorySliceShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
-  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
+  dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
 
   dispatch.addPushConstant(PushConstant::Dynamic(slice->top));
   dispatch.addPushConstant(PushConstant::Dynamic(slice->left));

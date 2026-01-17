@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/dce/ConstModel.hpp"
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/OpImpl.hpp"
@@ -16,8 +17,8 @@ public:
   friend class OpImpl;
   friend class ComputeDispatchBuilder;
 
-  SuperGraphBuilder(const ConstModel &model, SymGraph symGraph)
-      : m_symGraph(symGraph) {
+  SuperGraphBuilder(const ConstModel &model, SymGraph symGraph, const DescriptorPolicies& descriptorPolicies)
+      : m_symGraph(symGraph), m_descriptorPolicies(descriptorPolicies){
     const size_t nodeCount = model.graph.nodeCount();
     for (uint32_t n = 0; n < nodeCount; ++n) {
       memory::NodeId nid{n};
@@ -103,6 +104,7 @@ private:
   memory::small_vector<memory::NodeId, 2> m_inputs;
   memory::small_vector<memory::NodeId, 2> m_outputs;
   SymGraph m_symGraph;
+  DescriptorPolicies m_descriptorPolicies;
   bool m_writeParameters = true;
   ParamCache m_paramCache;
 };

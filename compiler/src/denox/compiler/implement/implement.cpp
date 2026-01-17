@@ -13,7 +13,8 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
                      const CompileOptions &options, diag::Logger &logger) {
 
   const size_t nodeCount = model.graph.nodeCount();
-  SuperGraphBuilder supergraphBuilder(model, symGraphRef);
+  SuperGraphBuilder supergraphBuilder(model, symGraphRef,
+                                      options.descriptorPolicies);
 
   const auto shaders = shaders::get_all_shaders(glslCompiler, options);
 

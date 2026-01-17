@@ -41,7 +41,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::MemSchedule memSchedule = compiler::placement(optSchedule);
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);
-  compiler::rebind_descriptors(schedule, options, &spirvTools);
+  // compiler::rebind_descriptors(schedule, options, &spirvTools);
   compiler::SymProgram sprog =
       compiler::compile_symbols(schedule, model, options, logger);
   memory::vector<std::byte> dnxbuf =

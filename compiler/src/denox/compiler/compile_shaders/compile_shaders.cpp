@@ -97,6 +97,7 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                  percentage,
                  logger.green(),
                  unit.glsl.getSourcePath().relative_to(io::Path::assets()), logger.reset());
+    // fmt::println("preamble:\n{}", unit.glsl.getPreamble());
 
     SpirvBinary binary = *unit.glsl.compile();
 

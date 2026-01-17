@@ -6,17 +6,17 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_shader_16bit_storage                   : require
 
-layout(set = 0, binding = 0, std430) readonly buffer input_buf {
-    istype input_tensor_blob[];
+layout(set = INPUT_SET, binding = INPUT_BINDING, std430 ) readonly buffer input_buf {
+  istype input_tensor_blob[];
 };
 
-layout(set = 0, binding = 1, std430) writeonly buffer output_buf {
-    ostype output_tensor_blob[];
+layout(set = OUTPUT_SET, binding = OUTPUT_BINDING, std430 ) writeonly buffer output_buf {
+  ostype output_tensor_blob[];
 };
 
 layout(push_constant) uniform PushConstant {
-    uint W;
-    uint H;
+  uint W;
+  uint H;
 } pc;
 
 const uint TILE_C = WG_C * INVOC_C;
@@ -25,206 +25,206 @@ const uint TILE_W = WG_W * INVOC_W;
 
 layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
 void main() {
-    #if defined(IN_LAYOUT_HWC) && defined(OUT_LAYOUT_HWC)
+  #if defined(IN_LAYOUT_HWC) && defined(OUT_LAYOUT_HWC)
 
-    const uint wgc0 = gl_WorkGroupID.x * TILE_C;
-    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
-    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+  const uint wgc0 = gl_WorkGroupID.x * TILE_C;
+  const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+  const uint wgh0 = gl_WorkGroupID.z * TILE_H;
 
-    const uint c0 = wgc0 + gl_LocalInvocationID.x;
-    const uint w20 = wgw0 + gl_LocalInvocationID.y;
-    const uint h20 = wgh0 + gl_LocalInvocationID.z;
+  const uint c0 = wgc0 + gl_LocalInvocationID.x;
+  const uint w20 = wgw0 + gl_LocalInvocationID.y;
+  const uint h20 = wgh0 + gl_LocalInvocationID.z;
 
-    const uint W = pc.W;
-    const uint H = pc.H;
+  const uint W = pc.W;
+  const uint H = pc.H;
 
-    const uint W2 = W / KERNEL_X;
-    const uint H2 = H / KERNEL_Y;
+  const uint W2 = W / KERNEL_X;
+  const uint H2 = H / KERNEL_Y;
 
-    for (uint zh = 0; zh < INVOC_H; ++zh) {
-        const uint oh = h20 + zh * WG_H;
-        if (oh >= H2) {
-            break;
-        }
-        for (uint zw = 0; zw < INVOC_W; ++zw) {
-            const uint ow = w20 + zw * WG_W;
-            if (ow >= W2) {
-                break;
-            }
-            for (uint zc = 0; zc < INVOC_C; ++zc) {
-                const uint c = c0 + zc * WG_C;
-                if (c >= CH) {
-                    break;
-                }
-                const uint oo = oh * W2 * CH + ow * CH + c;
-                float16_t acc = uint16BitsToFloat16(uint16_t(0xFC00)); // -inf.
-                for (uint r = 0; r < KERNEL_Y; ++r) {
-                    const uint ih = oh * KERNEL_Y + r;
-                    if (ih >= H) {
-                        break;
-                    }
-                    for (uint s = 0; s < KERNEL_X; ++s) {
-                        const uint iw = ow * KERNEL_X + s;
-                        if (iw >= W) {
-                            break;
-                        }
-                        const uint io = ih * W * CH + iw * CH + c;
-                        uint16_t v = input_tensor_blob[io];
-                        float16_t x = uint16BitsToFloat16(v);
-                        acc = max(acc, x);
-                    }
-                }
-                uint16_t v = float16BitsToUint16(acc);
-                // uint16_t v = float16BitsToUint16(float16_t(oh));
-                output_tensor_blob[oo] = v;
-            }
-        }
+  for (uint zh = 0; zh < INVOC_H; ++zh) {
+    const uint oh = h20 + zh * WG_H;
+    if (oh >= H2) {
+      break;
     }
-
-    #elif defined(IN_LAYOUT_HWC8) && defined(OUT_LAYOUT_HWC8)
-    const uint TILE_C8 = TILE_C / 8;
-    const uint INVOC_C8 = INVOC_C / 8;
-    const uint CH8 = CH / 8;
-
-    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
-    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
-    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
-
-    const uint c08 = wgc08 + gl_LocalInvocationID.x;
-    const uint w20 = wgw0 + gl_LocalInvocationID.y;
-    const uint h20 = wgh0 + gl_LocalInvocationID.z;
-
-    const uint H = pc.H;
-    const uint W = pc.W;
-
-    const uint W2 = W / KERNEL_X;
-    const uint H2 = H / KERNEL_Y;
-
-    for (uint zh = 0; zh < INVOC_H; ++zh) {
-        const uint oh = h20 + zh * WG_H;
-        if (oh >= H2) {
+    for (uint zw = 0; zw < INVOC_W; ++zw) {
+      const uint ow = w20 + zw * WG_W;
+      if (ow >= W2) {
+        break;
+      }
+      for (uint zc = 0; zc < INVOC_C; ++zc) {
+        const uint c = c0 + zc * WG_C;
+        if (c >= CH) {
+          break;
+        }
+        const uint oo = oh * W2 * CH + ow * CH + c;
+        float16_t acc = uint16BitsToFloat16(uint16_t(0xFC00)); // -inf.
+        for (uint r = 0; r < KERNEL_Y; ++r) {
+          const uint ih = oh * KERNEL_Y + r;
+          if (ih >= H) {
             break;
-        }
-        for (uint zw = 0; zw < INVOC_W; ++zw) {
-            const uint ow = w20 + zw * WG_W;
-            if (ow >= W2) {
-                break;
+          }
+          for (uint s = 0; s < KERNEL_X; ++s) {
+            const uint iw = ow * KERNEL_X + s;
+            if (iw >= W) {
+              break;
             }
-            for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
-                const uint c8 = c08 + zc8 * WG_C;
-                if (c8 >= CH8) {
-                    break;
-                }
-                const uint oo = oh * W2 * CH8 + ow * CH8 + c8;
-
-                const float16_t NegInf = uint16BitsToFloat16(uint16_t(0xFC00));
-
-                f16vec2 acc[4];
-                for (uint x = 0; x < 4; ++x) {
-                    acc[x] = f16vec2(NegInf, NegInf);
-                }
-                for (uint r = 0; r < KERNEL_Y; ++r) {
-                    const uint ih = oh * KERNEL_Y + r;
-                    if (ih >= H) {
-                        break;
-                    }
-                    for (uint s = 0; s < KERNEL_X; ++s) {
-                        const uint iw = ow * KERNEL_X + s;
-                        if (iw >= W) {
-                            break;
-                        }
-                        const uint io = ih * W * CH8 + iw * CH8 + c8;
-                        uvec4 v = input_tensor_blob[io];
-                        acc[0] = max(acc[0], unpackFloat2x16(v.x));
-                        acc[1] = max(acc[1], unpackFloat2x16(v.y));
-                        acc[2] = max(acc[2], unpackFloat2x16(v.z));
-                        acc[3] = max(acc[3], unpackFloat2x16(v.w));
-                    }
-                }
-                uvec4 v = uvec4(
-                        packFloat2x16(acc[0]),
-                        packFloat2x16(acc[1]),
-                        packFloat2x16(acc[2]),
-                        packFloat2x16(acc[3])
-                    );
-                output_tensor_blob[oo] = v;
-            }
+            const uint io = ih * W * CH + iw * CH + c;
+            uint16_t v = input_tensor_blob[io];
+            float16_t x = uint16BitsToFloat16(v);
+            acc = max(acc, x);
+          }
         }
+        uint16_t v = float16BitsToUint16(acc);
+        // uint16_t v = float16BitsToUint16(float16_t(oh));
+        output_tensor_blob[oo] = v;
+      }
     }
+  }
 
-    #elif defined(IN_LAYOUT_CHWC8) && defined(OUT_LAYOUT_CHWC8)
-    const uint TILE_C8 = TILE_C / 8;
-    const uint INVOC_C8 = INVOC_C / 8;
-    const uint CH8 = CH / 8;
+  #elif defined(IN_LAYOUT_HWC8) && defined(OUT_LAYOUT_HWC8)
+  const uint TILE_C8 = TILE_C / 8;
+  const uint INVOC_C8 = INVOC_C / 8;
+  const uint CH8 = CH / 8;
 
-    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
-    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
-    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+  const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+  const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+  const uint wgh0 = gl_WorkGroupID.z * TILE_H;
 
-    const uint c08 = wgc08 + gl_LocalInvocationID.x;
-    const uint w20 = wgw0 + gl_LocalInvocationID.y;
-    const uint h20 = wgh0 + gl_LocalInvocationID.z;
+  const uint c08 = wgc08 + gl_LocalInvocationID.x;
+  const uint w20 = wgw0 + gl_LocalInvocationID.y;
+  const uint h20 = wgh0 + gl_LocalInvocationID.z;
 
-    const uint W = pc.W;
-    const uint H = pc.H;
+  const uint H = pc.H;
+  const uint W = pc.W;
 
-    const uint W2 = W / KERNEL_X;
-    const uint H2 = H / KERNEL_Y;
+  const uint W2 = W / KERNEL_X;
+  const uint H2 = H / KERNEL_Y;
 
-    for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+  for (uint zh = 0; zh < INVOC_H; ++zh) {
+    const uint oh = h20 + zh * WG_H;
+    if (oh >= H2) {
+      break;
+    }
+    for (uint zw = 0; zw < INVOC_W; ++zw) {
+      const uint ow = w20 + zw * WG_W;
+      if (ow >= W2) {
+        break;
+      }
+      for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
         const uint c8 = c08 + zc8 * WG_C;
         if (c8 >= CH8) {
+          break;
+        }
+        const uint oo = oh * W2 * CH8 + ow * CH8 + c8;
+
+        const float16_t NegInf = uint16BitsToFloat16(uint16_t(0xFC00));
+
+        f16vec2 acc[4];
+        for (uint x = 0; x < 4; ++x) {
+          acc[x] = f16vec2(NegInf, NegInf);
+        }
+        for (uint r = 0; r < KERNEL_Y; ++r) {
+          const uint ih = oh * KERNEL_Y + r;
+          if (ih >= H) {
             break;
-        }
-
-        for (uint zh = 0; zh < INVOC_H; ++zh) {
-            const uint oh = h20 + zh * WG_H;
-            if (oh >= H2) {
-                break;
+          }
+          for (uint s = 0; s < KERNEL_X; ++s) {
+            const uint iw = ow * KERNEL_X + s;
+            if (iw >= W) {
+              break;
             }
-            for (uint zw = 0; zw < INVOC_W; ++zw) {
-                const uint ow = w20 + zw * WG_W;
-                if (ow >= W2) {
-                    break;
-                }
-                const uint oo = c8 * W2 * H2 + oh * W2 + ow;
-
-                const float16_t NegInf = uint16BitsToFloat16(uint16_t(0xFC00));
-                f16vec2 acc[4];
-                for (uint x = 0; x < 4; ++x) {
-                    acc[x] = f16vec2(NegInf, NegInf);
-                }
-
-                for (uint r = 0; r < KERNEL_Y; ++r) {
-                    const uint ih = oh * KERNEL_Y + r;
-                    if (ih >= H) {
-                        break;
-                    }
-                    for (uint s = 0; s < KERNEL_X; ++s) {
-                        const uint iw = ow * KERNEL_X + s;
-                        if (iw >= W) {
-                            break;
-                        }
-                        const uint io = c8 * W * H + ih * W + iw;
-                        uvec4 v = input_tensor_blob[io];
-                        acc[0] = max(acc[0], unpackFloat2x16(v.x));
-                        acc[1] = max(acc[1], unpackFloat2x16(v.y));
-                        acc[2] = max(acc[2], unpackFloat2x16(v.z));
-                        acc[3] = max(acc[3], unpackFloat2x16(v.w));
-                    }
-                }
-
-                uvec4 v = uvec4(
-                        packFloat2x16(acc[0]),
-                        packFloat2x16(acc[1]),
-                        packFloat2x16(acc[2]),
-                        packFloat2x16(acc[3])
-                    );
-                output_tensor_blob[oo] = v;
-            }
+            const uint io = ih * W * CH8 + iw * CH8 + c8;
+            uvec4 v = input_tensor_blob[io];
+            acc[0] = max(acc[0], unpackFloat2x16(v.x));
+            acc[1] = max(acc[1], unpackFloat2x16(v.y));
+            acc[2] = max(acc[2], unpackFloat2x16(v.z));
+            acc[3] = max(acc[3], unpackFloat2x16(v.w));
+          }
         }
+        uvec4 v = uvec4(
+            packFloat2x16(acc[0]),
+            packFloat2x16(acc[1]),
+            packFloat2x16(acc[2]),
+            packFloat2x16(acc[3])
+          );
+        output_tensor_blob[oo] = v;
+      }
     }
-    #else
-    NOT_IMPLEMENTED;
-    #endif
+  }
+
+  #elif defined(IN_LAYOUT_CHWC8) && defined(OUT_LAYOUT_CHWC8)
+  const uint TILE_C8 = TILE_C / 8;
+  const uint INVOC_C8 = INVOC_C / 8;
+  const uint CH8 = CH / 8;
+
+  const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+  const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+  const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+  const uint c08 = wgc08 + gl_LocalInvocationID.x;
+  const uint w20 = wgw0 + gl_LocalInvocationID.y;
+  const uint h20 = wgh0 + gl_LocalInvocationID.z;
+
+  const uint W = pc.W;
+  const uint H = pc.H;
+
+  const uint W2 = W / KERNEL_X;
+  const uint H2 = H / KERNEL_Y;
+
+  for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+    const uint c8 = c08 + zc8 * WG_C;
+    if (c8 >= CH8) {
+      break;
+    }
+
+    for (uint zh = 0; zh < INVOC_H; ++zh) {
+      const uint oh = h20 + zh * WG_H;
+      if (oh >= H2) {
+        break;
+      }
+      for (uint zw = 0; zw < INVOC_W; ++zw) {
+        const uint ow = w20 + zw * WG_W;
+        if (ow >= W2) {
+          break;
+        }
+        const uint oo = c8 * W2 * H2 + oh * W2 + ow;
+
+        const float16_t NegInf = uint16BitsToFloat16(uint16_t(0xFC00));
+        f16vec2 acc[4];
+        for (uint x = 0; x < 4; ++x) {
+          acc[x] = f16vec2(NegInf, NegInf);
+        }
+
+        for (uint r = 0; r < KERNEL_Y; ++r) {
+          const uint ih = oh * KERNEL_Y + r;
+          if (ih >= H) {
+            break;
+          }
+          for (uint s = 0; s < KERNEL_X; ++s) {
+            const uint iw = ow * KERNEL_X + s;
+            if (iw >= W) {
+              break;
+            }
+            const uint io = c8 * W * H + ih * W + iw;
+            uvec4 v = input_tensor_blob[io];
+            acc[0] = max(acc[0], unpackFloat2x16(v.x));
+            acc[1] = max(acc[1], unpackFloat2x16(v.y));
+            acc[2] = max(acc[2], unpackFloat2x16(v.z));
+            acc[3] = max(acc[3], unpackFloat2x16(v.w));
+          }
+        }
+
+        uvec4 v = uvec4(
+            packFloat2x16(acc[0]),
+            packFloat2x16(acc[1]),
+            packFloat2x16(acc[2]),
+            packFloat2x16(acc[3])
+          );
+        output_tensor_blob[oo] = v;
+      }
+    }
+  }
+  #else
+  NOT_IMPLEMENTED;
+  #endif
 }

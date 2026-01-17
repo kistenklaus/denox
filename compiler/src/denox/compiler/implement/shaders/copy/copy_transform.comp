@@ -6,11 +6,11 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_shader_16bit_storage                   : require
 
-layout(set = 0, binding = 0, std430) readonly buffer input_buf {
+layout(set = SRC_SET, binding = SRC_BINDING, std430) readonly buffer input_buf {
     istype input_tensor_blob[];
 };
 
-layout(set = 0, binding = 1, std430) writeonly buffer output_buf {
+layout(set = DST_SET, binding = DST_BINDING, std430) writeonly buffer output_buf {
     ostype output_tensor_blob[];
 };
 
