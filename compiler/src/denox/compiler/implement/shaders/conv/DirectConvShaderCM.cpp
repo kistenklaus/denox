@@ -610,16 +610,16 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
   return configs;
 }
 
-static spirv::GlslCompilerInstance
-direct_conv_cm_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-        unsigned int subgroupSize, unsigned int C, unsigned int K,
-        TensorFormat inputFormat, TensorFormat outputFormat,
-        memory::optional<ActivationFunction> activationFunction,
-        memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
-        bool bias, const DirectConvConfig &config,
-        //
-        memory::FilterLayout *out_filterLayout,
-        memory::BiasLayout *out_biasLayout) {
+static spirv::GlslCompilerInstance direct_conv_cm_compile(
+    spirv::GlslCompiler *compiler, const io::Path &srcPath,
+    unsigned int subgroupSize, unsigned int C, unsigned int K,
+    TensorFormat inputFormat, TensorFormat outputFormat,
+    memory::optional<ActivationFunction> activationFunction,
+    memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
+    bool bias, const DirectConvConfig &config,
+    //
+    memory::FilterLayout *out_filterLayout,
+    memory::BiasLayout *out_biasLayout) {
   auto shader = compiler->read(srcPath);
   if (C % 8 == 0) {
     shader.define("istype", "uvec4");
@@ -840,11 +840,13 @@ void DirectConvShaderCM::implement(
         *conv->B);
   }
 
-  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
-  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
-  dispatch.addBinding(0, 2, Access::ReadOnly, weightTensorId);
+  dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
+  dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
+  dispatch.addBinding("FILTER_SET", "FILTER_BINDING", Access::ReadOnly,
+                      weightTensorId);
   if (biasTensorId) {
-    dispatch.addBinding(0, 3, Access::ReadOnly, *biasTensorId);
+    dispatch.addBinding("BIAS_SET", "BIAS_BINDING", Access::ReadOnly,
+                        *biasTensorId);
   }
 
   dispatch.addPushConstant(PushConstant::Dynamic(in.width, memory::Dtype::U32));

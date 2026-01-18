@@ -32,11 +32,11 @@
 #define vstype uvec4
 #define VSTYPE_SIZE 16
 
-layout(set = 0, binding = 0, std430) readonly buffer input_buf {
+layout(set = INPUT_SET, binding = INPUT_BINDING, std430) readonly buffer input_buf {
   istype input_tensor_blob[];
 };
 
-layout(set = 0, binding = 1, std430) writeonly buffer output_buf {
+layout(set = OUTPUT_SET, binding = OUTPUT_BINDING, std430) writeonly buffer output_buf {
   // NOTE: The output tensor memory.
   // We currently support:
   // -f16:
@@ -45,12 +45,12 @@ layout(set = 0, binding = 1, std430) writeonly buffer output_buf {
   ostype output_tensor_blob[];
 };
 
-layout(set = 0, binding = 2, std430) readonly buffer filter_buf {
+layout(set = FILTER_SET, binding = FILTER_BINDING, std430) readonly buffer filter_buf {
   fstype filter_blob[];
 };
 
 #ifdef USE_BIAS
-layout(set = 0, binding = 3, std430) readonly buffer bias_buf {
+layout(set = BIAS_SET, binding = BIAS_BINDING, std430) readonly buffer bias_buf {
   // NOTE: The bias blob is required to be aligned to 16byte and
   // padded to a multiple of CM_N.
   // This allows us to skip shared memory when loading the bias.

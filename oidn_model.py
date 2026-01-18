@@ -13,8 +13,6 @@ import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 
-from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
-
 
 @dataclass
 class TZATensorMeta:

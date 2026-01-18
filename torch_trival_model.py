@@ -67,6 +67,7 @@ class Net(nn.Module):
             3,
             padding="same",
             dtype=torch.float16,
+            bias=False,
         )
         self.conv1 = nn.Conv2d(
             INPUT_CHANNELS_COUNT,
@@ -111,7 +112,17 @@ class Net(nn.Module):
         # x1 = self.conv1(x0)
         # x2 = self.conv2(x1)
         # x = torch.cat((x0, x1), 1)
-        x = self.gaus(self.gaus(self.gaus(self.gaus(x))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        
+        # x = self.conv0(x)
+
         return x[:,:,:H,:W]
 
 

@@ -131,7 +131,6 @@ GlslCompiler::~GlslCompiler() {
 
 GlslCompilerInstance GlslCompiler::read(io::Path sourcePath) {
   io::File file = io::File::open(sourcePath, io::File::OpenMode::Read);
-
   memory::vector<std::byte> glslSource(file.size());
   file.read_exact(glslSource);
 

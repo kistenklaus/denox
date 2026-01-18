@@ -59,6 +59,9 @@ CompilationResult GlslCompilerInstance::compile() {
   GlslPreprocessor preprocessor;
   memory::string preprocessed = preprocessor.preprocess(memory::string_view{
       reinterpret_cast<const char *>(m_src.data()), m_src.size()});
+  if (m_sourcePath.filename() == "memory_pad.comp") {
+    DENOX_WARN("FINAL GLSL: {}\n{}{}", m_sourcePath, m_preamble, preprocessed);
+  }
 
   const char *srcPtr = preprocessed.c_str();
   shader.setStrings(&srcPtr, 1);
