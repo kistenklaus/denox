@@ -14,47 +14,47 @@ struct BasicActivationConfig {
   std::uint32_t wgH;
 };
 
-static constexpr std::array<BasicActivationConfig, 5> BASIC_ACTIVATION_CONFIGS = {
-    BasicActivationConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 1,
-        .wgC = 8,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    BasicActivationConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt, // <- insert channel count.
-        .wgW = 32,
-        .wgH = 1,
-    },
-    BasicActivationConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    BasicActivationConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 2,
-        .wgW = 128,
-        .wgH = 1,
-    },
-    BasicActivationConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 1,
-        .wgW = 256,
-        .wgH = 1,
-    }};
+static constexpr std::array<BasicActivationConfig, 5> BASIC_ACTIVATION_CONFIGS =
+    {BasicActivationConfig{
+         .invocC = 2,
+         .invocW = 2,
+         .invocH = 1,
+         .wgC = 8,
+         .wgW = 32,
+         .wgH = 1,
+     },
+     BasicActivationConfig{
+         .invocC = 1,
+         .invocW = 4,
+         .invocH = 1,
+         .wgC = memory::nullopt, // <- insert channel count.
+         .wgW = 32,
+         .wgH = 1,
+     },
+     BasicActivationConfig{
+         .invocC = 8,
+         .invocW = 1,
+         .invocH = 1,
+         .wgC = 4,
+         .wgW = 64,
+         .wgH = 1,
+     },
+     BasicActivationConfig{
+         .invocC = 8,
+         .invocW = 1,
+         .invocH = 1,
+         .wgC = 2,
+         .wgW = 128,
+         .wgH = 1,
+     },
+     BasicActivationConfig{
+         .invocC = 8,
+         .invocW = 1,
+         .invocH = 1,
+         .wgC = 1,
+         .wgW = 256,
+         .wgH = 1,
+     }};
 
 BasicActivationShader::BasicActivationShader(spirv::GlslCompiler *compiler,
                                              const CompileOptions &options)
@@ -122,7 +122,8 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
   configs.reserve(BASIC_ACTIVATION_CONFIGS.size());
   for (unsigned int c = 0; c < BASIC_ACTIVATION_CONFIGS.size(); ++c) {
     const auto &config = BASIC_ACTIVATION_CONFIGS[c];
-    uint32_t wgC = BASIC_ACTIVATION_CONFIGS[c].wgC.value_or(in.channels.constant());
+    uint32_t wgC =
+        BASIC_ACTIVATION_CONFIGS[c].wgC.value_or(in.channels.constant());
     uint32_t workGroupInvocations = wgC * config.wgH * config.wgW;
     if (workGroupInvocations >= m_maxComputeWorkGroupInvocations) {
       continue;
@@ -170,10 +171,11 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
 
 static spirv::GlslCompilerInstance
 basic_activation_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-        unsigned int subgroupSize, TensorFormat inputFormat,
-        TensorFormat outputFormat, unsigned int channels, memory::Dtype atype,
-        ActivationFunction activationFunction,
-        const BasicActivationConfig &config) {
+                         unsigned int subgroupSize, TensorFormat inputFormat,
+                         TensorFormat outputFormat, unsigned int channels,
+                         memory::Dtype atype,
+                         ActivationFunction activationFunction,
+                         const BasicActivationConfig &config) {
   if (atype != memory::Dtype::F16) {
     diag::invalid_state();
   }
@@ -259,10 +261,10 @@ void BasicActivationShader::implement(
   assert(in.channels.isConstant());
   assert(in.channels == out.channels);
   uint32_t channels = static_cast<uint32_t>(in.channels.constant());
-  auto shader =
-      basic_activation_compile(m_compiler, m_srcPath, m_subgroupSize, in.format, out.format,
-              static_cast<unsigned int>(in.channels.constant()),
-              memory::Dtype::F16, acti.func, config);
+  auto shader = basic_activation_compile(
+      m_compiler, m_srcPath, m_subgroupSize, in.format, out.format,
+      static_cast<unsigned int>(in.channels.constant()), memory::Dtype::F16,
+      acti.func, config);
 
   std::uint32_t tileC =
       config.invocC * config.wgC.value_or(in.channels.constant());
@@ -275,8 +277,8 @@ void BasicActivationShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.addBinding(0, 0, Access::ReadOnly, inId);
-  dispatch.addBinding(0, 1, Access::WriteOnly, outId);
+  dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
+  dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.width));
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.setSourcePath(m_srcPath);
