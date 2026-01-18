@@ -357,6 +357,11 @@ Action parse_populate(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_use_descriptor_sets(tail, &options.descriptorPolicies))) {
+      i += jump;
+      continue;
+    }
+
     if ((jump = parse_assume(tail, assumptions))) {
       i += jump;
       continue;
