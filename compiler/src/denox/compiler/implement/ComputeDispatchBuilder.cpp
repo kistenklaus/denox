@@ -133,7 +133,7 @@ ComputeDispatchBuilder::~ComputeDispatchBuilder() {
   }
   uint32_t setCount = maxSet + 1;
 
-  std::ranges::sort(
+  std::ranges::stable_sort(
       m_bindingInfos,
       [](const TensorBindingInfo &lhs, const TensorBindingInfo &rhs) -> bool {
         using base_t = std::underlying_type_t<BindingType>;

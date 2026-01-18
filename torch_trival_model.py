@@ -34,6 +34,12 @@ class Net(nn.Module):
             dtype=torch.float16
         )
 
+        id_kernel = torch.tensor(
+                [[0,0,0],
+                 [0,1,0],
+                 [0,0,0]],
+                dtype=torch.float16)
+
         with torch.no_grad():
             self.gaus.weight.zero_()  # important
 
@@ -67,8 +73,19 @@ class Net(nn.Module):
             3,
             padding="same",
             dtype=torch.float16,
-            bias=False,
+            bias=True,
         )
+
+        conv0_bias = torch.tensor([0,1,0], dtype=torch.float16)
+        with torch.no_grad():
+                self.conv0.weight.zero_()  # important
+                self.conv0.bias.copy_(conv0_bias)
+                for c in range(INPUT_CHANNELS_COUNT):
+                    self.conv0.weight[c, c] = id_kernel  # diagonal only
+
+
+        
+
         self.conv1 = nn.Conv2d(
             INPUT_CHANNELS_COUNT,
             INPUT_CHANNELS_COUNT,
@@ -112,16 +129,16 @@ class Net(nn.Module):
         # x1 = self.conv1(x0)
         # x2 = self.conv2(x1)
         # x = torch.cat((x0, x1), 1)
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
+        # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
         
-        # x = self.conv0(x)
+        x = self.conv0(x)
 
         return x[:,:,:H,:W]
 
