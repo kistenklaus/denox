@@ -143,7 +143,6 @@ class Net(nn.Module):
         return x[:,:,:H,:W]
 
 
-example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 5, 5, dtype=torch.float16)
 
 net: nn.Module = Net()
 
@@ -158,6 +157,7 @@ weight1 = torch.ones((32, 32, 3, 3), dtype=torch.float16)
 #     if net.con0.bias is not None:
 #         net.con0.bias.fill_(1.0)
 
+example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 5, 5, dtype=torch.float16)
 program = torch.onnx.export(
     net,
     (example_input,),

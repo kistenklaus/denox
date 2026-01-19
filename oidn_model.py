@@ -347,10 +347,17 @@ class UNetAlignment(nn.Module):
         return output[:,:,:H,:W]
 
 
-rt_ldr = UNetAlignment(UNet(3, 3, False))
+Small = True
+
+rt_ldr = UNetAlignment(UNet(3, 3, Small))
 rt_ldr = rt_ldr.to(torch.float16)
 
-load_tza_into_model(rt_ldr, "./rt_ldr.tza")
+if (Small):
+    load_tza_into_model(rt_ldr, "./rt_ldr_small.tza")
+else:
+    load_tza_into_model(rt_ldr, "./rt_ldr.tza")
+    
+
 
 example_input = torch.ones(1, 3, 64, 64, dtype=torch.float16)
 
