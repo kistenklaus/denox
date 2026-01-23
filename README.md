@@ -3,7 +3,7 @@
 #### All interfaces are open to any change!!!!
 
 ## Overview
-denox is a CNN inferance framework, tailored for realtime image denoising.<br>
+denox is a CNN inference framework, tailored for realtime image denoising.<br>
 Instead of providing a runtime, denox provides a IR of a compiled model,
 which includes a set of compute dispatches including descriptors 
 and SPIR-V shaders. Which when recorded on a command buffer will result in the 
