@@ -90,6 +90,7 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/specialization/specialization.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/dce.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/prune_dead_supergraph.cpp
     
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/implement.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/OpImpl.cpp
@@ -105,6 +106,7 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/slice/MemorySliceShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/BasicUpsampleShader.cpp
 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/selection/selection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/selection/selection.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/placement/placement.cpp

@@ -13,7 +13,7 @@ struct FilterDescriptor {
   Dtype type;
 
   std::size_t byteSize() const {
-    return shape.c * shape.k * shape.r * shape.s * type.size();
+    return layout.size(shape) * type.size();
   }
 
   friend bool operator==(const FilterDescriptor &lhs,

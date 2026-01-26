@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.utils.dlpack
 
 INPUT_CHANNELS_COUNT = 3
-OUTPUT_CHANNEL_COUNT = 16
+OUTPUT_CHANNEL_COUNT = 3
 
 
 class Net(nn.Module):
@@ -18,12 +18,9 @@ class Net(nn.Module):
 
         gaus_channels = 3
 
-        kernel = torch.tensor(
-            [[1, 2, 1],
-             [2, 4, 2],
-             [1, 2, 1]],
-            dtype=torch.float16
-        ) / 16.0
+        kernel = (
+            torch.tensor([[1, 2, 1], [2, 4, 2], [1, 2, 1]], dtype=torch.float16) / 16.0
+        )
 
         self.gaus = nn.Conv2d(
             gaus_channels,
@@ -31,14 +28,10 @@ class Net(nn.Module):
             kernel_size=3,
             padding="same",
             bias=False,
-            dtype=torch.float16
+            dtype=torch.float16,
         )
 
-        id_kernel = torch.tensor(
-                [[0,0,0],
-                 [0,1,0],
-                 [0,0,0]],
-                dtype=torch.float16)
+        id_kernel = torch.tensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=torch.float16)
 
         with torch.no_grad():
             self.gaus.weight.zero_()  # important
@@ -76,29 +69,44 @@ class Net(nn.Module):
             bias=True,
         )
 
-        conv0_bias = torch.tensor([0,1,0], dtype=torch.float16)
-        with torch.no_grad():
-                self.conv0.weight.zero_()  # important
-                self.conv0.bias.copy_(conv0_bias)
-                for c in range(INPUT_CHANNELS_COUNT):
-                    self.conv0.weight[c, c] = id_kernel  # diagonal only
+        # conv0_bias = torch.full(
+        #     (INPUT_CHANNELS_COUNT,),
+        #     0.2,
+        #     dtype=torch.float16
+        # )
+        # with torch.no_grad():
+        #     self.conv0.weight.zero_()  # important
+        #     self.conv0.bias.copy_(conv0_bias)
+            # for c in range(INPUT_CHANNELS_COUNT):
+            #     self.conv0.weight[c, c] = id_kernel  # diagonal only
 
-
-        
+        ch = 8
 
         self.conv1 = nn.Conv2d(
             INPUT_CHANNELS_COUNT,
-            INPUT_CHANNELS_COUNT,
+            ch ,
             3,
             padding="same",
             dtype=torch.float16,
+            bias=False,
         )
+
+        self.conv8 = nn.Conv2d(
+            ch,
+            ch,
+            3,
+            padding="same",
+            dtype=torch.float16,
+            bias=False,
+        )
+        
         self.conv2 = nn.Conv2d(
-            2 * INPUT_CHANNELS_COUNT,
+            ch,
             INPUT_CHANNELS_COUNT,
             3,
             padding="same",
             dtype=torch.float16,
+            bias=False,
         )
 
         self.pool = nn.MaxPool2d(2, 2)
@@ -137,14 +145,13 @@ class Net(nn.Module):
         # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
         # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
         # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
-        
-        x = self.conv0(x)
 
-        return x[:,:,:H,:W]
-
+        x = self.conv2(self.conv8(self.conv1(x)))
+        return x[:, :, :H, :W]
 
 
 net: nn.Module = Net()
+net.to(dtype=torch.float16)
 
 weight0 = torch.ones((32, 3, 3, 3), dtype=torch.float16)
 weight1 = torch.ones((32, 32, 3, 3), dtype=torch.float16)

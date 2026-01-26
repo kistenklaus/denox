@@ -378,7 +378,7 @@ Context::Context(const char *deviceName, ApiVersion target_env)
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
     vkGetPhysicalDeviceFeatures(m_physicalDevice, &features);
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
-    features.robustBufferAccess = VK_FALSE;
+    features.robustBufferAccess = VK_TRUE;
     features.shaderInt16 = VK_TRUE;
   }
 

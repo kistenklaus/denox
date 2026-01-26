@@ -19,7 +19,8 @@ private:
   static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
 public:
-  DirectConvShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
+  DirectConvShader(spirv::GlslCompiler *compiler,
+                   const CompileOptions &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -60,7 +61,8 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/conv/direct_conv.comp";
+      io::Path::assets() /
+      "compiler/src/denox/compiler/implement/shaders/conv/direct_conv.comp";
   bool m_enableConvReluFusion;
 
   unsigned int m_subgroupSize;

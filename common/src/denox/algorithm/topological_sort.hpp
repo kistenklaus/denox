@@ -10,57 +10,47 @@
 
 namespace denox::algorithm {
 
-template <typename V, typename E>
+template <typename V, typename E, typename W>
 memory::vector<memory::NodeId>
-topologicalSort(const memory::ConstGraph<V, E> &hypergraph) {
-  using EdgeId = memory::EdgeId;
-  using NodeId = memory::NodeId;
+topologicalSort(const memory::ConstGraph<V, E, W> &hypergraph) {
+  const size_t N = hypergraph.nodeCount();
+  const size_t M = hypergraph.edgeCount();
 
-  std::size_t nodeCount = hypergraph.nodeCount();
-  std::size_t edgeCount = hypergraph.edgeCount();
+  memory::vector<uint32_t> indegree(N, 0);
 
-  denox::memory::vector<unsigned int> edgeRemainingSrc(edgeCount, 0);
-  denox::memory::vector<unsigned int> nodeUnsatisfiedIn(nodeCount, 0);
-
-  for (std::size_t ei = 0; ei < edgeCount; ++ei) {
-    EdgeId e{ei};
-    auto srcs = hypergraph.src(e);
-    edgeRemainingSrc[ei] = static_cast<unsigned int>(srcs.size());
-    NodeId d = hypergraph.dst(e);
-    nodeUnsatisfiedIn[d]++;
+  for (std::size_t ei = 0; ei < M; ++ei) {
+    memory::EdgeId e{ei};
+    memory::NodeId d = hypergraph.dst(e);
+    indegree[*d] += hypergraph.src(e).size();
   }
 
-  denox::memory::deque<NodeId> ready;
-
-  for (std::size_t ni = 0; ni < nodeCount; ++ni) {
-    if (nodeUnsatisfiedIn[ni] == 0) {
-      ready.push_back(NodeId{ni});
+  memory::deque<memory::NodeId> ready;
+  for (std::size_t i = 0; i < N; ++i) {
+    if (indegree[i] == 0) {
+      ready.push_back(memory::NodeId{i});
     }
   }
 
-  std::vector<NodeId> order;
-  order.reserve(nodeCount);
+  memory::vector<memory::NodeId> order;
+  order.reserve(N);
 
   while (!ready.empty()) {
-    NodeId n = ready.front();
+    memory::NodeId u = ready.front();
     ready.pop_front();
-    order.push_back(n);
+    order.push_back(u);
 
-    for (EdgeId e : hypergraph.outgoing(n)) {
-      if (edgeRemainingSrc[e] > 0 && hypergraph.src(e).size() > 0) {
-
-        if (--edgeRemainingSrc[e] == 0) {
-          NodeId d = hypergraph.dst(e);
-          if (--nodeUnsatisfiedIn[d] == 0) {
-            ready.push_back(d);
-          }
-        }
+    for (memory::EdgeId e : hypergraph.outgoing(u)) {
+      memory::NodeId d = hypergraph.dst(e);
+      // u satisfies exactly one src-dependency of d
+      if (--indegree[*d] == 0) {
+        ready.push_back(d);
       }
     }
   }
-  if (order.size() != nodeCount) {
+
+  if (order.size() != N) {
     throw std::runtime_error(
-        "topologicialSort: graph contains a cycle or a dangling dependency");
+        "topologicalSort: graph contains a cycle");
   }
 
   return order;

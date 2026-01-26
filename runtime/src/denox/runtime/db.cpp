@@ -20,12 +20,15 @@
 #include <random>
 #include <vulkan/vulkan_core.h>
 
-static constexpr size_t EPOCH_SIZE = 10;
-static constexpr size_t EPOCH_SAMPLES = 100;
+// 100, 1000, 100 with jit=2 worked well, but didn't converge completely.
 
-static constexpr size_t BATCH_SIZE = 10;
-static constexpr size_t JIT_WARMUP_ITERATIONS = 3;
-static constexpr size_t L2_WARMUP_ITERATONS = 50;
+
+static constexpr size_t EPOCH_SIZE = 100;
+static constexpr size_t EPOCH_SAMPLES = EPOCH_SIZE * 10;
+static constexpr size_t BATCH_SIZE = EPOCH_SIZE; 
+
+static constexpr size_t JIT_WARMUP_ITERATIONS = 0;
+static constexpr size_t L2_WARMUP_ITERATONS = 1;
 static constexpr size_t PIPELINE_STAGES = 2;
 
 using namespace denox;

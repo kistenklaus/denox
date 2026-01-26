@@ -1,6 +1,10 @@
 #include "denox/compiler/selection/selection.hpp"
 #include "denox/algorithm/align_up.hpp"
+#include "denox/algorithm/minimum_const_subgraph.hpp"
+#include "denox/algorithm/prune_dominated_edges.hpp"
 #include "denox/algorithm/shortest_dag_hyperpath.hpp"
+#include "denox/algorithm/topological_edge_sort.hpp"
+#include "denox/algorithm/topological_sort.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
@@ -9,6 +13,8 @@
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
+#include <absl/strings/str_format.h>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <limits>
@@ -23,8 +29,8 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             const Model &model, const CompileOptions &options,
                             diag::Logger &logger) {
 
-  logger.info("[ 50%] {}{}Selecting compute shader dispatches{}",
-              logger.bold(), logger.green(), logger.reset());
+  logger.info("[ 50%] {}{}Selecting compute shader dispatches{}", logger.bold(),
+              logger.green(), logger.reset());
 
   SymGraphEval eval =
       assumed_symeval(supergraph.symGraph, model.valueNames(), options);
@@ -124,13 +130,20 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
       constWeightedSupergraph{std::move(weightedSupergraph)};
 
-  auto path = algorithm::shortest_dag_hyperpath(
-      constWeightedSupergraph, supergraph.inputs, supergraph.outputs);
+  // prune duplicate edges
+  memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> prunedSupergraph =
+      algorithm::prune_duplicate_edges(constWeightedSupergraph);
 
-  if (!path) {
-    throw std::runtime_error("Failed to implement model!");
-  }
+  memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
+      constPrunedSupergraph{std::move(prunedSupergraph)};
 
+  memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
+      algorithm::minimum_cost_subgraph(constWeightedSupergraph,
+                                        supergraph.inputs, supergraph.outputs);
+  memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(std::move(minimumCostSubgraph));
+
+  memory::vector<memory::EdgeId> minSchedule = algorithm::topological_sort_edges(constMinCostGraph);
+  
   // simple union find.
   memory::vector<uint64_t> tensorUf(supergraph.tensors.size());
   for (size_t i = 0; i < tensorUf.size(); ++i) {
@@ -141,15 +154,15 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::vector<MemoryImplicitConcatConstrain> memoryConstrains;
   memory::vector<Parameter> parameters;
   weight_type totalWeight = {};
-  for (const auto &eid : *path) {
-    totalWeight += constWeightedSupergraph.weight(eid);
-    auto &&edge = constWeightedSupergraph.get_rvalue(eid);
+  for (const auto &eid : minSchedule) {
+    totalWeight += constMinCostGraph.weight(eid);
+    auto &&edge = constMinCostGraph.get_rvalue(eid);
     if (edge.dispatches.empty() && edge.memoryConstrains.empty() &&
         edge.parameters.empty() && supergraph.graph.src(eid).size() == 1) {
 
       auto srctid =
-          supergraph.graph.get(supergraph.graph.src(eid).front()).index;
-      auto dsttid = supergraph.graph.get(supergraph.graph.dst(eid)).index;
+          constMinCostGraph.get(constMinCostGraph.src(eid).front()).index;
+      auto dsttid = constMinCostGraph.get(constMinCostGraph.dst(eid)).index;
       const auto &src = supergraph.tensors[srctid];
       const auto &dst = supergraph.tensors[dsttid];
       bool srcIsOpt = src.info.storage == TensorStorage::Optimal ||

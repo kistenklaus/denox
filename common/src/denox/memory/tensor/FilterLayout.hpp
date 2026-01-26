@@ -22,6 +22,9 @@ enum class FilterLayoutKind {
   RSKCK16,
   KRSCK8,
   KRSCK16,
+
+  // padded layouts
+  RSc8k8
 };
 
 namespace details::memory::tensors {
@@ -103,6 +106,40 @@ public:
       return (K >> 4) * ((Rdim * Sdim * Cdim) << 4) + R * ((Sdim * Cdim) << 4) +
              S * (Cdim << 4) + (C << 4) + (K & std::size_t{0xF});
     }
+    case FilterLayoutKind::RSc8k8:
+      // NOTE: pads, C and K upto multiples of 8!
+      return (((((R * Sdim + S) * ((Cdim + 7) >> 3) + (C >> 3)) *
+                    ((Kdim + 7) >> 3) +
+                (K >> 3))
+               << 6) +
+              ((C & std::size_t{7}) << 3) + (K & std::size_t{7}));
+    }
+    diag::unreachable();
+  }
+
+  size_t size(const FilterShape &shape) const {
+    const std::size_t Rdim = static_cast<std::size_t>(shape.r);
+    const std::size_t Sdim = static_cast<std::size_t>(shape.s);
+    const std::size_t Cdim = static_cast<std::size_t>(shape.c);
+    const std::size_t Kdim = static_cast<std::size_t>(shape.k);
+    switch (m_tag) {
+    case FilterLayoutKind::KRSC:
+    case FilterLayoutKind::KCRS:
+    case FilterLayoutKind::RSCK:
+    case FilterLayoutKind::RSKC:
+    case FilterLayoutKind::RSCKC8:
+    case FilterLayoutKind::RCSKC8:
+    case FilterLayoutKind::RSCKC16:
+    case FilterLayoutKind::RCSKC16:
+    case FilterLayoutKind::RSKCK8:
+    case FilterLayoutKind::RSKCK16:
+    case FilterLayoutKind::KRSCK8:
+    case FilterLayoutKind::KRSCK16:
+      return Rdim * Sdim * Cdim * Kdim;
+    case FilterLayoutKind::RSc8k8:
+      size_t C8dim = ((Cdim + 7) / 8) * 8;
+      size_t K8dim = ((Kdim + 7) / 8) * 8;
+      return Rdim * Sdim * C8dim * K8dim;
     }
     diag::unreachable();
   }
@@ -122,6 +159,7 @@ public:
     case FilterLayoutKind::RSKCK16:
     case FilterLayoutKind::KRSCK8:
     case FilterLayoutKind::KRSCK16:
+    case FilterLayoutKind::RSc8k8:
       return true;
     default:
       diag::unreachable();
@@ -163,6 +201,8 @@ public:
       return "KRSCK8";
     case FilterLayoutKind::KRSCK16:
       return "KRSCK16";
+    case FilterLayoutKind::RSc8k8:
+      return "RSc8k8";
     }
     diag::unreachable();
   }
@@ -214,12 +254,19 @@ public:
   static constexpr details::memory::tensors::FilterLayout KRSCK16{
       FilterLayoutKind::KRSCK16};
 
+  static constexpr details::memory::tensors::FilterLayout RSc8k8{
+      FilterLayoutKind::RSc8k8};
+
   constexpr std::size_t operator()(const FilterShape &shape, unsigned int s,
                                    unsigned r, unsigned int c,
                                    unsigned int k) const {
     return m_layout(shape, s, r, c, k);
   }
   FilterLayoutKind kind() const { return m_layout.kind(); }
+
+  size_t size(const FilterShape& shape) const {
+    return m_layout.size(shape);
+  }
 
   friend bool operator==(const FilterLayout &lhs, const FilterLayout &rhs) {
     return lhs.m_layout == rhs.m_layout;

@@ -241,10 +241,10 @@ void update_descriptor_sets(const runtime::ModelHandle &model,
       const runtime::InstanceDispatch &dispatch =
           std::get<runtime::InstanceDispatch>(cmd);
 
-
       const runtime::ModelDispatch &modelDispatch = *dispatch.modelDispatch;
 
-      assert(modelDispatch.descriptorSets.size() == dispatch.descriptorSets.size());
+      assert(modelDispatch.descriptorSets.size() ==
+             dispatch.descriptorSets.size());
       for (std::size_t s = 0; s < modelDispatch.descriptorSets.size(); ++s) {
         for (const auto &binding : modelDispatch.descriptorSets[s].bindings) {
           const runtime::ModelTensor &tensor = model->tensors()[binding.tensor];
@@ -259,7 +259,8 @@ void update_descriptor_sets(const runtime::ModelHandle &model,
           writeInfo.dstArrayElement = 0;
           writeInfo.descriptorCount = 1; // array elements.
           writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-          VkDescriptorBufferInfo& bufferInfo = monotone_allocator.emplace_front();
+          VkDescriptorBufferInfo &bufferInfo =
+              monotone_allocator.emplace_front();
           bufferInfo.buffer = buffers[tensor.buffer].vkbuffer,
           bufferInfo.offset = offset;
           bufferInfo.range = size;
@@ -402,7 +403,8 @@ void runtime::Instance::infer(const void **pInputs, void **pOutputs) const {
     const runtime::ModelTensor &tensor = m_model->tensors()[outputs[i]];
     const uint64_t size = static_cast<uint64_t>(m_symeval[tensor.size]);
     const uint64_t offset = static_cast<uint64_t>(m_symeval[tensor.offset]);
-    ctx->cmdCopy(cmd, outputStages[i], m_buffers[tensor.buffer], size, 0, offset);
+    ctx->cmdCopy(cmd, outputStages[i], m_buffers[tensor.buffer], size, 0,
+                 offset);
   }
 
   ctx->cmdMemoryBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,

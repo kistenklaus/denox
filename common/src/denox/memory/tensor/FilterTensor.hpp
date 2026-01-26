@@ -138,6 +138,8 @@ public:
     Alloc allocator = alloc;
     std::size_t n = m_desc.byteSize();
     std::byte *ptr = allocator_traits::allocate(allocator, n);
+    std::memset(ptr, 0, n);
+
     assert(n == weights.size());
     std::memcpy(ptr, weights.data(), n);
 
@@ -173,6 +175,7 @@ public:
     Alloc allocator = alloc;
     std::size_t n = m_desc.byteSize();
     std::byte *ptr = allocator_traits::allocate(allocator, n);
+    std::memset(ptr, 0, n);
     if (shape() != view.shape()) {
       throw std::runtime_error("Invalid tensor shape! Shapes do not match!");
     }
@@ -196,6 +199,7 @@ public:
     Alloc allocator = alloc;
     std::size_t n = m_desc.byteSize();
     std::byte *ptr = allocator_traits::allocate(allocator, n);
+    std::memset(ptr, 0, n);
     std::memcpy(ptr, view.data(), n);
 
     m_storage = std::unique_ptr<std::byte[], std::function<void(std::byte *)>>(

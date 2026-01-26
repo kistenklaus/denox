@@ -28,6 +28,14 @@ public:
     return lhs.m_id != rhs.m_id;
   }
 
+  friend bool operator<(const NodeId& lhs, const NodeId& rhs) {
+    return lhs.m_id < rhs.m_id;
+  }
+
+  friend bool operator>(const NodeId& lhs, const NodeId& rhs) {
+    return lhs.m_id > rhs.m_id;
+  }
+
 private:
   std::uint64_t m_id;
 };

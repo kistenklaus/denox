@@ -4,6 +4,7 @@
 #include "denox/compiler/compile_symbols/SymProgram.hpp"
 #include "denox/compiler/compile_symbols/compile_symbols.hpp"
 #include "denox/compiler/dce/dce.hpp"
+#include "denox/compiler/dce/prune_dead_supergraph.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/Lifetimes.hpp"
@@ -36,6 +37,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::ConstModel cmodel = compiler::dce(specModel);
   compiler::SuperGraph supergraph = compiler::implement(
       cmodel, cano.symGraph, &glslCompiler, options, logger);
+  compiler::prune_dead_supergraph(supergraph);
   compiler::OptSchedule optSchedule = compiler::select_schedule(
       std::move(supergraph), db, model, options, logger);
   compiler::MemSchedule memSchedule = compiler::placement(optSchedule);
