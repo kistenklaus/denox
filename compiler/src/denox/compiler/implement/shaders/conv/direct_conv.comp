@@ -65,13 +65,15 @@ const uint INVOC_M8 = INVOC_M / (VSTYPE_SIZE / ATYPE_SIZE);
 const uint INVOC_N8 = INVOC_N / (VSTYPE_SIZE / ATYPE_SIZE);
 const uint INVOC_K8 = INVOC_K / (VSTYPE_SIZE / ATYPE_SIZE);
 
+const uint PIPELINE_DEPTH = 2;
+
 // YXRSC8 <- layout
 const uint SH_A_SIZE = (SG_M * WG_M) * INVOC_M * SG_K * INVOC_K8;
-shared vstype sh_a[SH_A_SIZE];
+shared vstype sh_a[PIPELINE_DEPTH][SH_A_SIZE];
 
 // RSC8K8 <- layout
 const uint SH_B_SIZE = WG_TILE_N8 * SG_K * INVOC_K;
-shared vstype sh_b[SH_B_SIZE];
+shared vstype sh_b[PIPELINE_DEPTH][SH_B_SIZE];
 
 // x : channel output tile.
 // y : x output / input tile.
@@ -163,6 +165,8 @@ void main() {
 
   uint kk = 0;
   const uint KK = (RSC8 + (SG_K * INVOC_K8) - 1u) / (SG_K * INVOC_K8);
+  uint pp = 0;
+  uint ppx = 0;
 
   #pragma begin_block(prefetch_A);
 
@@ -189,7 +193,7 @@ void main() {
           if (k8 >= RSC8) {
             for (uint xLocal = gl_SubgroupInvocationID; xLocal < INVOC_M; xLocal += SG_SIZE) {
               const uint shIndex = ((k8TileLocal * WG_TILE_Y + yLocal) * INVOC_M) + xLocal;
-              sh_a[shIndex] = uvec4(0);
+              sh_a[pp][shIndex] = uvec4(0);
             }
             continue;
           }
@@ -245,7 +249,7 @@ void main() {
             }
 
             const uint shIndex = ((k8TileLocal * WG_TILE_Y + yLocal) * INVOC_M) + xLocal;
-            sh_a[shIndex] = v;
+            sh_a[pp][shIndex] = v;
           }
         }
       }
@@ -312,7 +316,7 @@ void main() {
 
       // Canonical shared layout: sh_a[k8TileLocal][yLocal][xLocal]
       const uint shIndex = ((k8TileLocal * WG_TILE_Y + yLocal) * INVOC_M) + xLocal;
-      sh_a[shIndex] = v;
+      sh_a[pp][shIndex] = v;
     }
   }
 
@@ -379,7 +383,7 @@ void main() {
 
       // Canonical shared layout: sh_a[k8TileLocal][yLocal][xLocal]
       const uint shIndex = ((k8TileLocal * WG_TILE_Y + yLocal) * INVOC_M) + xLocal;
-      sh_a[shIndex] = v;
+      sh_a[pp][shIndex] = v;
     }
   }
   #endif
@@ -423,9 +427,9 @@ void main() {
       const uint filtIdx = ((k8Global * OUT_CH8 + n8Global) << 3) + c_lane;
 
       if (K8_TILE_ALIGNED) {
-        sh_b[i] = n_ok ? filter_blob[filtIdx] : vstype(0);
+        sh_b[pp][i] = n_ok ? filter_blob[filtIdx] : vstype(0);
       } else {
-        sh_b[i] = (n_ok && (k8Global < RSC8)) ? filter_blob[filtIdx] : vstype(0);
+        sh_b[pp][i] = (n_ok && (k8Global < RSC8)) ? filter_blob[filtIdx] : vstype(0);
       }
     }
   }
@@ -460,7 +464,7 @@ void main() {
           for (uint k8TileLocal = 0; k8TileLocal < K8_TILE; ++k8TileLocal) {
             // A: one uvec4 == 8 fp16 input channels
             const uint aIndex = ((k8TileLocal * WG_TILE_Y_LOCAL + yLocal) * INVOC_M) + xLocal;
-            const uvec4 aBits = sh_a[aIndex];
+            const uvec4 aBits = sh_a[ppx][aIndex];
 
             const f16vec2 a01 = f16vec2(unpackHalf2x16(aBits.x));
             const f16vec2 a23 = f16vec2(unpackHalf2x16(aBits.y));
@@ -481,7 +485,7 @@ void main() {
 
             // c_lane = 0
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 0u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 0u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a0);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a0);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a0);
@@ -489,7 +493,7 @@ void main() {
             }
             // c_lane = 1
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 1u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 1u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a1);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a1);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a1);
@@ -497,7 +501,7 @@ void main() {
             }
             // c_lane = 2
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 2u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 2u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a2);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a2);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a2);
@@ -505,7 +509,7 @@ void main() {
             }
             // c_lane = 3
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 3u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 3u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a3);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a3);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a3);
@@ -513,7 +517,7 @@ void main() {
             }
             // c_lane = 4
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 4u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 4u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a4);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a4);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a4);
@@ -521,7 +525,7 @@ void main() {
             }
             // c_lane = 5
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 5u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 5u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a5);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a5);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a5);
@@ -529,7 +533,7 @@ void main() {
             }
             // c_lane = 6
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 6u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 6u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a6);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a6);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a6);
@@ -537,7 +541,7 @@ void main() {
             }
             // c_lane = 7
             {
-              const uvec4 bBits = sh_b[(kScalarBaseLocal + 7u) * WG_TILE_N8 + n8Local];
+              const uvec4 bBits = sh_b[ppx][(kScalarBaseLocal + 7u) * WG_TILE_N8 + n8Local];
               acc01 += f16vec2(unpackHalf2x16(bBits.x)) * f16vec2(a7);
               acc23 += f16vec2(unpackHalf2x16(bBits.y)) * f16vec2(a7);
               acc45 += f16vec2(unpackHalf2x16(bBits.z)) * f16vec2(a7);
@@ -761,14 +765,40 @@ void main() {
   #pragma end_block;
 
   #pragma inline_block(load_bias);
+
+  #if defined(NASYNC_READ)
   for (; kk < KK; ++kk) {
-    #pragma inline_block(prefetch_A);
-    #pragma inline_block(prefetch_B);
-    memoryBarrierShared();
+    #pragma inline_block(prefetch_A); // depends on correct kk
+    #pragma inline_block(prefetch_B); // depends on correct kk
     barrier();
-    #pragma inline_block(gemm);
+    #pragma inline_block(gemm); // <- doesn't depend on kk, reads ppx
     barrier();
   }
+  #elif defined(ASYNC_READ)
+  // prolog
+  pp = 0;
+  kk = 0;
+  #pragma inline_block(prefetch_A);
+  #pragma inline_block(prefetch_B);
+  ++kk;
+  barrier();
+  for (; kk < KK; ++kk) {
+    ppx = pp;
+    pp = pp ^ 1; // <- load into ping pong 0.
+    // stead state
+    #pragma inline_block(prefetch_A); // depends on correct kk
+    #pragma inline_block(prefetch_B); // depends on correct kk
+    #pragma inline_block(gemm); // <- doesn't depend on kk, reads ppx
+    barrier();
+  }
+  // epilog
+  ppx = pp;
+  #pragma inline_block(gemm); // <- doesn't depend on kk, reads ppx
+  #else
+  UNDEFINED_PIPELINE_STRAT;
+  #endif
+
+  // writeback + activation
   #pragma inline_block(activation);
   #pragma inline_block(writeback);
 }

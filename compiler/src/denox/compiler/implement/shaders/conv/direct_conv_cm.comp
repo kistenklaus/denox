@@ -1517,6 +1517,8 @@ void main() {
     #pragma inline_block(copy_prefetch_A);
     #pragma inline_block(copy_prefetch_B);
     barrier();
+    // NOTE: This loop should absolutely contain a single barrier 2 this doesn't really 
+    // make a lot of sense otherwise.
     // TODO Try if it makes a difference if we prefetch after GEMM it shouldn't
     // but maybe worth trying if compilers are better at picking up this pattern.
     #pragma inline_block(prefetch_A);

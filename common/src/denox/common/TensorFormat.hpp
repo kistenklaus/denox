@@ -30,13 +30,13 @@ struct fmt::formatter<denox::TensorFormat> {
     std::string_view name;
     switch (fmt_type) {
     case Optimal:     name = "Optimal";     break;
-    case SSBO_HWC:    name = "SSBO_HWC";    break;
-    case SSBO_CHW:    name = "SSBO_CHW";    break;
-    case SSBO_CHWC8:  name = "SSBO_CHWC8";  break;
-    case TEX_RGBA:    name = "TEX_RGBA";    break;
-    case TEX_RGB:     name = "TEX_RGB";     break;
-    case TEX_RG:      name = "TEX_RG";      break;
-    case TEX_R:       name = "TEX_R";       break;
+    case SSBO_HWC:    name = "HWC";    break;
+    case SSBO_CHW:    name = "CHW";    break;
+    case SSBO_CHWC8:  name = "CHWC8";  break;
+    case TEX_RGBA:    name = "RGBA";    break;
+    case TEX_RGB:     name = "RGB";     break;
+    case TEX_RG:      name = "RG";      break;
+    case TEX_R:       name = "R";       break;
     default:          name = "Unknown";     break;
     }
 

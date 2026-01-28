@@ -28,7 +28,7 @@ static constexpr size_t EPOCH_SAMPLES = EPOCH_SIZE * 10;
 static constexpr size_t BATCH_SIZE = EPOCH_SIZE; 
 
 static constexpr size_t JIT_WARMUP_ITERATIONS = 0;
-static constexpr size_t L2_WARMUP_ITERATONS = 1;
+static constexpr size_t L2_WARMUP_ITERATONS = 10;
 static constexpr size_t PIPELINE_STAGES = 2;
 
 using namespace denox;

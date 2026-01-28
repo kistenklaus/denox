@@ -8,8 +8,8 @@ MODEL_PATH = "net.onnx"
 
 BATCH = 1
 C = 3
-H = 3264
-W = 4928
+H = 1080
+W = 1920
 
 WARMUP = 20
 ITER = 200

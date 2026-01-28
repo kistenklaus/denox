@@ -50,19 +50,6 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_m = 2,
         .sg_k = 2,
         .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
         .async = false,
     },
     DirectConvConfig{
@@ -171,297 +158,297 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .async = false,
     },
 
-    // 16x8x8 coop shape.
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
+    // // 16x8x8 coop shape.
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = false,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 4,
+    //     .wg_n = 2,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 4,
+    //     .wg_n = 2,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = false,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 6,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 6,
+    //     .async = false,
+    // },
+    //
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 7,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 7,
+    //     .async = false,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 3,
+    //     .sg_n = 6,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 8,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 3,
+    //     .sg_n = 7,
+    //     .async = false,
+    // },
 
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = false,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = false,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 6,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 6,
-        .async = false,
-    },
-
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 7,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 7,
-        .async = false,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 3,
-        .sg_n = 6,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 8,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 3,
-        .sg_n = 7,
-        .async = false,
-    },
-
-    // 16x8x16 coopmat shape
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = false,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = false,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 6,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 6,
-        .async = false,
-    },
-
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 7,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 7,
-        .async = false,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 3,
-        .sg_n = 6,
-        .async = true,
-    },
-    DirectConvConfig{
-        .cm_m = 16,
-        .cm_k = 8,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 3,
-        .sg_n = 7,
-        .async = false,
-    },
+    // // 16x8x16 coopmat shape
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = false,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 4,
+    //     .wg_n = 2,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 4,
+    //     .wg_n = 2,
+    //
+    //     .sg_m = 2,
+    //     .sg_k = 2,
+    //     .sg_n = 2,
+    //     .async = false,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 6,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 6,
+    //     .async = false,
+    // },
+    //
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 7,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 1,
+    //     .sg_n = 7,
+    //     .async = false,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 3,
+    //     .sg_n = 6,
+    //     .async = true,
+    // },
+    // DirectConvConfig{
+    //     .cm_m = 16,
+    //     .cm_k = 8,
+    //     .cm_n = 16,
+    //
+    //     .wg_m = 8,
+    //     .wg_n = 1,
+    //
+    //     .sg_m = 1,
+    //     .sg_k = 3,
+    //     .sg_n = 7,
+    //     .async = false,
+    // },
 };
 
 DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,

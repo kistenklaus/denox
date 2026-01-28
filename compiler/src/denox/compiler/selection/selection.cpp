@@ -2,9 +2,7 @@
 #include "denox/algorithm/align_up.hpp"
 #include "denox/algorithm/minimum_const_subgraph.hpp"
 #include "denox/algorithm/prune_dominated_edges.hpp"
-#include "denox/algorithm/shortest_dag_hyperpath.hpp"
 #include "denox/algorithm/topological_edge_sort.hpp"
-#include "denox/algorithm/topological_sort.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
@@ -17,13 +15,11 @@
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
-#include <limits>
-#include <stdexcept>
 
 namespace denox::compiler {
 
 using weight_type = std::chrono::duration<float, std::milli>;
-static constexpr weight_type INF_WEIGHT = weight_type::max();
+static constexpr weight_type INF_WEIGHT = weight_type(3600000000); // 1h
 
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             const Model &model, const CompileOptions &options,

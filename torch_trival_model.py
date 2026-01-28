@@ -80,29 +80,40 @@ class Net(nn.Module):
             # for c in range(INPUT_CHANNELS_COUNT):
             #     self.conv0.weight[c, c] = id_kernel  # diagonal only
 
-        ch = 8
+        cha = 3
+        chb = 3
+        chx = 16
 
-        self.conv1 = nn.Conv2d(
+        self.conva = nn.Conv2d(
             INPUT_CHANNELS_COUNT,
-            ch ,
+            cha,
             3,
             padding="same",
             dtype=torch.float16,
             bias=False,
         )
 
-        self.conv8 = nn.Conv2d(
-            ch,
-            ch,
+        self.convb = nn.Conv2d(
+            INPUT_CHANNELS_COUNT,
+            chb,
             3,
             padding="same",
             dtype=torch.float16,
             bias=False,
         )
         
-        self.conv2 = nn.Conv2d(
-            ch,
-            INPUT_CHANNELS_COUNT,
+        self.convx = nn.Conv2d(
+            cha + chb,
+            chx,
+            3,
+            padding="same",
+            dtype=torch.float16,
+            bias=False,
+        )
+
+        self.conv0 = nn.Conv2d(
+            chx,
+            OUTPUT_CHANNEL_COUNT,
             3,
             padding="same",
             dtype=torch.float16,
@@ -146,7 +157,14 @@ class Net(nn.Module):
         # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
         # x = self.gaus(self.gaus(self.gaus(self.gaus(self.gaus(x)))))
 
-        x = self.conv2(self.conv8(self.conv1(x)))
+        a = self.conva(x)
+        b = self.convb(x)
+        ab = torch.cat((a,b), 1)
+        x = self.convx(ab)
+        x = self.conv0(x)
+
+        # x = self.conv2(self.conv8(self.conv1(x)))
+        # x = self.conv1(x)
         return x[:, :, :H, :W]
 
 
