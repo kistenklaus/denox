@@ -13,7 +13,7 @@
 
 namespace denox::compiler::shaders {
 
-struct DirectConvConfig {
+struct DirectConvConfigCM {
   unsigned int cm_m;
   unsigned int cm_k;
   unsigned int cm_n;
@@ -25,8 +25,8 @@ struct DirectConvConfig {
   bool async;
 };
 
-static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
-    DirectConvConfig{
+static std::vector<DirectConvConfigCM> DIRECT_CONV_CM_CONFIGS = {
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -39,7 +39,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 2,
         .async = true,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -52,7 +52,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 2,
         .async = false,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -65,7 +65,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 2,
         .async = true,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -78,7 +78,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 2,
         .async = false,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -91,7 +91,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 6,
         .async = true,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -105,7 +105,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .async = false,
     },
 
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -118,7 +118,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 7,
         .async = true,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -131,7 +131,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 7,
         .async = false,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -144,7 +144,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
         .sg_n = 6,
         .async = true,
     },
-    DirectConvConfig{
+    DirectConvConfigCM{
         .cm_m = 16,
         .cm_k = 16,
         .cm_n = 16,
@@ -159,7 +159,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     },
 
     // // 16x8x8 coop shape.
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -172,7 +172,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -185,7 +185,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -198,7 +198,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = false,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -211,7 +211,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -224,7 +224,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = false,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -237,7 +237,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 6,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -251,7 +251,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .async = false,
     // },
     //
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -264,7 +264,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 7,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -277,7 +277,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 7,
     //     .async = false,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -290,7 +290,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 6,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 8,
@@ -305,7 +305,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     // },
 
     // // 16x8x16 coopmat shape
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -318,7 +318,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -331,7 +331,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -344,7 +344,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = false,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -357,7 +357,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -370,7 +370,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 2,
     //     .async = false,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -383,7 +383,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 6,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -397,7 +397,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .async = false,
     // },
     //
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -410,7 +410,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 7,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -423,7 +423,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 7,
     //     .async = false,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -436,7 +436,7 @@ static std::vector<DirectConvConfig> DIRECT_CONV_CM_CONFIGS = {
     //     .sg_n = 6,
     //     .async = true,
     // },
-    // DirectConvConfig{
+    // DirectConvConfigCM{
     //     .cm_m = 16,
     //     .cm_k = 8,
     //     .cm_n = 16,
@@ -603,7 +603,7 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
     TensorFormat inputFormat, TensorFormat outputFormat,
     memory::optional<ActivationFunction> activationFunction,
     memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
-    bool bias, const DirectConvConfig &config,
+    bool bias, const DirectConvConfigCM &config,
     //
     memory::FilterLayout *out_filterLayout,
     memory::BiasLayout *out_biasLayout) {
@@ -752,7 +752,7 @@ void DirectConvShaderCM::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-  const DirectConvConfig &config = DIRECT_CONV_CM_CONFIGS[configKey];
+  const DirectConvConfigCM &config = DIRECT_CONV_CM_CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::EdgeId convId = match[patternHandles.conv];

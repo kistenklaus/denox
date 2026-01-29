@@ -4,7 +4,7 @@
 
 namespace denox::compiler::shaders {
 
-struct BasicUpsampleConfig {
+struct MemoryPadConfig {
   unsigned int invocC;
   unsigned int invocW;
   unsigned int invocH;
@@ -13,8 +13,8 @@ struct BasicUpsampleConfig {
   unsigned int wgH;
 };
 
-static std::array<BasicUpsampleConfig, 5> MEMORY_PAD_CONFIGS{
-    BasicUpsampleConfig{
+static std::array<MemoryPadConfig, 5> MEMORY_PAD_CONFIGS{
+    MemoryPadConfig{
         .invocC = 2,
         .invocW = 2,
         .invocH = 2,
@@ -22,7 +22,7 @@ static std::array<BasicUpsampleConfig, 5> MEMORY_PAD_CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    BasicUpsampleConfig{
+    MemoryPadConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
@@ -30,7 +30,7 @@ static std::array<BasicUpsampleConfig, 5> MEMORY_PAD_CONFIGS{
         .wgW = 32,
         .wgH = 1,
     },
-    BasicUpsampleConfig{
+    MemoryPadConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -38,7 +38,7 @@ static std::array<BasicUpsampleConfig, 5> MEMORY_PAD_CONFIGS{
         .wgW = 64,
         .wgH = 1,
     },
-    BasicUpsampleConfig{
+    MemoryPadConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -46,7 +46,7 @@ static std::array<BasicUpsampleConfig, 5> MEMORY_PAD_CONFIGS{
         .wgW = 128,
         .wgH = 1,
     },
-    BasicUpsampleConfig{
+    MemoryPadConfig{
         .invocC = 8,
         .invocW = 1,
         .invocH = 1,
@@ -141,7 +141,7 @@ memory::vector<unsigned int> MemoryPadShader::acceptMatch(
 static spirv::GlslCompilerInstance
 memory_pad_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
         TensorFormat inputFormat, TensorFormat outputFormat,
-        unsigned int channels, const BasicUpsampleConfig &config) {
+        unsigned int channels, const MemoryPadConfig &config) {
   auto shader = compiler->read(srcPath);
   shader.define("CH", channels);
 
@@ -193,7 +193,7 @@ void MemoryPadShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  const BasicUpsampleConfig &config = MEMORY_PAD_CONFIGS[configKey];
+  const MemoryPadConfig &config = MEMORY_PAD_CONFIGS[configKey];
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
