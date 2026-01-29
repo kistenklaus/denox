@@ -9,7 +9,6 @@
 #include "vma.hpp"
 #include <algorithm>
 #include <cstring>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <forward_list>

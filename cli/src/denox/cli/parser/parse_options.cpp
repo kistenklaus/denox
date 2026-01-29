@@ -9,9 +9,10 @@
 #include "denox/compiler/frontend/model/NamedValue.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/memory/container/vector.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <stdexcept>
+
+
 
 static uint32_t parse_bool_flag(std::span<const Token> tokens,
                                 OptionToken expected, bool *out,
@@ -703,7 +704,7 @@ uint32_t parse_relative_error(std::span<const Token> tokens,
         fmt::format("--relative-error expects floating-point number"));
   }
   if (relative_error) {
-    *relative_error = static_cast<float>(samplesToken.literal().as_float());
+    *relative_error = samplesToken.literal().as_float();
   }
   return 2;
 }

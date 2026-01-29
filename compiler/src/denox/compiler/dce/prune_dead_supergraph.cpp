@@ -5,7 +5,6 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
-#include <fmt/base.h>
 #include <stdexcept>
 
 void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {

@@ -3,6 +3,7 @@
 #include "denox/cli/parser/artefact.hpp"
 #include "denox/common/ValueSpec.hpp"
 #include "denox/compiler/Options.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"
 #include "denox/runtime/db.hpp"
 #include <optional>

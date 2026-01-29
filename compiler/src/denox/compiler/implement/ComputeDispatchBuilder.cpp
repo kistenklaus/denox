@@ -13,24 +13,6 @@ ComputeDispatch &ComputeDispatchBuilder::self() {
   return m_impl->m_dispatches[m_index];
 }
 
-void ComputeDispatchBuilder::addBinding(uint32_t set, uint32_t binding,
-                                        Access access, memory::NodeId nodeId) {
-  if (*nodeId >= m_impl->m_superBuilder->m_nodeTensorMapping.size()) {
-    diag::invalid_state();
-  }
-  memory::optional<TensorId> tensorId =
-      m_impl->m_superBuilder->m_nodeTensorMapping[*nodeId];
-  if (!tensorId.has_value()) {
-    diag::invalid_state();
-  }
-  addBinding(set, binding, access, *tensorId);
-}
-
-void ComputeDispatchBuilder::addBinding(uint32_t set, uint32_t binding,
-                                        Access access, TensorId tensor) {
-  self().bindings.push_back(TensorBinding{set, binding, access, tensor});
-}
-
 void ComputeDispatchBuilder::addBinding(memory::string_view set_macro,
                                         memory::string_view binding_macro,
                                         Access access, memory::NodeId nodeId) {

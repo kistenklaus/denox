@@ -52,33 +52,33 @@ static std::vector<ConcatConvConfig> CONCAT_CONV_CM_CONFIGS = {
         .a_cm_k = 16,
         .b_cm_k = 16,
         .cm_n = 16,
-    
+
         .wg_m = 8,
         .wg_n = 1,
-    
+
         .sg_m = 2,
         .a_sg_k = 2,
         .b_sg_k = 2,
         .sg_n = 2,
-    
+
         .a_async = false,
         .b_async = false,
     },
-    
+
     ConcatConvConfig{
         .cm_m = 16,
         .a_cm_k = 16,
         .b_cm_k = 16,
         .cm_n = 16,
-    
+
         .wg_m = 4,
         .wg_n = 2,
-    
+
         .sg_m = 2,
         .a_sg_k = 2,
         .b_sg_k = 2,
         .sg_n = 2,
-    
+
         .a_async = true,
         .b_async = true,
     },
@@ -87,33 +87,33 @@ static std::vector<ConcatConvConfig> CONCAT_CONV_CM_CONFIGS = {
         .a_cm_k = 16,
         .b_cm_k = 16,
         .cm_n = 16,
-    
+
         .wg_m = 4,
         .wg_n = 2,
-    
+
         .sg_m = 2,
         .a_sg_k = 2,
         .b_sg_k = 2,
         .sg_n = 2,
-    
+
         .a_async = false,
         .b_async = false,
     },
-    
+
     ConcatConvConfig{
         .cm_m = 16,
         .a_cm_k = 16,
         .b_cm_k = 16,
         .cm_n = 16,
-    
+
         .wg_m = 8,
         .wg_n = 1,
-    
+
         .sg_m = 1,
         .a_sg_k = 1,
         .b_sg_k = 1,
         .sg_n = 6,
-    
+
         .a_async = true,
         .b_async = true,
     },
@@ -122,33 +122,33 @@ static std::vector<ConcatConvConfig> CONCAT_CONV_CM_CONFIGS = {
         .a_cm_k = 16,
         .b_cm_k = 16,
         .cm_n = 16,
-    
+
         .wg_m = 8,
         .wg_n = 1,
-    
+
         .sg_m = 1,
         .a_sg_k = 1,
         .b_sg_k = 1,
         .sg_n = 6,
-    
+
         .a_async = false,
         .b_async = false,
     },
-    
+
     ConcatConvConfig{
         .cm_m = 16,
         .a_cm_k = 16,
         .b_cm_k = 16,
         .cm_n = 16,
-    
+
         .wg_m = 8,
         .wg_n = 1,
-    
+
         .sg_m = 1,
         .a_sg_k = 3,
         .b_sg_k = 3,
         .sg_n = 7,
-    
+
         .a_async = true,
         .b_async = true,
     },
@@ -157,15 +157,15 @@ static std::vector<ConcatConvConfig> CONCAT_CONV_CM_CONFIGS = {
         .a_cm_k = 16,
         .b_cm_k = 16,
         .cm_n = 16,
-    
+
         .wg_m = 8,
         .wg_n = 1,
-    
+
         .sg_m = 1,
         .a_sg_k = 3,
         .b_sg_k = 3,
         .sg_n = 7,
-    
+
         .a_async = false,
         .b_async = false,
     },
@@ -183,6 +183,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes) {
 
   if (m_subgroupSize == 0) {
+    return;
+  }
+  if (!options.features.enableConcatConvFusion) {
     return;
   }
   if (!options.features.coopmat) {

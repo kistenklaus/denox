@@ -9,7 +9,6 @@
 #include "denox/runtime/instance.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
 #include <chrono>
-#include <fmt/base.h>
 #include <fmt/ostream.h>
 #include <iostream>
 

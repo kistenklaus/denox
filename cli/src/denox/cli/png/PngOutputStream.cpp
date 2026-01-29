@@ -1,7 +1,6 @@
 #include "denox/cli/png/PngOutputStream.hpp"
 
 #include <algorithm>
-#include <fmt/base.h>
 #include <png.h>
 #include <stdexcept>
 #include <vector>

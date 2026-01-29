@@ -6,7 +6,6 @@
 #include "denox/common/ValueSpec.hpp"
 #include "denox/device_info/DeviceInfo.hpp"
 #include "denox/diag/logging.hpp"
-#include "denox/memory/container/optional.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 
 namespace denox::compiler {
@@ -15,6 +14,7 @@ struct Features {
   bool coopmat = true;
   bool enableImplicitConcat = true;
   bool enableConvReluFusion = true;
+  bool enableConcatConvFusion = true;
 };
 
 struct DescriptorPolicy {

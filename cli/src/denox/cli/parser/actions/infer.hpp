@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/memory/container/optional.hpp"
 #include "denox/cli/parser/artefact.hpp"
 #include "denox/compiler/Options.hpp"
 #include <optional>

@@ -113,6 +113,9 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
                       nodeName, expect, padLen));
 
     // Build full-length vectors (rank) of Sym zeros, then fill from axes/pads.
+    if (r == 0 || r == 1) {
+      throw std::runtime_error("unexpected error!");
+    }
     memory::vector<Sym> before(r, Sym::Const(0));
     memory::vector<Sym> after(r, Sym::Const(0));
 
@@ -166,6 +169,11 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
                 nodeName));
           assert(ax < before.size());
           assert(ax < after.size());
+          if (ax < before.size()) {
+            throw std::runtime_error("unexpected error");
+          } else if (ax < after.size()) {
+            throw std::runtime_error("unexpected error");
+          }
           before[ax] = Sym::Const(b);
           after[ax] = Sym::Const(a);
         }

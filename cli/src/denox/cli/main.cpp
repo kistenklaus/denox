@@ -8,7 +8,6 @@
 #include "denox/cli/version.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/io/fs/Path.hpp"
-#include <fmt/base.h>
 #include <fmt/ostream.h>
 #include <fmt/printf.h>
 #include <iostream>

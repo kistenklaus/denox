@@ -15,7 +15,6 @@
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 // #include "denox/cli/parser/parse_options.hpp"
 #include <absl/strings/str_format.h>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
@@ -65,6 +64,7 @@ Action parse_compile(std::span<const Token> tokens) {
   denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
   bool help = false;
 
+  bool fusion = true;
 
   // parse remaining arguments
   uint32_t i = 1;
@@ -127,8 +127,7 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_feature_fusion(tail,
-                                     &options.features.enableConvReluFusion))) {
+    if ((jump = parse_feature_fusion(tail, &fusion))) {
       i += jump;
       continue;
     }
@@ -173,6 +172,9 @@ Action parse_compile(std::span<const Token> tokens) {
     throw ParseError(
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
+
+  options.features.enableConvReluFusion = fusion;
+  options.features.enableConcatConvFusion = fusion;
 
   if (help) {
     return HelpAction(HelpScope::Compile);
@@ -274,6 +276,7 @@ Action parse_populate(std::span<const Token> tokens) {
   denox::memory::hash_map<denox::memory::string, int64_t> assumptions;
 
   bool help = false;
+  bool fusion = true;
 
   // parse remaining arguments
   uint32_t i = 2;
@@ -325,8 +328,7 @@ Action parse_populate(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_feature_fusion(tail,
-                                     &options.features.enableConvReluFusion))) {
+    if ((jump = parse_feature_fusion(tail, &fusion))) {
       i += jump;
       continue;
     }
@@ -375,6 +377,9 @@ Action parse_populate(std::span<const Token> tokens) {
   if (help) {
     return HelpAction(HelpScope::Populate);
   }
+
+  options.features.enableConvReluFusion = fusion;
+  options.features.enableConcatConvFusion = fusion;
 
   if (spirv_nonSemanticDebugInfo) {
     options.spirv.debugInfo =
@@ -446,6 +451,7 @@ Action parse_bench(std::span<const Token> tokens) {
   denox::memory::hash_map<denox::memory::string, int64_t> valueSpecMap;
 
   bool help = false;
+  bool fusion = true;
 
   // parse remaining arguments
   uint32_t i = 1;
@@ -508,8 +514,7 @@ Action parse_bench(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_feature_fusion(tail,
-                                     &options.features.enableConvReluFusion))) {
+    if ((jump = parse_feature_fusion(tail, &fusion))) {
       i += jump;
       continue;
     }
@@ -574,6 +579,8 @@ Action parse_bench(std::span<const Token> tokens) {
     return HelpAction(HelpScope::Bench);
   }
 
+  options.features.enableConvReluFusion = fusion;
+  options.features.enableConcatConvFusion = fusion;
 
   if (spirv_nonSemanticDebugInfo) {
     options.spirv.debugInfo =
@@ -622,10 +629,10 @@ Action parse_infer(std::span<const Token> tokens) {
 
   // --- Parse input artefact (first positional) ---
   ArtefactParseResult inputRes = parse_artefact(tokens.front());
-  if (inputRes.artefact && inputRes.artefact->kind() == ArtefactKind::Database) {
-    throw ParseError(
-        fmt::format("expected model as first argument, got {}",
-                    inputRes.artefact->kind()));
+  if (inputRes.artefact &&
+      inputRes.artefact->kind() == ArtefactKind::Database) {
+    throw ParseError(fmt::format("expected model as first argument, got {}",
+                                 inputRes.artefact->kind()));
   }
   if (inputRes.error.has_value()) {
     switch (*inputRes.error) {
@@ -659,6 +666,7 @@ Action parse_infer(std::span<const Token> tokens) {
   denox::memory::optional<IOEndpoint> output;
 
   bool help = false;
+  bool fusion = true;
 
   // parse remaining arguments
   uint32_t i = 1;
@@ -726,8 +734,7 @@ Action parse_infer(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_feature_fusion(tail,
-                                     &options.features.enableConvReluFusion))) {
+    if ((jump = parse_feature_fusion(tail, &fusion))) {
       i += jump;
       continue;
     }
@@ -768,8 +775,6 @@ Action parse_infer(std::span<const Token> tokens) {
       continue;
     }
 
-
-
     // --- nothing matched ---
     throw ParseError(
         fmt::format("invalid option {}", describe_token(tokens[i])));
@@ -778,6 +783,9 @@ Action parse_infer(std::span<const Token> tokens) {
   if (help) {
     return HelpAction(HelpScope::Infer);
   }
+
+  options.features.enableConvReluFusion = fusion;
+  options.features.enableConcatConvFusion = fusion;
 
   if (spirv_nonSemanticDebugInfo) {
     options.spirv.debugInfo =
@@ -820,9 +828,7 @@ Action parse_infer(std::span<const Token> tokens) {
   };
 }
 
-Action parse_version(std::span<const Token>) {
-  return Action::version();
-}
+Action parse_version(std::span<const Token>) { return Action::version(); }
 
 Action parse_help(std::span<const Token>) {
   return HelpAction(HelpScope::Global);

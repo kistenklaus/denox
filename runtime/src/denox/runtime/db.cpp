@@ -11,7 +11,6 @@
 #include "denox/spirv/SpirvTools.hpp"
 #include <algorithm>
 #include <chrono>
-#include <fmt/base.h>
 #include <fmt/ostream.h>
 #include <forward_list>
 #include <limits>

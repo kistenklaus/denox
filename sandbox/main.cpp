@@ -30,7 +30,6 @@
 #include "denox/runtime/model.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include "denox/spirv/SpirvTools.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <iostream>
 

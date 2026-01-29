@@ -3,7 +3,6 @@
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/io/fs/File.hpp"
-#include <fmt/base.h>
 
 void compile(CompileAction &action) {
   denox::ApiVersion apiVersion = action.apiVersion;

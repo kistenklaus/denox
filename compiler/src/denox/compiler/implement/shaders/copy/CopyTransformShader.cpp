@@ -180,8 +180,12 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
   }
 
   ConcatImplementationType implementationType =
-      tryImplicitConcat(src0Format, src1Format, dstFormat, src0.type, src1.type,
-                        dst.type, src0.originalNode, src1.originalNode);
+      ConcatImplementationType::Explicit;
+  if (m_enableImplicitConcat) {
+    implementationType = tryImplicitConcat(
+        src0Format, src1Format, dstFormat, src0.type, src1.type, dst.type,
+        src0.originalNode, src1.originalNode);
+  }
 
   auto supported = [&](uint32_t wgC, uint32_t wgW, uint32_t wgH,
                        uint32_t invocC, TensorFormat format,

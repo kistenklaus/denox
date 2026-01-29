@@ -5,7 +5,6 @@
 #include "denox/runtime/db.hpp"
 #include "denox/runtime/instance.hpp"
 #include "denox/runtime/model.hpp"
-#include <fmt/base.h>
 
 void bench(BenchAction &action) {
   switch (action.target.kind()) {

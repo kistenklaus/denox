@@ -11,7 +11,6 @@
 #include "denox/symbolic/SymIR.hpp"
 #include "dnx.h"
 #include <algorithm>
-#include <fmt/base.h>
 #include <fmt/ostream.h>
 #include <fmt/ranges.h>
 #include <fmt/std.h>

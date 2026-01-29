@@ -12,7 +12,6 @@
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
 #include <absl/strings/str_format.h>
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 

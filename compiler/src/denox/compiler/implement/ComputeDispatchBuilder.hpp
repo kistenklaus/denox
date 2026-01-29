@@ -15,14 +15,6 @@ class ComputeDispatchBuilder {
 public:
   friend class OpImpl;
 
-  [[deprecated("doesn't support descriptor policies")]]
-  void addBinding(uint32_t set, uint32_t binding, Access access,
-                  TensorId tensor);
-
-  [[deprecated("doesn't support descriptor policies")]]
-  void addBinding(uint32_t set, uint32_t binding, Access access,
-                  memory::NodeId nodeId);
-
   void addBinding(memory::string_view set_macro, memory::string_view binding_macro,
                   Access access, memory::NodeId nodeId);
 
