@@ -4,13 +4,14 @@
 #include "denox/memory/container/vector.hpp"
 #include <cstddef>
 #include <fmt/format.h>
+#include <functional>
 #include <memory>
 
 namespace denox::compiler {
 
 struct Parameter {
   TensorId tensorId;
-  std::shared_ptr<memory::vector<std::byte>> data;
+  std::function<std::vector<std::byte>()> lazyValue;
 };
 
 } // namespace denox::compiler
@@ -20,7 +21,6 @@ template <> struct fmt::formatter<denox::compiler::Parameter> {
 
   template <typename FormatContext>
   auto format(const denox::compiler::Parameter &p, FormatContext &ctx) const {
-    return fmt::format_to(ctx.out(), "{{tensorId={}, size={}}}",
-                          p.tensorId.index, p.data->size());
+    return fmt::format_to(ctx.out(), "{{tensorId={}}}", p.tensorId.index);
   }
 };

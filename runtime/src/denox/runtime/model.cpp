@@ -1,7 +1,6 @@
 #include "model.hpp"
 #include "context.hpp"
 #include "denox/common/PushConstant.hpp"
-#include "denox/common/SHA256.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/logging.hpp"
@@ -14,7 +13,6 @@
 #include <fmt/ostream.h>
 #include <fmt/ranges.h>
 #include <fmt/std.h>
-#include <string_view>
 
 namespace denox::runtime {
 
@@ -81,8 +79,7 @@ static Sym parse_sym(dnx::ScalarSource type, const void *ptr) {
 
 static ModelDispatch
 create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
-                      const dnx::ComputeDispatch *dispatch,
-                      memory::span<const ModelTensor> tensors) {
+                      const dnx::ComputeDispatch *dispatch) {
 
   std::size_t descriptorSetCount = dispatch->bindings()->size();
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts(descriptorSetCount);
@@ -366,8 +363,7 @@ static void collect_descriptor_pool_requirements(
 }
 
 static std::pair<ModelDescriptorPoolRequirements, memory::vector<ModelCmd>>
-parse_cmds(const ContextHandle &context, const dnx::Model *dnx,
-           memory::span<const ModelTensor> tensors) {
+parse_cmds(const ContextHandle &context, const dnx::Model *dnx) {
 
   ModelDescriptorPoolRequirements descriptorPoolRequirements{};
   memory::vector<ModelCmd> cmds;
@@ -377,7 +373,7 @@ parse_cmds(const ContextHandle &context, const dnx::Model *dnx,
     const dnx::ComputeDispatch *dispatch =
         dnx->dispatches()->Get(static_cast<unsigned int>(d));
     ModelDispatch modelDispatch =
-        create_model_dispatch(context, dnx, dispatch, tensors);
+        create_model_dispatch(context, dnx, dispatch);
 
     if (std::optional<ModelBarrier> barrier =
             generate_pipeline_barrier(dnx, tensorStates, dispatch)) {
@@ -651,7 +647,7 @@ Model::Model(const ContextHandle &context, memory::span<const std::byte> dnxbuf)
   m_outputs.assign(dnx->outputs()->begin(), dnx->outputs()->end());
   m_initializers = parse_initializers(dnx);
 
-  auto [dpr, cmds] = parse_cmds(context, dnx, m_tensors);
+  auto [dpr, cmds] = parse_cmds(context, dnx);
   m_descriptorPoolRequirements = std::move(dpr);
   m_cmds = std::move(cmds);
 

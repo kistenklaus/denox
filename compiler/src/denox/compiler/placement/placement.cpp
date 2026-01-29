@@ -83,7 +83,7 @@ MemSchedule placement(const OptSchedule &schedule) {
 
     out.initializers.push_back(TensorInitializer{
         .tensor = static_cast<std::uint32_t>(viewId),
-        .data = *p.data,
+        .data = p.lazyValue(),
     });
   }
 

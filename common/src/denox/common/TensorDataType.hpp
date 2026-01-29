@@ -85,10 +85,8 @@ template <> struct fmt::formatter<denox::TensorDataType> {
       name = "Float64";
       break;
     default:
-      name = "Unknown";
-      break;
+      denox::diag::unreachable();
     }
-
     return fmt::format_to(ctx.out(), "{}", name);
   }
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
 #include "denox/compiler/implement/ComputeDispatch.hpp"
@@ -26,15 +27,23 @@ public:
   friend class SuperGraphBuilder;
   friend class ComputeDispatchBuilder;
 
+  [[deprecated("Please use new lazy functional interface")]]
   TensorId createParameter(const memory::FilterDescriptor &descriptor,
                            memory::FilterTensorConstView data,
                            TensorStorage storage = TensorStorage::StorageBuffer,
                            TensorFormat format = TensorFormat::Optimal);
 
+  [[deprecated("Please use new lazy functional interface")]]
   TensorId createParameter(const memory::BiasDescriptor &descriptor,
                            memory::BiasTensorConstView data,
                            TensorStorage storage = TensorStorage::StorageBuffer,
                            TensorFormat format = TensorFormat::Optimal);
+
+  TensorId createParameter(size_t elemCount, TensorDataType dtype,
+                           TensorStorage storage,
+                           TensorFormat format,
+                           std::function<std::vector<std::byte>()> value,
+                           uint16_t alignment = 16);
 
   ComputeDispatchBuilder registerDispatch(spirv::GlslCompilerInstance glsl,
                                           Sym wgX, Sym wgY = Sym::Const(1),

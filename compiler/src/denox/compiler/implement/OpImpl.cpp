@@ -21,13 +21,14 @@ TensorId OpImpl::createParameter(const memory::FilterDescriptor &descriptor,
 
   m_superBuilder->m_tensors[id.index].info.storage = storage;
   m_superBuilder->m_tensors[id.index].info.format = format;
-  m_superBuilder->m_tensors[id.index].info.type = tensor_data_type_from_memory_type(descriptor.type);
+  m_superBuilder->m_tensors[id.index].info.type =
+      tensor_data_type_from_memory_type(descriptor.type);
 
   if (m_superBuilder->m_writeParameters) {
     auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
     m_parameters.push_back(Parameter{
         .tensorId = id,
-        .data = std::move(bytes),
+        .lazyValue = [bytes]() { return *bytes; },
     });
   }
   return id;
@@ -47,16 +48,35 @@ TensorId OpImpl::createParameter(const memory::BiasDescriptor &descriptor,
 
   m_superBuilder->m_tensors[id.index].info.storage = storage;
   m_superBuilder->m_tensors[id.index].info.format = format;
-  m_superBuilder->m_tensors[id.index].info.type = tensor_data_type_from_memory_type(descriptor.type);
+  m_superBuilder->m_tensors[id.index].info.type =
+      tensor_data_type_from_memory_type(descriptor.type);
 
   if (m_superBuilder->m_writeParameters) {
     auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
     m_parameters.push_back(Parameter{
         .tensorId = id,
-        .data = std::move(bytes),
+        .lazyValue = [bytes]() { return *bytes; },
     });
   }
   return id;
+}
+
+TensorId OpImpl::createParameter(size_t elemCount, TensorDataType dtype,
+                                 TensorStorage storage, TensorFormat format,
+                                 std::function<std::vector<std::byte>()> value,
+                                 uint16_t alignment) {
+  size_t bytes = elemCount * size_of(dtype);
+  TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
+  m_superBuilder->m_tensors[id.index].info.storage = storage;
+  m_superBuilder->m_tensors[id.index].info.format = format;
+  m_superBuilder->m_tensors[id.index].info.type = dtype;
+
+  if (m_superBuilder->m_writeParameters) {
+    m_parameters.push_back(Parameter{
+        .tensorId = id,
+        .lazyValue = value,
+    });
+  }
 }
 
 ComputeDispatchBuilder
