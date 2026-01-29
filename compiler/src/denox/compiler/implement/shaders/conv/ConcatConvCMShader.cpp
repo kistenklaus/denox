@@ -36,139 +36,139 @@ static std::vector<ConcatConvConfig> CONCAT_CONV_CM_CONFIGS = {
         .b_cm_k = 16,
         .cm_n = 16,
 
-        .wg_m = 4,
-        .wg_n = 2,
+        .wg_m = 8,
+        .wg_n = 1,
 
         .sg_m = 2,
         .a_sg_k = 2,
         .b_sg_k = 2,
-        .sg_n = 8,
+        .sg_n = 2,
 
+        .a_async = true,
+        .b_async = true,
+    },
+    ConcatConvConfig{
+        .cm_m = 16,
+        .a_cm_k = 16,
+        .b_cm_k = 16,
+        .cm_n = 16,
+    
+        .wg_m = 8,
+        .wg_n = 1,
+    
+        .sg_m = 2,
+        .a_sg_k = 2,
+        .b_sg_k = 2,
+        .sg_n = 2,
+    
         .a_async = false,
         .b_async = false,
     },
-    // ConcatConvConfig{
-    //     .cm_m = 16,
-    //     .a_cm_k = 16,
-    //     .b_cm_k = 16,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 2,
-    //     .a_sg_k = 2,
-    //     .b_sg_k = 2,
-    //     .sg_n = 2,
-    //
-    //     .a_async = false,
-    //     .b_async = false,
-    // },
-    //
-    // ConcatConvConfig{
-    //     .cm_m = 16,
-    //     .a_cm_k = 16,
-    //     .b_cm_k = 16,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //
-    //     .sg_m = 2,
-    //     .a_sg_k = 2,
-    //     .b_sg_k = 2,
-    //     .sg_n = 2,
-    //
-    //     .a_async = true,
-    //     .b_async = true,
-    // },
-    // ConcatConvConfig{
-    //     .cm_m = 16,
-    //     .a_cm_k = 16,
-    //     .b_cm_k = 16,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //
-    //     .sg_m = 2,
-    //     .a_sg_k = 2,
-    //     .b_sg_k = 2,
-    //     .sg_n = 2,
-    //
-    //     .a_async = false,
-    //     .b_async = false,
-    // },
-    //
-    // ConcatConvConfig{
-    //     .cm_m = 16,
-    //     .a_cm_k = 16,
-    //     .b_cm_k = 16,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .a_sg_k = 1,
-    //     .b_sg_k = 1,
-    //     .sg_n = 6,
-    //
-    //     .a_async = true,
-    //     .b_async = true,
-    // },
-    // ConcatConvConfig{
-    //     .cm_m = 16,
-    //     .a_cm_k = 16,
-    //     .b_cm_k = 16,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .a_sg_k = 1,
-    //     .b_sg_k = 1,
-    //     .sg_n = 6,
-    //
-    //     .a_async = false,
-    //     .b_async = false,
-    // },
-    //
-    // ConcatConvConfig{
-    //     .cm_m = 16,
-    //     .a_cm_k = 16,
-    //     .b_cm_k = 16,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .a_sg_k = 3,
-    //     .b_sg_k = 3,
-    //     .sg_n = 7,
-    //
-    //     .a_async = true,
-    //     .b_async = true,
-    // },
-    // ConcatConvConfig{
-    //     .cm_m = 16,
-    //     .a_cm_k = 16,
-    //     .b_cm_k = 16,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .a_sg_k = 3,
-    //     .b_sg_k = 3,
-    //     .sg_n = 7,
-    //
-    //     .a_async = false,
-    //     .b_async = false,
-    // },
+    
+    ConcatConvConfig{
+        .cm_m = 16,
+        .a_cm_k = 16,
+        .b_cm_k = 16,
+        .cm_n = 16,
+    
+        .wg_m = 4,
+        .wg_n = 2,
+    
+        .sg_m = 2,
+        .a_sg_k = 2,
+        .b_sg_k = 2,
+        .sg_n = 2,
+    
+        .a_async = true,
+        .b_async = true,
+    },
+    ConcatConvConfig{
+        .cm_m = 16,
+        .a_cm_k = 16,
+        .b_cm_k = 16,
+        .cm_n = 16,
+    
+        .wg_m = 4,
+        .wg_n = 2,
+    
+        .sg_m = 2,
+        .a_sg_k = 2,
+        .b_sg_k = 2,
+        .sg_n = 2,
+    
+        .a_async = false,
+        .b_async = false,
+    },
+    
+    ConcatConvConfig{
+        .cm_m = 16,
+        .a_cm_k = 16,
+        .b_cm_k = 16,
+        .cm_n = 16,
+    
+        .wg_m = 8,
+        .wg_n = 1,
+    
+        .sg_m = 1,
+        .a_sg_k = 1,
+        .b_sg_k = 1,
+        .sg_n = 6,
+    
+        .a_async = true,
+        .b_async = true,
+    },
+    ConcatConvConfig{
+        .cm_m = 16,
+        .a_cm_k = 16,
+        .b_cm_k = 16,
+        .cm_n = 16,
+    
+        .wg_m = 8,
+        .wg_n = 1,
+    
+        .sg_m = 1,
+        .a_sg_k = 1,
+        .b_sg_k = 1,
+        .sg_n = 6,
+    
+        .a_async = false,
+        .b_async = false,
+    },
+    
+    ConcatConvConfig{
+        .cm_m = 16,
+        .a_cm_k = 16,
+        .b_cm_k = 16,
+        .cm_n = 16,
+    
+        .wg_m = 8,
+        .wg_n = 1,
+    
+        .sg_m = 1,
+        .a_sg_k = 3,
+        .b_sg_k = 3,
+        .sg_n = 7,
+    
+        .a_async = true,
+        .b_async = true,
+    },
+    ConcatConvConfig{
+        .cm_m = 16,
+        .a_cm_k = 16,
+        .b_cm_k = 16,
+        .cm_n = 16,
+    
+        .wg_m = 8,
+        .wg_n = 1,
+    
+        .sg_m = 1,
+        .a_sg_k = 3,
+        .b_sg_k = 3,
+        .sg_n = 7,
+    
+        .a_async = false,
+        .b_async = false,
+    },
 };
 
 ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
@@ -232,7 +232,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                                          std::move(a), std::move(b),
                                          std::move(out));
   }
-  if (options.features.enableConvReluFusion && false) {
+  if (options.features.enableConvReluFusion) {
     Pattern concat_conv_pattern;
     auto concat = concat_conv_pattern.matchEdge();
     auto a = concat->matchSrc(0);
@@ -572,6 +572,8 @@ void ConcatConvCMShader::implement(
   assert(a.width == b.width);
   assert(a.height == b.height);
   assert(a.type == b.type);
+  assert(a.width == out.width);
+  assert(b.height == out.height);
   const ComputeOpConv &conv = op.conv();
 
   memory::optional<ActivationFunction> activationFunction;
@@ -584,14 +586,14 @@ void ConcatConvCMShader::implement(
   const uint32_t A_C = static_cast<uint32_t>(a.channels.constant());
   const uint32_t B_C = static_cast<uint32_t>(b.channels.constant());
   const uint32_t K = static_cast<uint32_t>(out.channels.constant());
-  const Sym H = a.width;
-  const Sym W = b.width;
+  const Sym H = a.height;
+  const Sym W = a.width;
   const uint32_t R = conv->W->shape().r;
   const uint32_t S = conv->W->shape().s;
 
   // dummy values; overwritten in direct_conv_cm_compile
-  memory::FilterLayout A_filterLayout = memory::FilterLayout::KCRS;
-  memory::FilterLayout B_filterLayout = memory::FilterLayout::KCRS;
+  memory::FilterLayout A_filterLayout = memory::FilterLayout::RSCK;
+  memory::FilterLayout B_filterLayout = memory::FilterLayout::RSCK;
   memory::BiasLayout biasLayout = memory::BiasLayout::C;
 
   auto shader = direct_conv_cm_compile(

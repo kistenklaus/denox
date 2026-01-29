@@ -123,6 +123,7 @@ const uint SH_BUF_SIZE8 = (SH_AB_MAX_SIZE8 > SH_OUT_SIZE8) ? SH_AB_MAX_SIZE8 : S
 shared vstype sh_buf[SH_BUF_SIZE8];
 
 const uint SH_OUT_OFFSET = 0;
+
 const uint SH_A_OFFSET = 0;
 const uint SH_A_FILTER_OFFSET = SH_A_OFFSET + SH_A_SIZE8;
 
@@ -985,24 +986,32 @@ void main() {
         gl_CooperativeMatrixLayoutRowMajor);
     }
   }
+  // force shared memory writeback.
   subgroupMemoryBarrierShared();
-  subgroupBarrier();
+  subgroupBarrier(); // <- basically a noop.
+
   const uint CM_N8 = CM_N / (OSTYPE_SIZE / ATYPE_SIZE);
   const uint CM_M8 = CM_M / (OSTYPE_SIZE / ATYPE_SIZE);
   const uint OUT_CH8 = OUT_CH / (OSTYPE_SIZE / ATYPE_SIZE);
+
   for (uint sgzn = 0; sgzn < SG_N; sgzn++) {
     const uint QQ = CM_N8 * CM_M * SG_M;
     const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgzn * QQ;
+
     const uint wgni8 = wgni / (OSTYPE_SIZE / ATYPE_SIZE);
+    // global channel offset (uvec4)
     const uint sgn = wgni8 + (CM_N8 * SG_N) * sgni + sgzn * CM_N8;
     const uint IN_HW = pc.IN_W * pc.IN_H;
+
     for (uint q = gl_SubgroupInvocationID; q < QQ; q += SG_SIZE) {
       const uint sgzm = q / (CM_N8 * CM_M);
       const uint sgij = q % (CM_N8 * CM_M);
       const uint sgx = wgxy.x + sgij / CM_N8;
       const uint zn8 = (sgij % CM_N8);
       const uint n8 = zn8 + sgn;
+
       const uint y = wgxy.y + sgmi * SG_M + sgzm;
+
       if (n8 < OUT_CH8 && y < pc.IN_H && sgx < pc.IN_W) {
         uvec4 v = sh_buf[o + q];
         output_tensor_blob[n8 * IN_HW + y * pc.IN_W + sgx] = v;
@@ -1028,6 +1037,25 @@ void main() {
     const uint KK = ((KERNEL_X * KERNEL_Y * A_IN_CH) + (A_CM_K * A_SG_K) - 1) / (A_CM_K * A_SG_K);
     vstype prefetch_feature[PREFETCH_A_IQQ];
     vstype prefetch_filter[PREFETCH_A_FILTER_IQQ];
+    #ifdef A_ASYNC_READ
+    #pragma inline_block(prefetch_A);
+    #pragma inline_block(prefetch_A_filter);
+    kk += 1;
+    for (; kk < KK; ++kk) {
+      #pragma inline_block(copy_prefetch_A_feature);
+      #pragma inline_block(copy_prefetch_A_filter);
+      barrier();
+      #pragma inline_block(prefetch_A);
+      #pragma inline_block(prefetch_A_filter);
+      #pragma inline_block(gemm_A);
+      barrier();
+    }
+    #pragma inline_block(copy_prefetch_A_feature);
+    #pragma inline_block(copy_prefetch_A_filter);
+    barrier();
+    #pragma inline_block(gemm_A);
+
+    #else
     for (; kk < KK; ++kk) {
       #pragma inline_block(prefetch_A);
       #pragma inline_block(prefetch_A_filter);
@@ -1037,6 +1065,7 @@ void main() {
       #pragma inline_block(gemm_A);
       barrier();
     }
+    #endif
   }
   #undef FEATURE_LAYOUT_ROW_MAJOR
   #undef FEATURE_LAYOUT_COLUMN_MAJOR
@@ -1050,19 +1079,38 @@ void main() {
     const uint KK = ((KERNEL_X * KERNEL_Y * B_IN_CH) + (B_CM_K * B_SG_K) - 1) / (B_CM_K * B_SG_K);
     vstype prefetch_feature[PREFETCH_B_IQQ];
     vstype prefetch_filter[PREFETCH_B_FILTER_IQQ];
+    #ifdef B_ASYNC_READ
+    #pragma inline_block(prefetch_B);
+    #pragma inline_block(prefetch_B_filter);
+    kk += 1;
+    for (; kk < KK; ++kk) {
+      #pragma inline_block(copy_prefetch_B_feature);
+      #pragma inline_block(copy_prefetch_B_filter);
+      barrier();
+      #pragma inline_block(prefetch_B);
+      #pragma inline_block(prefetch_B_filter);
+      #pragma inline_block(gemm_B);
+      barrier();
+    }
+    #pragma inline_block(copy_prefetch_B_feature);
+    #pragma inline_block(copy_prefetch_B_filter);
+    barrier();
+    #pragma inline_block(gemm_B);
+
+    #else
     for (; kk < KK; ++kk) {
       #pragma inline_block(prefetch_B);
       #pragma inline_block(prefetch_B_filter);
       #pragma inline_block(copy_prefetch_B_feature);
-      #pragma inline_block(copy_prefetch_A_filter);
+      #pragma inline_block(copy_prefetch_B_filter);
       barrier();
       #pragma inline_block(gemm_B);
       barrier();
     }
+    #endif
   }
 
   // // === Writeback ===
   #pragma inline_block(activation);
-  barrier();
   #pragma inline_block(writeback);
 }

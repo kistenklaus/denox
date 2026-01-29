@@ -82,7 +82,7 @@ class Net(nn.Module):
 
         cha = 3
         chb = 3
-        chx = 16
+        chx = 24
 
         self.conva = nn.Conv2d(
             INPUT_CHANNELS_COUNT,
@@ -90,7 +90,7 @@ class Net(nn.Module):
             3,
             padding="same",
             dtype=torch.float16,
-            bias=False,
+            bias=True,
         )
 
         self.convb = nn.Conv2d(
@@ -99,7 +99,7 @@ class Net(nn.Module):
             3,
             padding="same",
             dtype=torch.float16,
-            bias=False,
+            bias=True,
         )
         
         self.convx = nn.Conv2d(
@@ -108,7 +108,7 @@ class Net(nn.Module):
             3,
             padding="same",
             dtype=torch.float16,
-            bias=False,
+            bias=True,
         )
 
         self.conv0 = nn.Conv2d(
@@ -160,7 +160,7 @@ class Net(nn.Module):
         a = self.conva(x)
         b = self.convb(x)
         ab = torch.cat((a,b), 1)
-        x = self.convx(ab)
+        x = F.relu(self.convx(ab))
         x = self.conv0(x)
 
         # x = self.conv2(self.conv8(self.conv1(x)))

@@ -347,7 +347,7 @@ class UNetAlignment(nn.Module):
         return output[:,:,:H,:W]
 
 
-Small = False
+Small = True
 
 rt_ldr = UNetAlignment(UNet(3, 3, Small))
 rt_ldr = rt_ldr.to(torch.float16)
