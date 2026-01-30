@@ -4,6 +4,7 @@
 #include "denox/compiler/implement/shaders/shaders.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
+#include <chrono>
 #include <fmt/format.h>
 
 namespace denox::compiler {
@@ -34,6 +35,7 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
       const uint32_t percentage = static_cast<uint32_t>(
           std::floor(static_cast<float>((pp + 1)) * 50.0f /
                      static_cast<float>(totalPatterns + 1)));
+
       logger.info(
           "[{:>3}%] {}Generating {} GLSL compute shader configurations{}",
           percentage, logger.green(), shader->name(p, 0), logger.reset());
@@ -72,6 +74,7 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
     }
   }
   // fmt::println("total: {}ms", sum);
+
 
   return supergraphBuilder.finish();
 }

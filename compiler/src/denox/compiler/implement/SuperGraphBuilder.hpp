@@ -36,17 +36,14 @@ public:
   }
 
   SuperGraph finish() {
-
     return SuperGraph{
         .graph =
             memory::ConstGraph<TensorId, SuperGraphEdge>(std::move(m_graph)),
         .tensors = std::move(m_tensors),
-        .inputs = m_inputs,
-        .outputs = m_outputs,
+        .inputs = std::move(m_inputs),
+        .outputs = std::move(m_outputs),
         .symGraph = std::move(m_symGraph),
     };
-    m_inputs.clear();
-    m_outputs.clear();
   }
 
   SymGraph &symGraph() { return m_symGraph; }

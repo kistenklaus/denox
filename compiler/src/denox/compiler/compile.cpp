@@ -17,6 +17,7 @@
 #include "denox/compiler/specialization/specialization.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/spirv/SpirvTools.hpp"
+#include <chrono>
 
 denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
@@ -35,12 +36,17 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::Lifetimes lifetimes = compiler::lifeness(cano);
   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
   compiler::ConstModel cmodel = compiler::dce(specModel);
+
   compiler::SuperGraph supergraph = compiler::implement(
       cmodel, cano.symGraph, &glslCompiler, options, logger);
+
   compiler::prune_dead_supergraph(supergraph);
+
   compiler::OptSchedule optSchedule = compiler::select_schedule(
       std::move(supergraph), db, model, options, logger);
+
   compiler::MemSchedule memSchedule = compiler::placement(optSchedule);
+
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);
   // compiler::rebind_descriptors(schedule, options, &spirvTools);

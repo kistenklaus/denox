@@ -134,11 +134,13 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
 
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
       algorithm::minimum_cost_subgraph(constWeightedSupergraph,
-                                        supergraph.inputs, supergraph.outputs);
-  memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(std::move(minimumCostSubgraph));
+                                       supergraph.inputs, supergraph.outputs);
+  memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(
+      std::move(minimumCostSubgraph));
 
-  memory::vector<memory::EdgeId> minSchedule = algorithm::topological_sort_edges(constMinCostGraph);
-  
+  memory::vector<memory::EdgeId> minSchedule =
+      algorithm::topological_sort_edges(constMinCostGraph);
+
   // simple union find.
   memory::vector<uint64_t> tensorUf(supergraph.tensors.size());
   for (size_t i = 0; i < tensorUf.size(); ++i) {

@@ -48,7 +48,8 @@ static constexpr DirectConvConfig DIRECT_CONV_CONFIGS[] = {
     //     .sg_n = 2,
     //     .async = false,
     // },
-    DirectConvConfig{ // <- good for 32 -> 32 (but equal to 2,2,2)
+    DirectConvConfig{
+        // <- good for 32 -> 32 (but equal to 2,2,2)
         .invoc_m = 16,
         .invoc_k = 16,
         .invoc_n = 16,
@@ -236,7 +237,6 @@ memory::vector<unsigned int> DirectConvShader::acceptMatch(
   const auto &patternHandles = m_patternHandles[pattern];
   const auto &in = opGraph.get(match[patternHandles.in]);
   const auto &out = opGraph.get(match[patternHandles.out]);
-
 
   // TODO: Remove this restriction!
 
@@ -459,23 +459,29 @@ void DirectConvShader::implement(
                                         workgroupCountY, workgroupCountZ);
 
   TensorId weightTensorId = impl.createParameter(
-      memory::FilterDescriptor{
-          .shape = conv->W->shape(),
-          .layout = filterLayout,
-          .type = memory::Dtype::F16,
-      },
-      *conv->W);
+      filterLayout.size(conv->W->shape()) * memory::Dtype::F16.size(),
+      TensorDataType::Float16, TensorStorage::StorageBuffer,
+      TensorFormat::Optimal,
+      [W = conv->W, filterLayout]() -> std::vector<std::byte> {
+        memory::FilterTensor filter{
+            {W->shape(), filterLayout, memory::Dtype::F16}, W->const_view()};
+        std::vector<std::byte> raw(filter.span().begin(), filter.span().end());
+        return raw;
+      });
 
   memory::optional<TensorId> biasTensorId = memory::nullopt;
 
   if (conv->B != nullptr) {
     biasTensorId = impl.createParameter(
-        memory::BiasDescriptor{
-            .shape = conv->B->shape(),
-            .layout = biasLayout,
-            .type = memory::Dtype::F16,
-        },
-        *conv->B);
+        biasLayout.size(conv->B->shape()) * memory::Dtype::F16.size(),
+        TensorDataType::Float16, TensorStorage::StorageBuffer,
+        TensorFormat::Optimal,
+        [B = conv->B, biasLayout]() -> std::vector<std::byte> {
+          memory::BiasTensor bias{{B->shape(), biasLayout, memory::Dtype::F16},
+                                  B->const_view()};
+          std::vector<std::byte> raw(bias.span().begin(), bias.span().end());
+          return raw;
+        });
   }
 
   dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);

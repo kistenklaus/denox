@@ -220,6 +220,10 @@ public:
     return BiasTensorConstView{this}[c];
   }
 
+  BiasTensorConstView view() const { return BiasTensorConstView{this}; }
+  BiasTensorConstView const_view() const { return BiasTensorConstView{this}; }
+  BiasTensorView view() { return BiasTensorView{this}; }
+
 private:
   BiasDescriptor m_desc;
   std::unique_ptr<std::byte[], std::function<void(std::byte *)>> m_storage;

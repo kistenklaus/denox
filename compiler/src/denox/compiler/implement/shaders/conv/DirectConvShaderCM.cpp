@@ -1,14 +1,15 @@
 #include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
 #include "denox/common/ActivationFunction.hpp"
+#include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/BiasDescriptor.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
+#include "denox/memory/tensor/BiasTensor.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
-#include "denox/memory/tensor/FitlerDescriptor.hpp"
+#include "denox/memory/tensor/FilterTensor.hpp"
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
@@ -798,33 +799,31 @@ void DirectConvShaderCM::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  // Convert to expected layout!
-  // memory::FilterTensor filterWeights{
-  //     memory::FilterDescriptor{
-  //         .shape = conv->W->shape(),
-  //         .layout = filterLayout,
-  //         .type = memory::Dtype::F16,
-  //     },
-  //     memory::FilterTensorConstView(conv->W.get())};
 
   TensorId weightTensorId = impl.createParameter(
-      memory::FilterDescriptor{
-          .shape = conv->W->shape(),
-          .layout = filterLayout,
-          .type = memory::Dtype::F16,
-      },
-      *conv->W);
+      filterLayout.size(conv->W->shape()) * memory::Dtype::F16.size(),
+      TensorDataType::Float16, TensorStorage::StorageBuffer,
+      TensorFormat::Optimal,
+      [W = conv->W, filterLayout]() -> std::vector<std::byte> {
+        memory::FilterTensor filter{
+            {W->shape(), filterLayout, memory::Dtype::F16}, W->const_view()};
+        std::vector<std::byte> raw(filter.span().begin(), filter.span().end());
+        return raw;
+      });
 
   memory::optional<TensorId> biasTensorId = memory::nullopt;
 
   if (conv->B != nullptr) {
     biasTensorId = impl.createParameter(
-        memory::BiasDescriptor{
-            .shape = conv->B->shape(),
-            .layout = biasLayout,
-            .type = memory::Dtype::F16,
-        },
-        *conv->B);
+        biasLayout.size(conv->B->shape()) * memory::Dtype::F16.size(),
+        TensorDataType::Float16, TensorStorage::StorageBuffer,
+        TensorFormat::Optimal,
+        [B = conv->B, biasLayout]() -> std::vector<std::byte> {
+          memory::BiasTensor bias{{B->shape(), biasLayout, memory::Dtype::F16},
+                                  B->const_view()};
+          std::vector<std::byte> raw(bias.span().begin(), bias.span().end());
+          return raw;
+        });
   }
 
   dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);

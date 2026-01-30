@@ -1,15 +1,16 @@
 #include "denox/compiler/implement/shaders/conv/ConcatConvCMShader.hpp"
 #include "denox/common/ActivationFunction.hpp"
+#include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/BiasDescriptor.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FitlerDescriptor.hpp"
+#include <chrono>
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
@@ -556,6 +557,7 @@ void ConcatConvCMShader::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
+
   const ConcatConvConfig &config = CONCAT_CONV_CM_CONFIGS[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
@@ -618,52 +620,64 @@ void ConcatConvCMShader::implement(
                                         workgroupCountY, workgroupCountZ);
 
   assert(A_C + B_C == conv->W->shape().c);
-  auto* A_filter = new memory::FilterTensor{
-      memory::FilterDescriptor{
-          {S, R, A_C, K},
-          A_filterLayout,
-          memory::Dtype::F16,
-      },
-  };
-  auto* B_filter = new memory::FilterTensor{
-      memory::FilterDescriptor{
-          {S, R, B_C, K},
-          B_filterLayout,
-          memory::Dtype::F16,
-      },
-  };
-  // Split conv->W into two seperate filters, where
-  // A_filter contains all input channels < A_C and
-  // B_filter contains all input channels >= A_C
-  for (uint32_t r = 0; r < R; ++r) {
-    for (uint32_t s = 0; s < S; ++s) {
-      for (uint32_t c = 0; c < A_C; ++c) {
-        for (uint32_t k = 0; k < K; ++k) {
-          A_filter->at(s, r, c, k) = conv->W->at(s, r, c, k);
-        }
-      }
-      for (uint32_t c = A_C; c < A_C + B_C; ++c) {
-        for (uint32_t k = 0; k < K; ++k) {
-          B_filter->at(s, r, c - A_C, k) = conv->W->at(s, r, c, k);
-        }
-      }
-    }
-  }
 
-  // TODO: Transform weights lazily!!! (THIS WILL BECOME A BOTTLENECK!!!)
-  TensorId A_filterTensor = impl.createParameter(A_filter->desc(), *A_filter);
-  TensorId B_filterTensor = impl.createParameter(B_filter->desc(), *B_filter);
+  memory::FilterDescriptor A_filterDesc{
+      {S, R, A_C, K},
+      A_filterLayout,
+      memory::Dtype::F16,
+  };
+  TensorId A_filterTensor = impl.createParameter(
+      A_filterDesc.byteSize(), TensorDataType::Float16,
+      TensorStorage::StorageBuffer, TensorFormat::Optimal,
+      [W = conv->W, desc = A_filterDesc]() -> std::vector<std::byte> {
+        memory::FilterTensor filter{desc};
+        for (uint32_t r = 0; r < desc.shape.r; ++r) {
+          for (uint32_t s = 0; s < desc.shape.s; ++s) {
+            for (uint32_t c = 0; c < desc.shape.c; ++c) {
+              for (uint32_t k = 0; k < desc.shape.k; ++k) {
+                filter.at(s, r, c, k) = W->at(s, r, c, k);
+              }
+            }
+          }
+        }
+        std::vector<std::byte> raw(filter.span().begin(), filter.span().end());
+        return raw;
+      });
+
+  memory::FilterDescriptor B_filterDesc{
+      {S, R, B_C, K}, B_filterLayout, memory::Dtype::F16};
+  TensorId B_filterTensor = impl.createParameter(
+      B_filterDesc.byteSize(), TensorDataType::Float16,
+      TensorStorage::StorageBuffer, TensorFormat::Optimal,
+      [W = conv->W, desc = B_filterDesc]() -> std::vector<std::byte> {
+        memory::FilterTensor filter{desc};
+        for (uint32_t r = 0; r < desc.shape.r; ++r) {
+          for (uint32_t s = 0; s < desc.shape.s; ++s) {
+            for (uint32_t c = 0; c < desc.shape.c; ++c) {
+              for (uint32_t k = 0; k < desc.shape.k; ++k) {
+                filter.at(s, r, c, k) = W->at(s, r, c, k);
+              }
+            }
+          }
+        }
+        std::vector<std::byte> raw(filter.span().begin(), filter.span().end());
+        return raw;
+      });
 
   memory::optional<TensorId> biasTensorId = memory::nullopt;
   if (conv->B != nullptr) {
     biasTensorId = impl.createParameter(
-        memory::BiasDescriptor{
-            .shape = conv->B->shape(),
-            .layout = biasLayout,
-            .type = memory::Dtype::F16,
-        },
-        *conv->B);
+        biasLayout.size(conv->B->shape()) * memory::Dtype::F16.size(),
+        TensorDataType::Float16, TensorStorage::StorageBuffer,
+        TensorFormat::Optimal,
+        [B = conv->B, biasLayout]() -> std::vector<std::byte> {
+          memory::BiasTensor bias{{B->shape(), biasLayout, memory::Dtype::F16},
+                                  B->const_view()};
+          std::vector<std::byte> raw(bias.span().begin(), bias.span().end());
+          return raw;
+        });
   }
+
   dispatch.addBinding("A_SET", "A_BINDING", Access::ReadOnly, aId);
   dispatch.addBinding("B_SET", "B_BINDING", Access::ReadOnly, bId);
   dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);

@@ -5,9 +5,11 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
+#include <fmt/base.h>
 #include <stdexcept>
 
 void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
+
   const auto &graph = supergraph.graph;
   const size_t N = graph.nodeCount();
   const size_t M = graph.edgeCount();
@@ -64,6 +66,7 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
 
   memory::AdjGraph<TensorId, SuperGraphEdge> pruned;
   // add surviving nodes
+
   memory::vector<memory::NodeId> nodeRemap(N);
   for (uint64_t i = 0; i < N; ++i) {
     memory::NodeId nid{i};
@@ -73,6 +76,7 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
       nodeRemap[*nid] = nnid;
     }
   }
+
   for (uint64_t i = 0; i < M; ++i) {
     memory::EdgeId eid{i};
     const memory::NodeId dst = graph.dst(eid);
@@ -94,7 +98,9 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
       pruned.addEdge(srcs, nodeRemap[*dst], graph.get(eid));
     }
   }
+
   memory::ConstGraph<TensorId, SuperGraphEdge> newGraph(std::move(pruned));
+
   supergraph.graph = std::move(newGraph);
 
   // remap inputs

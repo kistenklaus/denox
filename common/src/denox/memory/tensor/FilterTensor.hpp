@@ -242,6 +242,12 @@ public:
     return FilterTensorConstView{this}[linearIndex];
   }
 
+  FilterTensorConstView view() const { return FilterTensorConstView{this}; }
+  FilterTensorConstView const_view() const {
+    return FilterTensorConstView{this};
+  }
+  FilterTensorView view() { return FilterTensorView{this}; }
+
 private:
   FilterDescriptor m_desc;
   std::unique_ptr<std::byte[], std::function<void(std::byte *)>> m_storage;
@@ -259,36 +265,24 @@ template <> struct fmt::formatter<denox::memory::FilterTensor> {
   }
 };
 
-template <>
-struct fmt::formatter<denox::memory::FilterTensorView> {
-  constexpr auto parse(fmt::format_parse_context& ctx) {
-    return ctx.begin();
-  }
+template <> struct fmt::formatter<denox::memory::FilterTensorView> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
 
   template <typename FormatContext>
-  auto format(const denox::memory::FilterTensorView& t,
-              FormatContext& ctx) const {
-    return fmt::format_to(
-        ctx.out(),
-        "{{desc={}, bytes={}}}",
-        t.desc(),
-        t.byteSize());
+  auto format(const denox::memory::FilterTensorView &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
   }
 };
 
-template <>
-struct fmt::formatter<denox::memory::FilterTensorConstView> {
-  constexpr auto parse(fmt::format_parse_context& ctx) {
-    return ctx.begin();
-  }
+template <> struct fmt::formatter<denox::memory::FilterTensorConstView> {
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
 
   template <typename FormatContext>
-  auto format(const denox::memory::FilterTensorConstView& t,
-              FormatContext& ctx) const {
-    return fmt::format_to(
-        ctx.out(),
-        "{{desc={}, bytes={}}}",
-        t.desc(),
-        t.byteSize());
+  auto format(const denox::memory::FilterTensorConstView &t,
+              FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{{desc={}, bytes={}}}", t.desc(),
+                          t.byteSize());
   }
 };

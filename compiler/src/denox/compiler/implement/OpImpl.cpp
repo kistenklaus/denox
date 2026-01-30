@@ -6,67 +6,11 @@
 
 namespace denox::compiler {
 
-TensorId OpImpl::createParameter(const memory::FilterDescriptor &descriptor,
-                                 memory::FilterTensorConstView data,
-                                 TensorStorage storage, TensorFormat format) {
-  size_t bytes = descriptor.byteSize();
-  uint16_t alignment;
-  if (descriptor.layout.isVectorized()) {
-    alignment = 16;
-  } else {
-    // TODO should probably be a call to align_of
-    alignment = static_cast<uint16_t>(descriptor.type.alignment());
-  }
-  TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
-
-  m_superBuilder->m_tensors[id.index].info.storage = storage;
-  m_superBuilder->m_tensors[id.index].info.format = format;
-  m_superBuilder->m_tensors[id.index].info.type =
-      tensor_data_type_from_memory_type(descriptor.type);
-
-  if (m_superBuilder->m_writeParameters) {
-    auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
-    m_parameters.push_back(Parameter{
-        .tensorId = id,
-        .lazyValue = [bytes]() { return *bytes; },
-    });
-  }
-  return id;
-}
-
-TensorId OpImpl::createParameter(const memory::BiasDescriptor &descriptor,
-                                 memory::BiasTensorConstView data,
-                                 TensorStorage storage, TensorFormat format) {
-  size_t bytes = descriptor.byteSize();
-  uint16_t alignment;
-  if (descriptor.layout.isVectorized()) {
-    alignment = 16;
-  } else {
-    alignment = static_cast<uint16_t>(descriptor.type.alignment());
-  }
-  TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
-
-  m_superBuilder->m_tensors[id.index].info.storage = storage;
-  m_superBuilder->m_tensors[id.index].info.format = format;
-  m_superBuilder->m_tensors[id.index].info.type =
-      tensor_data_type_from_memory_type(descriptor.type);
-
-  if (m_superBuilder->m_writeParameters) {
-    auto bytes = m_superBuilder->m_paramCache.convert(descriptor, data);
-    m_parameters.push_back(Parameter{
-        .tensorId = id,
-        .lazyValue = [bytes]() { return *bytes; },
-    });
-  }
-  return id;
-}
-
-TensorId OpImpl::createParameter(size_t elemCount, TensorDataType dtype,
+TensorId OpImpl::createParameter(size_t byteSize, TensorDataType dtype,
                                  TensorStorage storage, TensorFormat format,
                                  std::function<std::vector<std::byte>()> value,
                                  uint16_t alignment) {
-  size_t bytes = elemCount * size_of(dtype);
-  TensorId id = m_superBuilder->createTensor(Sym::Const(bytes), alignment);
+  TensorId id = m_superBuilder->createTensor(Sym::Const(byteSize), alignment);
   m_superBuilder->m_tensors[id.index].info.storage = storage;
   m_superBuilder->m_tensors[id.index].info.format = format;
   m_superBuilder->m_tensors[id.index].info.type = dtype;
@@ -77,6 +21,7 @@ TensorId OpImpl::createParameter(size_t elemCount, TensorDataType dtype,
         .lazyValue = value,
     });
   }
+  return id;
 }
 
 ComputeDispatchBuilder
