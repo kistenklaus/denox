@@ -286,9 +286,9 @@ public:
     //         Populate id arrays.
     {
       std::size_t idx = 0;
-      for (const typename AdjGraph<V, E, W>::const_node_iterator::Node &n :
-           graph.nodes()) {
-        m_nodeData.emplace_back(n.node());
+      for (typename AdjGraph<V, E, W>::node_iterator::Node n :
+           graph.mut_nodes()) {
+        m_nodeData.emplace_back(std::move(n.node()));
         m_nodes.emplace_back(indegPrefix[idx], indegPrefix[idx] + indeg[idx],
                              outdegPrefix[idx],
                              outdegPrefix[idx] + outdeg[idx]);
@@ -297,11 +297,11 @@ public:
     }
     {
       std::size_t idx = 0;
-      for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
-           graph.edges()) {
-        m_edgeData.emplace_back(e.edge().payload());
+      for (typename AdjGraph<V, E, W>::edge_iterator::EdgeInfo e :
+           graph.mut_edges()) {
+        m_edgeData.emplace_back(std::move(e.edge().payload()));
         NodeId di{nodeRemap[*e.edge().dst()]};
-        m_edges.emplace_back(e.edge().weight(), srclenPrefix[idx],
+        m_edges.emplace_back(std::move(e.edge().weight()), srclenPrefix[idx],
                              srclenPrefix[idx] + srclen[idx], di);
         std::size_t nx = srclenPrefix[idx];
         for (const NodeId &src : e.edge().src()) {

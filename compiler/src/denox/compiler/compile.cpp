@@ -23,6 +23,7 @@ denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                const compiler::CompileOptions &options) {
 
+
   diag::Logger logger("denox.compile", true);
 
   Db db = odb.value_or(Db::open({}));
@@ -31,21 +32,37 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   spirv::GlslCompiler glslCompiler(&spirvTools, options.deviceInfo,
                                    options.spirv.debugInfo);
 
+
   compiler::Model model = compiler::frontend(onnx, options);
   compiler::CanoModel cano = compiler::canonicalize(model);
   compiler::Lifetimes lifetimes = compiler::lifeness(cano);
   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
   compiler::ConstModel cmodel = compiler::dce(specModel);
 
+
+  auto start = std::chrono::high_resolution_clock::now();
+
   compiler::SuperGraph supergraph = compiler::implement(
       cmodel, cano.symGraph, &glslCompiler, options, logger);
 
+
   compiler::prune_dead_supergraph(supergraph);
+
+
 
   compiler::OptSchedule optSchedule = compiler::select_schedule(
       std::move(supergraph), db, model, options, logger);
 
+  auto dur =
+      std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+          std::chrono::high_resolution_clock::now() - start);
+  fmt::println("implement took: {}", dur);
+
+
+
   compiler::MemSchedule memSchedule = compiler::placement(optSchedule);
+
+
 
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);

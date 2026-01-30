@@ -10,9 +10,10 @@
 
 void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
 
-  const auto &graph = supergraph.graph;
+  auto &graph = supergraph.graph;
   const size_t N = graph.nodeCount();
   const size_t M = graph.edgeCount();
+
 
   // 1. Forward reachability:
   memory::dynamic_bitset forwardReachable(N, false);
@@ -42,6 +43,7 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
   memory::dynamic_bitset backwardReachable(N, false);
   {
     memory::vector<memory::NodeId> stack;
+    stack.reserve(N);
     for (memory::NodeId output : supergraph.outputs) {
       stack.push_back(output);
     }
@@ -71,11 +73,13 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
   for (uint64_t i = 0; i < N; ++i) {
     memory::NodeId nid{i};
     if (forwardReachable[*nid] && backwardReachable[*nid]) {
-      const auto &node = graph.get(nid);
-      memory::NodeId nnid = pruned.addNode(node);
+      memory::NodeId nnid = pruned.addNode(std::move(graph.get_rvalue(nid)));
       nodeRemap[*nid] = nnid;
     }
   }
+
+  auto start = std::chrono::high_resolution_clock::now();
+  fmt::println("M = {}", M);
 
   for (uint64_t i = 0; i < M; ++i) {
     memory::EdgeId eid{i};
@@ -95,13 +99,22 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
       for (const auto &src : graph.src(eid)) {
         srcs.push_back(nodeRemap[*src]);
       }
-      pruned.addEdge(srcs, nodeRemap[*dst], graph.get(eid));
+      pruned.addEdge(srcs, nodeRemap[*dst], std::move(graph.get_rvalue(eid)));
     }
   }
 
+  auto dur =
+      std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+          std::chrono::high_resolution_clock::now() - start);
+  fmt::println("creating pruned graph edges took: {}", dur);
+
+
+
   memory::ConstGraph<TensorId, SuperGraphEdge> newGraph(std::move(pruned));
 
+
   supergraph.graph = std::move(newGraph);
+
 
   // remap inputs
   for (auto &nid : supergraph.inputs) {
@@ -116,4 +129,5 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
     nid = nodeRemap[*nid];
     assert(nid != memory::NodeId{});
   }
+
 }

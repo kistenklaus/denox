@@ -121,6 +121,68 @@ public:
     return m_edges.size() - m_edgeFreelist.size();
   }
 
+  struct node_iterator {
+    struct Node {
+      friend struct node_iterator;
+      NodeId id() const { return NodeId(m_id); }
+      V &node() { return m_node->value(); }
+
+    private:
+      Node(NodeId id, optional<V> *node) : m_id(id), m_node(node) {}
+      uint64_t m_id;
+      denox::memory::optional<V>* m_node;
+    };
+    struct NodePtr {
+      explicit NodePtr(Node node) : m_value(node) {}
+      Node *operator->() { return m_value; }
+      Node &operator*() { return m_value; }
+
+    private:
+      Node m_value;
+    };
+    using iterator_category = std::forward_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = Node;
+    using pointer = NodePtr;
+    using reference = Node;
+
+    explicit node_iterator(optional<V> *nodes, size_t idx, size_t end)
+        : m_current{NodeId{idx}, nodes}, m_end(end) {}
+
+    node_iterator() : m_current(NodeId(0), nullptr), m_end(0) {}
+
+    reference operator*() const { return m_current; }
+    pointer operator->() const { return NodePtr(m_current); }
+    node_iterator &operator++() {
+      do {
+        ++m_current.m_id;
+        if (m_current.m_id == m_end) {
+          m_current.m_node = nullptr;
+          break;
+        }
+        ++m_current.m_node;
+      } while (!m_current.m_node->has_value());
+      return *this;
+    }
+
+    node_iterator operator++(int) {
+      node_iterator tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    friend bool operator==(const node_iterator &a, const node_iterator &b) {
+      return a.m_current.m_id == b.m_current.m_id;
+    }
+    friend bool operator!=(const node_iterator &a, const node_iterator &b) {
+      return a.m_current.m_id != b.m_current.m_id;
+    }
+
+  private:
+    Node m_current;
+    size_t m_end;
+  };
+
   struct const_node_iterator {
     struct Node {
       friend struct const_node_iterator;
@@ -218,6 +280,69 @@ public:
     [[no_unique_address]] W m_weight;
   };
 
+  struct edge_iterator {
+    struct EdgeInfo {
+      friend struct edge_iterator;
+      EdgeId id() { return EdgeId{m_id}; }
+      Edge &edge() { return m_edge->value(); }
+
+    private:
+      EdgeInfo(EdgeId id, denox::memory::optional<Edge> *edge)
+          : m_id(id), m_edge(edge) {}
+
+      std::uint64_t m_id;
+      denox::memory::optional<Edge> *m_edge;
+    };
+    struct EdgePtr {
+      explicit EdgePtr(EdgeInfo edge) : m_value(edge) {}
+      EdgeInfo *operator->() { return m_value; }
+      EdgeInfo &operator*() { return m_value; }
+
+    private:
+      EdgeInfo m_value;
+    };
+    using iterator_category = std::forward_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = EdgeInfo;
+    using pointer = EdgePtr;
+    using reference = EdgeInfo;
+
+    explicit edge_iterator(optional<Edge> *edge, size_t idx, size_t end)
+        : m_current(EdgeId{idx}, edge), m_end(end) {}
+    edge_iterator() : m_current(EdgeId(0), nullptr), m_end(0) {}
+
+    reference operator*() const { return m_current; }
+    pointer operator->() const { return EdgePtr(m_current); }
+
+    edge_iterator &operator++() {
+      do {
+        ++m_current.m_id;
+        if (m_current.m_id == m_end) {
+          m_current.m_edge = nullptr;
+          break;
+        }
+        ++m_current.m_edge;
+      } while (!m_current.m_edge->has_value());
+      return *this;
+    }
+    edge_iterator operator++(int) {
+      const_edge_iterator tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    friend bool operator==(const edge_iterator &a, const edge_iterator &b) {
+      return a.m_current.m_id == b.m_current.m_id;
+    }
+    friend bool operator!=(const edge_iterator &a, const edge_iterator &b) {
+      return a.m_current.m_id != b.m_current.m_id;
+    }
+
+  private:
+    EdgeInfo m_current;
+    size_t m_end;
+  };
+
   struct const_edge_iterator {
     struct EdgeInfo {
       friend struct const_edge_iterator;
@@ -298,6 +423,19 @@ public:
                                        m_nodes.size(), m_nodes.size()}};
   }
 
+  [[nodiscard]] std::ranges::subrange<node_iterator> mut_nodes() noexcept {
+    auto it = std::ranges::find_if(m_nodes,
+                                   [](const auto &x) { return x.has_value(); });
+    if (it == m_nodes.end()) {
+      return {node_iterator{}, node_iterator{}};
+    }
+    std::ptrdiff_t idx = std::distance(m_nodes.begin(), it);
+    node_iterator begin{m_nodes.data() + idx, static_cast<std::size_t>(idx),
+                        m_nodes.size()};
+    return {begin, node_iterator{m_nodes.data() + m_nodes.size(),
+                                 m_nodes.size(), m_nodes.size()}};
+  }
+
   [[nodiscard]] std::ranges::subrange<const_edge_iterator>
   edges() const noexcept {
     auto it = std::ranges::find_if(m_edges,
@@ -312,6 +450,18 @@ public:
                                        m_edges.size(), m_edges.size()}};
   }
 
+  [[nodiscard]] std::ranges::subrange<edge_iterator> mut_edges() noexcept {
+    auto it = std::ranges::find_if(m_edges,
+                                   [](const auto &x) { return x.has_value(); });
+    if (it == m_edges.end()) {
+      return {edge_iterator{}, edge_iterator{}};
+    }
+    std::ptrdiff_t idx = std::distance(m_edges.begin(), it);
+    edge_iterator begin{m_edges.data() + idx, static_cast<std::size_t>(idx),
+                        m_edges.size()};
+    return {begin, edge_iterator{m_edges.data() + m_edges.size(),
+                                 m_edges.size(), m_edges.size()}};
+  }
 
 private:
   denox::memory::vector<denox::memory::optional<V>> m_nodes;
