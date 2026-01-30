@@ -7,6 +7,7 @@
 #include "denox/compiler/implement/ComputeDispatchBuilder.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
 #include "denox/compiler/implement/Parameter.hpp"
+#include "denox/compiler/implement/SuperGraphEdge.hpp"
 #include "denox/compiler/implement/TensorId.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/memory/container/optional.hpp"
@@ -53,9 +54,9 @@ private:
   memory::small_vector<memory::NodeId, 2> m_inputs;
   memory::NodeId m_output;
 
-  memory::small_vector<ComputeDispatch, 2> m_dispatches;
+  memory::small_vector<ComputeDispatch, SuperGraphEdge::DISPATCH_SVO> m_dispatches;
   memory::vector<MemoryImplicitConcatConstrain> m_memoryConstrains;
-  memory::small_vector<Parameter, 2> m_parameters;
+  memory::small_vector<Parameter, SuperGraphEdge::PARAM_SVO> m_parameters;
 };
 
 } // namespace denox::compiler

@@ -2,6 +2,7 @@
 #include "denox/common/SHA256.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
+#include "denox/compiler/compile_shaders/SpvDispatch.hpp"
 #include "denox/compiler/frontend/model/Model.hpp"
 #include "denox/db/Db.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
@@ -16,7 +17,8 @@ static constexpr uint32_t u32sential = std::numeric_limits<uint32_t>::max();
 
 SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                             [[maybe_unused]] spirv::GlslCompiler *glslCompiler,
-                            const CompileOptions &options, diag::Logger& logger) {
+                            const CompileOptions &options,
+                            diag::Logger &logger) {
   assert(glslCompiler != nullptr); // only to make lifetime intent visible
 
   memory::vector<SpvDispatch> dispatches;
@@ -44,13 +46,18 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                           .dispatches = {i},
                       });
     }
+    memory::small_vector<PushConstant, SpvDispatch::PC_SVO> pc(
+        dispatch.pushConstants.begin(), dispatch.pushConstants.end());
+    memory::small_vector<TensorBinding, SpvDispatch::BINDING_SVO> bindings(
+        dispatch.bindings.begin(), dispatch.bindings.end());
+
     dispatches.push_back(SpvDispatch{
         .binaryId = u32sential,
-        .pushConstants = dispatch.pushConstants,
+        .pushConstants = pc,
         .workgroupCountX = dispatch.workgroupCountX,
         .workgroupCountY = dispatch.workgroupCountY,
         .workgroupCountZ = dispatch.workgroupCountZ,
-        .bindings = dispatch.bindings,
+        .bindings = bindings,
         .info = dispatch.info,
     });
   }
@@ -93,10 +100,10 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
         50 +
         static_cast<uint32_t>(std::floor(static_cast<float>(u + 1) * 40.0f /
                                          static_cast<float>(units.size())));
-    logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{}",
-                 percentage,
-                 logger.green(),
-                 unit.glsl.getSourcePath().relative_to(io::Path::assets()), logger.reset());
+    logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{}", percentage,
+                logger.green(),
+                unit.glsl.getSourcePath().relative_to(io::Path::assets()),
+                logger.reset());
     // fmt::println("preamble:\n{}", unit.glsl.getPreamble());
 
     SpirvBinary binary = *unit.glsl.compile();

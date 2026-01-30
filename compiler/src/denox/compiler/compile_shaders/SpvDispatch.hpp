@@ -8,12 +8,16 @@
 namespace denox::compiler {
 
 struct SpvDispatch {
+
+  static constexpr size_t PC_SVO = 6;
+  static constexpr size_t BINDING_SVO = 4;
+
   uint32_t binaryId;
-  memory::small_vector<PushConstant, 6> pushConstants;
+  memory::small_vector<PushConstant, PC_SVO> pushConstants;
   Sym workgroupCountX;
   Sym workgroupCountY;
   Sym workgroupCountZ;
-  memory::small_vector<TensorBinding, 4> bindings;
+  memory::small_vector<TensorBinding, BINDING_SVO> bindings;
   ComputeDispatchInfo info;
 };
 

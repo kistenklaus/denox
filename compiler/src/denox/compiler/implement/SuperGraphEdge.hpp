@@ -10,9 +10,11 @@
 namespace denox::compiler {
 
 struct SuperGraphEdge {
-  memory::small_vector<ComputeDispatch, 2> dispatches;
+  static constexpr size_t DISPATCH_SVO = 1;
+  static constexpr size_t PARAM_SVO = 1;
+  memory::small_vector<ComputeDispatch, DISPATCH_SVO> dispatches;
   memory::vector<MemoryImplicitConcatConstrain> memoryConstrains;
-  memory::small_vector<Parameter, 2> parameters; // initalizers for tensors
+  memory::small_vector<Parameter, PARAM_SVO> parameters; // initalizers for tensors
 };
 
 } // namespace denox::compiler

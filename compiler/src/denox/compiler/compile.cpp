@@ -39,30 +39,15 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
   compiler::ConstModel cmodel = compiler::dce(specModel);
 
-
-  auto start = std::chrono::high_resolution_clock::now();
-
   compiler::SuperGraph supergraph = compiler::implement(
       cmodel, cano.symGraph, &glslCompiler, options, logger);
 
-
   compiler::prune_dead_supergraph(supergraph);
-
-
 
   compiler::OptSchedule optSchedule = compiler::select_schedule(
       std::move(supergraph), db, model, options, logger);
 
-  auto dur =
-      std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-          std::chrono::high_resolution_clock::now() - start);
-  fmt::println("implement took: {}", dur);
-
-
-
   compiler::MemSchedule memSchedule = compiler::placement(optSchedule);
-
-
 
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);
