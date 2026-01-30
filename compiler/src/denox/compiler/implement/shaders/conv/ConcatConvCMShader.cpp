@@ -649,13 +649,13 @@ void ConcatConvCMShader::implement(
   TensorId B_filterTensor = impl.createParameter(
       B_filterDesc.byteSize(), TensorDataType::Float16,
       TensorStorage::StorageBuffer, TensorFormat::Optimal,
-      [W = conv->W, desc = B_filterDesc]() -> std::vector<std::byte> {
+      [W = conv->W, desc = B_filterDesc, A_C]() -> std::vector<std::byte> {
         memory::FilterTensor filter{desc};
         for (uint32_t r = 0; r < desc.shape.r; ++r) {
           for (uint32_t s = 0; s < desc.shape.s; ++s) {
             for (uint32_t c = 0; c < desc.shape.c; ++c) {
               for (uint32_t k = 0; k < desc.shape.k; ++k) {
-                filter.at(s, r, c, k) = W->at(s, r, c, k);
+                filter.at(s, r, c, k) = W->at(s, r, c + A_C, k);
               }
             }
           }
