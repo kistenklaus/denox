@@ -1,7 +1,7 @@
 #include "denox/compiler/implement/shaders/noop/NoOp.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 
 namespace denox::compiler {
 

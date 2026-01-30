@@ -4,7 +4,7 @@
 #include "denox/compiler/canonicalize/rules/IFusionRule.hpp"
 #include "denox/algorithm/pattern_matching/EdgePattern.hpp"
 #include "denox/algorithm/pattern_matching/NodePattern.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 #include <cassert>
 namespace denox::compiler::cano {

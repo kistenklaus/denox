@@ -618,14 +618,14 @@ void ConcatConvCMShader::implement(
                                         workgroupCountY, workgroupCountZ);
 
   assert(A_C + B_C == conv->W->shape().c);
-  memory::FilterTensor A_filter{
+  auto* A_filter = new memory::FilterTensor{
       memory::FilterDescriptor{
           {S, R, A_C, K},
           A_filterLayout,
           memory::Dtype::F16,
       },
   };
-  memory::FilterTensor B_filter{
+  auto* B_filter = new memory::FilterTensor{
       memory::FilterDescriptor{
           {S, R, B_C, K},
           B_filterLayout,
@@ -639,20 +639,20 @@ void ConcatConvCMShader::implement(
     for (uint32_t s = 0; s < S; ++s) {
       for (uint32_t c = 0; c < A_C; ++c) {
         for (uint32_t k = 0; k < K; ++k) {
-          A_filter.at(s, r, c, k) = conv->W->at(s, r, c, k);
+          A_filter->at(s, r, c, k) = conv->W->at(s, r, c, k);
         }
       }
       for (uint32_t c = A_C; c < A_C + B_C; ++c) {
         for (uint32_t k = 0; k < K; ++k) {
-          B_filter.at(s, r, c - A_C, k) = conv->W->at(s, r, c, k);
+          B_filter->at(s, r, c - A_C, k) = conv->W->at(s, r, c, k);
         }
       }
     }
   }
 
   // TODO: Transform weights lazily!!! (THIS WILL BECOME A BOTTLENECK!!!)
-  TensorId A_filterTensor = impl.createParameter(A_filter.desc(), A_filter);
-  TensorId B_filterTensor = impl.createParameter(B_filter.desc(), B_filter);
+  TensorId A_filterTensor = impl.createParameter(A_filter->desc(), *A_filter);
+  TensorId B_filterTensor = impl.createParameter(B_filter->desc(), *B_filter);
 
   memory::optional<TensorId> biasTensorId = memory::nullopt;
   if (conv->B != nullptr) {

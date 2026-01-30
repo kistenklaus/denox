@@ -38,7 +38,6 @@ using namespace denox::io;
 
 int main() {
 
-
   File file = File::open(Path("./net.onnx"), File::OpenMode::Read);
   std::vector<std::byte> onnx(file.size());
   file.read_exact(onnx);
@@ -56,22 +55,6 @@ int main() {
   input.widthValueName = "W";
   input.heightValueName = "H";
 
-  compiler::InterfaceTensorDescriptor albedo;
-  albedo.name = "albedo";
-  albedo.format = TensorFormat::Optimal;
-  albedo.storage = TensorStorage::Optimal;
-  albedo.dtype = TensorDataType::Float16;
-  albedo.widthValueName = "W";
-  albedo.heightValueName = "H";
-
-  compiler::InterfaceTensorDescriptor norm;
-  norm.name = "norm";
-  norm.format = TensorFormat::Optimal;
-  norm.storage = TensorStorage::Optimal;
-  norm.dtype = TensorDataType::Float16;
-  norm.widthValueName = "W";
-  norm.heightValueName = "H";
-
   compiler::InterfaceTensorDescriptor output;
   output.name = "output";
   output.format = TensorFormat::Optimal;
@@ -80,16 +63,22 @@ int main() {
 
   options.interfaceDescriptors = {input, output};
 
-  options.assumptions.valueAssumptions.emplace_back("H", 1080);
-  options.assumptions.valueAssumptions.emplace_back("W", 1920);
-  options.features.coopmat = false;
 
   options.debugInfo = denox::compiler::DebugInfo::Enable;
 
-  uint32_t H = 16;
-  uint32_t W = 16;
-  uint32_t C = 8;
-  uint32_t K = 8;
+
+  options.features.enableImplicitConcat = false;
+  options.features.enableConcatConvFusion = false;
+
+  uint32_t IN_H = 16;
+  uint32_t IN_W = 16;
+  uint32_t OUT_H = 16;
+  uint32_t OUT_W = 16;
+  uint32_t C = 3;
+  uint32_t K = 3;
+
+  options.assumptions.valueAssumptions.emplace_back("H", IN_H);
+  options.assumptions.valueAssumptions.emplace_back("W", IN_W);
 
 
 
@@ -101,18 +90,18 @@ int main() {
 
   auto model = denox::runtime::Model::make(dnxbuf, context);
 
-  auto instance = denox::runtime::Instance::make(model, {{"H", H}, {"W", W}});
+  auto instance = denox::runtime::Instance::make(model, {{"H", IN_H}, {"W", IN_W}});
 
 
   memory::ActivationTensor inputTensor{
       memory::ActivationDescriptor{
-          {H, W, C}, memory::ActivationLayout::HWC, memory::Dtype::F16},
+          {IN_H, IN_W, C}, memory::ActivationLayout::HWC, memory::Dtype::F16},
   };
 
 
   for (uint32_t c = 0; c < C; ++c) {
-    for (uint32_t h = 0; h < H; ++h) {
-      for (uint32_t w = 0; w < W; ++w) {
+    for (uint32_t h = 0; h < IN_H; ++h) {
+      for (uint32_t w = 0; w < IN_W; ++w) {
         inputTensor.at(h,w,c) = 1.0f;
       }
     }
@@ -124,7 +113,7 @@ int main() {
 
   memory::ActivationTensor noCoopmatOutput{
       memory::ActivationDescriptor{
-          {W, H, K}, memory::ActivationLayout::HWC, memory::Dtype::F16},
+          {OUT_W, OUT_H, K}, memory::ActivationLayout::HWC, memory::Dtype::F16},
   };
 
   void *outputBuf = noCoopmatOutput.data();
@@ -134,7 +123,7 @@ int main() {
 
   auto context2 = runtime::Context::make("*RTX*", ApiVersion::VULKAN_1_4);
 
-  options.features.coopmat = true;
+  options.features.enableConcatConvFusion = true;
 
 
   auto db2 = Db::open(io::Path());
@@ -142,31 +131,25 @@ int main() {
 
   auto model2 = denox::runtime::Model::make(dnxbuf2, context2);
 
-  fmt::println("second comp");
-  std::cout.flush();
-
-  auto instance2 = denox::runtime::Instance::make(model2, {{"H", H}, {"W", W}});
-
-  fmt::println("second Instance::make");
-  std::cout.flush();
-
-
+  auto instance2 = denox::runtime::Instance::make(model2, {{"H", IN_H}, {"W", IN_W}});
 
   memory::ActivationTensor coopmatOutput{
       memory::ActivationDescriptor{
-          {W, H, K}, memory::ActivationLayout::HWC, memory::Dtype::F16},
+          {OUT_W, OUT_W, K}, memory::ActivationLayout::HWC, memory::Dtype::F16},
   };
 
 
   outputBuf = coopmatOutput.data();
   pOutputs = &outputBuf;
 
+
   instance2->infer(pInputs, pOutputs);
+
 
   for (uint32_t k = 0; k < K; ++k) {
     fmt::println("NO-COOPMAT-CHANNEL-{}", k);
-    for (uint32_t h = 0; h < H; ++h) {
-      for (uint32_t w = 0; w < W; ++w) {
+    for (uint32_t h = 0; h < 16; ++h) {
+      for (uint32_t w = 0; w < 16; ++w) {
         float v = static_cast<float>(noCoopmatOutput.at(w, h, k));
         fmt::print("{:>8.2f} ", v);
       }
@@ -176,26 +159,34 @@ int main() {
 
   for (uint32_t k = 0; k < K; ++k) {
     fmt::println("COOPMAT-CHANNEL-{}", k);
-    for (uint32_t h = 0; h < H; ++h) {
-      for (uint32_t w = 0; w < W; ++w) {
+    for (uint32_t h = 0; h < OUT_H; ++h) {
+      for (uint32_t w = 0; w < OUT_W; ++w) {
         float v = static_cast<float>(coopmatOutput.at(w, h, k));
         fmt::print("{:>8.2f} ", v);
       }
       fmt::println("");
     }
   }
-
+  
+  float maxError = 0;
   for (uint32_t k = 0; k < K; ++k) {
     fmt::println("DIFF-CHANNEL-{}", k);
-    for (uint32_t h = 0; h < H; ++h) {
-      for (uint32_t w = 0; w < W; ++w) {
+    for (uint32_t h = 0; h < OUT_H; ++h) {
+      for (uint32_t w = 0; w < OUT_W; ++w) {
         float a = static_cast<float>(noCoopmatOutput.at(w, h, k));
         float b = static_cast<float>(coopmatOutput.at(w, h, k));
+        maxError = std::max(maxError, std::abs(a - b));
         fmt::print("{:>8.2f} ", a - b);
       }
       fmt::println("");
     }
   }
+  fmt::println("max-error: {}", maxError);
+
+  fmt::println("benchmark results");
+  fmt::println("{}", instance->bench().report());
+
+  fmt::println("{}", instance2->bench().report());
 
   // memory::ActivationTensor inputTensor{
   //     memory::ActivationDescriptor{
@@ -214,7 +205,7 @@ int main() {
   //   for (uint32_t h = 0; h < H; ++h) {
   //     for (uint32_t w = 0; w < W; ++w) {
   //       fmt::print(" {:^7.3f} ", static_cast<float>(outputTensor.at(w, h,
-  //       c)));
+  //       c)));H
   //     }
   //     fmt::println("");
   //   }

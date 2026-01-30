@@ -5,7 +5,7 @@
 #include "denox/common/PaddingMode.hpp"
 #include "denox/common/PoolFunction.hpp"
 #include "denox/common/TensorDataType.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/compiler/frontend/model/ModelControlBlock.hpp"
 #include "denox/compiler/frontend/model/Tensor.hpp"
 #include "denox/memory/container/string_view.hpp"

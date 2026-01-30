@@ -13,8 +13,6 @@ import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 
-from denox import DataType, Layout, Module, Shape, Storage, TargetEnv
-
 
 @dataclass
 class TZATensorMeta:
@@ -205,45 +203,9 @@ def load_tza_into_model(
     return loaded, skipped
 
 
-def tensor_error_report(
-    ref: torch.Tensor,
-    test: torch.Tensor,
-    name: str = "output",
-    eps: float = 1e-12,
-    dynamic_max: float | None = None,
-):
-    """
-    Prints a concise summary of absolute + relative errors, percentiles,
-    cosine similarity, and PSNR. Works with any shape/dtype/device.
-    """
-    ref32 = ref.detach().to(torch.float32)
-    test32 = test.detach().to(torch.float32)
-    diff = test32 - ref32
-
-    # Absolute errors
-    abs_diff = diff.abs()
-    abs_max = abs_diff.max().item()
-    mae = abs_diff.mean().item()
-    rmse = (abs_diff.pow(2).mean().sqrt()).item()
-
-    # Brief, readable printout
-    print(f"\n=== {name} error report ===")
-    print(
-        f"shape={tuple(ref.shape)} dtype_ref={ref.dtype} dtype_test={test.dtype} device_ref={ref.device} device_test={test.device}"
-    )
-    print(f"Error:   max={abs_max:.6g}  mean={mae:.6g}   rmse={rmse:.6g}")
-
-
 # 3x3 convolution module
 def Conv(in_channels, out_channels):
-    return nn.Conv2d(
-        in_channels,
-        out_channels,
-        3,
-        padding="same",
-        padding_mode="zeros",
-        dtype=torch.float16,
-    )
+    return nn.Conv2d(in_channels, out_channels, 3, padding="same", padding_mode="zeros", dtype=torch.float16)
 
 
 # ReLU function
@@ -327,38 +289,38 @@ class UNet(nn.Module):
 
         x = relu(self.enc_conv1(x))  # enc_conv1
         x = pool1 = pool(x)  # pool1
-        #
+
         x = relu(self.enc_conv2(x))  # enc_conv2
         x = pool2 = pool(x)  # pool2
-        #
+
         x = relu(self.enc_conv3(x))  # enc_conv3
         x = pool3 = pool(x)  # pool3
-        #
+
         x = relu(self.enc_conv4(x))  # enc_conv4
         x = pool(x)  # pool4
-        #
-        # # Bottleneck
+
+        # Bottleneck
         x = relu(self.enc_conv5a(x))  # enc_conv5a
         x = relu(self.enc_conv5b(x))  # enc_conv5b
-        #
-        # # Decoder
-        # # -------------------------------------------
-        #
+
+        # Decoder
+        # -------------------------------------------
+
         x = upsample(x)  # upsample4
         x = concat(x, pool3)  # concat4
         x = relu(self.dec_conv4a(x))  # dec_conv4a
         x = relu(self.dec_conv4b(x))  # dec_conv4b
-        #
+
         x = upsample(x)  # upsample3
         x = concat(x, pool2)  # concat3
         x = relu(self.dec_conv3a(x))  # dec_conv3a
         x = relu(self.dec_conv3b(x))  # dec_conv3b
-        #
+
         x = upsample(x)  # upsample2
         x = concat(x, pool1)  # concat2
         x = relu(self.dec_conv2a(x))  # dec_conv2a
         x = relu(self.dec_conv2b(x))  # dec_conv2b
-        #
+
         x = upsample(x)  # upsample1
         x = concat(x, input)  # concat1
         x = relu(self.dec_conv1a(x))  # dec_conv1a
@@ -375,22 +337,28 @@ class UNetAlignment(nn.Module):
         self.net = net
 
     def forward(self, input):
-        alignment = (
-            self.net.alignment
-        )  # ensure even H/W so pool+upsample align perfectly
+        alignment = self.net.alignment  # ensure even H/W so pool+upsample align perfectly
         H, W = input.size(2), input.size(3)
         pad_w = (alignment - (W % alignment)) % alignment
         pad_h = (alignment - (H % alignment)) % alignment
         aligned = F.pad(input, (0, pad_w, 0, pad_h), mode="replicate")
         output = self.net(aligned)
         return output
-        # return output[:, :, :H, :W]
+        # return output
+        # return output[:,:,:H,:W]
 
 
-rt_ldr = UNetAlignment(UNet(3, 3, False))
+Small = True
+
+rt_ldr = UNetAlignment(UNet(3, 3, Small))
 rt_ldr = rt_ldr.to(torch.float16)
 
-load_tza_into_model(rt_ldr, "./rt_ldr.tza")
+if (Small):
+    load_tza_into_model(rt_ldr, "./rt_ldr_small.tza")
+else:
+    load_tza_into_model(rt_ldr, "./rt_ldr.tza")
+    
+
 
 example_input = torch.ones(1, 3, 64, 64, dtype=torch.float16)
 
@@ -403,46 +371,35 @@ program = torch.onnx.export(
     input_names=["input"],
     output_names=["output"],
 )
-
 program.save("net.onnx")
 
-dnx = Module.compile(
-    program,
-    input_shape=Shape(H="H", W="W"),
-    summary=True,
-    verbose=True,
-    memory_concat=False,
-    fusion=False,
-)
-
-
-img = Image.open("doom_pic.png").convert("RGB")
-
-to_tensor = transforms.ToTensor()
+# dnx = Module.compile(
+#     program,
+#     input_shape=Shape(H="H", W="W"),
+#     summary=True,
+#     verbose=True,
+# )
+# dnx.save("net.dnx")
+#
+#
+# img = Image.open("input.png").convert("RGB")
+#
+# to_tensor = transforms.ToTensor()
 # input_tensor: torch.Tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
-input_tensor = torch.ones(1, 3, 5, 5, dtype=torch.float16)
-
-output_tensor = torch.utils.dlpack.from_dlpack(dnx(input_tensor))
-output_tensor = output_tensor.squeeze(0)
-output_tensor = torch.clamp(output_tensor, -1.0, 1.0)
-
-rt_ldr = rt_ldr.eval()
-device = torch.cuda.current_device()
-rt_ldr = rt_ldr.to(device=device)
-input_tensor = input_tensor.to(device=device)
-
-output_tensor_ref = rt_ldr(input_tensor)
-output_tensor_ref = output_tensor_ref.squeeze(0)
-output_tensor_ref = torch.clamp(output_tensor_ref, -1.0, 1.0)
-
-output_tensor = output_tensor.to(device)
-print(output_tensor)
-print((output_tensor - output_tensor_ref).round(decimals=1))
-print("Output-size   :", output_tensor.size())
-print("Reference-size:", output_tensor_ref.size())
-tensor_error_report(output_tensor.to(device), output_tensor_ref)
-assert torch.allclose(output_tensor.to(device), output_tensor_ref, rtol=1e-3, atol=1e-1)
-
+#
+# output_tensor = torch.utils.dlpack.from_dlpack(dnx(input_tensor))
+# output_tensor = output_tensor.squeeze(0)
+# output_tensor = torch.clamp(output_tensor, 0.0, 1.0)
+#
+# rt_ldr = rt_ldr.eval()
+# device = torch.cuda.current_device()
+# rt_ldr = rt_ldr.to(device=device)
+# input_tensor = input_tensor.to(device=device)
+#
+# output_tensor_ref = rt_ldr(input_tensor)
+#
+# output_tensor_ref = output_tensor_ref.squeeze(0)
+# output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
 #
 # to_pil = transforms.ToPILImage()
 #

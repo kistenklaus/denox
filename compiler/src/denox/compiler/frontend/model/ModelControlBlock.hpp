@@ -1,7 +1,7 @@
 #pragma once
 
 #include "denox/common/TensorDescriptor.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/compiler/frontend/model/ModelInterfaceDescriptor.hpp"
 #include "denox/compiler/frontend/model/ModelMeta.hpp"
 #include "denox/compiler/frontend/model/NamedValue.hpp"

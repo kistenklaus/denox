@@ -3,7 +3,7 @@
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
 #include "denox/algorithm/pattern_matching/LinkedGraphMatch.hpp"
 #include "denox/common/TensorDescriptor.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 
 namespace denox::compiler::cano {
 

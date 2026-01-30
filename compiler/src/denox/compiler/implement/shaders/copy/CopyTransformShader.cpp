@@ -1,6 +1,6 @@
 #include "denox/compiler/implement/shaders/copy/CopyTransformShader.hpp"
 #include "denox/common/TensorFormat.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"

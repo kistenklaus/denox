@@ -80,9 +80,9 @@ class Net(nn.Module):
             # for c in range(INPUT_CHANNELS_COUNT):
             #     self.conv0.weight[c, c] = id_kernel  # diagonal only
 
-        cha = 3
-        chb = 3
-        chx = 24
+        cha = 64
+        chb = 32
+        chx = 64
 
         self.conva = nn.Conv2d(
             INPUT_CHANNELS_COUNT,

@@ -333,7 +333,7 @@ memory::string Model::to_string() const {
 
   str.append("- Layers:\n");
   for (const auto edge : m_controlBlock->hypergraph.edges()) {
-    const denox::compiler::ComputeOp &op =
+    const denox::ComputeOp &op =
         m_controlBlock->hypergraph.get(edge.id());
 
     auto srcs = edge.edge().src();

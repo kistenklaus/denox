@@ -1,7 +1,7 @@
 #pragma once
 
 #include "denox/common/TensorDescriptor.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/memory/hypergraph/LinkedGraph.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 #include <fmt/core.h>

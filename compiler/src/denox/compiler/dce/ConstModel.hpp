@@ -1,6 +1,6 @@
 #pragma once
 
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/compiler/specialization/TensorInstance.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include <fmt/core.h>

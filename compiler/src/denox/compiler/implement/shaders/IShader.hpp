@@ -6,7 +6,7 @@
 #include "denox/compiler/specialization/TensorInstance.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
-#include "denox/compiler/frontend/model/ComputeOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 
 namespace denox::compiler {
 
