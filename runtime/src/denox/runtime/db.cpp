@@ -1,6 +1,7 @@
 #include "denox/runtime/db.hpp"
 #include "denox/algorithm/align_up.hpp"
 #include "denox/db/DbComputeDispatch.hpp"
+#include "denox/db/DbEnv.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/memory/container/hashmap.hpp"
@@ -21,10 +22,9 @@
 
 // 100, 1000, 100 with jit=2 worked well, but didn't converge completely.
 
-
 static constexpr size_t EPOCH_SIZE = 100;
 static constexpr size_t EPOCH_SAMPLES = EPOCH_SIZE * 10;
-static constexpr size_t BATCH_SIZE = EPOCH_SIZE; 
+static constexpr size_t BATCH_SIZE = EPOCH_SIZE;
 
 static constexpr size_t JIT_WARMUP_ITERATIONS = 0;
 static constexpr size_t L2_WARMUP_ITERATONS = 10;
@@ -37,6 +37,12 @@ struct BenchmarkState {
   std::unique_ptr<spirv::SpirvTools> tools;
   std::unique_ptr<spirv::GlslCompiler> glslCompiler;
 };
+
+static uint64_t benchmark_timestamp() {
+  return std::chrono::duration_cast<std::chrono::duration<uint64_t, std::nano>>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
 
 static BenchmarkState
 create_benchmark_state(const runtime::ContextHandle &ctx) {
@@ -81,7 +87,7 @@ static memory::vector<uint32_t> select_targets_from_candidates(
 
     uint64_t dbSamples = 0;
     if (dispatches[d].time.has_value())
-      dbSamples = dispatches[d].time->samples;
+      dbSamples = dispatches[d].time->samples.size();
 
     uint64_t effectiveSamples = dbSamples + inflight(i);
 
@@ -131,16 +137,16 @@ static memory::vector<uint32_t> select_targets_from_candidates(
     }
 
     const auto &t = *dispatch.time;
-    const uint64_t n = t.samples;
+    const uint64_t n = t.samples.size();
 
     // SEM / mean priority (larger = worse)
     double priority;
 
-    if (n > 1 && t.std_derivation_ns > 0 && t.latency_ns > 0) {
+    if (n > 1 && t.std_derivation_ns > 0 && t.mean_latency_ns > 0) {
       double sem = static_cast<double>(t.std_derivation_ns) /
                    std::sqrt(static_cast<double>(n));
 
-      priority = sem / static_cast<double>(t.latency_ns);
+      priority = sem / static_cast<double>(t.mean_latency_ns);
     } else {
       priority = std::numeric_limits<double>::infinity();
     }
@@ -177,6 +183,7 @@ struct EpochStage {
   VkCommandBuffer cmd;
   VkQueryPool queryPool;
   VkFence fence;
+  uint32_t env;
 };
 
 struct Epoch {
@@ -189,12 +196,11 @@ struct Epoch {
   VkDescriptorPool descriptorPool;
   memory::vector<EpochDispatch> dispatches;
   std::array<EpochStage, PIPELINE_STAGES> stages;
+  uint32_t env;
 };
 
 struct Timing {
-  uint32_t samples;
-  std::chrono::duration<float, std::milli> mean_latency;
-  std::chrono::duration<float, std::milli> std_derivation;
+  std::vector<DbSample> samples;
 };
 
 struct EpochBenchResults {
@@ -202,7 +208,8 @@ struct EpochBenchResults {
 };
 
 static Epoch create_epoch(const runtime::ContextHandle &ctx,
-                          const denox::Db &db, memory::span<uint32_t> targets) {
+                          const denox::Db &db, memory::span<uint32_t> targets,
+                          uint32_t env) {
 
   const auto dbdispatches = db.dispatches();
   const auto dbbinaries = db.binaries();
@@ -347,6 +354,7 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
     stages[i].cmd = ctx->allocCommandBuffer(cmdPool);
     stages[i].queryPool = ctx->createTimestampQueryPool(BATCH_SIZE * 2);
     stages[i].fence = ctx->createFence(true);
+    stages[i].env = env;
   }
 
   return Epoch{
@@ -359,6 +367,7 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
       .descriptorPool = descriptorPool,
       .dispatches = std::move(dispatches),
       .stages = std::move(stages),
+      .env = env,
   };
 }
 
@@ -477,30 +486,12 @@ static void read_batch(const runtime::ContextHandle &ctx,
     }
 
     // Incremental mean / variance update (Welford-style, batch weight = 1)
-    const double x = static_cast<double>(latency_ns);
-
-    if (timing.samples == 0) {
-      timing.samples = 1;
-      timing.mean_latency = std::chrono::duration<float, std::milli>(x * 1e-6);
-      timing.std_derivation = std::chrono::duration<float, std::milli>(0.0f);
-    } else {
-      const double n = static_cast<double>(timing.samples);
-      const double mean_old = static_cast<double>(timing.mean_latency.count());
-      const double std_old = static_cast<double>(timing.std_derivation.count());
-      const double var_old = std_old * std_old;
-
-      const double mean_new = (n * mean_old + x * 1e-6) / (n + 1.0);
-
-      const double var_new =
-          (n * (var_old + (mean_old - mean_new) * (mean_old - mean_new)) +
-           (x * 1e-6 - mean_new) * (x * 1e-6 - mean_new)) /
-          (n + 1.0);
-
-      timing.samples += 1;
-      timing.mean_latency = std::chrono::duration<float, std::milli>(mean_new);
-      timing.std_derivation =
-          std::chrono::duration<float, std::milli>(std::sqrt(var_new));
-    }
+    std::chrono::high_resolution_clock::now().time_since_epoch();
+    timing.samples.push_back(DbSample{
+        .timestamp = benchmark_timestamp(),
+        .latency_ns = latency_ns,
+        .env = stage.env,
+    });
   }
 }
 
@@ -574,7 +565,7 @@ static bool print_progress_report(const denox::Db &db,
     }
 
     const auto &t = *d.time;
-    const uint64_t n = t.samples;
+    const uint64_t n = t.samples.size();
 
     // --- minSamples check ---
     bool samplesOk = (n >= options.minSamples);
@@ -583,11 +574,11 @@ static bool print_progress_report(const denox::Db &db,
 
     // --- relative SEM check ---
     bool precisionOk = false;
-    if (n > 1 && t.latency_ns > 0 && t.std_derivation_ns > 0) {
+    if (n > 1 && t.mean_latency_ns > 0 && t.std_derivation_ns > 0) {
       double sem_ns = static_cast<double>(t.std_derivation_ns) /
                       std::sqrt(static_cast<double>(n));
 
-      double relError = sem_ns / static_cast<double>(t.latency_ns);
+      double relError = sem_ns / static_cast<double>(t.mean_latency_ns);
 
       precisionOk = (relError <= static_cast<double>(options.maxRelativeError));
     }
@@ -624,20 +615,29 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
   memory::vector<uint32_t> iota(m_db.dispatches().size());
   std::iota(iota.begin(), iota.end(), 0);
 
+  std::string device_name;
+  std::string os;
+  std::string driver_version;
+  std::string denox_commit_hash;
+  uint64_t start_timestamp = benchmark_timestamp();
+  DbClockMode clock_mode = DbClockMode::Unavailable;
+
+  uint32_t env = m_db.create_bench_environment(
+      device_name, os, driver_version, denox_commit_hash, start_timestamp,
+      clock_mode, L2_WARMUP_ITERATONS, JIT_WARMUP_ITERATIONS, 1);
+
   bool running = !print_progress_report(m_db, options, logger);
   while (running) {
     memory::vector<uint32_t> targets = select_targets_from_candidates(
         state, m_db, iota, EPOCH_SIZE, options.minSamples);
-    Epoch epoch = create_epoch(m_context, m_db, targets);
+    Epoch epoch = create_epoch(m_context, m_db, targets, env);
     auto result =
         bench_epoch(state, m_db, m_context, epoch, options, EPOCH_SAMPLES);
     uint32_t count =
         static_cast<uint32_t>(std::min(result.timings.size(), targets.size()));
     for (uint32_t i = 0; i < count; ++i) {
       const auto timing = result.timings[i];
-      m_db.add_dispatch_benchmark_result(targets[i], timing.samples,
-                                         timing.mean_latency,
-                                         timing.std_derivation);
+      m_db.add_dispatch_benchmark_result(targets[i], timing.samples);
     }
 
     running = !print_progress_report(m_db, options, logger);

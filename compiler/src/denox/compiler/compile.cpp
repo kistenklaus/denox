@@ -23,7 +23,6 @@ denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                const compiler::CompileOptions &options) {
 
-
   diag::Logger logger("denox.compile", true);
 
   Db db = odb.value_or(Db::open({}));

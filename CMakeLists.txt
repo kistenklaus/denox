@@ -11,6 +11,11 @@ option(DENOX_USE_SYSTEM_FLATBUFFERS
   "Use system-installed FlatBuffers instead of FetchContent"
   ON)
 
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(
+        $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>:-fdiagnostics-color=always>
+    )
+endif()
 
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)

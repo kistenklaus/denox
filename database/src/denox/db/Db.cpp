@@ -1,15 +1,18 @@
 #include "denox/db/Db.hpp"
 #include "denox/algorithm/hash_combine.hpp"
 #include "denox/common/SHA256.hpp"
+#include "denox/db/DbEnv.hpp"
 #include "denox/db/DbIndex.hpp"
 #include "denox/db/DbMapped.hpp"
 #include "denox/db/DbShaderBinary.hpp"
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/logging.hpp"
+#include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/io/fs/File.hpp"
 #include "flatbuffers/verifier.h"
+#include "vulkan/vulkan.hpp"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -45,6 +48,44 @@ denox::Db denox::Db::open(const io::Path &path) {
   }
 
   const db::Db *db = db::GetDb(buffer.data());
+
+  if (db->env() != nullptr) {
+    const uint32_t env_count = db->env()->size();
+    std::vector<DbEnv> envs;
+    envs.reserve(env_count);
+    for (uint32_t i = 0; i < env_count; ++i) {
+      const auto *env = db->env()->Get(i);
+
+      DbClockMode clock_mode;
+      switch (env->clock_mode()) {
+      case db::ClockMode_Unavailable:
+        clock_mode = DbClockMode::Unavailable;
+        break;
+      case db::ClockMode_None:
+        clock_mode = DbClockMode::None;
+        break;
+      case db::ClockMode_Base:
+        clock_mode = DbClockMode::Base;
+        break;
+      case db::ClockMode_Maximum:
+        clock_mode = DbClockMode::Maximum;
+        break;
+      }
+
+      envs.push_back(DbEnv{
+          .device = env->device()->str(),
+          .os = env->device()->str(),
+          .driver_version = env->driver_version()->str(),
+          .denox_commit_hash = env->denox_commit_hash()->str(),
+          .start_timestamp = env->start_timestamp(),
+          .clock_mode = clock_mode,
+          .l2_warmup_iterations = env->l2_warmup_iterations(),
+          .jit_warmup_iterations = env->jit_warmup_iterations(),
+          .measurement_iterations = env->measurement_iterations(),
+      });
+    }
+    out->environments = envs;
+  }
 
   if (db->shader_binaries() != nullptr) {
     uint32_t binary_count = db->shader_binaries()->size();
@@ -103,15 +144,110 @@ denox::Db denox::Db::open(const io::Path &path) {
         out_dispatch.bindings[b].byteSize = binding->tensor_byte_size();
         out_dispatch.bindings[b].alignment =
             static_cast<uint16_t>(binding->tensor_min_align());
+        switch (binding->format()) {
+        case db::TensorFormat_UNKNOWN:
+          out_dispatch.bindings[b].format = TensorFormat::Optimal;
+          break;
+        case db::TensorFormat_SSBO_HWC:
+          out_dispatch.bindings[b].format = TensorFormat::SSBO_HWC;
+          break;
+        case db::TensorFormat_SSBO_CHW:
+          out_dispatch.bindings[b].format = TensorFormat::SSBO_CHW;
+          break;
+        case db::TensorFormat_SSBO_CHWC8:
+          out_dispatch.bindings[b].format = TensorFormat::SSBO_CHWC8;
+          break;
+        case db::TensorFormat_TEX_RGBA:
+          out_dispatch.bindings[b].format = TensorFormat::TEX_RGBA;
+          break;
+        case db::TensorFormat_TEX_RGB:
+          out_dispatch.bindings[b].format = TensorFormat::TEX_RGB;
+          break;
+        case db::TensorFormat_TEX_RG:
+          out_dispatch.bindings[b].format = TensorFormat::TEX_RG;
+          break;
+        case db::TensorFormat_TEX_R:
+          out_dispatch.bindings[b].format = TensorFormat::TEX_R;
+          break;
+        }
+
+        switch (binding->storage()) {
+        case db::TensorStorage_StorageBuffer:
+          out_dispatch.bindings[b].storage = TensorStorage::StorageBuffer;
+          break;
+        case db::TensorStorage_StorageImage:
+          out_dispatch.bindings[b].storage = TensorStorage::StorageImage;
+          break;
+        case db::TensorStorage_SampledStorageImage:
+          out_dispatch.bindings[b].storage = TensorStorage::SampledStorageImage;
+          break;
+        }
+
+        if (binding->info() != nullptr) {
+          const auto *info = binding->info();
+          if (info->width()) {
+            out_dispatch.bindings[b].width = info->width();
+          }
+          if (info->height()) {
+            out_dispatch.bindings[b].height = info->height();
+          }
+          if (info->channels()) {
+            out_dispatch.bindings[b].channels = info->channels();
+          }
+          switch (info->dtype()) {
+          case db::TensorDataType_Float16:
+            out_dispatch.bindings[b].type = TensorDataType::Float16;
+            break;
+          case db::TensorDataType_Unknown:
+            break;
+          }
+          out_dispatch.bindings[b].is_param = info->is_param();
+        }
       }
 
       if (dispatch->time() != nullptr) {
         out_dispatch.time.emplace();
-        out_dispatch.time->samples = dispatch->time()->samples();
-        out_dispatch.time->latency_ns = dispatch->time()->latency_ns();
+        std::vector<DbSample> samples;
+        const uint32_t sample_count = dispatch->time()->samples()->size();
+        samples.reserve(sample_count);
+        for (uint32_t i = 0; i < sample_count; ++i) {
+          const auto &sample = dispatch->time()->samples()->Get(i);
+          samples.push_back(DbSample{
+              .timestamp = sample->timestamp(),
+              .latency_ns = sample->latency_ns(),
+              .env = sample->env(),
+          });
+        }
+        out_dispatch.time->samples = samples;
+        out_dispatch.time->mean_latency_ns =
+            dispatch->time()->mean_latency_ns();
         out_dispatch.time->std_derivation_ns =
             dispatch->time()->std_derivation_ns();
       }
+
+      if (dispatch->info() != nullptr) {
+        const auto *info = dispatch->info();
+        if (info->operation()) {
+          out_dispatch.operation = info->operation()->str();
+        }
+        if (info->shader_name()) {
+          out_dispatch.shader_name = info->shader_name()->str();
+        }
+        if (info->config()) {
+          out_dispatch.config = info->config()->str();
+        }
+        if (info->memory_reads()) {
+          out_dispatch.memory_reads = info->memory_reads();
+        }
+        if (info->memory_writes()) {
+          out_dispatch.memory_writes = info->memory_writes();
+        }
+        if (info->flops()) {
+          out_dispatch.flops = info->flops();
+        }
+        out_dispatch.coopmat = info->coopmat();
+      }
+
       // build index.
       auto &bucket = index->dispatch_buckets[out_dispatch.hash];
       bucket.push_back(i);
@@ -129,6 +265,36 @@ bool denox::Db::atomic_writeback() const {
   io::Path tmpPath = m_db->m_path.with_extension("db.tmp");
 
   flatbuffers::FlatBufferBuilder fbb(1 << 16);
+
+  const size_t env_count = m_db->environments.size();
+  std::vector<flatbuffers::Offset<db::BenchEnv>> envs;
+  envs.reserve(env_count);
+  for (size_t i = 0; i < env_count; ++i) {
+    const auto &env = m_db->environments[i];
+
+    db::ClockMode clockMode = db::ClockMode_Unavailable;
+    switch (env.clock_mode) {
+    case DbClockMode::Unavailable:
+      break;
+    case DbClockMode::None:
+      clockMode = db::ClockMode_None;
+      break;
+    case DbClockMode::Base:
+      clockMode = db::ClockMode_Base;
+      break;
+    case DbClockMode::Maximum:
+      clockMode = db::ClockMode_Maximum;
+      break;
+    }
+
+    envs.push_back(db::CreateBenchEnv(
+        fbb, fbb.CreateString(env.device), fbb.CreateString(env.os),
+        fbb.CreateString(env.driver_version),
+        fbb.CreateString(env.denox_commit_hash), env.start_timestamp, clockMode,
+        env.l2_warmup_iterations, env.jit_warmup_iterations,
+        env.measurement_iterations));
+  }
+
   std::vector<flatbuffers::Offset<db::ShaderBinary>> binaries;
   binaries.reserve(m_db->binaries.size());
   for (const DbShaderBinary &binary : m_db->binaries) {
@@ -159,14 +325,91 @@ bool denox::Db::atomic_writeback() const {
       default:
         diag::unreachable();
       }
-      bindings.push_back(
-          db::CreateTensorBinding(fbb, binding.set, binding.binding, access,
-                                  binding.byteSize, binding.alignment));
+      db::TensorFormat format;
+      switch (binding.format) {
+      case TensorFormat::Optimal:
+        format = db::TensorFormat_UNKNOWN;
+        break;
+      case TensorFormat::SSBO_HWC:
+        format = db::TensorFormat_SSBO_HWC;
+        break;
+      case TensorFormat::SSBO_CHW:
+        format = db::TensorFormat_SSBO_CHW;
+        break;
+      case TensorFormat::SSBO_CHWC8:
+        format = db::TensorFormat_SSBO_CHWC8;
+        break;
+      case TensorFormat::TEX_RGBA:
+        format = db::TensorFormat_TEX_RGBA;
+        break;
+      case TensorFormat::TEX_RGB:
+        format = db::TensorFormat_TEX_RGB;
+        break;
+      case TensorFormat::TEX_RG:
+        format = db::TensorFormat_TEX_RG;
+        break;
+      case TensorFormat::TEX_R:
+        format = db::TensorFormat_TEX_R;
+        break;
+      }
+      db::TensorStorage storage;
+      switch (binding.storage) {
+      case TensorStorage::Optimal:
+        assert(false && "trying to serialize TensorStorage::Optimal");
+        diag::invalid_state();
+      case TensorStorage::StorageBuffer:
+        storage = db::TensorStorage_StorageBuffer;
+        break;
+      case TensorStorage::StorageImage:
+        storage = db::TensorStorage_StorageImage;
+        break;
+      case TensorStorage::SampledStorageImage:
+        storage = db::TensorStorage_SampledStorageImage;
+        break;
+      }
+
+      flatbuffers::Offset<db::TensorBindingInfo> info;
+      if (binding.width.has_value() || binding.height.has_value() ||
+          binding.channels.has_value() || binding.type.has_value() ||
+          binding.is_param) {
+        db::TensorDataType dtype = db::TensorDataType_Unknown;
+        if (binding.type.has_value()) {
+          switch (*binding.type) {
+          case TensorDataType::Auto:
+            break;
+          case TensorDataType::Float16:
+            dtype = db::TensorDataType_Float16;
+            break;
+          case TensorDataType::Float32:
+            diag::not_implemented();
+          case TensorDataType::Float64:
+            diag::not_implemented();
+          }
+        }
+
+        info = db::CreateTensorBindingInfo(
+            fbb, binding.width.value_or(0), binding.height.value_or(0),
+            binding.channels.value_or(0), dtype, binding.is_param);
+      }
+
+      bindings.push_back(db::CreateTensorBinding(
+          fbb, binding.set, binding.binding, access, format, storage,
+          binding.byteSize, binding.alignment, info));
     }
     flatbuffers::Offset<db::Timing> time = 0;
     if (dispatch.time.has_value()) {
-      time = db::CreateTiming(fbb, dispatch.time->samples,
-                              dispatch.time->latency_ns,
+      size_t sample_count = dispatch.time->samples.size();
+      std::vector<flatbuffers::Offset<db::Sample>> samples;
+      samples.reserve(sample_count);
+      for (uint32_t i = 0; i < sample_count; ++i) {
+        samples.push_back(db::CreateSample(fbb,
+                                           dispatch.time->samples[i].timestamp,
+                                           dispatch.time->samples[i].latency_ns,
+                                           dispatch.time->samples[i].env));
+      }
+
+      time = db::CreateTiming(fbb, fbb.CreateVector(samples),
+                              dispatch.time->mean_latency_ns,
                               dispatch.time->std_derivation_ns);
     }
     dispatches.push_back(db::CreateComputeDispatch(
@@ -286,23 +529,27 @@ denox::Db::query_dispatch_latency(const SHA256 &srcHash,
     if (!dispatch.time.has_value()) {
       return std::nullopt;
     }
-    if (dispatch.time->samples == 0) {
+    if (dispatch.time->samples.size() == 0) {
       return std::nullopt;
     }
-    std::chrono::duration<uint64_t, std::nano> ns(dispatch.time->latency_ns);
+    std::chrono::duration<uint64_t, std::nano> ns(
+        dispatch.time->mean_latency_ns);
     return std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
         ns);
   }
   return std::nullopt;
 }
 
-bool denox::Db::insert_dispatch(const SHA256 &srcHash,
-                                std::span<const uint8_t> pushConstant,
-                                uint32_t workgroupCountX,
-                                uint32_t workgroupCountY,
-                                uint32_t workgroupCountZ,
-                                std::span<const DbTensorBinding> bindings,
-                                const SpirvBinary &spvBinary) {
+bool denox::Db::insert_dispatch(
+    const SHA256 &srcHash, std::span<const uint8_t> pushConstant,
+    uint32_t workgroupCountX, uint32_t workgroupCountY,
+    uint32_t workgroupCountZ, std::span<const DbTensorBinding> bindings,
+    const SpirvBinary &spvBinary, memory::optional<memory::string> operation,
+    memory::optional<memory::string> shader_name,
+    memory::optional<memory::string> config,
+    memory::optional<uint64_t> memory_reads,
+    memory::optional<uint64_t> memory_writes, memory::optional<uint64_t> flops,
+    memory::optional<bool> coopmat) {
   uint32_t binaryId;
   {
     auto it = m_index->binary_index.find(srcHash);
@@ -378,6 +625,13 @@ bool denox::Db::insert_dispatch(const SHA256 &srcHash,
   dispatch.hash = hash;
   dispatch.bindings.assign(bindings.begin(), bindings.end());
   dispatch.time = std::nullopt;
+  dispatch.operation = operation;
+  dispatch.shader_name = shader_name;
+  dispatch.config = config;
+  dispatch.memory_reads = memory_reads;
+  dispatch.memory_writes = memory_writes;
+  dispatch.flops = flops;
+  dispatch.coopmat = coopmat.value_or(false);
   uint32_t dispatchIndex = static_cast<uint32_t>(m_db->dispatches.size());
   m_db->dispatches.push_back(std::move(dispatch));
   m_index->dispatch_buckets[hash].emplace_back(dispatchIndex);
@@ -392,56 +646,62 @@ std::span<const denox::DbComputeDispatch> denox::Db::dispatches() const {
   return m_db->dispatches;
 }
 
-void denox::Db::add_dispatch_benchmark_result(
-    uint32_t dispatch_index, uint32_t samples,
-    std::chrono::duration<float, std::milli> latency,
-    std::chrono::duration<float, std::milli> std_derivation) {
-  if (samples == 0) {
+void denox::Db::add_dispatch_benchmark_result(uint32_t dispatch_index,
+                                              std::vector<DbSample> samples) {
+  if (samples.empty()) {
     return;
   }
-  assert(samples != 1 || std_derivation.count() == 0);
+
   assert(dispatch_index < m_db->dispatches.size());
-
   auto &dispatch = m_db->dispatches[dispatch_index];
+  for (const DbSample &sample : samples) {
+    if (!dispatch.time.has_value()) {
+      dispatch.time.emplace();
+      dispatch.time->samples.push_back(sample);
+      dispatch.time->mean_latency_ns = sample.latency_ns;
+      dispatch.time->std_derivation_ns = 0;
+      return;
+    }
+    const double prev_n = static_cast<double>(dispatch.time->samples.size());
+    const double prev_mean_ns =
+        static_cast<double>(dispatch.time->mean_latency_ns);
+    const double prev_std_ns =
+        static_cast<double>(dispatch.time->std_derivation_ns);
 
-  const double n2 = static_cast<double>(samples);
-  const double mean2 =
-      std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(
-          latency)
-          .count();
-  const double std2 =
-      std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(
-          std_derivation)
-          .count();
+    const double latency_ns = static_cast<double>(sample.latency_ns);
 
-  if (!dispatch.time.has_value()) {
-    dispatch.time.emplace();
-    dispatch.time->samples = samples;
-    dispatch.time->latency_ns = static_cast<uint64_t>(mean2);
-    dispatch.time->std_derivation_ns = static_cast<uint64_t>(std2);
-    return;
+    const double new_n = static_cast<double>(dispatch.time->samples.size() + 1);
+    const double new_mean_ns = (prev_n * prev_mean_ns + 1 * latency_ns) / new_n;
+    const double new_var_ns =
+        std::max(0.0, (prev_n * (std::pow(prev_std_ns, 2) +
+                                 std::pow(prev_mean_ns - new_mean_ns, 2)) +
+                       std::pow(latency_ns - new_mean_ns, 2)) /
+                          new_n);
+    const double new_std_ns = std::sqrt(new_var_ns);
+
+    dispatch.time->samples.push_back(sample);
+    dispatch.time->mean_latency_ns = static_cast<uint64_t>(new_mean_ns);
+    dispatch.time->std_derivation_ns = static_cast<uint64_t>(new_std_ns);
   }
-
-  const double n1 = static_cast<double>(dispatch.time->samples);
-  const double mean1 = static_cast<double>(dispatch.time->latency_ns);
-  const double std1 = static_cast<double>(dispatch.time->std_derivation_ns);
-
-  const double n = n1 + n2;
-
-  const double mean = (n1 * mean1 + n2 * mean2) / n;
-
-  const double var =
-      std::max(0.0, (n1 * (std1 * std1 + (mean1 - mean) * (mean1 - mean)) +
-                     n2 * (std2 * std2 + (mean2 - mean) * (mean2 - mean))) /
-                        n);
-
-  const double std = std::sqrt(var);
-
-  dispatch.time->samples = static_cast<uint64_t>(n);
-  dispatch.time->latency_ns = static_cast<uint64_t>(mean);
-  dispatch.time->std_derivation_ns = static_cast<uint64_t>(std);
 }
-const denox::io::Path &denox::Db::path() const {
-  return m_db->m_path;
-}
+const denox::io::Path &denox::Db::path() const { return m_db->m_path; }
 
+uint32_t denox::Db::create_bench_environment(
+    std::string device, std::string os, std::string driver_version,
+    std::string denox_commit_hash, uint64_t start_timestamp,
+    DbClockMode clockMode, uint16_t l2_warmup_iterations,
+    uint16_t jit_warmup_iterations, uint16_t measurement_iterations) {
+  uint32_t id = static_cast<uint32_t>(m_db->environments.size());
+  m_db->environments.push_back(DbEnv{
+      .device = device,
+      .os = os,
+      .driver_version = driver_version,
+      .denox_commit_hash = denox_commit_hash,
+      .start_timestamp = start_timestamp,
+      .clock_mode = clockMode,
+      .l2_warmup_iterations = l2_warmup_iterations,
+      .jit_warmup_iterations = jit_warmup_iterations,
+      .measurement_iterations = measurement_iterations,
+  });
+  return id;
+}

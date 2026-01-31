@@ -16,19 +16,69 @@ enum Access:ubyte { ReadOnly=0,
   ReadWrite=2 
 }
 
+enum TensorFormat:ushort {
+  UNKNOWN,
+  SSBO_HWC,
+  SSBO_CHW,
+  SSBO_CHWC8,
+  TEX_RGBA,
+  TEX_RGB,
+  TEX_RG,
+  TEX_R
+}
+
+enum TensorDataType:ushort {
+  Unknown = 0,
+  Float16 = 1,
+}
+
+enum TensorStorage:ushort {
+  StorageBuffer,
+  StorageImage,
+  SampledStorageImage,
+}
+
+// optional information
+table TensorBindingInfo {
+  width:uint32; 
+  height:uint32; 
+  channels:uint32;
+  dtype:TensorDataType;
+  is_param:bool;
+}
+
 table TensorBinding {
   set:uint32;
   binding:uint32;
   access:Access;
-
+  format:TensorFormat;
+  storage:TensorStorage;
   tensor_byte_size:uint64;
   tensor_min_align:uint32;
+  info:TensorBindingInfo;
 }
 
-table Timing {
-  samples:uint64;
+table Sample {
+  timestamp:uint64;
   latency_ns:uint64;
+  env:uint32;
+}
+
+
+table Timing {
+  samples:[Sample];
+  mean_latency_ns:uint64;
   std_derivation_ns:uint64;
+}
+
+table ComputeDispatchInfo {
+  operation:string;
+  shader_name:string;
+  config:string;
+  memory_reads:uint64;
+  memory_writes:uint64;
+  flops:uint64;
+  coopmat:bool;
 }
 
 table ComputeDispatch {
@@ -50,10 +100,33 @@ table ComputeDispatch {
   // only required for benchmarking doesn't act as a key!
   bindings:[TensorBinding];
   time:Timing;
+  info:ComputeDispatchInfo;
+}
+
+enum ClockMode:ushort {
+  Unavailable = 0,
+  None,
+  Base,
+  Maximum,
+}
+
+table BenchEnv {
+  device:string;
+  os:string;
+  driver_version:string;
+  denox_commit_hash:string;
+
+  start_timestamp:uint64;
+
+  clock_mode:ClockMode;
+  l2_warmup_iterations:uint16;
+  jit_warmup_iterations:uint16;
+  measurement_iterations:uint16;
 }
 
 table Db {
   version: uint32;
+  env:[BenchEnv];
   shader_binaries:[ShaderBinary];
   dispatches:[ComputeDispatch];
 }
