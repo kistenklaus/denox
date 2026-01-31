@@ -151,16 +151,67 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
 
       memory::small_vector<DbTensorBinding, 4> bindings;
       for (const auto &binding : dispatch.bindings) {
+        const auto &tensor = supergraph.tensors[binding.tensorId.index];
+
+        memory::optional<uint32_t> width;
+        if (tensor.info.width.has_value()) {
+          width = *symeval[*tensor.info.width];
+        }
+        memory::optional<uint32_t> height;
+        if (tensor.info.height.has_value()) {
+          height = *symeval[*tensor.info.height];
+        }
+        memory::optional<uint32_t> channels;
+        if (tensor.info.channels.has_value()) {
+          channels = *symeval[*tensor.info.channels];
+        }
+        memory::optional<TensorDataType> type;
+        if (tensor.info.type != TensorDataType::Auto) {
+          type = tensor.info.type;
+        }
+        bool isParam = false;
+        for (const auto &param : edge.parameters) {
+          if (param.tensorId.index == binding.tensorId.index) {
+            isParam = true;
+            break;
+          }
+        }
+
         bindings.push_back(DbTensorBinding{
             .set = binding.set,
             .binding = binding.binding,
             .access = binding.accessFlag,
-            .byteSize = static_cast<uint64_t>(
-                *symeval[supergraph.tensors[binding.tensorId.index].size]),
-            .alignment = supergraph.tensors[binding.tensorId.index].alignment,
-        });
+            .byteSize = static_cast<uint64_t>(*symeval[tensor.size]),
+            .alignment = tensor.alignment,
+            .format = tensor.info.format,
+            .storage = tensor.info.storage,
+            .width = width,
+            .height = height,
+            .channels = channels,
+            .type = type,
+            .is_param = isParam});
       }
-      db.insert_dispatch(hash, pcbuf, wgX, wgY, wgZ, bindings, binary);
+
+      memory::optional<memory::string> operation = dispatch.info.operation;
+      memory::optional<memory::string> shader_name = dispatch.info.name;
+      memory::optional<memory::string> config = dispatch.info.config;
+      memory::optional<uint64_t> memory_reads;
+      if (dispatch.info.memoryReads) {
+        memory_reads = *symeval[*dispatch.info.memoryReads];
+      }
+      memory::optional<uint64_t> memory_writes;
+      if (dispatch.info.memoryWrites) {
+        memory_writes = *symeval[*dispatch.info.memoryWrites];
+      }
+      memory::optional<uint64_t> flops;
+      if (dispatch.info.flops) {
+        flops = *symeval[*dispatch.info.flops];
+      }
+      memory::optional<bool> coopmat = dispatch.info.coopmat;
+
+      db.insert_dispatch(hash, pcbuf, wgX, wgY, wgZ, bindings, binary,
+                         operation, shader_name, config, memory_reads,
+                         memory_writes, flops, coopmat);
     }
   }
 

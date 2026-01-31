@@ -225,20 +225,30 @@ void MemorySliceShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.addPushConstant(PushConstant::Dynamic(out.width));
   dispatch.addPushConstant(PushConstant::Dynamic(out.height));
-  dispatch.setName(name(pattern, 0));
+  dispatch.setName(name());
+  dispatch.setOperation(fmt::format(
+      "x[:,{}:{},{}:{}]",
+      slice->top.isConstant() ? fmt::format("{}", slice->top.constant())
+                              : "<dyn>",
+      in.height.isConstant() ? fmt::format("{}", in.height.constant())
+                             : "<dyn>",
+      slice->left.isConstant() ? fmt::format("{}", slice->left.constant())
+                               : "<dyn>",
+      in.width.isConstant() ? fmt::format("{}", in.width.constant())
+                            : "<dyn>"));
+  dispatch.setConfig(
+      fmt::format("INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H",
+                  config.invocC, config.invocW, config.invocW,
+                  config.wgC.value_or(C), config.wgW, config.wgH));
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
   Sym writes = symGraph.mul(out.width, out.height, C * size_of(out.type));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
-  dispatch.setDebugInfo(fmt::format("MemorySliceShader\n"
-                                    "- IN_LAYOUT:  {}\n"
-                                    "- OUT_LAYOUT: {}\n",
-                                    in.format, out.format));
+  dispatch.setFlops(Sym::Const(0));
+  dispatch.usesCoopmat(false);
 }
 
-memory::string MemorySliceShader::name(unsigned int, unsigned int) const {
-  return "memory-slice";
-}
+memory::string MemorySliceShader::name() const { return "MemorySliceShader"; }
 } // namespace denox::compiler::shaders

@@ -15,19 +15,29 @@ class ComputeDispatchBuilder {
 public:
   friend class OpImpl;
 
-  void addBinding(memory::string_view set_macro, memory::string_view binding_macro,
-                  Access access, memory::NodeId nodeId);
+  void addBinding(memory::string_view set_macro,
+                  memory::string_view binding_macro, Access access,
+                  memory::NodeId nodeId);
 
-  void addBinding(memory::string_view set_macro, memory::string_view binding_macro,
-                  Access access, TensorId tensor);
+  void addBinding(memory::string_view set_macro,
+                  memory::string_view binding_macro, Access access,
+                  TensorId tensor);
 
   void addPushConstant(PushConstant pc) { self().pushConstants.push_back(pc); }
+
   void setName(memory::string_view name) { self().info.name = name; };
+  void setConfig(memory::string config) { self().info.config = config; }
+  void setOperation(memory::string op) { self().info.operation = op; }
+  void usesCoopmat(bool b) { self().info.coopmat = b; }
+
+  [[deprecated("not used anymore")]]
   void setDebugInfo(memory::string_view debugInfo);
   void setSourcePath(const io::Path &path) { self().info.srcPath = path; }
   void setMemoryReads(Sym reads) { self().info.memoryReads = reads; }
   void setMemoryWrites(Sym writes) { self().info.memoryWrites = writes; }
-  
+
+  void setFlops(Sym flops) { self().info.flops = flops; }
+
   ~ComputeDispatchBuilder();
 
 private:

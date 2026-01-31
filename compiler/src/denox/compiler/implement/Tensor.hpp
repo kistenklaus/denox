@@ -12,9 +12,9 @@ namespace denox::compiler {
 
 struct TensorInfo {
   memory::optional<memory::string> name;
-  Sym width;
-  Sym height;
-  Sym channels;
+  memory::optional<Sym> width;
+  memory::optional<Sym> height;
+  memory::optional<Sym> channels;
   TensorStorage storage;
   TensorFormat format;
   TensorDataType type;

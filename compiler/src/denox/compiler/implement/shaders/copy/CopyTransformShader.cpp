@@ -1,6 +1,6 @@
 #include "denox/compiler/implement/shaders/copy/CopyTransformShader.hpp"
-#include "denox/common/TensorFormat.hpp"
 #include "denox/common/ComputeOp.hpp"
+#include "denox/common/TensorFormat.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
@@ -381,8 +381,6 @@ void CopyTransformShader::implement(
                                   dstId);
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.width));
       copySrc0Dispatch.addPushConstant(PushConstant::Dynamic(src0.height));
-      copySrc0Dispatch.setName("explicit-concat-copy-src0");
-      copySrc0Dispatch.setSourcePath(m_srcPath);
 
       Sym reads = symGraph.mul(src0.width, src0.height,
                                src0Channels * size_of(src0.type));
@@ -390,10 +388,19 @@ void CopyTransformShader::implement(
                                 src0Channels * size_of(dst.type));
       copySrc0Dispatch.setMemoryReads(reads);
       copySrc0Dispatch.setMemoryWrites(writes);
-      copySrc0Dispatch.setDebugInfo(fmt::format("CopyTransformShader\n"
-                                                "- IN_LAYOUT:  {}\n"
-                                                "- OUT_LAYOUT: {}\n",
-                                                src0.format, dst.format));
+
+      copySrc0Dispatch.setFlops(Sym::Const(0));
+      copySrc0Dispatch.usesCoopmat(false);
+
+      // r[0:3,:,:]=x
+      copySrc0Dispatch.setOperation(
+          fmt::format("r[{}:{},:,:]=x", 0, src0Channels));
+      copySrc0Dispatch.setName(name());
+      copySrc0Dispatch.setConfig(fmt::format(
+          "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}",
+          config0.invocC, config0.invocW, config0.invocH,
+          config0.wgC.value_or(src0Channels), config0.wgW, config0.wgH));
+      copySrc0Dispatch.setSourcePath(m_srcPath);
     }
 
     {
@@ -424,8 +431,6 @@ void CopyTransformShader::implement(
                                   dstId);
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.width));
       copySrc1Dispatch.addPushConstant(PushConstant::Dynamic(src1.height));
-      copySrc1Dispatch.setName("explicit-concat-copy-src1");
-      copySrc1Dispatch.setSourcePath(m_srcPath);
 
       Sym reads = symGraph.mul(src1.width, src1.height,
                                src1Channels * size_of(src1.type));
@@ -433,23 +438,24 @@ void CopyTransformShader::implement(
                                 src1Channels * size_of(dst.type));
       copySrc1Dispatch.setMemoryReads(reads);
       copySrc1Dispatch.setMemoryWrites(writes);
-      copySrc1Dispatch.setDebugInfo(fmt::format("CopyTransformShader\n"
-                                                "- IN_LAYOUT:  {}\n"
-                                                "- OUT_LAYOUT: {}\n",
-                                                src1.format, dst.format));
+      copySrc1Dispatch.setFlops(Sym::Const(0));
+      copySrc1Dispatch.usesCoopmat(false);
+
+      // r[64:67]=x
+      copySrc1Dispatch.setOperation(fmt::format("r[{}:{},:,:]=x", src0Channels,
+                                                src0Channels + src1Channels));
+      copySrc1Dispatch.setConfig(fmt::format(
+          "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}",
+          config1.invocC, config1.invocW, config1.invocH,
+          config1.wgC.value_or(src1Channels), config1.wgW, config1.wgH));
+      copySrc1Dispatch.setName(name());
+      copySrc1Dispatch.setSourcePath(m_srcPath);
     }
   }
 }
 
-memory::string CopyTransformShader::name(unsigned int,
-                                         unsigned int config) const {
-  if (config & IMPLICIT_CONCAT_TAG) {
-    return "implicit-concat";
-  } else if (config & SINGLE_COPY_TAG) {
-    return "single-copy-concat";
-  } else {
-    return fmt::format("explicit-concat", config);
-  }
+memory::string CopyTransformShader::name() const {
+  return "CopyTransformShader";
 }
 
 } // namespace denox::compiler::shaders

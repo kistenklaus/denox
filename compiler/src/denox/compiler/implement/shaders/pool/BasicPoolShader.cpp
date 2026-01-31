@@ -286,19 +286,23 @@ void BasicPoolShader::implement(
   dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.width));
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
-  dispatch.setName(name(pattern, 0));
+  dispatch.setName(name());
+  dispatch.setOperation(
+      fmt::format("max_pool2d(x,kernel_size=({},{}),stride=({"
+                  "},{}),padding=({},{}),dialation=1,ceil_mode=false)",
+                  pool->kernelSize.x, pool->kernelSize.y, pool->stride.x,
+                  pool->stride.y, pool->padding.x, pool->padding.y));
+  dispatch.setConfig(fmt::format(
+      "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}", invocC,
+      config.invocW, config.invocH, config.wgC, config.wgW, config.wgH));
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
   Sym writes = symGraph.mul(out.width, out.height, C * size_of(out.type));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
-  dispatch.setDebugInfo(fmt::format("BasicPoolShader\n"
-                                    "- IN_LAYOUT:  {}\n"
-                                    "- OUT_LAYOUT: {}\n",
-                                    in.format, out.format));
+  dispatch.setFlops(Sym::Const(0));
+  dispatch.usesCoopmat(false);
 }
-memory::string BasicPoolShader::name(unsigned int, unsigned int) const {
-  return "basic-pool";
-}
+memory::string BasicPoolShader::name() const { return "BasicPoolShader"; }
 } // namespace denox::compiler::shaders

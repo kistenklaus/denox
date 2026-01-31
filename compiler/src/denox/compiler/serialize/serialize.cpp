@@ -12,6 +12,7 @@
 #include "flatbuffers/vector.h"
 #include <dnx.h>
 #include <limits>
+#include <utility>
 
 namespace denox::compiler {
 
@@ -190,16 +191,21 @@ serialize_symbol(flatbuffers::FlatBufferBuilder &fbb, Sym::symbol symbol) {
 }
 
 static std::pair<denox::dnx::ScalarSource, flatbuffers::Offset<void>>
-serialize_scalar(flatbuffers::FlatBufferBuilder &fbb, Sym sym,
+serialize_scalar(flatbuffers::FlatBufferBuilder &fbb, memory::optional<Sym> sym,
                  memory::Dtype type) {
-  if (sym.isSymbolic()) {
+  if (!sym.has_value()) {
+    return std::make_pair(denox::dnx::ScalarSource_NONE,
+                          flatbuffers::Offset<void>(0));
+  }
+
+  if (sym->isSymbolic()) {
     return std::make_pair(denox::dnx::ScalarSource_symbolic,
-                          serialize_symbol(fbb, sym.sym()).Union());
+                          serialize_symbol(fbb, sym->sym()).Union());
   } else {
     auto dtype = serialize_type(type);
     return std::make_pair(
         denox::dnx::ScalarSource_literal,
-        serialize_literal(fbb, sym.constant(), dtype).Union());
+        serialize_literal(fbb, sym->constant(), dtype).Union());
   }
 }
 

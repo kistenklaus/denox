@@ -10,7 +10,8 @@ class BasicUpsampleShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicUpsampleShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
+  BasicUpsampleShader(spirv::GlslCompiler *compiler,
+                      const CompileOptions &options);
 
   memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
@@ -29,8 +30,7 @@ public:
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             SymGraph &symGraph) const final override;
 
-  memory::string name(unsigned int pattern,
-                      unsigned int config) const final override;
+  memory::string name() const final override;
 
 private:
   struct Handles {
@@ -44,7 +44,8 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/upsample/basic_upsample.comp";
+      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/"
+                           "upsample/basic_upsample.comp";
 
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;

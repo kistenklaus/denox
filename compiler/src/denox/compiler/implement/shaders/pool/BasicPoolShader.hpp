@@ -33,7 +33,7 @@ public:
                  const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
                      &match, SymGraph& symGraph) const final override;
 
-  memory::string name(unsigned int pattern, unsigned int config) const final override;
+  memory::string name() const final override;
 
 private:
   struct Handles {

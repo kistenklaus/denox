@@ -140,14 +140,14 @@ memory::vector<unsigned int> MemoryPadShader::acceptMatch(
 
 static spirv::GlslCompilerInstance
 memory_pad_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-        TensorFormat inputFormat, TensorFormat outputFormat,
-        unsigned int channels, const MemoryPadConfig &config) {
+                   TensorFormat inputFormat, TensorFormat outputFormat,
+                   unsigned int channels, const MemoryPadConfig &config) {
   auto shader = compiler->read(srcPath);
   shader.define("CH", channels);
 
   if (inputFormat == TensorFormat::SSBO_HWC &&
-             outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0)
-             && config.invocC % 8 == 0) {
+      outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0) &&
+      config.invocC % 8 == 0) {
     shader.define("istype", "uvec4");
     shader.define("ISTYPE_SIZE", 16);
     shader.define("ostype", "uvec4");
@@ -155,7 +155,7 @@ memory_pad_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
     shader.define("IN_LAYOUT_HWC8");
     shader.define("OUT_LAYOUT_HWC8");
   } else if (inputFormat == TensorFormat::SSBO_HWC &&
-      outputFormat == TensorFormat::SSBO_HWC) {
+             outputFormat == TensorFormat::SSBO_HWC) {
     if (channels % 8 == 0) {
       DENOX_WARN(
           "MemoryPadShader implements non vectorized layouts for format, "
@@ -206,8 +206,8 @@ void MemoryPadShader::implement(
   assert(in.channels == out.channels);
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
-  auto shader =
-      memory_pad_compile(m_compiler, m_srcPath, in.format, out.format, C, config);
+  auto shader = memory_pad_compile(m_compiler, m_srcPath, in.format, out.format,
+                                   C, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -235,19 +235,30 @@ void MemoryPadShader::implement(
   dispatch.addPushConstant( //
       PushConstant::Dynamic(pad->bottom, memory::Dtype::U32));
 
-  dispatch.setName(name(pattern, 0));
+  dispatch.setName(name());
+  dispatch.setConfig(
+      fmt::format("INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H",
+                  config.invocC, config.invocW, config.invocH,
+                  config.wgC.value_or(C), config.wgW, config.wgH));
+  dispatch.setOperation(fmt::format(
+      "pad(x,({},{},{},{}),mode=replicate)",
+      pad->left.isConstant() ? fmt::format("{}", pad->left.constant())
+                             : "<dyn>",
+      pad->right.isConstant() ? fmt::format("{}", pad->right.constant())
+                              : "<dyn>",
+      pad->top.isConstant() ? fmt::format("{}", pad->top.constant()) : "<dyn>",
+      pad->bottom.isConstant() ? fmt::format("{}", pad->bottom.constant())
+                               : "<dyn>"));
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
   Sym writes = symGraph.mul(out.width, out.height, C * size_of(out.type));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
-  dispatch.setDebugInfo(fmt::format("MemoryPadShader\n"
-                                    "- IN_LAYOUT:  {}\n"
-                                    "- OUT_LAYOUT: {}\n",
-                                    in.format, out.format));
+  dispatch.setFlops(Sym::Const(0));
+  dispatch.usesCoopmat(false);
 }
-memory::string MemoryPadShader::name(unsigned int, unsigned int) const {
-  return "memory-pad";
+memory::string MemoryPadShader::name() const {
+  return "MemoryPadShader";
 }
 } // namespace denox::compiler::shaders

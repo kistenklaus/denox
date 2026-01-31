@@ -116,8 +116,10 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     if (r == 0 || r == 1) {
       throw std::runtime_error("unexpected error!");
     }
-    memory::vector<Sym> before(r, Sym::Const(0));
-    memory::vector<Sym> after(r, Sym::Const(0));
+    memory::vector<Sym> before;
+    before.resize(r, Sym::Const(0));
+    memory::vector<Sym> after;
+    after.resize(r, Sym::Const(0));
 
     auto put_pad = [&](std::size_t ax, const Sym &b,
                        const Sym &a) {
@@ -170,9 +172,9 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
           assert(ax < before.size());
           assert(ax < after.size());
           if (ax >= before.size()) {
-            throw std::runtime_error("unexpected error");
+            throw std::runtime_error("unexpected error (ax >= before.size())");
           } else if (ax >= after.size()) {
-            throw std::runtime_error("unexpected error");
+            throw std::runtime_error("unexpected error (ax >= after.size())");
           }
           before[ax] = Sym::Const(b);
           after[ax] = Sym::Const(a);

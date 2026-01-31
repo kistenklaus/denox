@@ -16,7 +16,6 @@ class Net(nn.Module):
         self.enc5 = nn.Conv2d(112, 112, 3, padding='same', padding_mode=pm)
 
         # self.extr = nn.Conv2d(32, 32, 3, padding='same', padding_mode=pm)
-        
         self.dec0 = nn.Conv2d(112+112, 112, 3, padding='same', padding_mode=pm)
         self.con0 = nn.Conv2d(112, 112, 3, padding='same', padding_mode=pm)
         self.dec1 = nn.Conv2d(112+80, 80, 3, padding='same', padding_mode=pm)

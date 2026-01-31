@@ -4,6 +4,7 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
+#include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
@@ -577,8 +578,8 @@ void ConcatConvCMShader::implement(
   assert(a.width == b.width);
   assert(a.height == b.height);
   assert(a.type == b.type);
-  assert(a.width == out.width);
-  assert(b.height == out.height);
+  // assert(a.width == out.width);
+  // assert(b.height == out.height);
   const ComputeOpConv &conv = op.conv();
 
   memory::optional<ActivationFunction> activationFunction;
@@ -691,7 +692,6 @@ void ConcatConvCMShader::implement(
   }
   dispatch.addPushConstant(PushConstant::Dynamic(W, memory::Dtype::U32));
   dispatch.addPushConstant(PushConstant::Dynamic(H, memory::Dtype::U32));
-  dispatch.setName(name(pattern, configKey));
   dispatch.setSourcePath(m_srcPath);
 
   Sym inreads = symGraph.mul(symGraph.mul(W, H),
@@ -702,19 +702,51 @@ void ConcatConvCMShader::implement(
                             K * size_of(TensorDataType::Float16));
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
+  dispatch.usesCoopmat(true);
+  dispatch.setFlops(symGraph.mul(symGraph.mul(out.width, out.height),
+                                 2 * (A_C + B_C) * K * conv->W->shape().r *
+                                     conv->W->shape().s));
+  if (activationFunction) {
+    switch (*activationFunction) {
+    case ActivationFunction::ReLU:
+      dispatch.setOperation(fmt::format(
+          "relu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
+          "{}),padding=({},{}),dialation=(1,1)))",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
 
-  dispatch.setDebugInfo(
-      fmt::format("{}||{}-direct-conv-{}", a.format, b.format, out.format));
-}
-memory::string ConcatConvCMShader::name(unsigned int pattern,
-                                        unsigned int) const {
-  switch (pattern) {
-  case CONCAT_CONV_PATTERN:
-    return "concat-conv-cm";
-  case CONCAT_CONV_ACTIVATION_PATTERN:
-    return "concat-conv-cm+activation";
-  default:
-    diag::unreachable();
+          conv->W->shape().s, conv->W->shape().r));
+      break;
+    case ActivationFunction::LeakyReLU:
+      dispatch.setOperation(fmt::format(
+          "leaky_relu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},"
+          "stride=({},"
+          "{}),padding=({},{}),dialation=(1,1)))",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      break;
+    case ActivationFunction::SiLU:
+      dispatch.setOperation(fmt::format(
+          "silu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
+          "{}),padding=({},{}),dialation=(1,1)))",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+    }
+  } else {
+    dispatch.setOperation(fmt::format(
+        "conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
+        "{}),padding=({},{}),dialation=(1,1))",
+        conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+        conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
   }
+  dispatch.setConfig(
+      fmt::format("CM_M={}#A_CM_K={}#B_CM_K={}#CM_N={}#SG_M={}#A_SG_K={}#B_SG_"
+                  "K={}#SG_N={}#WG_M={}#WG_N={}#A_ASYNC={}#B_ASYNC={}",
+                  config.cm_m, config.a_cm_k, config.b_cm_k, config.cm_n,
+                  config.sg_m, config.a_sg_k, config.b_sg_k, config.sg_n,
+                  config.wg_m, config.wg_n, config.a_async, config.b_async));
+
+  dispatch.setName(name());
 }
+memory::string ConcatConvCMShader::name() const { return "ConcatConvCMShader"; }
 } // namespace denox::compiler::shaders

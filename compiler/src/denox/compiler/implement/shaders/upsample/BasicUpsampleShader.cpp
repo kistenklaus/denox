@@ -251,14 +251,14 @@ void BasicUpsampleShader::implement(
   memory::EdgeId upsampleId = match[patternHandles.upsample];
   const auto &in = opGraph.get(inId);
   const auto &out = opGraph.get(outId);
-  const auto &upsample = opGraph.get(upsampleId);
+  const auto &upsample = opGraph.get(upsampleId).upsample();
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
   assert(C == out.channels.constant());
 
   auto shader =
       basic_upsample_compile(m_compiler, m_srcPath, in.format, out.format, C,
-                             upsample.upsample().scalingFactor, config);
+                             upsample.scalingFactor, config);
 
   std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -274,7 +274,14 @@ void BasicUpsampleShader::implement(
   dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
   dispatch.addPushConstant(PushConstant::Dynamic(in.width));
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
-  dispatch.setName(name(pattern, 0));
+  dispatch.setName(name());
+  dispatch.setOperation(fmt::format("upsample(x,scale_factor={},mode=nearest)",
+                                    upsample.scalingFactor));
+  dispatch.setConfig(
+      fmt::format("INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}",
+                  config.invocC, config.invocW, config.invocH,
+                  config.wgC.value_or(C), config.wgW, config.wgH));
+
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
@@ -282,13 +289,10 @@ void BasicUpsampleShader::implement(
 
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
-  dispatch.setDebugInfo(fmt::format("BasicUpsampleShader\n"
-                                    "- IN_LAYOUT:  {}\n"
-                                    "- OUT_LAYOUT: {}\n",
-                                    in.format, out.format));
+  dispatch.setFlops(Sym::Const(0));
+  dispatch.usesCoopmat(false);
 }
-memory::string BasicUpsampleShader::name([[maybe_unused]] unsigned int pattern,
-                                         unsigned int) const {
-  return "basic-upsample";
+memory::string BasicUpsampleShader::name() const {
+  return "BasicUpsampleShader";
 }
 } // namespace denox::compiler::shaders

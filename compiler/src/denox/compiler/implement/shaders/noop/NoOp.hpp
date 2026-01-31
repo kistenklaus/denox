@@ -32,9 +32,7 @@ public:
                                                               ComputeOp> &match,
             [[maybe_unused]] SymGraph &symGraph) const final override {}
 
-  memory::string name(unsigned int, unsigned int) const final override {
-    return "noop";
-  }
+  memory::string name() const final override { return "noop(x)"; }
 
 private:
   struct Handles {

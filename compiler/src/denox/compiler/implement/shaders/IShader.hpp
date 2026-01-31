@@ -2,11 +2,11 @@
 
 #include "denox/algorithm/pattern_matching/ConstGraphMatch.hpp"
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/compiler/implement/OpImpl.hpp"
 #include "denox/compiler/specialization/TensorInstance.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
-#include "denox/common/ComputeOp.hpp"
 
 namespace denox::compiler {
 
@@ -67,8 +67,7 @@ public:
             const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
             SymGraph &symGraph) const = 0;
 
-  virtual memory::string name(unsigned int pattern,
-                              unsigned int config) const = 0;
+  virtual memory::string name() const = 0;
 };
 
 } // namespace denox::compiler

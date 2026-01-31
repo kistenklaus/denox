@@ -51,10 +51,15 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     auto &view = schedule.tensors[tid];
     view.size = require_symbol(view.size);
     view.offset = require_symbol(view.offset);
-
-    view.info.width = require_symbol(view.info.width);
-    view.info.height = require_symbol(view.info.height);
-    view.info.channels = require_symbol(view.info.channels);
+    if (view.info.width) {
+      view.info.width = require_symbol(*view.info.width);
+    }
+    if (view.info.height) {
+      view.info.height = require_symbol(*view.info.height);
+    }
+    if (view.info.channels) {
+      view.info.channels = require_symbol(*view.info.channels);
+    }
   }
 
   for (auto &buffer : schedule.buffers) {
@@ -78,6 +83,9 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     if (dispatch.info.memoryWrites.has_value()) {
       dispatch.info.memoryWrites = require_symbol(*dispatch.info.memoryWrites);
     }
+    if (dispatch.info.flops.has_value()) {
+      dispatch.info.flops = require_symbol(*dispatch.info.flops);
+    }
   }
 
   auto [ir, remap] = schedule.symGraph.compile(symbols);
@@ -98,6 +106,9 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     if (dispatch.info.memoryWrites.has_value()) {
       dispatch.info.memoryWrites = remap[*dispatch.info.memoryWrites];
     }
+    if (dispatch.info.flops.has_value()) {
+      dispatch.info.flops = remap[*dispatch.info.flops];
+    }
   }
 
   for (auto &buffer : schedule.buffers) {
@@ -108,9 +119,15 @@ SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
     auto &view = schedule.tensors[tid];
     view.size = remap[view.size];
     view.offset = remap[view.offset];
-    view.info.width = remap[view.info.width];
-    view.info.height = remap[view.info.height];
-    view.info.channels = remap[view.info.channels];
+    if (view.info.width) {
+      view.info.width = remap[*view.info.width];
+    }
+    if (view.info.height) {
+      view.info.height = remap[*view.info.height];
+    }
+    if (view.info.channels) {
+      view.info.channels = remap[*view.info.channels];
+    }
   }
 
   for (size_t i = 0; i < namedValues.size(); ++i) {

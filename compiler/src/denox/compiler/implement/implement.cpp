@@ -19,26 +19,21 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
 
   const auto shaders = shaders::get_all_shaders(glslCompiler, options);
 
-  size_t totalPatterns = 0;
-  for (const auto &shader : shaders) {
-    totalPatterns += shader->capabilities().patterns.size();
-  }
-
-  size_t pp = 0;
 
   for (size_t s = 0; s < shaders.size(); ++s) {
     const auto &shader = shaders[s];
 
-    const ShaderCapabilities &caps = shader->capabilities();
-    for (uint32_t p = 0; p < caps.patterns.size(); ++p, ++pp) {
-
       const uint32_t percentage = static_cast<uint32_t>(
-          std::floor(static_cast<float>((pp + 1)) * 50.0f /
-                     static_cast<float>(totalPatterns + 1)));
+          std::floor(static_cast<float>((s + 1)) * 50.0f /
+                     static_cast<float>(shaders.size() + 1)));
 
       logger.info(
           "[{:>3}%] {}Generating {} GLSL compute shader configurations{}",
-          percentage, logger.green(), shader->name(p, 0), logger.reset());
+          percentage, logger.green(), shader->name(), logger.reset());
+
+    const ShaderCapabilities &caps = shader->capabilities();
+    for (uint32_t p = 0; p < caps.patterns.size(); ++p) {
+
 
       const auto &pattern = caps.patterns[p];
       std::unordered_set<uint64_t> edgeExists;

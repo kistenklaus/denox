@@ -496,8 +496,6 @@ void DirectConvShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.width, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.height, memory::Dtype::U32));
-  dispatch.setName(name(pattern, configKey));
-  dispatch.setSourcePath(m_srcPath);
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.width, in.height), C * size_of(in.type));
@@ -508,18 +506,49 @@ void DirectConvShader::implement(
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
 
-  dispatch.setDebugInfo(
-      fmt::format("{}-direct-conv-{}", in.format, out.format));
-}
-memory::string DirectConvShader::name(unsigned int pattern,
-                                      unsigned int) const {
-  switch (pattern) {
-  case CONV_PATTERN:
-    return "direct-conv";
-  case CONV_ACTIVATION_PATTERN:
-    return "direct-conv+activation";
-  default:
-    diag::unreachable();
+  dispatch.setFlops(
+      symGraph.mul(symGraph.mul(out.width, out.height),
+                   2 * C * K * conv->W->shape().r * conv->W->shape().s));
+
+  if (activationFunction) {
+    switch (*activationFunction) {
+    case ActivationFunction::ReLU:
+      dispatch.setOperation(fmt::format(
+          "relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+          "{}),padding=({},{}),dialation=(1,1)))",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      break;
+    case ActivationFunction::LeakyReLU:
+      dispatch.setOperation(fmt::format(
+          "leaky_relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+          "{}),padding=({},{}),dialation=(1,1)))",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      break;
+    case ActivationFunction::SiLU:
+      dispatch.setOperation(fmt::format(
+          "silu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+          "{}),padding=({},{}),dialation=(1,1)))",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      break;
+    }
+  } else {
+    dispatch.setOperation(fmt::format(
+        "conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+        "{}),padding=({},{}),dialation=(1,1))",
+        conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+        conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
   }
+  dispatch.usesCoopmat(false);
+  dispatch.setName(name());
+  dispatch.setSourcePath(m_srcPath);
+  dispatch.setConfig(fmt::format("INVOC_M={}#INVOC_K={}#INVOC_N={}#SG_M={}#SG_"
+                                 "K={}#SG_N={}#WG_M={}#WG_N={}#ASYNC={}",
+                                 config.invoc_m, config.invoc_k, config.invoc_n,
+                                 config.sg_m, config.sg_k, config.sg_n,
+                                 config.wg_m, config.wg_n, config.async));
 }
+memory::string DirectConvShader::name() const { return "DirectConvShader"; }
 } // namespace denox::compiler::shaders

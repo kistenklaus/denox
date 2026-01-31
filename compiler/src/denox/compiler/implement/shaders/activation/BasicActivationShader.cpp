@@ -1,6 +1,7 @@
 #include "denox/compiler/implement/shaders/activation/BasicActivationShader.hpp"
 #include "denox/common/ActivationFunction.hpp"
 #include "denox/diag/invalid_state.hpp"
+#include "denox/diag/not_implemented.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 
 namespace denox::compiler::shaders {
@@ -290,24 +291,36 @@ void BasicActivationShader::implement(
                             channels * size_of(out.type));
   dispatch.setMemoryWrites(writes);
 
+  dispatch.setName(name());
+  dispatch.setConfig(fmt::format(
+      "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}", config.invocC,
+      config.invocW, config.invocW, config.wgC.value_or(in.channels.constant()),
+      config.wgW, config.wgH));
+  dispatch.usesCoopmat(false);
+
   switch (acti.func) {
   case ActivationFunction::ReLU:
-    dispatch.setName("relu");
-    dispatch.setDebugInfo(fmt::format("{}-relu-{}", in.format, out.format));
+    dispatch.setOperation("relu(x)");
+    // we do not count comparison as a FLOP!
+    dispatch.setFlops(Sym::Const(0));
     break;
   case ActivationFunction::LeakyReLU:
-    dispatch.setName("leaky-relu");
-    dispatch.setDebugInfo(
-        fmt::format("{}-leaky-relu-{}", in.format, out.format));
+    dispatch.setOperation("leaky_relu(x)");
+    // leaky relu counts as one FLOP!
+    dispatch.setFlops(symGraph.mul(symGraph.mul(out.width, out.height),
+                                   symGraph.mul(out.channels, 1)));
     break;
   case ActivationFunction::SiLU:
-    dispatch.setName("silu");
-    dispatch.setDebugInfo(fmt::format("{}-silu-{}", in.format, out.format));
+    dispatch.setOperation("sliu(x)");
+    // silu counts as 20 FLOPs (obvious approximation because it contains a exp
+    // which is kind oj)
+    dispatch.setFlops(symGraph.mul(symGraph.mul(out.width, out.height),
+                                   symGraph.mul(out.channels, 20)));
     break;
   }
 }
 
-memory::string BasicActivationShader::name(unsigned int, unsigned int) const {
-  return "basic-activation";
+memory::string BasicActivationShader::name() const {
+  return "BasicActivationShader";
 }
 } // namespace denox::compiler::shaders
