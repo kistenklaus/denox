@@ -169,9 +169,9 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
                 nodeName));
           assert(ax < before.size());
           assert(ax < after.size());
-          if (ax < before.size()) {
+          if (ax >= before.size()) {
             throw std::runtime_error("unexpected error");
-          } else if (ax < after.size()) {
+          } else if (ax >= after.size()) {
             throw std::runtime_error("unexpected error");
           }
           before[ax] = Sym::Const(b);
