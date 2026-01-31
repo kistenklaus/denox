@@ -66,7 +66,7 @@ to install the main branch directly. ```sudo pacman -Rs denox``` to uninstall.
 ```bash
 git clone git@github.com:kistenklaus/denox.git
 cd denox
-cmake -Bbuild \
+cmake -Bbuild -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DDENOX_UNITY_BUILD=ON \
     -DBUILD_TESTING=OFF \
