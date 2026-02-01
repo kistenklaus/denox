@@ -455,7 +455,7 @@ void CopyTransformShader::implement(
 }
 
 memory::string CopyTransformShader::name() const {
-  return "CopyTransformShader";
+  return "copy-transform";
 }
 
 } // namespace denox::compiler::shaders

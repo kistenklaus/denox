@@ -48,6 +48,7 @@ struct ModelDispatch {
   memory::optional<memory::string> srcPath;
   memory::optional<Sym> memoryReads;
   memory::optional<Sym> memoryWrites;
+  memory::optional<Sym> flops;
 };
 
 struct ModelBufferBarrier {

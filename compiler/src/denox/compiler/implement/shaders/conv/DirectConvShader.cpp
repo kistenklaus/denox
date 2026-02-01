@@ -550,5 +550,5 @@ void DirectConvShader::implement(
                                  config.sg_m, config.sg_k, config.sg_n,
                                  config.wg_m, config.wg_n, config.async));
 }
-memory::string DirectConvShader::name() const { return "DirectConvShader"; }
+memory::string DirectConvShader::name() const { return "direct-conv"; }
 } // namespace denox::compiler::shaders

@@ -176,7 +176,11 @@ bool denox::spirv::SpirvTools::validate(const SpirvBinary &binary) {
 }
 denox::spirv::SpirvTools::~SpirvTools() {
   if (m_tools != nullptr) {
+    auto *tools = static_cast<spvtools::SpirvTools *>(m_tools);
+    std::destroy_at(tools);
     free(m_tools);
+    auto *optimizer = static_cast<spvtools::Optimizer *>(m_optimizer);
+    std::destroy_at(optimizer);
     free(m_optimizer);
     m_tools = nullptr;
     m_optimizer = nullptr;
@@ -268,4 +272,3 @@ bool denox::spirv::SpirvTools::rebind(
   }
   return true;
 }
-

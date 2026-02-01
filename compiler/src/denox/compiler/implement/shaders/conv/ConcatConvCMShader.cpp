@@ -578,8 +578,8 @@ void ConcatConvCMShader::implement(
   assert(a.width == b.width);
   assert(a.height == b.height);
   assert(a.type == b.type);
-  // assert(a.width == out.width);
-  // assert(b.height == out.height);
+  assert(a.width == out.width);
+  assert(b.height == out.height);
   const ComputeOpConv &conv = op.conv();
 
   memory::optional<ActivationFunction> activationFunction;
@@ -706,6 +706,7 @@ void ConcatConvCMShader::implement(
   dispatch.setFlops(symGraph.mul(symGraph.mul(out.width, out.height),
                                  2 * (A_C + B_C) * K * conv->W->shape().r *
                                      conv->W->shape().s));
+
   if (activationFunction) {
     switch (*activationFunction) {
     case ActivationFunction::ReLU:
@@ -748,5 +749,5 @@ void ConcatConvCMShader::implement(
 
   dispatch.setName(name());
 }
-memory::string ConcatConvCMShader::name() const { return "ConcatConvCMShader"; }
+memory::string ConcatConvCMShader::name() const { return "concat-conv-cm"; }
 } // namespace denox::compiler::shaders

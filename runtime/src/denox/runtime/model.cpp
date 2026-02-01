@@ -196,6 +196,7 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
   memory::optional<memory::string> srcPath;
   memory::optional<Sym> memoryReads;
   memory::optional<Sym> memoryWrites;
+  memory::optional<Sym> flops;
   if (dispatch->info()) {
     const dnx::DispatchInfo *info = dispatch->info();
     if (info->name()) {
@@ -214,6 +215,9 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
       memoryWrites =
           parse_sym(info->memory_writes_type(), info->memory_writes());
     }
+    if (info->flops()) {
+      flops = parse_sym(info->flops_type(), info->flops());
+    }
   }
 
   return runtime::ModelDispatch{
@@ -230,6 +234,7 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
       .srcPath = srcPath,
       .memoryReads = memoryReads,
       .memoryWrites = memoryWrites,
+      .flops = flops,
   };
 }
 
@@ -372,8 +377,7 @@ parse_cmds(const ContextHandle &context, const dnx::Model *dnx) {
   for (size_t d = 0; d < dnx->dispatches()->size(); ++d) {
     const dnx::ComputeDispatch *dispatch =
         dnx->dispatches()->Get(static_cast<unsigned int>(d));
-    ModelDispatch modelDispatch =
-        create_model_dispatch(context, dnx, dispatch);
+    ModelDispatch modelDispatch = create_model_dispatch(context, dnx, dispatch);
 
     if (std::optional<ModelBarrier> barrier =
             generate_pipeline_barrier(dnx, tensorStates, dispatch)) {

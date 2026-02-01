@@ -250,5 +250,5 @@ void MemorySliceShader::implement(
   dispatch.usesCoopmat(false);
 }
 
-memory::string MemorySliceShader::name() const { return "MemorySliceShader"; }
+memory::string MemorySliceShader::name() const { return "memory-slice"; }
 } // namespace denox::compiler::shaders

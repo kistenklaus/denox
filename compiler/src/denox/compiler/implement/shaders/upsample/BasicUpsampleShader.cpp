@@ -293,6 +293,6 @@ void BasicUpsampleShader::implement(
   dispatch.usesCoopmat(false);
 }
 memory::string BasicUpsampleShader::name() const {
-  return "BasicUpsampleShader";
+  return "basic-upsample";
 }
 } // namespace denox::compiler::shaders

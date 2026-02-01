@@ -411,6 +411,11 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
   denox::dnx::ScalarSource memory_writes_type = denox::dnx::ScalarSource_NONE;
   flatbuffers::Offset<void> memory_writes = 0;
 
+  denox::dnx::ScalarSource flops_type = denox::dnx::ScalarSource_NONE;
+  flatbuffers::Offset<void> flops = 0;
+
+
+
   if (info.name) {
     name = fbb.CreateString(*info.name);
   }
@@ -426,6 +431,8 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
     memory_reads_type = type;
     memory_reads = ptr;
   }
+
+
   if (info.memoryWrites) {
     auto [type, ptr] =
         serialize_scalar(fbb, *info.memoryWrites, memory::Dtype::U64);
@@ -433,9 +440,16 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
     memory_writes = ptr;
   }
 
+  if (info.flops) {
+    auto [type, ptr] = serialize_scalar(fbb, *info.flops, memory::Dtype::U64);
+    flops_type = type;
+    flops = ptr;
+  }
+
   return dnx::CreateDispatchInfo(fbb, name, debug_info, src_path,
                                  memory_reads_type, memory_reads,
-                                 memory_writes_type, memory_writes);
+                                 memory_writes_type, memory_writes,
+                                 flops_type, flops);
 }
 
 static flatbuffers::Offset<denox::dnx::ComputeDispatch>

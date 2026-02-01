@@ -894,5 +894,5 @@ void DirectConvShaderCM::implement(
                                  config.wg_m, config.wg_n, config.async));
 }
 
-memory::string DirectConvShaderCM::name() const { return "DirectConvCMShader"; }
+memory::string DirectConvShaderCM::name() const { return "direct-conv-cm"; }
 } // namespace denox::compiler::shaders

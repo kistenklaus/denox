@@ -321,6 +321,6 @@ void BasicActivationShader::implement(
 }
 
 memory::string BasicActivationShader::name() const {
-  return "BasicActivationShader";
+  return "basic-activation";
 }
 } // namespace denox::compiler::shaders

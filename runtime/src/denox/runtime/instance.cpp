@@ -447,6 +447,7 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
     uint32_t end;
     uint64_t memoryReads;
     uint64_t memoryWrites;
+    uint64_t flops;
   };
 
   memory::vector<Timing> timings;
@@ -559,6 +560,11 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
         memoryWrites = static_cast<uint64_t>(
             m_symeval[*dispatch.modelDispatch->memoryWrites]);
       }
+      uint64_t flops = 0;
+      if (dispatch.modelDispatch->flops) {
+        flops =
+            static_cast<uint64_t>(m_symeval[*dispatch.modelDispatch->flops]);
+      }
 
       timings.push_back(Timing{
           .input_desc = input_desc,
@@ -568,6 +574,7 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
           .end = end,
           .memoryReads = memoryReads,
           .memoryWrites = memoryWrites,
+          .flops = flops,
       });
     } else if (std::holds_alternative<runtime::InstanceBarrier>(op)) {
       const auto &barrier = std::get<runtime::InstanceBarrier>(op);
@@ -608,6 +615,7 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
     out[i].output = t.output_desc;
     out[i].memoryWrites = t.memoryWrites;
     out[i].memoryReads = t.memoryReads;
+    out[i].flops = t.flops;
     float duration = ctx->timestampDifference(timestamps, t.start, t.end);
     out[i].latency = std::chrono::duration<float, std::milli>{duration};
   }
@@ -626,20 +634,34 @@ memory::string runtime::InstanceBenchmarkResult::report() const {
     totalDuration += t.latency.count();
     uint64_t accesses = t.memoryReads + t.memoryWrites;
     totalAccesses += accesses;
+
     float throughput =
         (static_cast<float>(accesses) / (t.latency.count() * 1e-3f)) * 1e-9f;
-    std::cerr << fmt::format(
-                     "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
-                     "\x1B[90m({:>4} GB/s)\x1B[0m    {:.3f}MB",
-                     t.input, t.name, t.output, int_part, frac_part,
-                     static_cast<uint32_t>(std::round(throughput)),
-                     static_cast<float>(accesses) * 1e-6f)
-              << std::endl;
-    ;
+
+    if (t.flops != 0) {
+      float compute =
+          (static_cast<float>(t.flops) / (t.latency.count() * 1e-3f)) * 1e-12f;
+      std::cerr << fmt::format(
+                       "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
+                       "\x1B[90m({:>4} GB/s, {:>2} FLOPS)\x1B[0m",
+                       t.input, t.name, t.output, int_part, frac_part,
+                       static_cast<uint32_t>(std::round(throughput)),
+                       // t.flops
+                       static_cast<uint32_t>(std::round(t.flops))
+                       )
+                << std::endl;
+    } else {
+      std::cerr << fmt::format(
+                       "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
+                       "\x1B[90m({:>4} GB/s)\x1B[0m",
+                       t.input, t.name, t.output, int_part, frac_part,
+                       static_cast<uint32_t>(std::round(throughput)))
+                << std::endl;
+    }
   }
 
   std::cerr << fmt::format(
-                   "\x1B[31m{:>89} {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
+                   "\x1B[31m{:>89}  {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
                    "Total time :", totalDuration,
                    std::round((static_cast<float>(totalAccesses) /
                                (totalDuration * 1e-3f)) *

@@ -304,5 +304,5 @@ void BasicPoolShader::implement(
   dispatch.setFlops(Sym::Const(0));
   dispatch.usesCoopmat(false);
 }
-memory::string BasicPoolShader::name() const { return "BasicPoolShader"; }
+memory::string BasicPoolShader::name() const { return "basic-pool"; }
 } // namespace denox::compiler::shaders

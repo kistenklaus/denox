@@ -259,6 +259,6 @@ void MemoryPadShader::implement(
   dispatch.usesCoopmat(false);
 }
 memory::string MemoryPadShader::name() const {
-  return "MemoryPadShader";
+  return "memory-pad";
 }
 } // namespace denox::compiler::shaders

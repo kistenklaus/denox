@@ -10,14 +10,12 @@
 #include "denox/compiler/lifeness/Lifetimes.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/compiler/placement/placement.hpp"
-#include "denox/compiler/rebind_descriptors/rebind_descriptors.hpp"
 #include "denox/compiler/selection/OptSchedule.hpp"
 #include "denox/compiler/selection/selection.hpp"
 #include "denox/compiler/serialize/serialize.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/spirv/SpirvTools.hpp"
-#include <chrono>
 
 denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,

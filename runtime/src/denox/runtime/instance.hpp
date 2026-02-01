@@ -33,6 +33,7 @@ struct InstanceBenchmarkResult {
     memory::string output;
     uint64_t memoryReads;
     uint64_t memoryWrites;
+    uint64_t flops;
     std::chrono::duration<float, std::milli> latency;
   };
   memory::vector<Timing> timings;

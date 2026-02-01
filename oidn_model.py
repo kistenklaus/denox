@@ -347,7 +347,7 @@ class UNetAlignment(nn.Module):
         return output[:,:,:H,:W]
 
 
-Small = False
+Small = True
 
 rt_ldr = UNetAlignment(UNet(3, 3, Small))
 rt_ldr = rt_ldr.to(torch.float16)
@@ -364,9 +364,9 @@ example_input = torch.ones(1, 3, 1080, 1920, dtype=torch.float16)
 program = torch.onnx.export(
     rt_ldr,
     (example_input,),
-    # dynamic_shapes={
-    #     "input": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}
-    # },
+    dynamic_shapes={
+        "input": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}
+    },
     input_names=["input"],
     output_names=["output"],
 )
