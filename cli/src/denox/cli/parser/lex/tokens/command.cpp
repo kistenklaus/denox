@@ -23,6 +23,9 @@ std::optional<CommandToken> parse_command(std::string_view str) {
   if (str == "--help" || str == "-h") {
     return CommandToken::Help;
   }
+  if (str == "dumpcsv") {
+    return CommandToken::DumpCsv;
+  }
 
   return std::nullopt;
 }

@@ -8,7 +8,11 @@ add_library(denox_common EXCLUDE_FROM_ALL
   src/denox/io/read_file.cpp
   src/denox/io/fs/File.cpp
   src/denox/io/fs/Path.cpp
+
   src/denox/common/SHA256.cpp
+  src/denox/common/os.cpp
+  src/denox/common/version.cpp
+  src/denox/common/commit_hash.cpp
 
   src/denox/symbolic/SymGraph_add_entry.cpp
   src/denox/symbolic/SymGraph_affine.cpp
@@ -43,6 +47,8 @@ target_link_libraries(denox_common PUBLIC
     denox::spdlog
 )
 
+
+
 target_compile_definitions(denox_common PUBLIC 
   DENOX_VERSION=0
   DENOX_VERSION_PATCH=${PROJECT_VERSION_PATCH}
@@ -69,3 +75,23 @@ if (DENOX_SAN)
 endif()
 
 
+#  denox git commit hash 
+find_package(Git QUIET)
+
+set(DENOX_GIT_COMMIT_HASH "unknown")
+
+if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short=12 HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE DENOX_GIT_COMMIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+endif()
+
+configure_file(
+    ${CMAKE_SOURCE_DIR}/cmake/denox_commit_hash.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/denox_commit_hash.hpp
+    @ONLY
+)
+target_include_directories(denox_common PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)

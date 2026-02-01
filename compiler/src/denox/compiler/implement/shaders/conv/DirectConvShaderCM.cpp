@@ -828,11 +828,9 @@ void DirectConvShaderCM::implement(
 
   dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
   dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
-  dispatch.addBinding("FILTER_SET", "FILTER_BINDING", Access::ReadOnly,
-                      weightTensorId);
+  dispatch.addParamBinding("FILTER_SET", "FILTER_BINDING", weightTensorId);
   if (biasTensorId) {
-    dispatch.addBinding("BIAS_SET", "BIAS_BINDING", Access::ReadOnly,
-                        *biasTensorId);
+    dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
 
   dispatch.addPushConstant(PushConstant::Dynamic(in.width, memory::Dtype::U32));
@@ -848,7 +846,7 @@ void DirectConvShaderCM::implement(
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
 
-  Sym flops = 
+  Sym flops =
       symGraph.mul(symGraph.mul(out.width, out.height),
                    2ull * C * K * conv->W->shape().r * conv->W->shape().s);
   dispatch.setFlops(flops);

@@ -1,0 +1,2 @@
+#pragma once
+#define DENOX_GIT_COMMIT_HASH "@DENOX_GIT_COMMIT_HASH@"

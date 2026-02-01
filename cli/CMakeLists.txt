@@ -18,11 +18,12 @@ add_executable(denox
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/parse_commands.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/parse_options.cpp
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/compile.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/populate.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/infer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/bench.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/compile.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/dumpcsv.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/help.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/infer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/populate.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/version.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/main.cpp

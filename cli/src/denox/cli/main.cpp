@@ -1,6 +1,7 @@
 #include "alloc/monotone_alloc.hpp"
 #include "denox/cli/bench.hpp"
 #include "denox/cli/compile.hpp"
+#include "denox/cli/dumpcsv.hpp"
 #include "denox/cli/help.hpp"
 #include "denox/cli/infer.hpp"
 #include "denox/cli/parser/parse.hpp"
@@ -33,6 +34,9 @@ int main(int argc, char **argv) {
       break;
     case ActionKind::Version:
       version();
+      break;
+    case ActionKind::DumpCsv:
+      dumpcsv(action.dumpcsv());
       break;
     }
   } catch (const std::exception &e) {

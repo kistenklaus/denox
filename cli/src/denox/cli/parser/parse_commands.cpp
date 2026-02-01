@@ -11,6 +11,7 @@
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/span.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 // #include "denox/cli/parser/parse_options.hpp"
@@ -218,7 +219,7 @@ Action parse_compile(std::span<const Token> tokens) {
 
 Action parse_populate(std::span<const Token> tokens) {
   if (tokens.empty()) {
-    throw ParseError("missing input model");
+    throw ParseError("missing database and model");
   }
 
   if (parse_help(tokens, nullptr)) {
@@ -292,7 +293,7 @@ Action parse_populate(std::span<const Token> tokens) {
                                    describe_token(tokens[i])));
     }
 
-    if ((jump = parse_help(tokens, &help))) {
+    if ((jump = parse_help(tail, &help))) {
       i += jump;
       continue;
     }
@@ -832,4 +833,51 @@ Action parse_version(std::span<const Token>) { return Action::version(); }
 
 Action parse_help(std::span<const Token>) {
   return HelpAction(HelpScope::Global);
+}
+Action parse_dumpcsv(std::span<const Token> tokens) {
+  if (tokens.size() < 1) {
+    throw ParseError(fmt::format(
+        "dumpcsv expects a database as the first positional argument"));
+  }
+
+  const auto &dbToken = tokens.front();
+  if (dbToken.kind() != TokenKind::Literal || !dbToken.literal().is_path()) {
+    throw ParseError(fmt::format(
+        "expected database path as first positional argument, got {}",
+        dbToken));
+  }
+
+  DbArtefact database(dbToken.literal().as_path());
+
+  denox::memory::optional<IOEndpoint> output;
+
+  uint32_t i = 1;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    // --- positional arguments are not allowed here ---
+    if (tokens[i].kind() == TokenKind::Literal ||
+        tokens[i].kind() == TokenKind::Pipe) {
+      throw ParseError(
+          fmt::format("unexpected argument {}", describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+  IOEndpoint csv = output.value_or(Pipe{});
+
+  return DumpCsvAction{
+      .database = std::move(database),
+      .csv = csv,
+  };
 }

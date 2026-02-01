@@ -1,6 +1,7 @@
 #include "denox/db/Db.hpp"
 #include "denox/algorithm/hash_combine.hpp"
 #include "denox/common/SHA256.hpp"
+#include "denox/common/version.hpp"
 #include "denox/db/DbEnv.hpp"
 #include "denox/db/DbIndex.hpp"
 #include "denox/db/DbMapped.hpp"
@@ -12,7 +13,6 @@
 #include "denox/diag/unreachable.hpp"
 #include "denox/io/fs/File.hpp"
 #include "flatbuffers/verifier.h"
-#include "vulkan/vulkan.hpp"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -246,6 +246,14 @@ denox::Db denox::Db::open(const io::Path &path) {
           out_dispatch.flops = info->flops();
         }
         out_dispatch.coopmat = info->coopmat();
+        if (info->input_bindings()) {
+          out_dispatch.input_bindings.emplace(info->input_bindings()->begin(),
+                                              info->input_bindings()->end());
+        }
+        if (info->output_bindings()) {
+          out_dispatch.output_bindings.emplace(info->output_bindings()->begin(),
+                                               info->output_bindings()->end());
+        }
       }
 
       // build index.
@@ -290,10 +298,13 @@ bool denox::Db::atomic_writeback() const {
     envs.push_back(db::CreateBenchEnv(
         fbb, fbb.CreateString(env.device), fbb.CreateString(env.os),
         fbb.CreateString(env.driver_version),
+        fbb.CreateString(env.denox_version),
         fbb.CreateString(env.denox_commit_hash), env.start_timestamp, clockMode,
         env.l2_warmup_iterations, env.jit_warmup_iterations,
         env.measurement_iterations));
   }
+  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<db::BenchEnv>>>
+      envsVec = fbb.CreateVector(envs);
 
   std::vector<flatbuffers::Offset<db::ShaderBinary>> binaries;
   binaries.reserve(m_db->binaries.size());
@@ -412,11 +423,50 @@ bool denox::Db::atomic_writeback() const {
                               dispatch.time->mean_latency_ns,
                               dispatch.time->std_derivation_ns);
     }
+
+    flatbuffers::Offset<db::ComputeDispatchInfo> info;
+    if (dispatch.operation.has_value() || dispatch.shader_name.has_value() ||
+        dispatch.config.has_value() || dispatch.memory_reads.has_value() ||
+        dispatch.memory_writes.has_value() || dispatch.flops.has_value() ||
+        dispatch.coopmat.has_value() || dispatch.input_bindings.has_value() ||
+        dispatch.output_bindings.has_value()) {
+
+      flatbuffers::Offset<flatbuffers::String> operation;
+      flatbuffers::Offset<flatbuffers::String> shader_name;
+      flatbuffers::Offset<flatbuffers::String> config;
+      uint64_t memory_reads = dispatch.memory_reads.value_or(0);
+      uint64_t memory_writes = dispatch.memory_writes.value_or(0);
+      uint64_t flops = dispatch.flops.value_or(0);
+      bool coopmat = dispatch.coopmat.value_or(false);
+      flatbuffers::Offset<flatbuffers::Vector<uint32_t>> input_bindings;
+      flatbuffers::Offset<flatbuffers::Vector<uint32_t>> output_bindings;
+
+      if (dispatch.operation) {
+        operation = fbb.CreateString(*dispatch.operation);
+      }
+      if (dispatch.shader_name) {
+        shader_name = fbb.CreateString(*dispatch.shader_name);
+      }
+      if (dispatch.config) {
+        config = fbb.CreateString(*dispatch.config);
+      }
+      if (dispatch.input_bindings) {
+        input_bindings = fbb.CreateVector(*dispatch.input_bindings);
+      }
+      if (dispatch.output_bindings) {
+        output_bindings = fbb.CreateVector(*dispatch.output_bindings);
+      }
+
+      info = db::CreateComputeDispatchInfo(
+          fbb, operation, shader_name, config, memory_reads, memory_writes,
+          flops, coopmat, input_bindings, output_bindings);
+    }
+
     dispatches.push_back(db::CreateComputeDispatch(
         fbb, dispatch.binaryId, dispatch.workgroupCountX,
         dispatch.workgroupCountY, dispatch.workgroupCountZ,
         fbb.CreateVector<uint8_t>(dispatch.pushConstant), dispatch.hash,
-        fbb.CreateVector(bindings), time));
+        fbb.CreateVector(bindings), time, info));
   }
 
   auto dispatchesVec = fbb.CreateVector(dispatches);
@@ -425,6 +475,7 @@ bool denox::Db::atomic_writeback() const {
   builder.add_version(0);
   builder.add_shader_binaries(binariesVec);
   builder.add_dispatches(dispatchesVec);
+  builder.add_env(envsVec);
   auto db = builder.Finish();
   denox::db::FinishDbBuffer(fbb, db);
 
@@ -549,7 +600,9 @@ bool denox::Db::insert_dispatch(
     memory::optional<memory::string> config,
     memory::optional<uint64_t> memory_reads,
     memory::optional<uint64_t> memory_writes, memory::optional<uint64_t> flops,
-    memory::optional<bool> coopmat) {
+    memory::optional<bool> coopmat,
+    memory::optional<std::span<const uint32_t>> input_bindings,
+    memory::optional<std::span<const uint32_t>> output_bindings) {
   uint32_t binaryId;
   {
     auto it = m_index->binary_index.find(srcHash);
@@ -632,6 +685,14 @@ bool denox::Db::insert_dispatch(
   dispatch.memory_writes = memory_writes;
   dispatch.flops = flops;
   dispatch.coopmat = coopmat.value_or(false);
+  if (input_bindings) {
+    dispatch.input_bindings.emplace(input_bindings->begin(),
+                                    input_bindings->end());
+  }
+  if (output_bindings) {
+    dispatch.output_bindings.emplace(output_bindings->begin(),
+                                     output_bindings->end());
+  }
   uint32_t dispatchIndex = static_cast<uint32_t>(m_db->dispatches.size());
   m_db->dispatches.push_back(std::move(dispatch));
   m_index->dispatch_buckets[hash].emplace_back(dispatchIndex);
@@ -704,4 +765,8 @@ uint32_t denox::Db::create_bench_environment(
       .measurement_iterations = measurement_iterations,
   });
   return id;
+}
+
+std::span<const denox::DbEnv> denox::Db::envs() const {
+  return m_db->environments;
 }

@@ -682,13 +682,10 @@ void ConcatConvCMShader::implement(
   dispatch.addBinding("A_SET", "A_BINDING", Access::ReadOnly, aId);
   dispatch.addBinding("B_SET", "B_BINDING", Access::ReadOnly, bId);
   dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
-  dispatch.addBinding("A_FILTER_SET", "A_FILTER_BINDING", Access::ReadOnly,
-                      A_filterTensor);
-  dispatch.addBinding("B_FILTER_SET", "B_FILTER_BINDING", Access::ReadOnly,
-                      B_filterTensor);
+  dispatch.addParamBinding("A_FILTER_SET", "A_FILTER_BINDING", A_filterTensor);
+  dispatch.addParamBinding("B_FILTER_SET", "B_FILTER_BINDING", B_filterTensor);
   if (biasTensorId) {
-    dispatch.addBinding("BIAS_SET", "BIAS_BINDING", Access::ReadOnly,
-                        *biasTensorId);
+    dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
   dispatch.addPushConstant(PushConstant::Dynamic(W, memory::Dtype::U32));
   dispatch.addPushConstant(PushConstant::Dynamic(H, memory::Dtype::U32));

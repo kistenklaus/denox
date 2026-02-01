@@ -19,9 +19,8 @@ public:
                   memory::string_view binding_macro, Access access,
                   memory::NodeId nodeId);
 
-  void addBinding(memory::string_view set_macro,
-                  memory::string_view binding_macro, Access access,
-                  TensorId tensor);
+  void addParamBinding(memory::string_view set_macro,
+                       memory::string_view binding_macro, TensorId tensor);
 
   void addPushConstant(PushConstant pc) { self().pushConstants.push_back(pc); }
 
@@ -62,6 +61,8 @@ private:
   struct TensorBindingInfo {
     Access access;
     BindingType type;
+    int32_t edgeSrc; // -1 means not a source
+    bool edgeDst;     // -1 means not a dst
     memory::string set_macro;
     memory::string binding_macro;
     TensorId tensor;

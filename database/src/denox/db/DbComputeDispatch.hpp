@@ -26,6 +26,8 @@ struct DbComputeDispatch {
   memory::optional<uint64_t> memory_reads;
   memory::optional<uint64_t> memory_writes;
   memory::optional<uint64_t> flops;
-  bool coopmat;
+  memory::optional<bool> coopmat;
+  memory::optional<std::vector<uint32_t>> input_bindings;
+  memory::optional<std::vector<uint32_t>> output_bindings;
 };
 } // namespace denox

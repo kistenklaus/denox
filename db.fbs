@@ -79,6 +79,9 @@ table ComputeDispatchInfo {
   memory_writes:uint64;
   flops:uint64;
   coopmat:bool;
+
+  input_bindings:[uint32];
+  output_bindings:[uint32];
 }
 
 table ComputeDispatch {
@@ -115,6 +118,7 @@ table BenchEnv {
   os:string;
   driver_version:string;
   denox_commit_hash:string;
+  denox_version:string;
 
   start_timestamp:uint64;
 

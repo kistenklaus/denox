@@ -486,11 +486,9 @@ void DirectConvShader::implement(
 
   dispatch.addBinding("INPUT_SET", "INPUT_BINDING", Access::ReadOnly, inId);
   dispatch.addBinding("OUTPUT_SET", "OUTPUT_BINDING", Access::WriteOnly, outId);
-  dispatch.addBinding("FILTER_SET", "FILTER_BINDING", Access::ReadOnly,
-                      weightTensorId);
+  dispatch.addParamBinding("FILTER_SET", "FILTER_BINDING", weightTensorId);
   if (biasTensorId) {
-    dispatch.addBinding("BIAS_SET", "BIAS_BINDING", Access::ReadOnly,
-                        *biasTensorId);
+    dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
 
   dispatch.addPushConstant(PushConstant::Dynamic(in.width, memory::Dtype::U32));

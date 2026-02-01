@@ -59,7 +59,6 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
         edgeExists.insert(edgeId);
 
         for (const auto &config : configs) {
-
           auto opImpl = supergraphBuilder.beginOp(inputs, output);
           shader->implement(opImpl, model.graph, p, config, m,
                             supergraphBuilder.symGraph());

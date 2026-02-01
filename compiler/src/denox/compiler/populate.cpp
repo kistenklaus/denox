@@ -209,9 +209,18 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
       }
       memory::optional<bool> coopmat = dispatch.info.coopmat;
 
+      memory::optional<std::span<const uint32_t>> input_bindings;
+      if (dispatch.info.input_bindings) {
+        input_bindings.emplace(dispatch.info.input_bindings->begin(), dispatch.info.input_bindings->end());
+      }
+      memory::optional<std::span<const uint32_t>> output_bindings;
+      if (dispatch.info.output_bindings) {
+        output_bindings.emplace(dispatch.info.output_bindings->begin(), dispatch.info.output_bindings->end());
+      }
+
       db.insert_dispatch(hash, pcbuf, wgX, wgY, wgZ, bindings, binary,
                          operation, shader_name, config, memory_reads,
-                         memory_writes, flops, coopmat);
+                         memory_writes, flops, coopmat, input_bindings, output_bindings);
     }
   }
 

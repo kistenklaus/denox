@@ -1,5 +1,6 @@
 #include "denox/runtime/db.hpp"
 #include "denox/algorithm/align_up.hpp"
+#include "denox/common/os.hpp"
 #include "denox/db/DbComputeDispatch.hpp"
 #include "denox/db/DbEnv.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
@@ -615,10 +616,15 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
   memory::vector<uint32_t> iota(m_db.dispatches().size());
   std::iota(iota.begin(), iota.end(), 0);
 
-  std::string device_name;
-  std::string os;
-  std::string driver_version;
+  auto deviceProperties =
+      vk::PhysicalDevice{m_context->vkPhysicalDevice()}.getProperties();
+
+  std::string device_name = deviceProperties.deviceName;
+  std::string os = denox::os_name();
+  std::string driver_version =
+      fmt::format("{}", deviceProperties.driverVersion);
   std::string denox_commit_hash;
+
   uint64_t start_timestamp = benchmark_timestamp();
   DbClockMode clock_mode = DbClockMode::Unavailable;
 

@@ -55,6 +55,8 @@ Action parse_argv(int argc, char **argv) {
     return parse_version(std::span{tokens.begin() + 1, tokens.end()});
   case CommandToken::Help:
     return parse_help(std::span{tokens.begin() + 1, tokens.end()});
+  case CommandToken::DumpCsv:
+    return parse_dumpcsv(std::span{tokens.begin() + 1, tokens.end()});
   }
   throw std::runtime_error("unreachable");
 }

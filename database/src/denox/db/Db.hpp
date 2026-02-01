@@ -5,6 +5,7 @@
 #include "denox/db/DbShaderBinary.hpp"
 #include "denox/db/DbTensorBinding.hpp"
 #include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include <chrono>
 #include <memory>
@@ -36,7 +37,9 @@ public:
       memory::optional<uint64_t> memory_reads = memory::nullopt,
       memory::optional<uint64_t> memory_writes = memory::nullopt,
       memory::optional<uint64_t> flops = memory::nullopt,
-      memory::optional<bool> coopmat = memory::nullopt);
+      memory::optional<bool> coopmat = memory::nullopt,
+      memory::optional<std::span<const uint32_t>> input_bindings = memory::nullopt,
+      memory::optional<std::span<const uint32_t>> output_bindings = memory::nullopt);
 
   bool insert_binary(const SHA256 &srcHash, const SpirvBinary &binary);
 
@@ -45,6 +48,8 @@ public:
 
   // insert_dispatch, invalidates the span!
   std::span<const DbComputeDispatch> dispatches() const;
+
+  std::span<const DbEnv> envs() const;
 
   // Accumulates benchmark results into existing timing statistics.
   // Timing is stored as population mean and standard deviation.

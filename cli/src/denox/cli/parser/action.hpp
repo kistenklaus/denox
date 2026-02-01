@@ -2,6 +2,7 @@
 
 #include "denox/cli/parser/actions/bench.hpp"
 #include "denox/cli/parser/actions/compile.hpp"
+#include "denox/cli/parser/actions/dumpcsv.hpp"
 #include "denox/cli/parser/actions/help.hpp"
 #include "denox/cli/parser/actions/infer.hpp"
 #include "denox/cli/parser/actions/populate.hpp"
@@ -9,7 +10,15 @@
 #include <cassert>
 #include <variant>
 
-enum class ActionKind { Compile, Infer, Bench, Populate, Help, Version };
+enum class ActionKind {
+  Compile,
+  Infer,
+  Bench,
+  Populate,
+  Help,
+  Version,
+  DumpCsv
+};
 
 class Action {
 public:
@@ -22,6 +31,8 @@ public:
   Action(PopulateAction a) noexcept : m_value(std::move(a)) {}
 
   Action(HelpAction a) noexcept : m_value(std::move(a)) {}
+
+  Action(DumpCsvAction a) noexcept : m_value(std::move(a)) {}
 
   static Action version() noexcept { return Action{VersionTag{}}; }
 
@@ -38,7 +49,9 @@ public:
       return ActionKind::Help;
     if (std::holds_alternative<VersionTag>(m_value))
       return ActionKind::Version;
-
+    if (std::holds_alternative<DumpCsvAction>(m_value)) {
+      return ActionKind::DumpCsv;
+    }
     std::abort();
   }
 
@@ -87,6 +100,16 @@ public:
     return std::get<HelpAction>(m_value);
   }
 
+  const DumpCsvAction &dumpCsv() const noexcept {
+    assert(kind() == ActionKind::DumpCsv);
+    return std::get<DumpCsvAction>(m_value);
+  }
+
+  DumpCsvAction &dumpcsv() noexcept {
+    assert(kind() == ActionKind::DumpCsv);
+    return std::get<DumpCsvAction>(m_value);
+  }
+
 private:
   struct VersionTag {};
 
@@ -94,6 +117,6 @@ private:
 
 private:
   std::variant<CompileAction, InferAction, BenchAction, PopulateAction,
-               HelpAction, VersionTag>
+               HelpAction, VersionTag, DumpCsvAction>
       m_value;
 };

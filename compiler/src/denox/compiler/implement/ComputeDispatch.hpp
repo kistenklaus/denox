@@ -23,6 +23,9 @@ struct ComputeDispatchInfo {
   memory::optional<Sym> flops;
 
   memory::optional<bool> coopmat;
+
+  memory::optional<memory::small_vector<uint32_t, 2>> input_bindings;
+  memory::optional<memory::small_vector<uint32_t, 2>> output_bindings;
 };
 
 struct ComputeDispatch {

@@ -15,6 +15,7 @@ struct DbEnv {
   std::string device;
   std::string os;
   std::string driver_version;
+  std::string denox_version;
   std::string denox_commit_hash;
 
   uint64_t start_timestamp;

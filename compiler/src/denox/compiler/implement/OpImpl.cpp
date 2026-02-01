@@ -65,6 +65,8 @@ void OpImpl::createImplicitConcatConstrain(memory::NodeId src0,
 }
 
 void OpImpl::finish() {
+
+  // resolve inputs bindings
   m_superBuilder->m_graph.addEdge(
       m_inputs, m_output,
       SuperGraphEdge{

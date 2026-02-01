@@ -2,11 +2,20 @@
 #include "fmt/core.h"
 #include <optional>
 
-enum class CommandToken { Compile, Populate, Bench, Infer, Version, Help };
+enum class CommandToken {
+  Compile,
+  Populate,
+  Bench,
+  Infer,
+  Version,
+  Help,
+  DumpCsv
+};
 
 std::optional<CommandToken> parse_command(std::string_view str);
 
-template <> struct fmt::formatter<CommandToken> : fmt::formatter<std::string_view> {
+template <>
+struct fmt::formatter<CommandToken> : fmt::formatter<std::string_view> {
   template <typename FormatContext>
   auto format(CommandToken cmd, FormatContext &ctx) const {
     std::string_view name;
@@ -29,6 +38,9 @@ template <> struct fmt::formatter<CommandToken> : fmt::formatter<std::string_vie
       break;
     case CommandToken::Infer:
       name = "infer";
+      break;
+    case CommandToken::DumpCsv:
+      name = "dumpcsv";
       break;
     }
 

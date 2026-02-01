@@ -58,3 +58,4 @@ cmake-debug-build
 /src
 
 *.engine
+*.csv
