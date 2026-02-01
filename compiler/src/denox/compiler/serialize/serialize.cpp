@@ -414,8 +414,6 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
   denox::dnx::ScalarSource flops_type = denox::dnx::ScalarSource_NONE;
   flatbuffers::Offset<void> flops = 0;
 
-
-
   if (info.name) {
     name = fbb.CreateString(*info.name);
   }

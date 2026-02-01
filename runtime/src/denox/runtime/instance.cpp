@@ -640,14 +640,14 @@ memory::string runtime::InstanceBenchmarkResult::report() const {
 
     if (t.flops != 0) {
       float compute =
-          (static_cast<float>(t.flops) / (t.latency.count() * 1e-3f)) * 1e-12f;
+          static_cast<float>((static_cast<double>(t.flops) / (static_cast<double>(t.latency.count()) * 1e-3)) * 1e-12);
       std::cerr << fmt::format(
                        "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
-                       "\x1B[90m({:>4} GB/s, {:>2} FLOPS)\x1B[0m",
+                       "\x1B[90m({:>4} GB/s, {:>2} TFLOPS)\x1B[0m",
                        t.input, t.name, t.output, int_part, frac_part,
-                       static_cast<uint32_t>(std::round(throughput)),
+                       static_cast<uint64_t>(std::round(throughput)),
                        // t.flops
-                       static_cast<uint32_t>(std::round(t.flops))
+                       static_cast<uint64_t>(std::round(compute))
                        )
                 << std::endl;
     } else {

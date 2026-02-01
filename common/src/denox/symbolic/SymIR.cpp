@@ -1,5 +1,6 @@
 #include "denox/symbolic/SymIR.hpp"
 #include "denox/diag/unreachable.hpp"
+#include <limits>
 
 denox::SymIREval denox::SymIR::eval(memory::span<const SymSpec> specs) const {
   memory::vector<int64_t> dp(varCount + ops.size());

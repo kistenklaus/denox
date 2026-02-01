@@ -848,9 +848,10 @@ void DirectConvShaderCM::implement(
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
 
-  dispatch.setFlops(
+  Sym flops = 
       symGraph.mul(symGraph.mul(out.width, out.height),
-                   2 * C * K * conv->W->shape().r * conv->W->shape().s));
+                   2ull * C * K * conv->W->shape().r * conv->W->shape().s);
+  dispatch.setFlops(flops);
 
   if (activationFunction) {
     switch (*activationFunction) {
