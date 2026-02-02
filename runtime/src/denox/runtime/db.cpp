@@ -1,6 +1,8 @@
 #include "denox/runtime/db.hpp"
 #include "denox/algorithm/align_up.hpp"
+#include "denox/common/commit_hash.hpp"
 #include "denox/common/os.hpp"
+#include "denox/common/version.hpp"
 #include "denox/db/DbComputeDispatch.hpp"
 #include "denox/db/DbEnv.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
@@ -8,6 +10,7 @@
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/vector.hpp"
+#include "denox/runtime/clockctrl/clockctrl.hpp"
 #include "denox/runtime/context.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include "denox/spirv/SpirvTools.hpp"
@@ -623,10 +626,23 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
   std::string os = denox::os_name();
   std::string driver_version =
       fmt::format("{}", deviceProperties.driverVersion);
-  std::string denox_commit_hash;
+  std::string denox_version = denox::version();
+  std::string denox_commit_hash = denox::commit_hash();
+
+  DbClockMode clock_mode = DbClockMode::Unavailable;
+  {
+    // TODO! clockctrl
+    // if (denox::gpu_clockctrl::is_clock_control_available()) {
+    //   denox::gpu_clockctrl::gpu_clock_t deviceClock(
+    //       static_cast<int>(deviceProperties.deviceID));
+    //   deviceClock.lock_gpu_clocks(gpu_clockctrl::clock_rate_t::base);
+    //   fmt::println("locking clocks");
+    // } else {
+    //   fmt::println("unavailable");
+    // }
+  }
 
   uint64_t start_timestamp = benchmark_timestamp();
-  DbClockMode clock_mode = DbClockMode::Unavailable;
 
   uint32_t env = m_db.create_bench_environment(
       device_name, os, driver_version, denox_commit_hash, start_timestamp,

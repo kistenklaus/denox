@@ -28,7 +28,7 @@ add_library(denox_runtime EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/instance.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/db.cpp
 
-
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/clockctrl/clockctrl.cpp
 )
 
 target_compile_features(denox_runtime PUBLIC cxx_std_20)
@@ -62,4 +62,33 @@ endif()
 if (DENOX_SAN) 
   target_compile_options(denox_runtime PRIVATE -fsanitize=undefined -fsanitize=address)
   target_link_options(denox_runtime PRIVATE -fsanitize=undefined -fsanitize=address)
+endif()
+
+
+target_compile_definitions(denox_runtime PRIVATE GPU_CLOCKCTRL_HAS_CUDA)
+
+find_path(NVML_INCLUDE_DIR
+    NAMES nvml.h
+    PATH_SUFFIXES
+        nvidia-ml
+        include
+    PATHS
+        /usr
+        /opt/cuda/targets/x86_64-linux
+        /opt/cuda
+)
+
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(NVML
+    REQUIRED_VARS NVML_INCLUDE_DIR
+)
+
+if (NVML_FOUND)
+    add_library(NVML::Headers INTERFACE IMPORTED)
+    set_target_properties(NVML::Headers PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${NVML_INCLUDE_DIR}"
+    )
+    target_link_libraries(denox_runtime PRIVATE NVML::Headers nvidia-ml)
+    target_compile_definitions(denox_runtime PRIVATE DENOX_HAS_NVML=1)
 endif()

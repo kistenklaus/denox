@@ -503,6 +503,8 @@ Context::Context(const char *deviceName, ApiVersion target_env)
   bool memoryPriority = false;
   bool amdDeviceCoherentMemory = false;
   bool externalMemoryWin32 = false;
+
+    
   { // Create logical device and compute queue.
     ComputeQueueSelection sel =
         pick_best_compute_queue_family(m_physicalDevice);
@@ -520,61 +522,22 @@ Context::Context(const char *deviceName, ApiVersion target_env)
     extentions.push_back("VK_KHR_portability_subset");
 #endif
     { // Query extention support.
-      // std::uint32_t ecount = 0;
-      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr,
-      // &ecount,
-      //                                      nullptr);
-      // std::vector<VkExtensionProperties> supported(ecount);
-      // vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr,
-      // &ecount,
-      //                                      supported.data());
-      // for (const VkExtensionProperties &ext : supported) {
-      //   if (std::strcmp(ext.extensionName, "VK_KHR_dedicated_allocation") ==
-      //       0) {
-      //     extentions.push_back("VK_KHR_dedicated_allocation");
-      //     dedicatedAllocation = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_KHR_bind_memory2") == 0) {
-      //     extentions.push_back("VK_KHR_bind_memory2");
-      //     bindMemory2 = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_KHR_maintenance4") == 0) {
-      //     extentions.push_back("VK_KHR_maintenance4");
-      //     maintenance4 = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_KHR_maintenance5") == 0) {
-      //     extentions.push_back("VK_KHR_maintenance5");
-      //     maintenance5 = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_EXT_memory_budget") == 0) {
-      //     extentions.push_back("VK_EXT_memory_budget");
-      //     memoryBudget = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_KHR_buffer_device_address") ==
-      //       0) {
-      //     // NOTE: Maybe in some day in the future it would be nice to play
-      //     // around with this because it can probably avoid the overhead of
-      //     // switching pipeline layouts between dispatches as well as improve
-      //     // descriptor update perf.
-      //     // extentions.push_back("VK_KHR_buffer_device_address");
-      //     // bufferDeviceAddress = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_EXT_memory_priority") == 0) {
-      //     extentions.push_back("VK_EXT_memory_priority");
-      //     memoryPriority = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_AMD_device_coherent_memory")
-      //   ==
-      //       0) {
-      //     extentions.push_back("VK_AMD_device_coherent_memory");
-      //     amdDeviceCoherentMemory = true;
-      //   }
-      //   if (std::strcmp(ext.extensionName, "VK_KHR_external_memory_win32") ==
-      //       0) {
-      //     extentions.push_back("VK_KHR_external_memory_win32");
-      //     externalMemoryWin32 = true;
-      //   }
-      // }
+      std::uint32_t ecount = 0;
+      vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+                                           nullptr);
+      std::vector<VkExtensionProperties> supported(ecount);
+      vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &ecount,
+                                           supported.data());
+      for (const VkExtensionProperties &ext : supported) {
+
+#if defined(VK_EXT_pci_bus_info) && VK_EXT_pci_bus_info == 1
+        if (std::strcmp(ext.extensionName,
+                        VK_EXT_PCI_BUS_INFO_EXTENSION_NAME) == 0) {
+          extentions.push_back(VK_EXT_PCI_BUS_INFO_EXTENSION_NAME);
+          m_extPCIbufInfoAvailable = true;
+        }
+#endif
+      }
     }
 
     VkDeviceCreateInfo createInfo;

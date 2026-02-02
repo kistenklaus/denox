@@ -227,6 +227,8 @@ public:
   VkInstance vkInstance() const { return m_instance; }
   VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
 
+  bool extPCIbusInfoAvailable() const { return m_extPCIbufInfoAvailable; }
+
 private:
   explicit Context(const char *deviceName, ApiVersion target_env);
 
@@ -239,6 +241,7 @@ private:
   VkQueue m_queue;
   VmaAllocator m_vma;
   float m_timestampPeriod;
+  bool m_extPCIbufInfoAvailable;
 };
 
 using ContextHandle = std::shared_ptr<Context>;
