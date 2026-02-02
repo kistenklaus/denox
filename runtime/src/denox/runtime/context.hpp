@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fmt/printf.h>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -184,6 +185,12 @@ public:
   void waitFence(VkFence fence) {
     VkResult result = vkWaitForFences(m_device, 1, &fence, VK_FALSE,
                                       std::numeric_limits<uint64_t>::max());
+    if (result == VK_TIMEOUT) {
+      std::cerr << fmt::format("vkWaitForFences timed out") << std::endl;
+    }
+    if (result == VK_ERROR_DEVICE_LOST) {
+      throw std::runtime_error("Lost device!");
+    }
     if (result != VK_SUCCESS) {
       throw std::runtime_error("Failed to wait for fence or timed out.");
     }

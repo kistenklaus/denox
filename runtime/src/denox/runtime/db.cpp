@@ -31,7 +31,7 @@ static constexpr size_t EPOCH_SAMPLES = EPOCH_SIZE * 10;
 static constexpr size_t BATCH_SIZE = EPOCH_SIZE;
 
 static constexpr size_t JIT_WARMUP_ITERATIONS = 0;
-static constexpr size_t L2_WARMUP_ITERATONS = 10;
+static constexpr size_t L2_WARMUP_ITERATONS = 3;
 static constexpr size_t PIPELINE_STAGES = 2;
 
 using namespace denox;
@@ -154,8 +154,9 @@ static memory::vector<uint32_t> select_targets_from_candidates(
     } else {
       priority = std::numeric_limits<double>::infinity();
     }
-
-    items.push_back({i, priority});
+    for (uint32_t x = 0; x < 10; ++x) {
+      items.push_back({i, priority});
+    }
   }
 
   const uint64_t take = std::min<uint64_t>(items.size(), remaining);
@@ -519,6 +520,7 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
       read_batch(ctx, epoch.stages[next], batches[next], timings);
       sampleCount += batches[next].dispatches.size();
     }
+
     batches[next] =
         create_batch(state, db, epoch, options.minSamples, samplesInFlight);
 
@@ -652,9 +654,17 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
   while (running) {
     memory::vector<uint32_t> targets = select_targets_from_candidates(
         state, m_db, iota, EPOCH_SIZE, options.minSamples);
+    EpochBenchResults result;
     Epoch epoch = create_epoch(m_context, m_db, targets, env);
-    auto result =
-        bench_epoch(state, m_db, m_context, epoch, options, EPOCH_SAMPLES);
+    try {
+      result =
+          bench_epoch(state, m_db, m_context, epoch, options, EPOCH_SAMPLES);
+    } catch (const std::exception &e) {
+      destroy_epoch(m_context, epoch);
+      logger.error("{}Fatal exception exiting, without writeback\n{}{}",
+                   logger.red(), e.what(), logger.reset());
+      return;
+    }
     uint32_t count =
         static_cast<uint32_t>(std::min(result.timings.size(), targets.size()));
     for (uint32_t i = 0; i < count; ++i) {

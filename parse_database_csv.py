@@ -44,45 +44,47 @@ for op in df["operation"].unique():
 
 df = df[
     df["operation"]
-    == "relu(conv2d(x,kernel_size=(3,3),bias=true,stride=(1,1),padding=(1,1),dialation=(1,1)))"
+    == "conv2d(x,kernel_size=(3,3),bias=true,stride=(1,1),padding=(1,1),dialation=(1,1))"
 ]
 
 for shape in df["input_shape"].unique():
     print(shape)
 
 df = df[
-    (df["input_shape"] == "1088x1920x32")
+    (df["input_shape"] == "1080x1920x96")
     & (df["input_type"] == "Float16")
-    & (df["output_shape"] == "1088x1920x32")
+    & (df["output_shape"] == "1080x1920x64")
     & (df["output_type"] == "Float16")
 ]
 
 
-df = df.drop(
-    columns=[
-        "operation",
-        "input_shape",
-        "input_type",
-        "output_shape",
-        "output_type",
-    ]
+df["memory_throughput"] = (
+    (df["memory_reads"] + df["memory_writes"]) / (df["latency_ms"] * 1e-3) * 1e-9
 )
 
+df["compute_throughput"] = (df["flops"] / (df["latency_ms"] * 1e-3)) * 1e-12
+
+
 grouped = (
-    df.groupby(
-        ["input_format", "output_format", "shader", "config"], sort=False
-    )
+    df.groupby(["input_format", "output_format", "shader", "config"], sort=False)
     .agg(
         mean_latency_ms=("latency_ms", "mean"),
         median_latency_ms=("latency_ms", "median"),
         p95_latency_ms=("latency_ms", lambda x: x.quantile(0.95)),
+        mean_memory_throughput=("memory_throughput", "mean"),
+        median_memory_throughput=("memory_throughput", "median"),
+        p95_memory_throughput=("memory_throughput", lambda x: x.quantile(0.95)),
+        mean_compute_throughput=("compute_throughput", "mean"),
+        median_compute_throughput=("compute_throughput", "median"),
+        p95_compute_throughput=("compute_throughput", lambda x: x.quantile(0.95)),
         sample_count=("latency_ms", "size"),
     )
     .reset_index()
 )
 
-fastest_10 = grouped.sort_values("mean_latency_ms", ascending=True).head(10)
+
+fastest_10 = grouped.sort_values("mean_latency_ms", ascending=True).head(20)
 for row in fastest_10.itertuples(index=False):
-    print(f"{row.mean_latency_ms:.2f}ms   {row.input_format:<5} -> {row.output_format:<5}    {row.shader}     {row.config}")
-
-
+    print(
+        f"{row.mean_latency_ms:.2f}ms   {row.input_format:<5} -> {row.output_format:<5}    {row.shader}     {row.config}   ({row.mean_memory_throughput:.0f}GB/s, {row.mean_compute_throughput:.1f}TFLOP/s)"
+    )

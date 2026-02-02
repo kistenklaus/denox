@@ -83,7 +83,7 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
                                                    model.valueNames(), options);
 
   // Register all dispatches in the database
-
+  size_t new_dispatch_count = 0;
   for (size_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
     memory::EdgeId eid{e};
     const compiler::SuperGraphEdge &edge = supergraph.graph.get(eid);
@@ -218,11 +218,16 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
         output_bindings.emplace(dispatch.info.output_bindings->begin(), dispatch.info.output_bindings->end());
       }
 
-      db.insert_dispatch(hash, pcbuf, wgX, wgY, wgZ, bindings, binary,
+      bool new_dispatch = db.insert_dispatch(hash, pcbuf, wgX, wgY, wgZ, bindings, binary,
                          operation, shader_name, config, memory_reads,
                          memory_writes, flops, coopmat, input_bindings, output_bindings);
+      if (new_dispatch) {
+        new_dispatch_count++;
+      }
     }
   }
+  // TODO: Remove me 
+  logger.info("{} new dispatches", new_dispatch_count);
 
   logger.info("[100%] Database {} populated", db.path());
 }

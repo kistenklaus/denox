@@ -11,6 +11,18 @@
 
 namespace denox::compiler::shaders {
 
+struct DirectConvConfigCM {
+  unsigned int cm_m;
+  unsigned int cm_k;
+  unsigned int cm_n;
+  unsigned int wg_m;
+  unsigned int wg_n;
+  unsigned int sg_m;
+  unsigned int sg_k;
+  unsigned int sg_n;
+  bool async;
+};
+
 class DirectConvShaderCM final : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
@@ -19,7 +31,8 @@ private:
   static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
 public:
-  DirectConvShaderCM(spirv::GlslCompiler *compiler, const CompileOptions &options);
+  DirectConvShaderCM(spirv::GlslCompiler *compiler,
+                     const CompileOptions &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -59,13 +72,17 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/conv/direct_conv_cm.comp";
+      io::Path::assets() /
+      "compiler/src/denox/compiler/implement/shaders/conv/direct_conv_cm.comp";
   bool m_enableConvReluFusion;
 
   unsigned int m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
+  uint32_t m_maxComputeSharedMemory;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   std::span<const CoopmatShape> m_supportedCoopmatShapes;
+
+  std::vector<DirectConvConfigCM> m_configs;
 };
 
 } // namespace denox::compiler::shaders

@@ -10,447 +10,11 @@
 #include "denox/memory/tensor/BiasTensor.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FilterTensor.hpp"
+#include <bit>
+#include <exception>
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
-
-struct DirectConvConfigCM {
-  unsigned int cm_m;
-  unsigned int cm_k;
-  unsigned int cm_n;
-  unsigned int wg_m;
-  unsigned int wg_n;
-  unsigned int sg_m;
-  unsigned int sg_k;
-  unsigned int sg_n;
-  bool async;
-};
-
-static std::vector<DirectConvConfigCM> DIRECT_CONV_CM_CONFIGS = {
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = false,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = true,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 2,
-        .async = false,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 6,
-        .async = true,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 6,
-        .async = false,
-    },
-
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 7,
-        .async = true,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 1,
-        .sg_n = 7,
-        .async = false,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 3,
-        .sg_n = 6,
-        .async = true,
-    },
-    DirectConvConfigCM{
-        .cm_m = 16,
-        .cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .sg_k = 3,
-        .sg_n = 7,
-        .async = false,
-    },
-
-    // // 16x8x8 coop shape.
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = false,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = false,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 6,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 6,
-    //     .async = false,
-    // },
-    //
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 7,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 7,
-    //     .async = false,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 3,
-    //     .sg_n = 6,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 8,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 3,
-    //     .sg_n = 7,
-    //     .async = false,
-    // },
-
-    // // 16x8x16 coopmat shape
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = false,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = false,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 6,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 6,
-    //     .async = false,
-    // },
-    //
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 7,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 7,
-    //     .async = false,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 3,
-    //     .sg_n = 6,
-    //     .async = true,
-    // },
-    // DirectConvConfigCM{
-    //     .cm_m = 16,
-    //     .cm_k = 8,
-    //     .cm_n = 16,
-    //
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //
-    //     .sg_m = 1,
-    //     .sg_k = 3,
-    //     .sg_n = 7,
-    //     .async = false,
-    // },
-};
 
 DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                                        const CompileOptions &options)
@@ -459,6 +23,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
+      m_maxComputeSharedMemory(
+          options.deviceInfo.limits.maxComputeSharedMemory),
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize),
       m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes) {
@@ -473,6 +39,127 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     return;
   }
 
+  // ==== Generate all valid configurations ====
+  {
+    size_t coopmat_shape_count = 1;
+    for (const denox::CoopmatShape &coopmat_shape :
+         options.deviceInfo.coopmat.shapes) {
+      if (!coopmat_shape.subgroupScope ||
+          coopmat_shape.acctype != memory::Dtype::F16 ||
+          coopmat_shape.atype != memory::Dtype::F16 ||
+          coopmat_shape.btype != memory::Dtype::F16 ||
+          coopmat_shape.ctype != memory::Dtype::F16) {
+        continue;
+      }
+      if (coopmat_shape_count-- == 0) {
+        break;
+      }
+      const uint32_t cm_m = coopmat_shape.M;
+      const uint32_t cm_k = coopmat_shape.K;
+      const uint32_t cm_n = coopmat_shape.N;
+      if ((cm_m % 8 != 0) || (cm_k % 8 != 0) || (cm_n % 8 != 0)) {
+        continue;
+      }
+
+      const uint32_t acc_register_estimate = (cm_m * cm_n) / m_subgroupSize;
+      const uint32_t a_register_estimate = (cm_m * cm_k) / m_subgroupSize;
+      const uint32_t b_register_estimate = (cm_k * cm_n) / m_subgroupSize;
+
+      // very exhaustive search range!!!
+      for (uint32_t wg_m = 1; wg_m < 16; ++wg_m) {
+        for (uint32_t wg_n = 1; wg_n < 16; ++wg_n) {
+          const uint32_t workgroup_size = wg_m * wg_n * m_subgroupSize;
+          if (workgroup_size < 128 ||
+              workgroup_size >
+                  options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
+            continue; // unreasonable workgroup size
+          }
+          for (uint32_t sg_m = 1; sg_m < 8; ++sg_m) {
+            for (uint32_t sg_k = 1; sg_k < 8; ++sg_k) {
+              for (uint32_t sg_n = 1; sg_n < 8; ++sg_n) {
+                const uint32_t coopmats_register_estimate =
+                    acc_register_estimate * sg_n * sg_m +
+                    a_register_estimate * sg_m + b_register_estimate * sg_n;
+                const uint32_t prefetch_A_QQ = (cm_m * cm_k * sg_k * sg_m) / 8;
+                if (prefetch_A_QQ % wg_n != 0) {
+                  continue; // uneven load balancing between subgroups.
+                }
+                const uint32_t prefetch_A_SQQ = prefetch_A_QQ / wg_n;
+                // 16bytes word fetched per invocation!
+                const uint32_t prefetch_A_IQQ =
+                    (prefetch_A_SQQ + m_subgroupSize - 1) / m_subgroupSize;
+
+                const uint32_t prefetch_B_QQ = (cm_k * cm_n * sg_k * sg_n) / 8;
+                if (prefetch_B_QQ % wg_m != 0) {
+                  continue; // uneven load balancing between subgroups.
+                }
+                const uint32_t prefetch_B_SQQ = prefetch_B_QQ / wg_m;
+                // 16 bytes word fetched per invocation!
+                const uint32_t prefetch_B_IQQ =
+                    (prefetch_B_SQQ + m_subgroupSize - 1) / m_subgroupSize;
+
+                const uint32_t prefetch_A_register_estimate =
+                    prefetch_A_IQQ * 4; // uvec4
+                const uint32_t prefetch_B_register_estimate =
+                    prefetch_B_IQQ * 4; // uvec4
+
+                const uint32_t register_estimate =
+                    coopmats_register_estimate + prefetch_A_register_estimate +
+                    prefetch_B_register_estimate;
+                if (register_estimate > 160) {
+                  continue; // to many registers (conservative limit, because
+                            // optimizers might reduce this drastically)
+                }
+                const uint32_t sh_a_size =
+                    (wg_m * cm_m * cm_k * sg_k * sg_m) * 2;
+                const uint32_t sh_b_size =
+                    (wg_n * cm_k * cm_n * sg_k * sg_n) * 2;
+                const uint32_t sh_out_size =
+                    wg_m * wg_n * sg_m * sg_n * cm_m * cm_n * 2;
+                const uint32_t sh_size =
+                    std::max(sh_a_size + sh_b_size, sh_out_size);
+
+                // again very conservative limit especially for this
+                // implementation, because it almost doesn't require any shared
+                // memory
+                static constexpr double WG_SH_OCCUPANCY = 0.5; // 75% of max shared memory allowed
+                if (static_cast<double>(sh_size) > static_cast<double>(m_maxComputeSharedMemory) * WG_SH_OCCUPANCY) {
+                  continue;
+                }
+                // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m, cm_k,
+                //              cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
+
+                m_configs.push_back(DirectConvConfigCM{
+                    .cm_m = cm_m,
+                    .cm_k = cm_k,
+                    .cm_n = cm_n,
+                    .wg_m = wg_m,
+                    .wg_n = wg_n,
+                    .sg_m = sg_m,
+                    .sg_k = sg_k,
+                    .sg_n = sg_n,
+                    .async = true,
+                });
+                m_configs.push_back(DirectConvConfigCM{
+                    .cm_m = cm_m,
+                    .cm_k = cm_k,
+                    .cm_n = cm_n,
+                    .wg_m = wg_m,
+                    .wg_n = wg_n,
+                    .sg_m = sg_m,
+                    .sg_k = sg_k,
+                    .sg_n = sg_n,
+                    .async = false,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ==== Define implementable patterns ========
   const auto tensorSupported = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
       return false;
@@ -558,44 +245,68 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     [[maybe_unused]] unsigned int pattern,
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match) const {
-  // const auto &patternHandles = m_patternHandles[pattern];
-  // const auto &in = opGraph.get(match[patternHandles.in]);
-  // const auto &out = opGraph.get(match[patternHandles.out]);
+  const auto &patternHandles = m_patternHandles[pattern];
+  const auto &in = opGraph.get(match[patternHandles.in]);
+  const auto &out = opGraph.get(match[patternHandles.out]);
+  const auto &conv = opGraph.get(match[patternHandles.conv]).conv();
 
-  if (m_subgroupSize > m_maxComputeWorkGroupSize[0]) {
+  if (in.channels.isSymbolic()) {
+    return {};
+  }
+  if (out.channels.isSymbolic()) {
     return {};
   }
 
-  std::vector<unsigned int> configs;
-  configs.reserve(DIRECT_CONV_CM_CONFIGS.size());
-  for (unsigned int c = 0; c < DIRECT_CONV_CM_CONFIGS.size(); ++c) {
-    const auto &config = DIRECT_CONV_CM_CONFIGS[c];
-    uint32_t sgCount = config.wg_n * config.wg_m;
-    if (sgCount > m_maxComputeWorkGroupSize[1]) {
-      continue;
+  const uint32_t C = static_cast<uint32_t>(in.channels.constant());
+  const uint32_t K = static_cast<uint32_t>(out.channels.constant());
+  const uint32_t R = conv->W->shape().r;
+  const uint32_t S = conv->W->shape().s;
+
+  std::vector<unsigned int> promissing;
+  promissing.reserve(m_configs.size());
+  for (unsigned int c = 0; c < m_configs.size(); ++c) {
+    const auto &config = m_configs[c];
+
+    static constexpr size_t KK_ASYNC_LIMIT = 3;
+    static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;
+    static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
+
+    // GEMM loop iterations
+    const uint32_t RSC = R * S * C;
+    const uint32_t ktile = config.cm_k * config.sg_k;
+    const uint32_t KK = (RSC + ktile - 1) / ktile;
+
+    if (KK < KK_ASYNC_LIMIT && config.async) {
+      continue; // async doesn't make any sense here!
     }
-    uint32_t workgroupInvocations = sgCount * m_subgroupSize;
-    if (workgroupInvocations > m_maxComputeWorkGroupInvocations) {
-      continue;
-    }
-    bool coopmatShapeSupported = false;
-    for (const auto &shape : m_supportedCoopmatShapes) {
-      if (shape.subgroupScope && shape.atype == memory::Dtype::F16 &&
-          shape.btype == memory::Dtype::F16 &&
-          shape.ctype == memory::Dtype::F16 &&
-          shape.acctype == memory::Dtype::F16 && shape.M == config.cm_m &&
-          shape.K == config.cm_k && shape.N == config.cm_n) {
-        coopmatShapeSupported = true;
-        break;
-      }
-    }
-    if (!coopmatShapeSupported) {
+    if (RSC * MAX_KTILE_OVERALLOCATION < ktile) {
       continue;
     }
 
-    configs.push_back(c);
+    // k over allocation factor.
+
+    uint32_t wgChannelTile = config.cm_n * config.sg_n * config.wg_n;
+    uint32_t channelDispatchSize = (K + wgChannelTile - 1) / wgChannelTile;
+    if (channelDispatchSize > 1 && K <= 256) {
+      // avoid output channel tiling, in cases where implementations
+      // without output tiling exist and are most likely a lot better
+      continue;
+    }
+
+    uint32_t K_eff = std::max(K, config.cm_n);
+
+    if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < wgChannelTile) {
+      continue;
+    }
+
+    // fmt::println("{}x{}x{}   {}x{}x{}   {}x{} -> {}", config.cm_m,
+    // config.cm_k,
+    //              config.cm_n, config.sg_m, config.sg_k, config.sg_n,
+    //              config.wg_m, config.wg_n, wgChannelTile);
+
+    promissing.push_back(c);
   }
-  return configs;
+  return promissing;
 }
 
 static spirv::GlslCompilerInstance direct_conv_cm_compile(
@@ -753,7 +464,7 @@ void DirectConvShaderCM::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-  const DirectConvConfigCM &config = DIRECT_CONV_CM_CONFIGS[configKey];
+  const DirectConvConfigCM &config = m_configs[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::EdgeId convId = match[patternHandles.conv];
@@ -789,13 +500,9 @@ void DirectConvShaderCM::implement(
   std::uint32_t tileY = config.cm_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
-  // tileX = 16 * 2 * 1 = 32
-  // tileY = 16
-  // tileZ = 2 * 8 = 16
-
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX); // 8 / 16 = 1
-  Sym workgroupCountY = symGraph.cdiv(in.width, tileY);     // 1920 / 16 = 120
-  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ);    // 1080 / 16 = 68
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
+  Sym workgroupCountY = symGraph.cdiv(in.width, tileY);
+  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);

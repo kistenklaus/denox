@@ -21,6 +21,8 @@
 
 namespace denox {
 
+static constexpr size_t INSTANCE_BENCH_WARMUP_ITERATIONS = 100;
+
 static std::vector<runtime::Buffer>
 create_buffers(const runtime::ModelHandle &model, const SymIREval &symeval) {
   const auto modelBuffers = model->buffers();
@@ -437,6 +439,36 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
   VkCommandPool cmdPool = ctx->createCommandPool();
   VkCommandBuffer cmd = ctx->allocBeginCommandBuffer(cmdPool);
 
+  // warmup
+  for (uint32_t i = 0; i < INSTANCE_BENCH_WARMUP_ITERATIONS; ++i) {
+    for (const auto &op : m_cmds) {
+      if (std::holds_alternative<runtime::InstanceDispatch>(op)) {
+        const auto &dispatch = std::get<runtime::InstanceDispatch>(op);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          dispatch.modelDispatch->pipeline);
+        vkCmdPushConstants(cmd, dispatch.modelDispatch->pipelineLayout,
+                           VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                           static_cast<uint32_t>(dispatch.pc.size()),
+                           dispatch.pc.data());
+        vkCmdBindDescriptorSets(
+            cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+            dispatch.modelDispatch->pipelineLayout, 0,
+            static_cast<uint32_t>(dispatch.descriptorSets.size()),
+            dispatch.descriptorSets.data(), 0, nullptr);
+        vkCmdDispatch(cmd, dispatch.workgroupCountX, dispatch.workgroupCountY,
+                      dispatch.workgroupCountZ);
+      } else if (std::holds_alternative<runtime::InstanceBarrier>(op)) {
+        const auto &barrier = std::get<runtime::InstanceBarrier>(op);
+        vkCmdPipelineBarrier(
+            cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
+            static_cast<uint32_t>(barrier.bufferBarrier.size()),
+            barrier.bufferBarrier.data(), 0, nullptr);
+      }
+    }
+  }
+
   ctx->cmdResetQueryPool(cmd, queryPool, 0, queryCount);
 
   struct Timing {
@@ -640,15 +672,16 @@ memory::string runtime::InstanceBenchmarkResult::report() const {
 
     if (t.flops != 0) {
       float compute =
-          static_cast<float>((static_cast<double>(t.flops) / (static_cast<double>(t.latency.count()) * 1e-3)) * 1e-12);
+          static_cast<float>((static_cast<double>(t.flops) /
+                              (static_cast<double>(t.latency.count()) * 1e-3)) *
+                             1e-12);
       std::cerr << fmt::format(
                        "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
                        "\x1B[90m({:>4} GB/s, {:>2} TFLOPS)\x1B[0m",
                        t.input, t.name, t.output, int_part, frac_part,
                        static_cast<uint64_t>(std::round(throughput)),
                        // t.flops
-                       static_cast<uint64_t>(std::round(compute))
-                       )
+                       static_cast<uint64_t>(std::round(compute)))
                 << std::endl;
     } else {
       std::cerr << fmt::format(
@@ -660,13 +693,14 @@ memory::string runtime::InstanceBenchmarkResult::report() const {
     }
   }
 
-  std::cerr << fmt::format(
-                   "\x1B[31m{:>89}  {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
-                   "Total time :", totalDuration,
-                   std::round((static_cast<float>(totalAccesses) /
-                               (totalDuration * 1e-3f)) *
-                              1e-9f))
-            << std::endl;
+  std::cerr
+      << fmt::format(
+             "\x1B[31m{:>89}  {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
+             "Total time :", totalDuration,
+             std::round(
+                 (static_cast<float>(totalAccesses) / (totalDuration * 1e-3f)) *
+                 1e-9f))
+      << std::endl;
   return out;
 }
 

@@ -76,6 +76,7 @@ denox::Db denox::Db::open(const io::Path &path) {
           .device = env->device()->str(),
           .os = env->device()->str(),
           .driver_version = env->driver_version()->str(),
+          .denox_version = env->denox_version()->str(),
           .denox_commit_hash = env->denox_commit_hash()->str(),
           .start_timestamp = env->start_timestamp(),
           .clock_mode = clock_mode,
@@ -721,7 +722,7 @@ void denox::Db::add_dispatch_benchmark_result(uint32_t dispatch_index,
       dispatch.time->samples.push_back(sample);
       dispatch.time->mean_latency_ns = sample.latency_ns;
       dispatch.time->std_derivation_ns = 0;
-      return;
+      continue;
     }
     const double prev_n = static_cast<double>(dispatch.time->samples.size());
     const double prev_mean_ns =
