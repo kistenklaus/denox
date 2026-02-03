@@ -92,6 +92,7 @@ add_library(denox_compiler
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/dce.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/prune_dead_supergraph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/prune_topological.cpp
     
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/implement.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/OpImpl.cpp

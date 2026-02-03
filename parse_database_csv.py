@@ -51,7 +51,7 @@ for shape in df["input_shape"].unique():
     print(shape)
 
 df = df[
-    (df["input_shape"] == "1080x1920x96")
+    (df["input_shape"] == "1080x1920x64")
     & (df["input_type"] == "Float16")
     & (df["output_shape"] == "1080x1920x64")
     & (df["output_type"] == "Float16")

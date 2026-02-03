@@ -6,8 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.dlpack
 
-INPUT_CHANNELS_COUNT = 64 + 32
-OUTPUT_CHANNEL_COUNT = 64
+INPUT_CHANNELS_COUNT = 32
+OUTPUT_CHANNEL_COUNT = 32
 
 
 class Net(nn.Module):

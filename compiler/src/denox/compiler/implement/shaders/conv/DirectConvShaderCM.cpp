@@ -122,11 +122,15 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                 // again very conservative limit especially for this
                 // implementation, because it almost doesn't require any shared
                 // memory
-                static constexpr double WG_SH_OCCUPANCY = 0.5; // 75% of max shared memory allowed
-                if (static_cast<double>(sh_size) > static_cast<double>(m_maxComputeSharedMemory) * WG_SH_OCCUPANCY) {
+                static constexpr double WG_SH_OCCUPANCY =
+                    0.5; // 75% of max shared memory allowed
+                if (static_cast<double>(sh_size) >
+                    static_cast<double>(m_maxComputeSharedMemory) *
+                        WG_SH_OCCUPANCY) {
                   continue;
                 }
-                // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m, cm_k,
+                // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m,
+                // cm_k,
                 //              cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
 
                 m_configs.push_back(DirectConvConfigCM{
@@ -285,9 +289,10 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
 
     // k over allocation factor.
 
-    uint32_t wgChannelTile = config.cm_n * config.sg_n * config.wg_n;
-    uint32_t channelDispatchSize = (K + wgChannelTile - 1) / wgChannelTile;
+    uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
+    uint32_t channelDispatchSize = (K + ctile - 1) / ctile;
     if (channelDispatchSize > 1 && K <= 256) {
+      fmt::println("skip: channel tiling");
       // avoid output channel tiling, in cases where implementations
       // without output tiling exist and are most likely a lot better
       continue;
@@ -295,17 +300,52 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
 
     uint32_t K_eff = std::max(K, config.cm_n);
 
-    if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < wgChannelTile) {
+    if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
+      fmt::println("skip: K overallocation");
       continue;
     }
 
-    // fmt::println("{}x{}x{}   {}x{}x{}   {}x{} -> {}", config.cm_m,
-    // config.cm_k,
-    //              config.cm_n, config.sg_m, config.sg_k, config.sg_n,
-    //              config.wg_m, config.wg_n, wgChannelTile);
+    // POLICY: RSC % ktile == 0
+    // NOTE: Only apply if there exist at least one config which achieves cm_k,
+    //    which is implied by RSC % config.cm_k == 0, with sg_k = 1
+    if (RSC % config.cm_k == 0 && RSC % ktile != 0) {
+      fmt::println("skip: imperfect ktiling");
+      continue;
+    }
+
+    // POLICY: K % ctile == 0
+    if (K % config.sg_n == 0 && K % ctile != 0) {
+      continue;
+    }
+
+    // POLICY: wgSize \in [128, 256]
+    const uint32_t wgSize = config.wg_m * config.wg_n * m_subgroupSize;
+    if (wgSize < 128 || wgSize > 256) {
+      continue;
+    }
+
+    const uint32_t xtile = config.cm_m;
+    const uint32_t ytile = config.sg_m * config.wg_m;
+    const float aspect = static_cast<float>(xtile) / static_cast<float>(ytile);
+    const float eps = 0.001f;
+    if (!((aspect + eps) >= 1 && (aspect - eps) <= 2)) {
+      continue;
+    }
+
+    // POLICY: tile pressure greater than 32K 
+    const uint32_t tile_pressue = config.cm_m * config.cm_k * config.cm_n * config.sg_m * config.sg_k * config.sg_n;
+    if (tile_pressue < (1<<15)) {
+      continue;
+    }
+
+    fmt::println("{}x{}x{}   {}x{}x{}   {}x{} -> ({}) {}", config.cm_m, config.cm_k,
+                 config.cm_n, config.sg_m, config.sg_k, config.sg_n,
+                 config.wg_m, config.wg_n, tile_pressue, tile_pressue > (1 << 15));
+
 
     promissing.push_back(c);
   }
+  fmt::println("config count = {}", promissing.size());
   return promissing;
 }
 
