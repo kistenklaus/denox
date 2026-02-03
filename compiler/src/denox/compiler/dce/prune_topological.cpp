@@ -1,11 +1,16 @@
 #include "denox/compiler/dce/prune_topological.hpp"
 #include "denox/algorithm/minimum_const_subgraph.hpp"
+#include "denox/algorithm/minimum_cost_subgraphs.hpp"
 #include "denox/algorithm/prune_dominated_edges.hpp"
+#include "denox/algorithm/topological_edge_sort.hpp"
+#include "denox/algorithm/topological_sort.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
+#include <absl/strings/internal/str_format/extension.h>
 #include <exception>
+#include <limits>
 
 static denox::memory::ConstGraph<denox::memory::NodeId,
                                  denox::memory::vector<denox::memory::EdgeId>,
@@ -89,38 +94,69 @@ void denox::compiler::prune_topological(SuperGraph &supergraph) {
   fmt::println("supergraph = (N = {}, M = {})", supergraph.graph.nodeCount(),
                supergraph.graph.edgeCount());
 
-  for (const auto i : supergraph.inputs) {
-    fmt::println("input: {}", *i);
-  }
-
-  for (const auto o : supergraph.outputs) {
-    fmt::println("output: {}", *o);
-  }
-
-  // weak reachability check
-  for (uint32_t i = 0; i < supergraph.graph.nodeCount(); ++i) {
-    memory::NodeId nid{i};
-    if (std::ranges::find(supergraph.inputs, nid) == supergraph.inputs.end()) {
-      if (supergraph.graph.incoming(nid).empty()) {
-        fmt::println("UNREACHABLE NODE-ID: {}", i);
-      }
-      assert(!supergraph.graph.incoming(nid).empty());
-    }
-  }
-
   memory::ConstGraph<memory::NodeId, memory::vector<memory::EdgeId>, uint32_t>
       tgraph = construct_topological_graph(supergraph);
 
-  fmt::println("tgraph = (N = {}, M = {})", tgraph.nodeCount(),
-               tgraph.edgeCount());
+  fmt::println("tgraph = (N={}, M={})", tgraph.nodeCount(), tgraph.edgeCount());
 
-  auto minCostSubgraph = algorithm::minimum_cost_subgraph(
+  auto minimum_cost_subgraph = algorithm::minimum_cost_subgraph(
       tgraph, supergraph.inputs, supergraph.outputs);
-  uint32_t minCost = 0;
-  for (uint32_t i = 0; i < minCostSubgraph.edgeCount(); ++i) {
-    minCost += minCostSubgraph.weight(memory::EdgeId{i});
+
+  // for (uint32_t i = 0; i < tgraph.nodeCount(); ++i) {
+  //   memory::NodeId nid{i};
+  //   memory::NodeId sid = tgraph.get(nid);
+  //   fmt::println("Node: {}", sid);
+  //   const auto& node = supergraph.tensors[supergraph.graph.get(sid).index];
+  //   fmt::println("FORMAT: {} , {}", node.info.format, node.info.channels->constant());
+  // }
+
+  // for (uint32_t i = 0; i < tgraph.edgeCount(); ++i) {
+  //   memory::EdgeId eid{i};
+  //   auto multiedge = tgraph.get(eid);
+  //   memory::EdgeId sid = multiedge.front();
+  //   const auto &edge = supergraph.graph.get(sid);
+  //   auto srcs = supergraph.graph.src(sid);
+  //   auto dst = supergraph.graph.dst(sid);
+  //   if (srcs.size() == 1) {
+  //     fmt::println("EDGE: {} -> {}", srcs.front(), dst);
+  //   } else {
+  //     fmt::println("EDGE: {},{} -> {}", srcs[0], srcs[1], dst);
+  //   }
+  //   for (const auto& dispatch : edge.dispatches) {
+  //     fmt::println("dispatch: {}", *dispatch.info.operation);
+  //   }
+  // }
+
+  uint32_t minimum_cost = 0;
+  for (uint32_t i = 0; i < minimum_cost_subgraph.edgeCount(); ++i) {
+    memory::EdgeId eid{i};
+    minimum_cost += minimum_cost_subgraph.weight(eid);
   }
-  fmt::println("min-cost = {}", minCost);
+
+  auto all_minimum_cost_subgraphs = algorithm::minimum_cost_subgraphs(
+      tgraph, supergraph.inputs, supergraph.outputs, minimum_cost);
+
+  fmt::println("N = {}, M = {}", all_minimum_cost_subgraphs.nodeCount(),
+               all_minimum_cost_subgraphs.edgeCount());
+
+  // fmt::println("SURVIVING-EDGES:");
+  // for (uint32_t i = 0; i < tgraph.edgeCount(); ++i) {
+  //   memory::EdgeId eid{i};
+  //   auto multiedge = all_minimum_cost_subgraphs.get(eid);
+  //   memory::EdgeId sid = multiedge.front();
+  //   const auto &edge = supergraph.graph.get(sid);
+  //   auto srcs = supergraph.graph.src(sid);
+  //   auto dst = supergraph.graph.dst(sid);
+  //   if (srcs.size() == 1) {
+  //     fmt::println("EDGE: {} -> {}", srcs.front(), dst);
+  //   } else {
+  //     fmt::println("EDGE: {},{} -> {}", srcs[0], srcs[1], dst);
+  //   }
+  //   for (const auto& dispatch : edge.dispatches) {
+  //     fmt::println("dispatch: {}", *dispatch.info.operation);
+  //   }
+  // }
+
 
   std::terminate();
 }
