@@ -3,15 +3,12 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
 #include "denox/memory/tensor/BiasTensor.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FilterTensor.hpp"
-#include <bit>
-#include <exception>
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
@@ -292,7 +289,6 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
     uint32_t channelDispatchSize = (K + ctile - 1) / ctile;
     if (channelDispatchSize > 1 && K <= 256) {
-      fmt::println("skip: channel tiling");
       // avoid output channel tiling, in cases where implementations
       // without output tiling exist and are most likely a lot better
       continue;
@@ -301,7 +297,6 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     uint32_t K_eff = std::max(K, config.cm_n);
 
     if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
-      fmt::println("skip: K overallocation");
       continue;
     }
 
@@ -309,7 +304,6 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     // NOTE: Only apply if there exist at least one config which achieves cm_k,
     //    which is implied by RSC % config.cm_k == 0, with sg_k = 1
     if (RSC % config.cm_k == 0 && RSC % ktile != 0) {
-      fmt::println("skip: imperfect ktiling");
       continue;
     }
 
@@ -324,24 +318,27 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
       continue;
     }
 
+    // POLICY: aspect ratio \in [1,2]
     const uint32_t xtile = config.cm_m;
     const uint32_t ytile = config.sg_m * config.wg_m;
     const float aspect = static_cast<float>(xtile) / static_cast<float>(ytile);
     const float eps = 0.001f;
     if (!((aspect + eps) >= 1 && (aspect - eps) <= 2)) {
+      // continue;
+    }
+
+    // POLICY: tile pressure greater than 32K
+    const uint32_t tile_pressue = config.cm_m * config.cm_k * config.cm_n *
+                                  config.sg_m * config.sg_k * config.sg_n;
+    if (tile_pressue < (1 << 15)) {
       continue;
     }
 
-    // POLICY: tile pressure greater than 32K 
-    const uint32_t tile_pressue = config.cm_m * config.cm_k * config.cm_n * config.sg_m * config.sg_k * config.sg_n;
-    if (tile_pressue < (1<<15)) {
-      continue;
-    }
-
-    fmt::println("{}x{}x{}   {}x{}x{}   {}x{} -> ({}) {}", config.cm_m, config.cm_k,
-                 config.cm_n, config.sg_m, config.sg_k, config.sg_n,
-                 config.wg_m, config.wg_n, tile_pressue, tile_pressue > (1 << 15));
-
+    // fmt::println("{}x{}x{}   {}x{}x{}   {}x{} -> ({}) {}", config.cm_m,
+    // config.cm_k,
+    //              config.cm_n, config.sg_m, config.sg_k, config.sg_n,
+    //              config.wg_m, config.wg_n, tile_pressue, tile_pressue > (1 <<
+    //              15));
 
     promissing.push_back(c);
   }

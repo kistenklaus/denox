@@ -41,7 +41,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
       cmodel, cano.symGraph, &glslCompiler, options, logger);
 
   compiler::prune_dead_supergraph(supergraph);
-  // compiler::prune_topological(supergraph);
+  compiler::prune_topological(supergraph);
 
 
   compiler::OptSchedule optSchedule = compiler::select_schedule(
