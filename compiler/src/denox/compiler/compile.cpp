@@ -40,7 +40,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::SuperGraph supergraph = compiler::implement(
       cmodel, cano.symGraph, &glslCompiler, options, logger);
 
-  compiler::prune_dead_supergraph(supergraph);
+  // compiler::prune_dead_supergraph(supergraph);
   compiler::prune_topological(supergraph);
 
 

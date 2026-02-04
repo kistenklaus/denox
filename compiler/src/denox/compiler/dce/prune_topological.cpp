@@ -1,21 +1,16 @@
 #include "denox/compiler/dce/prune_topological.hpp"
-#include "denox/algorithm/minimum_const_subgraph.hpp"
-#include "denox/algorithm/minimum_cost_subgraphs.hpp"
-#include "denox/algorithm/prune_dominated_edges.hpp"
-#include "denox/algorithm/topological_edge_sort.hpp"
-#include "denox/algorithm/topological_sort.hpp"
+#include "denox/algorithm/all_minimum_cost_subgraphs.hpp"
 #include "denox/memory/container/hashmap.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include <absl/strings/internal/str_format/extension.h>
-#include <exception>
-#include <limits>
 
 static denox::memory::ConstGraph<denox::memory::NodeId,
                                  denox::memory::vector<denox::memory::EdgeId>,
                                  uint32_t>
-construct_topological_graph(denox::compiler::SuperGraph &supergraph) {
+construct_topological_graph(const denox::compiler::SuperGraph &supergraph) {
   using namespace denox;
   const uint32_t N = static_cast<uint32_t>(supergraph.graph.nodeCount());
   const uint32_t M = static_cast<uint32_t>(supergraph.graph.edgeCount());
@@ -91,72 +86,66 @@ construct_topological_graph(denox::compiler::SuperGraph &supergraph) {
 }
 
 void denox::compiler::prune_topological(SuperGraph &supergraph) {
-  fmt::println("supergraph = (N = {}, M = {})", supergraph.graph.nodeCount(),
-               supergraph.graph.edgeCount());
 
   memory::ConstGraph<memory::NodeId, memory::vector<memory::EdgeId>, uint32_t>
       tgraph = construct_topological_graph(supergraph);
 
-  fmt::println("tgraph = (N={}, M={})", tgraph.nodeCount(), tgraph.edgeCount());
-
-  auto minimum_cost_subgraph = algorithm::minimum_cost_subgraph(
+  auto all_minimum_cost_subgraphs = algorithm::all_minimum_cost_subgraphs(
       tgraph, supergraph.inputs, supergraph.outputs);
 
-  // for (uint32_t i = 0; i < tgraph.nodeCount(); ++i) {
-  //   memory::NodeId nid{i};
-  //   memory::NodeId sid = tgraph.get(nid);
-  //   fmt::println("Node: {}", sid);
-  //   const auto& node = supergraph.tensors[supergraph.graph.get(sid).index];
-  //   fmt::println("FORMAT: {} , {}", node.info.format, node.info.channels->constant());
-  // }
-
-  // for (uint32_t i = 0; i < tgraph.edgeCount(); ++i) {
-  //   memory::EdgeId eid{i};
-  //   auto multiedge = tgraph.get(eid);
-  //   memory::EdgeId sid = multiedge.front();
-  //   const auto &edge = supergraph.graph.get(sid);
-  //   auto srcs = supergraph.graph.src(sid);
-  //   auto dst = supergraph.graph.dst(sid);
-  //   if (srcs.size() == 1) {
-  //     fmt::println("EDGE: {} -> {}", srcs.front(), dst);
-  //   } else {
-  //     fmt::println("EDGE: {},{} -> {}", srcs[0], srcs[1], dst);
-  //   }
-  //   for (const auto& dispatch : edge.dispatches) {
-  //     fmt::println("dispatch: {}", *dispatch.info.operation);
-  //   }
-  // }
-
-  uint32_t minimum_cost = 0;
-  for (uint32_t i = 0; i < minimum_cost_subgraph.edgeCount(); ++i) {
-    memory::EdgeId eid{i};
-    minimum_cost += minimum_cost_subgraph.weight(eid);
+  if (all_minimum_cost_subgraphs.edgeCount() == 0) {
+    // TODO: Proper error message (issue #92)
+    throw std::runtime_error("Failed to implement model");
   }
 
-  auto all_minimum_cost_subgraphs = algorithm::minimum_cost_subgraphs(
-      tgraph, supergraph.inputs, supergraph.outputs, minimum_cost);
+  memory::vector<memory::optional<memory::NodeId>> nodeRemap(
+      supergraph.graph.nodeCount(), memory::nullopt);
 
-  fmt::println("N = {}, M = {}", all_minimum_cost_subgraphs.nodeCount(),
-               all_minimum_cost_subgraphs.edgeCount());
+  // Reconstruct supergraph
+  memory::AdjGraph<TensorId, SuperGraphEdge> subgraph;
 
-  // fmt::println("SURVIVING-EDGES:");
-  // for (uint32_t i = 0; i < tgraph.edgeCount(); ++i) {
-  //   memory::EdgeId eid{i};
-  //   auto multiedge = all_minimum_cost_subgraphs.get(eid);
-  //   memory::EdgeId sid = multiedge.front();
-  //   const auto &edge = supergraph.graph.get(sid);
-  //   auto srcs = supergraph.graph.src(sid);
-  //   auto dst = supergraph.graph.dst(sid);
-  //   if (srcs.size() == 1) {
-  //     fmt::println("EDGE: {} -> {}", srcs.front(), dst);
-  //   } else {
-  //     fmt::println("EDGE: {},{} -> {}", srcs[0], srcs[1], dst);
-  //   }
-  //   for (const auto& dispatch : edge.dispatches) {
-  //     fmt::println("dispatch: {}", *dispatch.info.operation);
-  //   }
-  // }
+  for (uint32_t e = 0; e < all_minimum_cost_subgraphs.edgeCount(); ++e) {
+    memory::EdgeId eid{e};
+    const auto &multiedge = all_minimum_cost_subgraphs.get(eid);
+    assert(!multiedge.empty());
+    const memory::span<const memory::NodeId> srcs =
+        supergraph.graph.src(multiedge.front());
+    const memory::NodeId dst = supergraph.graph.dst(multiedge.front());
 
+    memory::small_vector<memory::NodeId, 2> new_srcs;
+    for (memory::NodeId src : srcs) {
+      if (!nodeRemap[*src]) {
+        memory::NodeId new_nid = subgraph.addNode(supergraph.graph.get(src));
+        nodeRemap[*src] = new_nid;
+      }
+      memory::NodeId new_nid = *nodeRemap[*src];
+      new_srcs.push_back(new_nid);
+    }
+    if (!nodeRemap[*dst]) {
+      memory::NodeId new_nid = subgraph.addNode(supergraph.graph.get(dst));
+      nodeRemap[*dst] = new_nid;
+    }
+    memory::NodeId new_dst = *nodeRemap[*dst];
 
-  std::terminate();
+    for (memory::EdgeId seid : multiedge) {
+      subgraph.addEdge(new_srcs, new_dst,
+                       std::move(supergraph.graph.get_rvalue(seid)));
+    }
+  }
+
+  supergraph.graph =
+      memory::ConstGraph<TensorId, SuperGraphEdge>(std::move(subgraph));
+
+  // remap inputs
+  for (auto &nid : supergraph.inputs) {
+    assert(nid != memory::NodeId{});
+    assert(nodeRemap[*nid]);
+    nid = *nodeRemap[*nid];
+  }
+
+  for (auto &nid : supergraph.outputs) {
+    assert(nid != memory::NodeId{});
+    assert(nodeRemap[*nid]);
+    nid = *nodeRemap[*nid];
+  }
 }
