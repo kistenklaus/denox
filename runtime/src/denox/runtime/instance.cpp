@@ -13,7 +13,6 @@
 #include <fmt/ostream.h>
 #include <forward_list>
 #include <iostream>
-#include <iterator>
 #include <spdlog/common.h>
 #include <stdexcept>
 #include <variant>

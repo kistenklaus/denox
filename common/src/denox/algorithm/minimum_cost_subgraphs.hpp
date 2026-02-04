@@ -4,6 +4,7 @@
 #include "denox/algorithm/topological_sort.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/hashmap.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/small_dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -11,6 +12,7 @@
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include <algorithm>
+#include <unordered_set>
 
 namespace denox::algorithm {
 
@@ -19,7 +21,7 @@ memory::AdjGraph<V, E, W>
 minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
                        memory::span<const memory::NodeId> inputs,
                        memory::span<const memory::NodeId> outputs,
-                       const W minimum_cost) {
+                       const W eps = {}) {
   // SVO optimization tuning parameters generally don't matter at all.
   static constexpr size_t SMALL_N = 512;
   static constexpr size_t SMALL_FRONTIER = 4;
@@ -32,36 +34,43 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   memory::vector<memory::NodeId> topologicalOrder =
       algorithm::topologicalSort(graph);
 
+  memory::dynamic_bitset isInput(N, false);
+  for (memory::NodeId nid : inputs) {
+    isInput[*nid] = true;
+  }
+
   // ======= PREPROCESSING ===========
 
   // 1. Precompute min derive cost heuristic:
   //    h(v) = min{w(e) + max{h(u) | u \in src(e)} | e \in incomming(v)}
   //  NOTE: h(v) is a lower bound of the optimal cost to derive v.
-  memory::vector<W> h(N); // default constructed, but not yet meaningful
+  memory::vector<memory::optional<W>> h(N, memory::nullopt);
   {
     for (memory::NodeId v : topologicalOrder) {
-      const auto incoming = graph.incoming(v);
-      if (incoming.empty()) {
+      if (isInput[*v]) {
         h[*v] = W{};
         continue;
       }
-      bool first = true;
-      W best;
+      const auto incoming = graph.incoming(v);
+      memory::optional<W> best = memory::nullopt;
+
       for (memory::EdgeId e : incoming) {
-        W max_src = W{};
-        bool first_src = true;
+        memory::optional<W> max_src = memory::nullopt;
+        bool ok = true;
         for (memory::NodeId u : graph.src(e)) {
-          if (first_src) {
-            max_src = h[*u];
-            first_src = false;
-          } else {
-            max_src = std::max(max_src, h[*u]);
+          if (!h[*u]) {
+            ok = false;
+            break;
+          }
+          if (!max_src || *h[*u] > *max_src) {
+            max_src = *h[*u];
           }
         }
-        W candidate = graph.weight(e) + max_src;
-        if (first || candidate < best) {
-          best = candidate;
-          first = false;
+        if (ok && max_src) {
+          W candidate = graph.weight(e) + *max_src;
+          if (!best || candidate < *best) {
+            best = candidate;
+          }
         }
       }
       h[*v] = best;
@@ -70,24 +79,26 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   // 2. Precompute edge cost heuristic:
   //   similarly we compute the edge cost heuristic based on the min cost
   //   of all of it's sources.
-  memory::vector<W> he(M);
+  memory::vector<memory::optional<W>> he(M, memory::nullopt);
   {
     for (uint64_t i = 0; i < M; ++i) {
       memory::EdgeId eid{i};
-      W max_src = W{};
-      bool first_src = true;
+      memory::optional<W> max_src = memory::nullopt;
+      bool ok = true;
       for (memory::NodeId u : graph.src(eid)) {
-        if (first_src) {
-          max_src = h[*u];
-          first_src = false;
-        } else {
-          max_src = std::max(max_src, h[*u]);
+        if (!h[*u]) {
+          ok = false;
+          break;
+        }
+        if (!max_src || *h[*u] > *max_src) {
+          max_src = *h[*u];
         }
       }
-      he[i] = graph.weight(eid) + max_src;
+      if (ok && max_src) {
+        he[i] = graph.weight(eid) + *max_src;
+      }
     }
   }
-
   // 3. Precompute ancestors bitsets:
   //   For all nodes that are ancestors, we simple set a bit.
   memory::vector<memory::small_dynamic_bitset<SMALL_N>> ancestors(
@@ -140,11 +151,7 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
       return std::ranges::equal(lhs.open, rhs.open) && lhs.done == rhs.done;
     }
   };
-  struct MemoInfo {
-    W cost;
-    bool optimal;
-  };
-  memory::hash_map<MemoKey, MemoInfo, MemoHash, MemoComp> memo;
+  memory::hash_map<MemoKey, memory::optional<W>, MemoHash, MemoComp> memo;
 
   // Done set: Nodes that have already been computed,
   //   including them again in the partial subgraph is free.
@@ -160,17 +167,11 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   memory::small_vector<memory::NodeId, SMALL_FRONTIER> open(outputs.begin(),
                                                             outputs.end());
   // We maintain the invariants that open is a sorted unique set!
-  std::sort(open.begin(), open.end(),
-            [](memory::NodeId a, memory::NodeId b) { return *a < *b; });
-  open.erase(
-      std::unique(open.begin(), open.end(),
-                  [](memory::NodeId a, memory::NodeId b) { return *a == *b; }),
-      open.end());
+  std::sort(open.begin(), open.end());
+  open.erase(std::unique(open.begin(), open.end()), open.end());
   // Inputs don't belong here, because they are always available.
   open.erase(std::remove_if(open.begin(), open.end(),
-                            [&](memory::NodeId v) {
-                              return done[*v]; // <- isInput
-                            }),
+                            [&](memory::NodeId v) { return isInput[*v]; }),
              open.end());
 
   // ============ Minimum-Cost-Subgraph (Actual algorithm) ==============
@@ -183,34 +184,55 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   //   often find the best solution very quickly and can therefor prune a lot of
   //   the search space.
   //   Additionally we do some memoization over the solver state, which
-  //   makes the problem solvable even for large subproblems
+  //   makes the problem solvable even for large subproblems, but for the
+  //   usecases that we have right now it's probably overkill.
   //
-  memory::dynamic_bitset optimal_edges(M, false);
+  const auto h_comp = [&](memory::NodeId lhs, memory::NodeId rhs) {
+    auto const &a = h[*lhs];
+    auto const &b = h[*rhs];
 
-  memory::vector<memory::EdgeId> bestEdges;
-  memory::vector<memory::EdgeId> curEdges;
-  curEdges.reserve(64);
-  auto recusive_solve = [&](auto &&self, W cost) -> bool {
-    if (cost > minimum_cost) {
-      return false;
+    if (a && b) {
+      if (*a < *b)
+        return true;
+      if (*b < *a)
+        return false;
+      return *lhs < *rhs;
     }
-    // NOTE: Conceptually we could prune based on the heuristic
-    // here, because it is a true lower bound, but it already
-    // defines our traversal order and would actually never prune anything.
+    if (a && !b)
+      return true;
+    if (!a && b)
+      return false;
+    return *lhs < *rhs;
+  };
 
+  const auto he_comp = [&](const memory::EdgeId &lhs,
+                           const memory::EdgeId &rhs) {
+    const auto &a = he[*lhs];
+    const auto &b = he[*rhs];
+
+    if (a && b) {
+      if (*a < *b)
+        return true;
+      if (*b < *a)
+        return false;
+      return *lhs < *rhs;
+    }
+    if (a && !b)
+      return true;
+    if (!a && b)
+      return false;
+    return *lhs < *rhs;
+  };
+
+  auto recusive_solve = [&](auto &&self) -> memory::optional<W> {
     // Termination condition: if open is empty
     // all upstream dependencies have been resolved and we now that
     // we have found a valid subgraph!
     if (open.empty()) {
-      assert(cost <= minimum_cost);
-      if (cost == minimum_cost) {
-        // bestCost = cost;
-        return true;
-      } else {
-        return false;
-      }
+      return W{};
     }
 
+    // Memoization!
     memory::small_dynamic_bitset<SMALL_N> openAnc(N);
     for (memory::NodeId nid : open) {
       openAnc |= ancestors[*nid];
@@ -219,59 +241,64 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
         .done = done & openAnc, // <- only consider ancestors of the open set.
         .open = open,
     };
-    auto memo_it = memo.find(memoKey);
-    if (memo_it != memo.end()) {
-      const W &memoCost = memo_it->second.cost;
-      if (memoCost <= cost) {
-        return false;
-      } else {
-        memo_it->second.cost = cost; // update memoized cost and continue.
-      }
-    } else {
-      const auto [it, _] =
-          memo.emplace(std::move(memoKey), MemoInfo{cost, false});
-      memo_it = it;
+    // Memo lookup
+    if (auto it = memo.find(memoKey); it != memo.end()) {
+      return it->second;
     }
+
     memory::NodeId v;
     { // Pick next upstream!
       // NOTE: We want to pick fast implementations first,
       //  the h heurstic is very close to the true optimum.
       //  So in 99% of cases, we only ever pick a single upstream
       //  and all other upstreams are pruned.
-      const auto it = std::ranges::min_element(
-          open.begin(), open.end(),
-          [&](const memory::NodeId &lhs, const memory::NodeId &rhs) {
-            return h[*lhs] < h[*rhs];
-          });
+      const auto it =
+          std::ranges::min_element(open.begin(), open.end(), h_comp);
       assert(it != open.end());
       v = *it;
     }
 
+    if (!h[*v]) {
+      memo.emplace(std::move(memoKey), memory::nullopt);
+      return memory::nullopt;
+    }
+
     assert(!done[*v] && "done may never contain node, which is in open!");
+
+    if (graph.incoming(v).empty()) {
+      memo.emplace(std::move(memoKey), memory::nullopt);
+      return memory::nullopt;
+    }
 
     // NOTE: Instead of copying done and open around we do some bookkeeping
     //   before the recursion and afterwards recover our old state, this saves
     //   on a lot of allocations improved perf by around a factor of 2x.
     done.set(*v, true);
     // Remove v from open once for all branches (later added back in)
-    auto it = std::lower_bound(
-        open.begin(), open.end(), v,
-        [](memory::NodeId a, memory::NodeId b) { return *a < *b; });
-    assert(it != open.end() && *it == v);
-    const std::size_t v_pos = static_cast<std::size_t>(it - open.begin());
-    open.erase(it);
+    auto itv = std::lower_bound(open.begin(), open.end(), v);
+    assert(itv != open.end() && *itv == v);
+    const std::size_t v_pos = static_cast<std::size_t>(itv - open.begin());
+    open.erase(itv);
 
     memory::small_vector<memory::EdgeId, SMALL_INDEG> inc(
         graph.incoming(v).begin(), graph.incoming(v).end());
-
     assert(std::ranges::count(inputs, v) == 0);
-    assert(!graph.incoming(v).empty());
-    std::sort(inc.begin(), inc.end(), [&](memory::EdgeId a, memory::EdgeId b) {
-      return he[*a] < he[*b];
-    });
+    std::sort(inc.begin(), inc.end(), he_comp);
 
-    bool oneEdgeIsOptimal = false;
+    memory::optional<W> best;
+
     for (memory::EdgeId e : inc) {
+      bool edge_ok = true;
+      for (memory::NodeId u : graph.src(e)) {
+        if (!h[*u]) {
+          edge_ok = false;
+          break;
+        }
+      }
+      if (!edge_ok) {
+        continue;
+      }
+
       // Record inserted positions for this edge choice (to rollback)
       memory::small_vector<std::size_t, SMALL_SRC> inserted_positions;
 
@@ -289,14 +316,13 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
         }
       }
 
-      curEdges.push_back(e);
-
-      bool optimal = self(self, cost + graph.weight(e));
-      if (optimal) {
-        optimal_edges[*e] = true;
-        oneEdgeIsOptimal = true;
+      memory::optional<W> w = self(self);
+      if (w) {
+        W cand = *w + graph.weight(e);
+        if (!best || cand < *best) {
+          best = cand;
+        }
       }
-      curEdges.pop_back();
 
       // rollback inserts in reverse order (positions remain valid)
       for (std::size_t i = inserted_positions.size(); i-- > 0;) {
@@ -304,28 +330,13 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
         open.erase(open.begin() + static_cast<std::ptrdiff_t>(pos));
       }
     }
-
     // Restore v into open at original position
     open.insert(open.begin() + static_cast<std::ptrdiff_t>(v_pos), v);
     done.set(*v, false);
-
-    assert(memo_it != memo.end());
-    memo_it->second.optimal = oneEdgeIsOptimal;
-
-    return oneEdgeIsOptimal;
+    memo.emplace(std::move(memoKey), best);
+    return best;
   };
 
-  // Where the fun stuff is happening, the actual NP algorithm!
-  // NOTE: recursion depth is max the size of the minimum-cost-subgraph,
-  //   so generally we should be safe from StackOverflows here.
-  [[maybe_unused]] bool globallyOptimal = recusive_solve(recusive_solve, W{});
-  assert(globallyOptimal);
-
-  fmt::println("memo-size:  {}", memo.size());
-  // Reconstruct subgraph from bestEdges.
-  // NOTE: subgraph contains all nodes of the original graph,
-  //   we add all of them simply because otherwise we would have to
-  //   remap NodeIds everywhere.
   memory::AdjGraph<V, E, W> subgraph;
   for (uint64_t i = 0; i < N; ++i) {
     memory::NodeId nid{i};
@@ -333,11 +344,159 @@ minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
     assert(_nid == nid);
   }
 
+  // Where the fun stuff is happening, the actual NP algorithm!
+  // NOTE: recursion depth is max the size of the minimum-cost-subgraph,
+  //   so generally we should be safe from StackOverflows here.
+  memory::optional<W> root_cost = recusive_solve(recusive_solve);
+  if (!root_cost) {
+    // There exist no subgraph which contains inputs and output!
+    // Return empty graph!
+    return subgraph;
+  }
+
+  done = memory::small_dynamic_bitset<SMALL_N>(N, false);
+  for (memory::NodeId nid : inputs) {
+    done.set(*nid, true);
+  }
+
+  open.clear();
+  open.assign(outputs.begin(), outputs.end());
+  // We maintain the invariants that open is a sorted unique set!
+  std::sort(open.begin(), open.end(),
+            [](memory::NodeId a, memory::NodeId b) { return *a < *b; });
+  open.erase(
+      std::unique(open.begin(), open.end(),
+                  [](memory::NodeId a, memory::NodeId b) { return *a == *b; }),
+      open.end());
+  // Inputs don't belong here, because they are always available.
+  open.erase(std::remove_if(open.begin(), open.end(),
+                            [&](memory::NodeId v) {
+                              return done[*v]; // <- isInput
+                            }),
+             open.end());
+
+  memory::dynamic_bitset optimal_edge(M, false);
+  std::unordered_set<MemoKey, MemoHash, MemoComp> visited;
+  visited.reserve(memo.size());
+
+  auto select_optimal_edges = [&](auto &&self) -> void {
+    if (open.empty()) {
+      return;
+    }
+    memory::small_dynamic_bitset<SMALL_N> openAnc(N);
+    for (memory::NodeId nid : open) {
+      openAnc |= ancestors[*nid];
+    }
+    assert(!open.empty());
+    MemoKey key{.done = done & openAnc, .open = open};
+
+    if (!visited.insert(key).second)
+      return;
+
+    // current f(state)
+    auto it_cur = memo.find(key);
+    if (it_cur == memo.end() || !it_cur->second) {
+      // state not optimal or infeasible.
+      return;
+    }
+    const W f_cur = *it_cur->second;
+
+    memory::NodeId v;
+    {
+      const auto it =
+          std::ranges::min_element(open.begin(), open.end(), h_comp);
+      assert(it != open.end());
+      v = *it;
+    }
+    if (!h[*v]) {
+      return;
+    }
+
+    done.set(*v, true);
+    auto itv = std::lower_bound(open.begin(), open.end(), v);
+    assert(itv != open.end() && *itv == v);
+    const std::size_t v_pos = static_cast<std::size_t>(itv - open.begin());
+    open.erase(itv);
+
+    memory::small_vector<memory::EdgeId, SMALL_INDEG> inc(
+        graph.incoming(v).begin(), graph.incoming(v).end());
+    std::sort(inc.begin(), inc.end(), he_comp);
+
+    for (memory::EdgeId e : inc) {
+
+      bool edge_ok = true;
+      for (memory::NodeId u : graph.src(e)) {
+        if (!h[*u]) {
+          edge_ok = false;
+          break;
+        }
+      }
+      if (!edge_ok) {
+        continue;
+      }
+
+      memory::small_vector<std::size_t, SMALL_SRC> inserted_positions;
+      // add missing sources to open
+      for (memory::NodeId u : graph.src(e)) {
+        if (done[*u]) {
+          continue;
+        }
+
+        auto ins = std::lower_bound(open.begin(), open.end(), u);
+        if (ins == open.end() || *ins != u) {
+          const std::size_t pos = static_cast<std::size_t>(ins - open.begin());
+          open.insert(ins, u);
+          inserted_positions.push_back(pos);
+        }
+      }
+
+      // compute f(next)
+      memory::optional<W> f_next_opt;
+      if (open.empty()) {
+        f_next_opt = W{};
+      } else {
+        memory::small_dynamic_bitset<SMALL_N> openAnc2(N);
+        for (memory::NodeId nid : open) {
+          openAnc2 |= ancestors[*nid];
+        }
+        MemoKey key2{.done = done & openAnc2, .open = open};
+        auto it2 = memo.find(key2);
+        if (it2 != memo.end()) {
+          f_next_opt = it2->second;
+        }
+      }
+      if (f_next_opt) {
+        W f_next = *f_next_opt;
+        // optimal transition test
+        const W lhs = graph.weight(e) + f_next;
+        if (lhs - eps <= f_cur && lhs + eps >= f_cur) {
+          optimal_edge[*e] = true;
+          self(self);
+        }
+      }
+
+      // rollback
+      for (std::size_t i = inserted_positions.size(); i-- > 0;) {
+        const std::size_t pos = inserted_positions[i];
+        open.erase(open.begin() + static_cast<std::ptrdiff_t>(pos));
+      }
+    }
+    open.insert(open.begin() + static_cast<std::ptrdiff_t>(v_pos), v);
+    done.set(*v, false);
+  };
+
+  select_optimal_edges(select_optimal_edges);
+
+  // Reconstruct subgraph from bestEdges.
+  // NOTE: subgraph contains all nodes of the original graph,
+  //   we add all of them simply because otherwise we would have to
+  //   remap NodeIds everywhere.
+
   for (uint32_t i = 0; i < M; ++i) {
-    if (optimal_edges[i]) {
-      memory::EdgeId e{i};
-      subgraph.addEdge(graph.src(e), graph.dst(e), graph.get(e),
-                       graph.weight(e));
+    if (optimal_edge[i]) {
+      memory::EdgeId eid{i};
+      subgraph.addEdge(graph.src(eid), graph.dst(eid), graph.get(eid),
+                       graph.weight(eid));
     }
   }
 
