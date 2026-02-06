@@ -38,19 +38,36 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
   // ==== Generate all valid configurations ====
   {
-    size_t coopmat_shape_count = 1;
-    for (const denox::CoopmatShape &coopmat_shape :
-         options.deviceInfo.coopmat.shapes) {
-      if (!coopmat_shape.subgroupScope ||
-          coopmat_shape.acctype != memory::Dtype::F16 ||
-          coopmat_shape.atype != memory::Dtype::F16 ||
-          coopmat_shape.btype != memory::Dtype::F16 ||
-          coopmat_shape.ctype != memory::Dtype::F16) {
+
+    memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
+        coopmatShapes;
+    static constexpr size_t COOPMAT_SHAPE_SPACE = 2;
+    for (const denox::CoopmatShape &shape : options.deviceInfo.coopmat.shapes) {
+      if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
+          shape.atype != memory::Dtype::F16 ||
+          shape.btype != memory::Dtype::F16 ||
+          shape.ctype != memory::Dtype::F16) {
         continue;
       }
-      if (coopmat_shape_count-- == 0) {
-        break;
+      if ((shape.M % 8 != 0) || (shape.K % 8 != 0) || (shape.N % 8 != 0)) {
+        continue;
       }
+      if (shape.M == 16 && shape.K == 16 && shape.N == 16) {
+        coopmatShapes.emplace_back(10, shape);
+      } else if (shape.M == 16 && shape.K == 8 && shape.N == 8) {
+        coopmatShapes.emplace_back(5, shape);
+      } else if (shape.M == 16 && shape.K == 8 && shape.N == 16) {
+        coopmatShapes.emplace_back(8, shape);
+      } else {
+        coopmatShapes.emplace_back(0, shape);
+      }
+    }
+    std::ranges::sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
+      return lhs.first >= rhs.first;
+    });
+    coopmatShapes.resize(
+        std::min<size_t>(coopmatShapes.size(), COOPMAT_SHAPE_SPACE));
+    for (const auto &[_, coopmat_shape] : coopmatShapes) {
       const uint32_t cm_m = coopmat_shape.M;
       const uint32_t cm_k = coopmat_shape.K;
       const uint32_t cm_n = coopmat_shape.N;
@@ -158,6 +175,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
         }
       }
     }
+    fmt::println("direct-conv config-space: {}", m_configs.size());
   }
 
   // ==== Define implementable patterns ========
@@ -303,13 +321,36 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     // POLICY: RSC % ktile == 0
     // NOTE: Only apply if there exist at least one config which achieves cm_k,
     //    which is implied by RSC % config.cm_k == 0, with sg_k = 1
-    if (RSC % config.cm_k == 0 && RSC % ktile != 0) {
-      continue;
+    if (RSC % config.cm_k == 0) {
+      // It's defnitely posisble to find get perfect k-tiling
+      if (RSC % ktile != 0) {
+        continue;
+      }
+    } else {
+      // most likely not possible to achieve perfect k-tiling.
+      uint32_t wasted = ktile - (RSC % ktile);
+      if (wasted > config.cm_k) {
+        // NOTE: kind of assumptious
+        // might run into cases where we generate no configs,
+        // or only really shity sg_k = 1 configs
+        continue;
+      }
+      // fmt::println("padding = {}", padding);
     }
 
     // POLICY: K % ctile == 0
-    if (K % config.sg_n == 0 && K % ctile != 0) {
-      continue;
+    if (K % config.cm_n == 0) {
+      if (K % ctile != 0) {
+        continue;
+      }
+    } else {
+      uint32_t wasted = ctile - (K % ctile);
+      if (wasted > config.cm_n) {
+        // NOTE: kind of assumptious
+        // might run into cases where we generate no configs,
+        // or only really shity sg_n = 1 configs
+        continue;
+      }
     }
 
     // POLICY: wgSize \in [128, 256]
@@ -331,19 +372,19 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     const uint32_t tile_pressue = config.cm_m * config.cm_k * config.cm_n *
                                   config.sg_m * config.sg_k * config.sg_n;
     if (tile_pressue < (1 << 15)) {
-      continue;
+      // NOTE: Needs to be configured based on problem size!
+      // continue;
     }
 
     // fmt::println("{}x{}x{}   {}x{}x{}   {}x{} -> ({}) {}", config.cm_m,
-    // config.cm_k,
-    //              config.cm_n, config.sg_m, config.sg_k, config.sg_n,
-    //              config.wg_m, config.wg_n, tile_pressue, tile_pressue > (1 <<
-    //              15));
+    //              config.cm_k, config.cm_n, config.sg_m, config.sg_k,
+    //              config.sg_n, config.wg_m, config.wg_n, tile_pressue,
+    //              tile_pressue > (1 << 15));
 
     promissing.push_back(c);
   }
-  fmt::println("config count = {}", promissing.size());
-  return promissing;
+  // fmt::println("config count = {}", promissing.size());
+  return {promissing.front()};
 }
 
 static spirv::GlslCompilerInstance direct_conv_cm_compile(

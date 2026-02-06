@@ -11,6 +11,21 @@
 
 namespace denox::compiler::shaders {
 
+struct ConcatConvConfig {
+  unsigned int cm_m;
+  unsigned int a_cm_k;
+  unsigned int b_cm_k;
+  unsigned int cm_n;
+  unsigned int wg_m;
+  unsigned int wg_n;
+  unsigned int sg_m;
+  unsigned int a_sg_k;
+  unsigned int b_sg_k;
+  unsigned int sg_n;
+  bool a_async;
+  bool b_async;
+};
+
 class ConcatConvCMShader final : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
@@ -69,6 +84,7 @@ private:
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   std::span<const CoopmatShape> m_supportedCoopmatShapes;
+  memory::vector<ConcatConvConfig> m_configs;
 };
 
 } // namespace denox::compiler::shaders

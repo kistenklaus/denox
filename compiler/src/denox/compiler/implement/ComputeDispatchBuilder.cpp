@@ -97,10 +97,6 @@ void ComputeDispatchBuilder::addParamBinding(memory::string_view set_macro,
   });
 }
 
-void ComputeDispatchBuilder::setDebugInfo(memory::string_view debugInfo) {
-  self().info.debug_info = debugInfo;
-}
-
 ComputeDispatchBuilder::~ComputeDispatchBuilder() {
   memory::small_vector<uint32_t, 4> sets;
   sets.resize(m_bindingInfos.size());

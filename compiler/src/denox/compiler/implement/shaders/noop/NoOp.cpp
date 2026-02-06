@@ -1,7 +1,7 @@
 #include "denox/compiler/implement/shaders/noop/NoOp.hpp"
+#include "denox/common/ComputeOp.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
-#include "denox/common/ComputeOp.hpp"
 
 namespace denox::compiler {
 
@@ -17,8 +17,9 @@ NoOp::NoOp() {
 
     m_handles.in = in;
     m_handles.out = in;
-    m_capabilities.patterns.emplace_back(std::move(pattern), std::move(in),
-                                         std::move(out));
+    m_capabilities.patterns.push_back(ShaderOp{std::move(pattern),
+                                               std::move(in),
+                                               std::move(out)});
   }
 }
 
@@ -43,7 +44,6 @@ memory::vector<unsigned int> NoOp::acceptMatch(
   if (!allowed(in.storage, out.storage, TensorStorage::Optimal)) {
     return {};
   }
-
   return {0};
 }
 

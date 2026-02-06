@@ -43,7 +43,6 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   // compiler::prune_dead_supergraph(supergraph);
   compiler::prune_topological(supergraph);
 
-
   compiler::OptSchedule optSchedule = compiler::select_schedule(
       std::move(supergraph), db, model, options, logger);
 
@@ -51,7 +50,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
 
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);
-  // compiler::rebind_descriptors(schedule, options, &spirvTools);
+
   compiler::SymProgram sprog =
       compiler::compile_symbols(schedule, model, options, logger);
   memory::vector<std::byte> dnxbuf =

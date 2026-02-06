@@ -4,7 +4,6 @@
 #include "denox/compiler/implement/shaders/shaders.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
-#include <chrono>
 #include <fmt/format.h>
 
 namespace denox::compiler {
@@ -19,21 +18,18 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
 
   const auto shaders = shaders::get_all_shaders(glslCompiler, options);
 
-
   for (size_t s = 0; s < shaders.size(); ++s) {
     const auto &shader = shaders[s];
 
-      const uint32_t percentage = static_cast<uint32_t>(
-          std::floor(static_cast<float>((s + 1)) * 50.0f /
-                     static_cast<float>(shaders.size() + 1)));
+    const uint32_t percentage = static_cast<uint32_t>(
+        std::floor(static_cast<float>((s + 1)) * 50.0f /
+                   static_cast<float>(shaders.size() + 1)));
 
-      logger.info(
-          "[{:>3}%] {}Generating {} GLSL compute shader configurations{}",
-          percentage, logger.green(), shader->name(), logger.reset());
+    logger.info("[{:>3}%] {}Generating {} GLSL compute shader configurations{}",
+                percentage, logger.green(), shader->name(), logger.reset());
 
     const ShaderCapabilities &caps = shader->capabilities();
     for (uint32_t p = 0; p < caps.patterns.size(); ++p) {
-
 
       const auto &pattern = caps.patterns[p];
       std::unordered_set<uint64_t> edgeExists;
@@ -67,8 +63,6 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
       }
     }
   }
-  // fmt::println("total: {}ms", sum);
-
 
   return supergraphBuilder.finish();
 }

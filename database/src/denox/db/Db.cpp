@@ -750,6 +750,7 @@ const denox::io::Path &denox::Db::path() const { return m_db->m_path; }
 
 uint32_t denox::Db::create_bench_environment(
     std::string device, std::string os, std::string driver_version,
+    std::string denox_version,
     std::string denox_commit_hash, uint64_t start_timestamp,
     DbClockMode clockMode, uint16_t l2_warmup_iterations,
     uint16_t jit_warmup_iterations, uint16_t measurement_iterations) {
@@ -758,6 +759,7 @@ uint32_t denox::Db::create_bench_environment(
       .device = device,
       .os = os,
       .driver_version = driver_version,
+      .denox_version = denox_version,
       .denox_commit_hash = denox_commit_hash,
       .start_timestamp = start_timestamp,
       .clock_mode = clockMode,

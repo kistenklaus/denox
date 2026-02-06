@@ -38,8 +38,10 @@ public:
       memory::optional<uint64_t> memory_writes = memory::nullopt,
       memory::optional<uint64_t> flops = memory::nullopt,
       memory::optional<bool> coopmat = memory::nullopt,
-      memory::optional<std::span<const uint32_t>> input_bindings = memory::nullopt,
-      memory::optional<std::span<const uint32_t>> output_bindings = memory::nullopt);
+      memory::optional<std::span<const uint32_t>> input_bindings =
+          memory::nullopt,
+      memory::optional<std::span<const uint32_t>> output_bindings =
+          memory::nullopt);
 
   bool insert_binary(const SHA256 &srcHash, const SpirvBinary &binary);
 
@@ -58,9 +60,10 @@ public:
 
   uint32_t create_bench_environment(
       std::string device, std::string os, std::string driver_version,
-      std::string denox_commit_hash, uint64_t start_timestamp,
-      DbClockMode clockMode, uint16_t l2_warmup_iterations,
-      uint16_t jit_warmup_iterations, uint16_t measurement_iterations);
+      std::string denox_version, std::string denox_commit_hash,
+      uint64_t start_timestamp, DbClockMode clockMode,
+      uint16_t l2_warmup_iterations, uint16_t jit_warmup_iterations,
+      uint16_t measurement_iterations);
 
   const io::Path &path() const;
 

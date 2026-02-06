@@ -6,15 +6,39 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.dlpack
 
-INPUT_CHANNELS_COUNT = 64
-OUTPUT_CHANNEL_COUNT = 32
+A_CHAN = 96
+B_CHAN = 64
+OUT_CHAN = 64
+OUTPUT_CHANNEL_COUNT = 8
 
 
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv = nn.Conv2d(
-            INPUT_CHANNELS_COUNT,
+        
+
+        self.convb = nn.Conv2d(
+            A_CHAN,
+            B_CHAN,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
+
+        self.convab = nn.Conv2d(
+            A_CHAN + B_CHAN,
+            OUT_CHAN,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
+
+        self.convout = nn.Conv2d(
+            OUT_CHAN,
             OUTPUT_CHANNEL_COUNT,
             3,
             padding="same",
@@ -22,19 +46,22 @@ class Net(nn.Module):
             bias=True,
             dtype=torch.float16,
         )
-    def forward(self, input):
-        return self.conv(input)
 
+    def forward(self, a):
+        b = self.convb(a)
+        ab = torch.cat([a,b], 1)
+        out = self.convab(ab)
+        return self.convout(out)
 
 net: nn.Module = Net()
 net.to(dtype=torch.float16)
 
-example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 5, 5, dtype=torch.float16)
+example_input = torch.ones(1, A_CHAN, 5, 5, dtype=torch.float16)
 program = torch.onnx.export(
     net,
     (example_input,),
     dynamic_shapes={
-        "input": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}
+        "a": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}
     },
     input_names=["input"],
     output_names=["output"],

@@ -195,7 +195,8 @@ pick_best_compute_queue_family(VkPhysicalDevice phys) {
   return {bestIdx};
 }
 
-Context::Context(const char *deviceName, ApiVersion target_env)
+Context::Context(const char *deviceName, ApiVersion target_env,
+                 bool enableValidationLayer)
     : m_instance(VK_NULL_HANDLE), m_device(VK_NULL_HANDLE),
       m_physicalDevice(VK_NULL_HANDLE), m_queue(VK_NULL_HANDLE) {
 
@@ -253,7 +254,7 @@ Context::Context(const char *deviceName, ApiVersion target_env)
 
     vulkanApiVersion = appInfo.apiVersion;
     appInfo.applicationVersion = DENOX_VERSION;
-    appInfo.pApplicationName = "denox-runtime";
+    appInfo.pApplicationName = "denox";
     appInfo.engineVersion = DENOX_VERSION;
     appInfo.pEngineName = "denox";
     VkInstanceCreateInfo createInfo;
@@ -268,29 +269,34 @@ Context::Context(const char *deviceName, ApiVersion target_env)
     extentions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 #endif
-    const bool validationLayerSupported =
-        checkLayerSupport("VK_LAYER_KHRONOS_validation");
-    if (validationLayerSupported) {
-      layers.push_back("VK_LAYER_KHRONOS_validation");
-    }
+
     VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo{};
-    if (validationLayerSupported) {
-      extentions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-      debugUtilsMessengerCreateInfo.sType =
-          VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-      debugUtilsMessengerCreateInfo.pNext = nullptr;
-      debugUtilsMessengerCreateInfo.messageSeverity =
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-      debugUtilsMessengerCreateInfo.messageType =
-          VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-      debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
-      debugUtilsMessengerCreateInfo.pUserData = nullptr; // Optional
-      createInfo.pNext = &debugUtilsMessengerCreateInfo;
+    if (enableValidationLayer) {
+      const bool validationLayerSupported =
+          checkLayerSupport("VK_LAYER_KHRONOS_validation");
+      if (!validationLayerSupported) {
+        enableValidationLayer = false;
+      }
+      if (validationLayerSupported) {
+        layers.push_back("VK_LAYER_KHRONOS_validation");
+
+        extentions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        debugUtilsMessengerCreateInfo.sType =
+            VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        debugUtilsMessengerCreateInfo.pNext = nullptr;
+        debugUtilsMessengerCreateInfo.messageSeverity =
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        debugUtilsMessengerCreateInfo.messageType =
+            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
+        debugUtilsMessengerCreateInfo.pUserData = nullptr; // Optional
+        createInfo.pNext = &debugUtilsMessengerCreateInfo;
+      }
     }
 
     createInfo.ppEnabledExtensionNames = extentions.data();
@@ -302,7 +308,8 @@ Context::Context(const char *deviceName, ApiVersion target_env)
       throw std::runtime_error("Failed to create vulkan instance.");
     }
 
-    if (validationLayerSupported) {
+    m_debugMessenger = VK_NULL_HANDLE;
+    if (enableValidationLayer) {
       CreateDebugUtilsMessengerEXT(m_instance, &debugUtilsMessengerCreateInfo,
                                    nullptr, &m_debugMessenger);
     }
@@ -504,7 +511,6 @@ Context::Context(const char *deviceName, ApiVersion target_env)
   bool amdDeviceCoherentMemory = false;
   bool externalMemoryWin32 = false;
 
-    
   { // Create logical device and compute queue.
     ComputeQueueSelection sel =
         pick_best_compute_queue_family(m_physicalDevice);

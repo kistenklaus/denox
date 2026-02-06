@@ -14,8 +14,6 @@ struct ComputeDispatchInfo {
   memory::optional<memory::string> operation;
   memory::optional<memory::string> name;
   memory::optional<memory::string> config;
-  [[deprecated("i have no idea where we actually use this")]]
-  memory::optional<memory::string> debug_info;
   memory::optional<io::Path> srcPath;
   memory::optional<Sym> memoryReads;
   memory::optional<Sym> memoryWrites;

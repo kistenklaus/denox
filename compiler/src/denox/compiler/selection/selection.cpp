@@ -42,7 +42,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   }
   for (size_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
     memory::EdgeId eid{e};
-    auto &&edge = supergraph.graph.get_rvalue(eid);
+    auto &&edge = std::move(supergraph.graph.get_rvalue(eid));
 
     weight_type opLatency{};
     for (const auto &dispatch : edge.dispatches) {
@@ -125,12 +125,15 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
       constWeightedSupergraph{std::move(weightedSupergraph)};
 
+
   // prune duplicate edges
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> prunedSupergraph =
       algorithm::prune_duplicate_edges(constWeightedSupergraph);
 
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
       constPrunedSupergraph{std::move(prunedSupergraph)};
+
+
 
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
       algorithm::minimum_cost_subgraph(constWeightedSupergraph,
@@ -152,10 +155,11 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::vector<Parameter> parameters;
   weight_type totalWeight = {};
   for (const auto &eid : minSchedule) {
+    const auto &edge = constMinCostGraph.get(eid);
     totalWeight += constMinCostGraph.weight(eid);
-    auto &&edge = constMinCostGraph.get_rvalue(eid);
     if (edge.dispatches.empty() && edge.memoryConstrains.empty() &&
-        edge.parameters.empty() && supergraph.graph.src(eid).size() == 1) {
+        edge.parameters.empty()) {
+      assert(constMinCostGraph.src(eid).size() == 1);
 
       auto srctid =
           constMinCostGraph.get(constMinCostGraph.src(eid).front()).index;

@@ -189,7 +189,7 @@ public:
       std::cerr << fmt::format("vkWaitForFences timed out") << std::endl;
     }
     if (result == VK_ERROR_DEVICE_LOST) {
-      throw std::runtime_error("Lost device!");
+      throw std::runtime_error("Lost device.");
     }
     if (result != VK_SUCCESS) {
       throw std::runtime_error("Failed to wait for fence or timed out.");
@@ -237,7 +237,8 @@ public:
   bool extPCIbusInfoAvailable() const { return m_extPCIbufInfoAvailable; }
 
 private:
-  explicit Context(const char *deviceName, ApiVersion target_env);
+  explicit Context(const char *deviceName, ApiVersion target_env,
+                   bool validationLayers = false);
 
 private:
   VkInstance m_instance;

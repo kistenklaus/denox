@@ -7,7 +7,7 @@
 namespace denox::compiler {
 
 SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
-                           const CompileOptions &options,
+                           [[maybe_unused]] const CompileOptions &options,
                            diag::Logger &logger) {
 
   logger.info("[ 98%] {}Building SymIR{}", logger.green(), logger.reset());

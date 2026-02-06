@@ -4,174 +4,15 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/not_implemented.hpp"
-#include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FitlerDescriptor.hpp"
-#include <chrono>
+#include <exception>
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
-
-struct ConcatConvConfig {
-  unsigned int cm_m;
-  unsigned int a_cm_k;
-  unsigned int b_cm_k;
-  unsigned int cm_n;
-  unsigned int wg_m;
-  unsigned int wg_n;
-  unsigned int sg_m;
-  unsigned int a_sg_k;
-  unsigned int b_sg_k;
-  unsigned int sg_n;
-  bool a_async;
-  bool b_async;
-};
-
-static std::vector<ConcatConvConfig> CONCAT_CONV_CM_CONFIGS = {
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .a_sg_k = 2,
-        .b_sg_k = 2,
-        .sg_n = 2,
-
-        .a_async = true,
-        .b_async = true,
-    },
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 2,
-        .a_sg_k = 2,
-        .b_sg_k = 2,
-        .sg_n = 2,
-
-        .a_async = false,
-        .b_async = false,
-    },
-
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .a_sg_k = 2,
-        .b_sg_k = 2,
-        .sg_n = 2,
-
-        .a_async = true,
-        .b_async = true,
-    },
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 4,
-        .wg_n = 2,
-
-        .sg_m = 2,
-        .a_sg_k = 2,
-        .b_sg_k = 2,
-        .sg_n = 2,
-
-        .a_async = false,
-        .b_async = false,
-    },
-
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .a_sg_k = 1,
-        .b_sg_k = 1,
-        .sg_n = 6,
-
-        .a_async = true,
-        .b_async = true,
-    },
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .a_sg_k = 1,
-        .b_sg_k = 1,
-        .sg_n = 6,
-
-        .a_async = false,
-        .b_async = false,
-    },
-
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .a_sg_k = 3,
-        .b_sg_k = 3,
-        .sg_n = 7,
-
-        .a_async = true,
-        .b_async = true,
-    },
-    ConcatConvConfig{
-        .cm_m = 16,
-        .a_cm_k = 16,
-        .b_cm_k = 16,
-        .cm_n = 16,
-
-        .wg_m = 8,
-        .wg_n = 1,
-
-        .sg_m = 1,
-        .a_sg_k = 3,
-        .b_sg_k = 3,
-        .sg_n = 7,
-
-        .a_async = false,
-        .b_async = false,
-    },
-};
 
 ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                                        const CompileOptions &options)
@@ -196,10 +37,255 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
   if (options.deviceInfo.coopmat.supported == false) {
     return;
   }
+  { // Generate config space.
+
+    memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
+        coopmatShapes;
+    static constexpr size_t COOPMAT_SHAPE_SPACE = 1;
+    for (const denox::CoopmatShape &shape : options.deviceInfo.coopmat.shapes) {
+      if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
+          shape.atype != memory::Dtype::F16 ||
+          shape.btype != memory::Dtype::F16 ||
+          shape.ctype != memory::Dtype::F16) {
+        continue;
+      }
+      if ((shape.M % 8 != 0) || (shape.K % 8 != 0) || (shape.N % 8 != 0)) {
+        continue;
+      }
+      if (shape.M == 16 && shape.K == 16 && shape.N == 16) {
+        coopmatShapes.emplace_back(10, shape);
+      } else if (shape.M == 16 && shape.K == 8 && shape.N == 8) {
+        coopmatShapes.emplace_back(5, shape);
+      } else if (shape.M == 16 && shape.K == 8 && shape.N == 16) {
+        coopmatShapes.emplace_back(8, shape);
+      } else {
+        coopmatShapes.emplace_back(0, shape);
+      }
+    }
+    std::ranges::sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
+      return lhs.first >= rhs.first;
+    });
+    coopmatShapes.resize(
+        std::min<size_t>(coopmatShapes.size(), COOPMAT_SHAPE_SPACE));
+    for (const auto &[_, cm_a] : coopmatShapes) {
+      const uint32_t cm_m = cm_a.M;
+      const uint32_t a_cm_k = cm_a.K;
+      const uint32_t cm_n = cm_a.N;
+
+      for (const auto &[_, cm_b] : coopmatShapes) {
+        if (cm_a.M != cm_b.M) {
+          continue;
+        }
+        if (cm_a.N != cm_b.N) {
+          continue;
+        }
+        const uint32_t b_cm_k = cm_b.K;
+
+        const uint32_t acc_register_estimate = (cm_m * cm_n) / m_subgroupSize;
+
+        const uint32_t A_a_register_estimate = (cm_m * a_cm_k) / m_subgroupSize;
+        const uint32_t A_b_register_estimate = (a_cm_k * cm_n) / m_subgroupSize;
+
+        const uint32_t B_a_register_estimate = (cm_m * b_cm_k) / m_subgroupSize;
+        const uint32_t B_b_register_estimate = (b_cm_k * cm_n) / m_subgroupSize;
+
+        for (uint32_t wg_m = 1; wg_m < 16; ++wg_m) {
+          for (uint32_t wg_n = 1; wg_n < 16; ++wg_n) {
+            const uint32_t workgroup_size = wg_m * wg_n * m_subgroupSize;
+            if (workgroup_size < 128 ||
+                workgroup_size >
+                    options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
+              continue; // unreasonable workgroup size
+            }
+            for (uint32_t sg_m = 1; sg_m < 8; ++sg_m) {
+              for (uint32_t sg_n = 1; sg_n < 8; ++sg_n) {
+                for (uint32_t a_sg_k = 1; a_sg_k < 8; ++a_sg_k) {
+                  for (uint32_t b_sg_k = 1; b_sg_k < 8; ++b_sg_k) {
+                    const uint32_t coopmats_register_estimate =
+                        acc_register_estimate * sg_n * sg_m +
+                        std::min(A_a_register_estimate * sg_m +
+                                     A_b_register_estimate * sg_n,
+                                 B_a_register_estimate * sg_m *
+                                     B_b_register_estimate * sg_n);
+
+                    const uint32_t A_prefetch_A_QQ =
+                        (cm_m * a_cm_k * a_sg_k * sg_m) / 8;
+
+                    const uint32_t B_prefetch_A_QQ =
+                        (cm_m * b_cm_k * b_sg_k * sg_m) / 8;
+
+                    const uint32_t A_prefetch_A_SQQ = A_prefetch_A_QQ / wg_n;
+                    const uint32_t B_prefetch_A_SQQ = B_prefetch_A_QQ / wg_n;
+                    // 16bytes word fetched per invocation!
+                    const uint32_t A_prefetch_A_IQQ =
+                        (A_prefetch_A_SQQ + m_subgroupSize - 1) /
+                        m_subgroupSize;
+                    const uint32_t B_prefetch_A_IQQ =
+                        (B_prefetch_A_SQQ + m_subgroupSize - 1) /
+                        m_subgroupSize;
+
+                    const uint32_t A_prefetch_B_QQ =
+                        (a_cm_k * cm_n * a_sg_k * sg_n) / 8;
+                    if (A_prefetch_B_QQ % wg_m != 0) {
+                      continue; // uneven load balancing between subgroups.
+                    }
+
+                    const uint32_t B_prefetch_B_QQ =
+                        (b_cm_k * cm_n * b_sg_k * sg_n) / 8;
+                    if (B_prefetch_B_QQ % wg_m != 0) {
+                      continue; // uneven load balancing between subgroups.
+                    }
+
+                    const uint32_t A_prefetch_B_SQQ = A_prefetch_B_QQ / wg_m;
+                    const uint32_t B_prefetch_B_SQQ = B_prefetch_B_QQ / wg_m;
+
+                    const uint32_t A_prefetch_B_IQQ =
+                        (A_prefetch_B_SQQ + m_subgroupSize - 1) /
+                        m_subgroupSize;
+
+                    const uint32_t B_prefetch_B_IQQ =
+                        (B_prefetch_B_SQQ + m_subgroupSize - 1) /
+                        m_subgroupSize;
+
+                    const uint32_t A_prefetch_A_register_estimate =
+                        A_prefetch_A_IQQ * 4; // uvec4
+                    const uint32_t A_prefetch_B_register_estimate =
+                        A_prefetch_B_IQQ * 4; // uvec4
+
+                    const uint32_t B_prefetch_A_register_estimate =
+                        B_prefetch_A_IQQ * 4; // uvec4
+                    const uint32_t B_prefetch_B_register_estimate =
+                        B_prefetch_B_IQQ * 4; // uvec4
+
+                    const uint32_t A_prefetch_register_estimate =
+                        A_prefetch_A_register_estimate +
+                        A_prefetch_B_register_estimate;
+
+                    const uint32_t B_prefetch_register_estimate =
+                        B_prefetch_A_register_estimate +
+                        B_prefetch_B_register_estimate;
+
+                    const uint32_t register_estimate =
+                        coopmats_register_estimate +
+                        std::max(A_prefetch_register_estimate,
+                                 B_prefetch_register_estimate);
+
+                    // register estimate is only proportional to the register
+                    // counts, so there is a good chance that 160 estimate
+                    // corresponds to only 50-60 live registers at a time.
+                    if (register_estimate > 160) {
+                      continue; // to many registers (conservative limit,
+                                // because optimizers might reduce this
+                                // drastically)
+                    }
+
+                    const uint32_t A_sh_a_size =
+                        (wg_m * cm_m * a_cm_k * a_sg_k * sg_m) * 2;
+
+                    const uint32_t B_sh_a_size =
+                        (wg_m * cm_m * b_cm_k * b_sg_k * sg_m) * 2;
+
+                    const uint32_t A_sh_b_size =
+                        (wg_n * a_cm_k * cm_n * a_sg_k * sg_n) * 2;
+
+                    const uint32_t B_sh_b_size =
+                        (wg_n * b_cm_k * cm_n * b_sg_k * sg_n) * 2;
+
+                    const uint32_t sh_out_size =
+                        wg_m * wg_n * sg_m * sg_n * cm_m * cm_n * 2;
+
+                    const uint32_t A_sh_size =
+                        std::max(A_sh_a_size + A_sh_b_size, sh_out_size);
+
+                    const uint32_t B_sh_size =
+                        std::max(B_sh_a_size + B_sh_b_size, sh_out_size);
+
+                    const uint32_t sh_size = std::max(A_sh_size, B_sh_size);
+
+                    static constexpr double WG_SH_OCCUPANCY =
+                        0.5; // 75% of max shared memory allowed
+                    if (static_cast<double>(sh_size) >
+                        static_cast<double>(
+                            options.deviceInfo.limits.maxComputeSharedMemory) *
+                            WG_SH_OCCUPANCY) {
+                      continue;
+                    }
+
+                    m_configs.push_back(ConcatConvConfig{
+                        .cm_m = cm_m,
+                        .a_cm_k = a_cm_k,
+                        .b_cm_k = b_cm_k,
+                        .cm_n = cm_n,
+                        .wg_m = wg_m,
+                        .wg_n = wg_n,
+                        .sg_m = sg_m,
+                        .a_sg_k = a_sg_k,
+                        .b_sg_k = b_sg_k,
+                        .sg_n = sg_n,
+                        .a_async = false,
+                        .b_async = false,
+                    });
+
+                    m_configs.push_back(ConcatConvConfig{
+                        .cm_m = cm_m,
+                        .a_cm_k = a_cm_k,
+                        .b_cm_k = b_cm_k,
+                        .cm_n = cm_n,
+                        .wg_m = wg_m,
+                        .wg_n = wg_n,
+                        .sg_m = sg_m,
+                        .a_sg_k = a_sg_k,
+                        .b_sg_k = b_sg_k,
+                        .sg_n = sg_n,
+                        .a_async = true,
+                        .b_async = false,
+                    });
+                    m_configs.push_back(ConcatConvConfig{
+                        .cm_m = cm_m,
+                        .a_cm_k = a_cm_k,
+                        .b_cm_k = b_cm_k,
+                        .cm_n = cm_n,
+                        .wg_m = wg_m,
+                        .wg_n = wg_n,
+                        .sg_m = sg_m,
+                        .a_sg_k = a_sg_k,
+                        .b_sg_k = b_sg_k,
+                        .sg_n = sg_n,
+                        .a_async = false,
+                        .b_async = true,
+                    });
+                    m_configs.push_back(ConcatConvConfig{
+                        .cm_m = cm_m,
+                        .a_cm_k = a_cm_k,
+                        .b_cm_k = b_cm_k,
+                        .cm_n = cm_n,
+                        .wg_m = wg_m,
+                        .wg_n = wg_n,
+                        .sg_m = sg_m,
+                        .a_sg_k = a_sg_k,
+                        .b_sg_k = b_sg_k,
+                        .sg_n = sg_n,
+                        .a_async = true,
+                        .b_async = true,
+                    });
+
+                    // fmt::println("{}x{}/{}x{}   {}x{}/{}x{}   {}x{}   ->  {}",
+                    //              cm_m, a_cm_k, b_cm_k, cm_n, sg_m, a_sg_k,
+                    //              b_sg_k, sg_n, wg_m, wg_n, sh_size);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // fmt::println("config space: {}", m_configs.size());
+  }
 
   const auto tensorSupported = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
-      return false;
+return false;
     }
     if (tensor.channels.isSymbolic()) {
       return false;
@@ -255,6 +341,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     conv->matchValue([](const ComputeOp &op) -> bool {
       return op.tag() == ComputeOpKind::Conv;
     });
+    relu->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Activation;
+    });
     a->matchValue(tensorSupported);
     b->matchValue(tensorSupported);
     out->matchValue(tensorSupported);
@@ -290,50 +379,115 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
   const auto &patternHandles = m_patternHandles[pattern];
   [[maybe_unused]] const auto &a = opGraph.get(match[patternHandles.a]);
   [[maybe_unused]] const auto &b = opGraph.get(match[patternHandles.b]);
+  [[maybe_unused]] const auto &conv =
+      opGraph.get(match[patternHandles.conv]).conv();
   [[maybe_unused]] const auto &out = opGraph.get(match[patternHandles.out]);
 
   if (m_subgroupSize > m_maxComputeWorkGroupSize[0]) {
     return {};
   }
 
-  std::vector<unsigned int> configs;
-  for (unsigned int c = 0; c < CONCAT_CONV_CM_CONFIGS.size(); ++c) {
-    const auto &config = CONCAT_CONV_CM_CONFIGS[c];
-    uint32_t sgCount = config.wg_n * config.wg_m;
-    if (sgCount > m_maxComputeWorkGroupSize[1]) {
+  const uint32_t A_C = static_cast<uint32_t>(a.channels.constant());
+  const uint32_t B_C = static_cast<uint32_t>(b.channels.constant());
+  const uint32_t K = static_cast<uint32_t>(out.channels.constant());
+  const uint32_t R = conv->W->shape().r;
+  const uint32_t S = conv->W->shape().s;
+
+  memory::vector<unsigned int> promissing;
+  for (uint32_t c = 0; c < m_configs.size(); ++c) {
+
+    static constexpr size_t KK_ASYNC_LIMIT = 3;
+    static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;
+    static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
+    const auto &config = m_configs[c];
+    const uint32_t A_RSC = R * S * A_C;
+    const uint32_t B_RSC = R * S * B_C;
+
+    const uint32_t A_ktile = config.a_cm_k * config.a_sg_k;
+    const uint32_t B_ktile = config.b_cm_k * config.b_sg_k;
+
+    const uint32_t A_KK = (A_RSC + A_ktile - 1) / A_ktile;
+    const uint32_t B_KK = (B_RSC + B_ktile - 1) / B_ktile;
+
+    if (A_KK <= 2 && !config.a_async) {
       continue;
     }
-    uint32_t workgroupInvocations = sgCount * m_subgroupSize;
-    if (workgroupInvocations > m_maxComputeWorkGroupInvocations) {
+    if (B_KK <= 2 && !config.b_async) {
       continue;
     }
-    bool a_coopmatShapeSupported = false;
-    bool b_coopmatShapeSupported = false;
-    for (const auto &shape : m_supportedCoopmatShapes) {
-      if (shape.subgroupScope && shape.atype == memory::Dtype::F16 &&
-          shape.btype == memory::Dtype::F16 &&
-          shape.ctype == memory::Dtype::F16 &&
-          shape.acctype == memory::Dtype::F16 && shape.M == config.cm_m &&
-          shape.K == config.a_cm_k && shape.N == config.cm_n) {
-        a_coopmatShapeSupported = true;
-      }
-      if (shape.subgroupScope && shape.atype == memory::Dtype::F16 &&
-          shape.btype == memory::Dtype::F16 &&
-          shape.ctype == memory::Dtype::F16 &&
-          shape.acctype == memory::Dtype::F16 && shape.M == config.cm_m &&
-          shape.K == config.b_cm_k && shape.N == config.cm_n) {
-        b_coopmatShapeSupported = true;
-      }
-      if (a_coopmatShapeSupported && b_coopmatShapeSupported) {
-        break;
-      }
-    }
-    if (!(a_coopmatShapeSupported && b_coopmatShapeSupported)) {
+    if (A_KK >= 9 && !config.a_async) {
       continue;
     }
-    configs.push_back(c);
+    if (B_KK >= 9 && !config.b_async) {
+      continue;
+    }
+
+    // fmt::println("{}x{}/{}x{}   {}x{}/{}x{}   {}x{}", config.cm_m, config.a_cm_k,
+    //              config.b_cm_k, config.cm_n, config.sg_m, config.a_sg_k, config.b_sg_k, config.sg_n, config.wg_m, config.wg_n);
+
+    // output channel tile!
+    const uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
+    uint32_t channelDispatchSize = (K + ctile - 1) / ctile;
+    if (channelDispatchSize > 1 && K <= 256) {
+      continue;
+    }
+
+    uint32_t K_eff = std::max(K, config.cm_n);
+    if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
+      continue;
+    }
+
+    // POLICY: K % ctile == 0
+    if (K % config.cm_n == 0) {
+      if (K % ctile != 0) {
+        continue;
+      }
+    } else {
+      uint32_t wasted = ctile - (K % ctile);
+      if (wasted > config.cm_n) {
+        // NOTE: kind of assumptious
+        // might run into cases where we generate no configs,
+        // or only really shity sg_n = 1 configs
+        continue;
+      }
+    }
+    
+    if (A_RSC * MAX_KTILE_OVERALLOCATION < A_ktile) {
+      continue;
+    }
+    if (B_RSC * MAX_KTILE_OVERALLOCATION < B_ktile) {
+      continue;
+    }
+
+    if (A_RSC % config.a_cm_k == 0) {
+      if (A_RSC % A_ktile != 0) {
+        continue;
+      }
+    } else {
+      const uint32_t wasted = A_ktile - (A_RSC % A_ktile);
+      if (wasted > config.a_cm_k) {
+        continue;
+      }
+    }
+    if (B_RSC % config.b_cm_k == 0) {
+      if (B_RSC % B_ktile != 0) {
+        continue;
+      }
+    } else {
+      const uint32_t wasted = B_ktile - (B_RSC % B_ktile);
+      if (wasted > config.b_cm_k) {
+        continue;
+      }
+    }
+
+    // POLICY: wgSize \in [128, 256]
+    const uint32_t wgSize = config.wg_m * config.wg_n * m_subgroupSize;
+    if (wgSize < 128 || wgSize > 256) {
+      continue;
+    }
+    promissing.push_back(c);
   }
-  return configs;
+  return promissing;
 }
 
 static spirv::GlslCompilerInstance direct_conv_cm_compile(
@@ -559,7 +713,7 @@ void ConcatConvCMShader::implement(
         &match,
     SymGraph &symGraph) const {
 
-  const ConcatConvConfig &config = CONCAT_CONV_CM_CONFIGS[configKey];
+  const ConcatConvConfig &config = m_configs[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::EdgeId convId = match[patternHandles.conv];

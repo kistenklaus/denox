@@ -29,8 +29,6 @@ public:
   void setOperation(memory::string op) { self().info.operation = op; }
   void usesCoopmat(bool b) { self().info.coopmat = b; }
 
-  [[deprecated("not used anymore")]]
-  void setDebugInfo(memory::string_view debugInfo);
   void setSourcePath(const io::Path &path) { self().info.srcPath = path; }
   void setMemoryReads(Sym reads) { self().info.memoryReads = reads; }
   void setMemoryWrites(Sym writes) { self().info.memoryWrites = writes; }

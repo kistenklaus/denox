@@ -21,7 +21,7 @@ topologicalSort(const memory::ConstGraph<V, E, W> &hypergraph) {
   for (std::size_t ei = 0; ei < M; ++ei) {
     memory::EdgeId e{ei};
     memory::NodeId d = hypergraph.dst(e);
-    indegree[*d] += hypergraph.src(e).size();
+    indegree[*d] += static_cast<uint32_t>(hypergraph.src(e).size());
   }
 
   memory::deque<memory::NodeId> ready;

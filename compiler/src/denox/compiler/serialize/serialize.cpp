@@ -417,9 +417,6 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
   if (info.name) {
     name = fbb.CreateString(*info.name);
   }
-  if (info.debug_info) {
-    debug_info = fbb.CreateString(*info.debug_info);
-  }
   if (info.srcPath) {
     src_path = fbb.CreateString(info.srcPath->str());
   }

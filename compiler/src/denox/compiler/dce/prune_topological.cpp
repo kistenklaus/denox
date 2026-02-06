@@ -148,4 +148,5 @@ void denox::compiler::prune_topological(SuperGraph &supergraph) {
     assert(nodeRemap[*nid]);
     nid = *nodeRemap[*nid];
   }
+
 }
