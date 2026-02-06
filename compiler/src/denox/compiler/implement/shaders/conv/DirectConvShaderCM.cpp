@@ -41,7 +41,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
     memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
         coopmatShapes;
-    static constexpr size_t COOPMAT_SHAPE_SPACE = 2;
+    static constexpr size_t COOPMAT_SHAPE_SPACE = 1;
     for (const denox::CoopmatShape &shape : options.deviceInfo.coopmat.shapes) {
       if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
           shape.atype != memory::Dtype::F16 ||
@@ -53,17 +53,17 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
         continue;
       }
       if (shape.M == 16 && shape.K == 16 && shape.N == 16) {
-        coopmatShapes.emplace_back(10, shape);
-      } else if (shape.M == 16 && shape.K == 8 && shape.N == 8) {
-        coopmatShapes.emplace_back(5, shape);
-      } else if (shape.M == 16 && shape.K == 8 && shape.N == 16) {
-        coopmatShapes.emplace_back(8, shape);
-      } else {
         coopmatShapes.emplace_back(0, shape);
+      } else if (shape.M == 16 && shape.K == 8 && shape.N == 8) {
+        coopmatShapes.emplace_back(8, shape);
+      } else if (shape.M == 16 && shape.K == 8 && shape.N == 16) {
+        coopmatShapes.emplace_back(5, shape);
+      } else {
+        coopmatShapes.emplace_back(100, shape);
       }
     }
     std::ranges::sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
-      return lhs.first >= rhs.first;
+      return lhs.first < rhs.first;
     });
     coopmatShapes.resize(
         std::min<size_t>(coopmatShapes.size(), COOPMAT_SHAPE_SPACE));
@@ -137,15 +137,14 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                 // implementation, because it almost doesn't require any shared
                 // memory
                 static constexpr double WG_SH_OCCUPANCY =
-                    0.5; // 75% of max shared memory allowed
+                    0.75; // 75% of max shared memory allowed
                 if (static_cast<double>(sh_size) >
                     static_cast<double>(m_maxComputeSharedMemory) *
                         WG_SH_OCCUPANCY) {
                   continue;
                 }
-                // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m,
-                // cm_k,
-                //              cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
+                fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m, cm_k,
+                             cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
 
                 m_configs.push_back(DirectConvConfigCM{
                     .cm_m = cm_m,
@@ -296,7 +295,7 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     const uint32_t KK = (RSC + ktile - 1) / ktile;
 
     if (KK < KK_ASYNC_LIMIT && config.async) {
-      continue; // async doesn't make any sense here!
+      // continue; // async doesn't make any sense here!
     }
     if (RSC * MAX_KTILE_OVERALLOCATION < ktile) {
       continue;
@@ -383,8 +382,8 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
 
     promissing.push_back(c);
   }
-  // fmt::println("config count = {}", promissing.size());
-  return {promissing.front()};
+  fmt::println("config count = {}", promissing.size());
+  return promissing;
 }
 
 static spirv::GlslCompilerInstance direct_conv_cm_compile(

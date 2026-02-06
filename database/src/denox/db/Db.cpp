@@ -20,6 +20,7 @@
 #include <db.h>
 #include <filesystem>
 #include <fmt/format.h>
+#include <mutex>
 #include <ratio>
 
 denox::Db denox::Db::open(const io::Path &path) {
@@ -270,6 +271,8 @@ bool denox::Db::atomic_writeback() const {
   if (m_db->m_path.empty()) {
     return false;
   }
+  static std::mutex write_back_lock;
+  std::lock_guard lck{write_back_lock};
 
   io::Path tmpPath = m_db->m_path.with_extension("db.tmp");
 

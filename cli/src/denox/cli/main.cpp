@@ -16,6 +16,7 @@
 int main(int argc, char **argv) {
   try {
     auto action = parse_argv(argc, argv);
+
     switch (action.kind()) {
     case ActionKind::Compile:
       compile(action.compile());

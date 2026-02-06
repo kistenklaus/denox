@@ -61,12 +61,9 @@ void infer(InferAction &action) {
 
     auto start = std::chrono::high_resolution_clock::now();
 
-
     denox::memory::optional<denox::memory::ActivationTensor> parsed;
     parsed = PngInputStream{&inputStream}.read_image(denox::memory::Dtype::F16);
     bool isPng = parsed.has_value();
-
-
 
     if (!parsed) {
       // possibly fallback to raw HWC or something (unless eof ofcause)
@@ -77,7 +74,6 @@ void infer(InferAction &action) {
       break;
     }
 
-
     const denox::memory::ActivationTensor &image = *parsed;
 
     denox::memory::ActivationDescriptor desc{
@@ -86,9 +82,7 @@ void infer(InferAction &action) {
         denox::memory::Dtype::F16,
     };
 
-
     const denox::memory::ActivationTensor tensor{desc, image};
-
 
     auto input = model->tensors()[model->inputs().front()];
     assert(input.width.has_value());
@@ -129,8 +123,6 @@ void infer(InferAction &action) {
       }
     }
 
-
-
     denox::runtime::InstanceHandle instance;
     if (instanceCache) {
       auto cachedSpecs = instanceCache->spec;
@@ -150,7 +142,6 @@ void infer(InferAction &action) {
       instanceCache.emplace(std::move(specs), instance);
     }
 
-
     const void *inputData = static_cast<const void *>(tensor.data());
     const void **pInput = &inputData;
 
@@ -160,18 +151,16 @@ void infer(InferAction &action) {
     void *outputData = static_cast<void *>(output.data());
     void **pOutput = &outputData;
 
-
     instance->infer(pInput, pOutput);
-
 
     if (isPng) {
       PngOutputStream{&outputStream}.write_image(output);
     }
 
     auto dur = std::chrono::high_resolution_clock::now() - start;
-    std::cerr << fmt::format(
-        "\ndenox-latency: {}\n",
-        std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-            dur)) << std::endl;
+    std::cerr << fmt::format("\ndenox-latency: {}\n",
+                             std::chrono::duration_cast<
+                                 std::chrono::duration<float, std::milli>>(dur))
+              << std::endl;
   }
 }

@@ -6,6 +6,7 @@
 #include "denox/cli/parser/parse_artefact.hpp"
 #include "denox/cli/parser/parse_options.hpp"
 #include "denox/device_info/ApiVersion.hpp"
+#include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
@@ -638,7 +639,7 @@ Action parse_infer(std::span<const Token> tokens) {
   if (inputRes.error.has_value()) {
     switch (*inputRes.error) {
     case ArtefactParseError::NotAnArtefactToken:
-      denox::diag::invalid_state();
+      denox::diag::invalid_argument();
     case ArtefactParseError::PathDoesNotExist:
       throw ParseError(fmt::format("Path does not exist"));
     case ArtefactParseError::UnrecognizedFormat:
@@ -665,6 +666,7 @@ Action parse_infer(std::span<const Token> tokens) {
 
   denox::memory::optional<IOEndpoint> input;
   denox::memory::optional<IOEndpoint> output;
+
 
   bool help = false;
   bool fusion = true;
@@ -781,6 +783,7 @@ Action parse_infer(std::span<const Token> tokens) {
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
 
+
   if (help) {
     return HelpAction(HelpScope::Infer);
   }
@@ -804,6 +807,7 @@ Action parse_infer(std::span<const Token> tokens) {
     options.assumptions.valueAssumptions.emplace_back(name, value);
   }
 
+
   if (!input.has_value()) {
     throw ParseError(fmt::format("requires --input argument"));
   }
@@ -817,6 +821,7 @@ Action parse_infer(std::span<const Token> tokens) {
     }
     denox::diag::unreachable();
   }());
+
 
   return InferAction{
       .model = std::move(model),

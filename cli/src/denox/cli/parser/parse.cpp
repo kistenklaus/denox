@@ -41,6 +41,7 @@ Action parse_argv(int argc, char **argv) {
     }
   }
 
+
   const auto &cmd = first.command();
   switch (cmd) {
   case CommandToken::Compile:

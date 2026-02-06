@@ -4,6 +4,7 @@
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/dce/dce.hpp"
+#include "denox/compiler/dce/prune_dead_supergraph.hpp"
 #include "denox/compiler/dce/prune_topological.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
 #include "denox/compiler/implement/implement.hpp"
@@ -37,6 +38,7 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
   compiler::SuperGraph supergraph = compiler::implement(
       cmodel, cano.symGraph, &glslCompiler, options, logger);
 
+  // compiler::prune_dead_supergraph(supergraph);
   compiler::prune_topological(supergraph);
 
   // Collect all uncached glsl sources

@@ -238,7 +238,7 @@ public:
 
 private:
   explicit Context(const char *deviceName, ApiVersion target_env,
-                   bool validationLayers = false);
+                   bool validationLayers = true);
 
 private:
   VkInstance m_instance;
