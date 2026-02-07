@@ -3,12 +3,14 @@
 #include "denox/common/SHA256.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/hashmap.hpp"
+#include <mutex>
 namespace denox::spirv {
 
 class SourceShaCache {
 public:
   SHA256Builder cachedSHA(const io::Path &path,
                           std::span<const std::byte> source) {
+    std::lock_guard lck{m_mutex};
     if (m_cache.contains(path)) {
       return m_cache.at(path);
     } else {
@@ -22,6 +24,7 @@ public:
 
 private:
   memory::hash_map<io::Path, SHA256Builder> m_cache;
+  std::mutex m_mutex;
 };
 
 } // namespace denox::spirv

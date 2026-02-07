@@ -160,14 +160,14 @@ CompilationResult GlslCompilerInstance::compile() {
   if (!m_compiler->m_tools->validate(binary)) {
     return CompilationError{
         .stage = CompilationStage::SpirvToolsVal,
-        .msg = std::string(m_compiler->m_tools->get_error_msg()),
+        .msg = m_compiler->m_tools->get_error_msg(),
     };
   }
   if (m_compiler->m_optimize) {
     if (!m_compiler->m_tools->optimize(binary)) {
       return CompilationError{
           .stage = CompilationStage::SpirvToolsOpt,
-          .msg = std::string(m_compiler->m_tools->get_error_msg()),
+          .msg = m_compiler->m_tools->get_error_msg(),
       };
     }
   }

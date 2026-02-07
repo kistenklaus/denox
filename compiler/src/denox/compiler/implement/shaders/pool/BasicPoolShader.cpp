@@ -1,60 +1,10 @@
 #include "denox/compiler/implement/shaders/pool/BasicPoolShader.hpp"
 #include "denox/common/PoolFunction.hpp"
 #include "denox/compiler/Options.hpp"
-#include "denox/diag/invalid_state.hpp"
 #include "denox/diag/logging.hpp"
-#include <exception>
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
-
-// static std::array<BasicPoolConfig, 5> BASIC_POOL_CONFIGS = {
-//     BasicPoolConfig{
-//         .cdiv = 4,
-//         .invocC = memory::nullopt,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 4,
-//         .wgW = 64,
-//         .wgH = 1,
-//     },
-//     BasicPoolConfig{
-//         .cdiv = 8,
-//         .invocC = memory::nullopt,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 8,
-//         .wgW = 32,
-//         .wgH = 1,
-//     },
-//     BasicPoolConfig{
-//         .cdiv = 0,
-//         .invocC = 8,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 4,
-//         .wgW = 64,
-//         .wgH = 1,
-//     },
-//     BasicPoolConfig{
-//         .cdiv = 0,
-//         .invocC = 8,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 2,
-//         .wgW = 128,
-//         .wgH = 1,
-//     },
-//     BasicPoolConfig{
-//         .cdiv = 0,
-//         .invocC = 8,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 1,
-//         .wgW = 256,
-//         .wgH = 1,
-//     },
-// };
 
 BasicPoolShader::BasicPoolShader(spirv::GlslCompiler *compiler,
                                  const CompileOptions &options)
@@ -111,7 +61,7 @@ BasicPoolShader::BasicPoolShader(spirv::GlslCompiler *compiler,
       }
     }
   }
-  fmt::println("config-space: {}", m_configs.size());
+  // fmt::println("config-space: {}", m_configs.size());
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
@@ -233,7 +183,7 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
     // if (invocC % cblocksize == 0) {
     // }
   }
-  fmt::println("max-pool-config-space: {}", promissing.size());
+  // fmt::println("max-pool-config-space: {}", promissing.size());
   return promissing;
 }
 

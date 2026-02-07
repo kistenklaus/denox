@@ -280,7 +280,6 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
           });
         }
 
-        assert(setCount >= 0);
         memory::vector<VkDescriptorSetLayout> setLayouts(setCount);
         for (uint32_t set = 0; set < setCount; ++set) {
           setLayouts[set] = ctx->createDescriptorSetLayout(bindings[set]);

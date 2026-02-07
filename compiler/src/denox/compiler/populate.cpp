@@ -18,6 +18,8 @@
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/spirv/SpirvTools.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
+#include <cerrno>
+#include <chrono>
 #include <fmt/format.h>
 #include <unordered_set>
 
@@ -68,19 +70,34 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
   }
 
   // Compile all glsl source units.
-  for (size_t i = 0; i < units.size(); ++i) {
+  uint32_t jj = std::thread::hardware_concurrency();
+  memory::vector<std::thread> threads(jj);
+  uint32_t thread_count = static_cast<uint32_t>(threads.size());
+  std::atomic<uint32_t> progess = 0;
+  std::mutex mutex;
+  for (uint32_t tid = 0; tid < thread_count; ++tid) {
+    threads[tid] = std::thread(
+        [tid, thread_count, &units, &logger, &db, &mutex, &progess] {
+          for (size_t i = tid; i < units.size(); i += thread_count) {
+            SpirvBinary binary = *units[i].glsl.compile();
 
-    const uint32_t percentage =
-        50 +
-        static_cast<uint32_t>(std::floor(static_cast<float>(i + 1) * 50.0f /
-                                         static_cast<float>(units.size())));
-    logger.info("[{:>3}%] {}Building SPIR-V compute shader {}{} {}", percentage,
+            std::lock_guard lck{mutex};
+            uint32_t idx = progess.fetch_add(1);
+            const uint32_t percentage =
+                50 + static_cast<uint32_t>(
+                         std::floor(static_cast<float>(idx + 1) * 50.0f /
+                                    static_cast<float>(units.size())));
+            logger.info(
+                "[{:>3}%] {}Building SPIR-V compute shader {}{} {}", percentage,
                 logger.green(),
                 units[i].glsl.getSourcePath().relative_to(io::Path::assets()),
                 logger.reset(), units[i].hash);
-
-    SpirvBinary binary = *units[i].glsl.compile();
-    db.insert_binary(units[i].hash, binary);
+            db.insert_binary(units[i].hash, binary);
+          }
+        });
+  }
+  for (uint32_t tid = 0; tid < thread_count; ++tid) {
+    threads[tid].join();
   }
 
   // Evaluate symbols to their assumed values!
@@ -216,22 +233,25 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
 
       memory::optional<std::span<const uint32_t>> input_bindings;
       if (dispatch.info.input_bindings) {
-        input_bindings.emplace(dispatch.info.input_bindings->begin(), dispatch.info.input_bindings->end());
+        input_bindings.emplace(dispatch.info.input_bindings->begin(),
+                               dispatch.info.input_bindings->end());
       }
       memory::optional<std::span<const uint32_t>> output_bindings;
       if (dispatch.info.output_bindings) {
-        output_bindings.emplace(dispatch.info.output_bindings->begin(), dispatch.info.output_bindings->end());
+        output_bindings.emplace(dispatch.info.output_bindings->begin(),
+                                dispatch.info.output_bindings->end());
       }
 
-      bool new_dispatch = db.insert_dispatch(hash, pcbuf, wgX, wgY, wgZ, bindings, binary,
-                         operation, shader_name, config, memory_reads,
-                         memory_writes, flops, coopmat, input_bindings, output_bindings);
+      bool new_dispatch = db.insert_dispatch(
+          hash, pcbuf, wgX, wgY, wgZ, bindings, binary, operation, shader_name,
+          config, memory_reads, memory_writes, flops, coopmat, input_bindings,
+          output_bindings);
       if (new_dispatch) {
         new_dispatch_count++;
       }
     }
   }
-  // TODO: Remove me 
+  // TODO: Remove me
   logger.info("{} new dispatches", new_dispatch_count);
 
   logger.info("[100%] Database {} populated", db.path());
