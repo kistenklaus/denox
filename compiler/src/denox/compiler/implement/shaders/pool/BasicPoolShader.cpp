@@ -1,71 +1,118 @@
 #include "denox/compiler/implement/shaders/pool/BasicPoolShader.hpp"
 #include "denox/common/PoolFunction.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/logging.hpp"
+#include <exception>
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
 
-struct BasicPoolConfig {
-  const unsigned int cdiv;
-  const memory::optional<unsigned int> invocC;
-  const unsigned int invocW;
-  const unsigned int invocH;
-  const unsigned int wgC;
-  const unsigned int wgW;
-  const unsigned int wgH;
-};
+// static std::array<BasicPoolConfig, 5> BASIC_POOL_CONFIGS = {
+//     BasicPoolConfig{
+//         .cdiv = 4,
+//         .invocC = memory::nullopt,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 4,
+//         .wgW = 64,
+//         .wgH = 1,
+//     },
+//     BasicPoolConfig{
+//         .cdiv = 8,
+//         .invocC = memory::nullopt,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 8,
+//         .wgW = 32,
+//         .wgH = 1,
+//     },
+//     BasicPoolConfig{
+//         .cdiv = 0,
+//         .invocC = 8,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 4,
+//         .wgW = 64,
+//         .wgH = 1,
+//     },
+//     BasicPoolConfig{
+//         .cdiv = 0,
+//         .invocC = 8,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 2,
+//         .wgW = 128,
+//         .wgH = 1,
+//     },
+//     BasicPoolConfig{
+//         .cdiv = 0,
+//         .invocC = 8,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 1,
+//         .wgW = 256,
+//         .wgH = 1,
+//     },
+// };
 
-static std::array<BasicPoolConfig, 5> BASIC_POOL_CONFIGS = {
-    BasicPoolConfig{
-        .cdiv = 4,
-        .invocC = memory::nullopt,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    BasicPoolConfig{
-        .cdiv = 8,
-        .invocC = memory::nullopt,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 8,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    BasicPoolConfig{
-        .cdiv = 0,
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    BasicPoolConfig{
-        .cdiv = 0,
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 2,
-        .wgW = 128,
-        .wgH = 1,
-    },
-    BasicPoolConfig{
-        .cdiv = 0,
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 1,
-        .wgW = 256,
-        .wgH = 1,
-    },
-};
-
-BasicPoolShader::BasicPoolShader(spirv::GlslCompiler *compiler)
+BasicPoolShader::BasicPoolShader(spirv::GlslCompiler *compiler,
+                                 const CompileOptions &options)
     : m_compiler(compiler) {
+
+  { // ========= Generate config space ============
+    for (uint32_t wg_C = 1; wg_C <= 256; wg_C += 1) {
+      for (uint32_t wg_W = 1; wg_W <= 256; wg_W <<= 2) {
+        for (uint32_t wg_H = 1; wg_H <= 256; wg_H <<= 2) {
+
+          if (options.deviceInfo.limits.maxComputeWorkGroupSize[0] < wg_C) {
+            continue;
+          }
+          if (options.deviceInfo.limits.maxComputeWorkGroupSize[1] < wg_W) {
+            continue;
+          }
+          if (options.deviceInfo.limits.maxComputeWorkGroupSize[2] < wg_H) {
+            continue;
+          }
+
+          uint32_t wgSize = wg_C * wg_W * wg_H;
+          if ((wgSize < options.deviceInfo.subgroup.subgroupSize) ||
+              (wgSize >
+               std::min(
+                   options.deviceInfo.limits.maxComputeWorkGroupInvocations,
+                   512u))) {
+            continue;
+          }
+          if ((wgSize % options.deviceInfo.subgroup.subgroupSize) != 0) {
+            continue;
+          }
+
+          for (uint32_t invoc_C = 1; invoc_C <= 8; invoc_C++) {
+            for (uint32_t invoc_W = 1; invoc_W <= 8; invoc_W++) {
+              for (uint32_t invoc_H = 1; invoc_H <= 8; invoc_H++) {
+                if (invoc_C * invoc_W * invoc_H > 64) {
+                  continue;
+                }
+
+                // fmt::println("INVOC_C={},WG_C={}", invoc_C, wg_C);
+
+                m_configs.push_back(BasicPoolConfig{
+                    .invocC = invoc_C,
+                    .invocW = invoc_W,
+                    .invocH = invoc_H,
+                    .wgC = wg_C,
+                    .wgW = wg_W,
+                    .wgH = wg_H,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  fmt::println("config-space: {}", m_configs.size());
+
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
       return false;
@@ -130,48 +177,64 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
     return {};
   }
 
-  uint32_t cblocksize;
-  switch (in.format) {
-  case TensorFormat::SSBO_HWC:
-    if (in.channels.constant() % 8 == 0) {
-      cblocksize = 8;
-    } else {
-      cblocksize = 1;
-    }
-    break;
-  case TensorFormat::SSBO_CHW:
-    cblocksize = 1;
-    break;
-  case TensorFormat::SSBO_CHWC8:
-    cblocksize = 8;
-    break;
-  case TensorFormat::Optimal:
-  case TensorFormat::TEX_RGBA:
-  case TensorFormat::TEX_RGB:
-  case TensorFormat::TEX_RG:
-  case TensorFormat::TEX_R:
-    diag::invalid_state();
-    break;
-  }
+  // uint32_t cblocksize;
+  // switch (in.format) {
+  // case TensorFormat::SSBO_HWC:
+  //   if (in.channels.constant() % 8 == 0) {
+  //     cblocksize = 8;
+  //   } else {
+  //     cblocksize = 1;
+  //   }
+  //   break;
+  // case TensorFormat::SSBO_CHW:
+  //   cblocksize = 1;
+  //   break;
+  // case TensorFormat::SSBO_CHWC8:
+  //   cblocksize = 8;
+  //   break;
+  // case TensorFormat::Optimal:
+  // case TensorFormat::TEX_RGBA:
+  // case TensorFormat::TEX_RGB:
+  // case TensorFormat::TEX_RG:
+  // case TensorFormat::TEX_R:
+  //   diag::invalid_state();
+  //   break;
+  // }
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
-  memory::vector<unsigned int> configs;
-  configs.reserve(BASIC_POOL_CONFIGS.size());
-  for (unsigned int c = 0; c < BASIC_POOL_CONFIGS.size(); ++c) {
-    unsigned int invocC;
-    if (BASIC_POOL_CONFIGS[c].invocC.has_value()) {
-      invocC = BASIC_POOL_CONFIGS[c].invocC.value();
+  memory::vector<unsigned int> promissing;
+  for (unsigned int c = 0; c < m_configs.size(); ++c) {
+    const auto &config = m_configs[c];
+
+    uint32_t ctile = config.invocC * config.wgC;
+    uint32_t cdispatches = (C + ctile - 1) / ctile;
+    if (C <= 256 && cdispatches != 1) {
+      continue;
+    }
+
+    const bool vec = C % 8 == 0;
+    if (vec) {
+      if (config.invocC % 8 != 0) {
+        continue; // invalid config.
+      }
+      if (C % ctile != 0) {
+        continue;
+      }
     } else {
-      assert(BASIC_POOL_CONFIGS[c].cdiv != 0);
-      invocC =
-          (C + BASIC_POOL_CONFIGS[c].cdiv - 1) / BASIC_POOL_CONFIGS[c].cdiv;
+      if (config.invocC > 2) {
+        continue;
+        continue;
+      }
     }
-    if (invocC % cblocksize == 0) {
-      configs.push_back(c);
-    }
+
+    promissing.push_back(c);
+    // unsigned int invocC = config.invocC;
+    // if (invocC % cblocksize == 0) {
+    // }
   }
-  return configs;
+  fmt::println("max-pool-config-space: {}", promissing.size());
+  return promissing;
 }
 
 static spirv::GlslCompilerInstance
@@ -182,13 +245,13 @@ basic_pool_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
                    const BasicPoolConfig &config) {
   auto shader = compiler->read(srcPath);
 
-  uint32_t invocC;
-  if (config.invocC) {
-    invocC = *config.invocC;
-  } else {
-    const unsigned int ix = (channels + config.cdiv - 1) / config.cdiv;
-    invocC = ix;
-  }
+  uint32_t invocC = config.invocC;
+  // if (config.invocC) {
+  //   invocC = *config.invocC;
+  // } else {
+  //   const unsigned int ix = (channels + config.cdiv - 1) / config.cdiv;
+  //   invocC = ix;
+  // }
 
   if (inputFormat == TensorFormat::SSBO_HWC &&
       outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0) &&
@@ -247,7 +310,7 @@ void BasicPoolShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-  const BasicPoolConfig &config = BASIC_POOL_CONFIGS[configKey];
+  const BasicPoolConfig &config = m_configs[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
@@ -265,12 +328,12 @@ void BasicPoolShader::implement(
       basic_pool_compile(m_compiler, m_srcPath, in.format, out.format, C,
                          pool->kernelSize, pool->stride, pool->padding, config);
 
-  unsigned int invocC;
-  if (config.invocC) {
-    invocC = *config.invocC;
-  } else {
-    invocC = (C + config.cdiv - 1) / config.cdiv;
-  }
+  unsigned int invocC = config.invocC;
+  // if (config.invocC) {
+  //   invocC = *config.invocC;
+  // } else {
+  //   invocC = (C + config.cdiv - 1) / config.cdiv;
+  // }
 
   std::uint32_t tileX = invocC * config.wgC;
   std::uint32_t tileY = config.invocW * config.wgW;

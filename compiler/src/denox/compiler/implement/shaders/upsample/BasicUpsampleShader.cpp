@@ -122,7 +122,7 @@ BasicUpsampleShader::BasicUpsampleShader(spirv::GlslCompiler *compiler,
       }
     }
   }
-  fmt::println("upsample-config-space: {}", m_configs.size());
+  // fmt::println("upsample-config-space: {}", m_configs.size());
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
@@ -190,7 +190,7 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   memory::vector<unsigned int> promissing;
 
   const bool vectorized = C % 8 == 0;
-  fmt::println("C = {}", C);
+  // fmt::println("C = {}", C);
 
   for (unsigned int c = 0; c < m_configs.size(); ++c) {
     const auto &config = m_configs[c];
@@ -223,7 +223,7 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
 
     promissing.push_back(c);
   }
-  fmt::println("config-space: {}", promissing.size());
+  // fmt::println("config-space: {}", promissing.size());
   return promissing;
 }
 

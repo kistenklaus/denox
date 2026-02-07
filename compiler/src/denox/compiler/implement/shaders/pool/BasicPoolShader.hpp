@@ -1,11 +1,21 @@
 #pragma once
 
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
-#include "denox/memory/container/vector.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/implement/shaders/IShader.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
+#include "denox/memory/container/vector.hpp"
 
 namespace denox::compiler::shaders {
+
+struct BasicPoolConfig {
+  uint32_t invocC;
+  uint32_t invocW;
+  uint32_t invocH;
+  uint32_t wgC;
+  uint32_t wgW;
+  uint32_t wgH;
+};
 
 class BasicPoolShader final : public IShader {
   static constexpr std::size_t HWC_HWC_F16_PATTERN = 0;
@@ -14,7 +24,7 @@ class BasicPoolShader final : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  BasicPoolShader(spirv::GlslCompiler *compiler);
+  BasicPoolShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
 
   memory::vector<unsigned int>
   acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
@@ -26,12 +36,12 @@ public:
     return m_capabilities;
   }
 
-  void implement(OpImpl &impl,
-                 const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
-                 unsigned int pattern,
-                 unsigned int config,
-                 const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
-                     &match, SymGraph& symGraph) const final override;
+  void
+  implement(OpImpl &impl,
+            const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+            unsigned int pattern, unsigned int config,
+            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+            SymGraph &symGraph) const final override;
 
   memory::string name() const final override;
 
@@ -47,7 +57,10 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/pool/basic_pool.comp";
+      io::Path::assets() /
+      "compiler/src/denox/compiler/implement/shaders/pool/basic_pool.comp";
+
+  memory::vector<BasicPoolConfig> m_configs;
 };
 
 } // namespace denox::compiler::shaders

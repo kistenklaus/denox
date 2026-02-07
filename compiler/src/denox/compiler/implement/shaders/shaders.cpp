@@ -32,7 +32,7 @@ get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options) {
       compiler, options));
 
   shaders.push_back(
-      std::make_unique<compiler::shaders::BasicPoolShader>(compiler));
+      std::make_unique<compiler::shaders::BasicPoolShader>(compiler, options));
 
   shaders.push_back(std::make_unique<compiler::shaders::BasicUpsampleShader>(
       compiler, options));
