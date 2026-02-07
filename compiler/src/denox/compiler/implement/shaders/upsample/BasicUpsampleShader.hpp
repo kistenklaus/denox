@@ -6,6 +6,15 @@
 #include "denox/glsl/GlslCompiler.hpp"
 namespace denox::compiler::shaders {
 
+struct BasicUpsampleConfig {
+  uint32_t invocC;
+  uint32_t invocW;
+  uint32_t invocH;
+  uint32_t wgC;
+  uint32_t wgW;
+  uint32_t wgH;
+};
+
 class BasicUpsampleShader : public IShader {
 public:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
@@ -49,6 +58,7 @@ private:
 
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
+  memory::vector<BasicUpsampleConfig> m_configs;
 };
 
 } // namespace denox::compiler::shaders

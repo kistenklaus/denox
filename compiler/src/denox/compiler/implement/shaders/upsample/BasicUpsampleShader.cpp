@@ -1,67 +1,61 @@
 #include "denox/compiler/implement/shaders/upsample/BasicUpsampleShader.hpp"
 #include "denox/common/FilterMode.hpp"
+#include "denox/common/TensorFormat.hpp"
+#include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include <cassert>
+#include <exception>
 
 namespace denox::compiler::shaders {
 
-struct BasicUpsampleConfig {
-  unsigned int invocC;
-  unsigned int invocW;
-  unsigned int invocH;
-  memory::optional<unsigned int> wgC;
-  unsigned int wgW;
-  unsigned int wgH;
-};
-
-static std::array<BasicUpsampleConfig, 5> BASIC_UPSAMPLE_CONFIGS{
-    BasicUpsampleConfig{
-        // not supported
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 1,
-        .wgC = 8,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    BasicUpsampleConfig{
-        // not supported
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    BasicUpsampleConfig{
-        // 0.383ms
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    BasicUpsampleConfig{
-        // 0.319ms
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 2,
-        .wgW = 128,
-        .wgH = 1,
-    },
-    BasicUpsampleConfig{
-        // 0.318ms
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 1,
-        .wgW = 256,
-        .wgH = 1,
-    },
-
-};
+// static std::array<BasicUpsampleConfig, 5> BASIC_UPSAMPLE_CONFIGS{
+//     BasicUpsampleConfig{
+//         // not supported
+//         .invocC = 2,
+//         .invocW = 2,
+//         .invocH = 1,
+//         .wgC = 8,
+//         .wgW = 32,
+//         .wgH = 1,
+//     },
+//     BasicUpsampleConfig{
+//         // not supported
+//         .invocC = 1,
+//         .invocW = 4,
+//         .invocH = 1,
+//         .wgC = memory::nullopt,
+//         .wgW = 32,
+//         .wgH = 1,
+//     },
+//     BasicUpsampleConfig{
+//         // 0.383ms
+//         .invocC = 8,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 4,
+//         .wgW = 64,
+//         .wgH = 1,
+//     },
+//     BasicUpsampleConfig{
+//         // 0.319ms
+//         .invocC = 8,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 2,
+//         .wgW = 128,
+//         .wgH = 1,
+//     },
+//     BasicUpsampleConfig{
+//         // 0.318ms
+//         .invocC = 8,
+//         .invocW = 1,
+//         .invocH = 1,
+//         .wgC = 1,
+//         .wgW = 256,
+//         .wgH = 1,
+//     },
+//
+// };
 
 BasicUpsampleShader::BasicUpsampleShader(spirv::GlslCompiler *compiler,
                                          const CompileOptions &options)
@@ -70,6 +64,66 @@ BasicUpsampleShader::BasicUpsampleShader(spirv::GlslCompiler *compiler,
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize) {
+
+  { // ===== Create configuration space
+    // NOTE: We stick with enumerating a bunch of reasonable configs here,
+    // no need to do to generate all possible configurations
+
+    // NOTE: This is a stupidly large search space for such a simple op!
+    {
+      for (uint32_t wg_C = 1; wg_C <= 256; wg_C += 1) {
+        for (uint32_t wg_W = 1; wg_W <= 256; wg_W <<= 2) {
+          for (uint32_t wg_H = 1; wg_H <= 256; wg_H <<= 2) {
+
+            if (options.deviceInfo.limits.maxComputeWorkGroupSize[0] < wg_C) {
+              continue;
+            }
+            if (options.deviceInfo.limits.maxComputeWorkGroupSize[1] < wg_W) {
+              continue;
+            }
+            if (options.deviceInfo.limits.maxComputeWorkGroupSize[2] < wg_H) {
+              continue;
+            }
+
+            uint32_t wgSize = wg_C * wg_W * wg_H;
+            if ((wgSize < options.deviceInfo.subgroup.subgroupSize) ||
+                (wgSize >
+                 std::min(
+                     options.deviceInfo.limits.maxComputeWorkGroupInvocations,
+                     512u))) {
+              continue;
+            }
+            if ((wgSize % options.deviceInfo.subgroup.subgroupSize) != 0) {
+              continue;
+            }
+
+            for (uint32_t invoc_C = 1; invoc_C <= 8; invoc_C++) {
+              for (uint32_t invoc_W = 1; invoc_W <= 8; invoc_W++) {
+                for (uint32_t invoc_H = 1; invoc_H <= 8; invoc_H++) {
+                  if (invoc_C * invoc_W * invoc_H > 64) {
+                    continue;
+                  }
+
+                  // fmt::println("INVOC_C={},WG_C={}", invoc_C, wg_C);
+
+                  m_configs.push_back(BasicUpsampleConfig{
+                      .invocC = invoc_C,
+                      .invocW = invoc_W,
+                      .invocH = invoc_H,
+                      .wgC = wg_C,
+                      .wgW = wg_W,
+                      .wgH = wg_H,
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  fmt::println("upsample-config-space: {}", m_configs.size());
+
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
       return false;
@@ -133,54 +187,44 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   }
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
-  uint32_t cblocksize;
-  switch (in.format) {
-  case TensorFormat::SSBO_HWC:
-    if (in.channels.constant() % 8 == 0) {
-      cblocksize = 8;
-    } else {
-      cblocksize = 1;
-    }
-    break;
-    break;
-  case TensorFormat::SSBO_CHW:
-    cblocksize = 1;
-    break;
-  case TensorFormat::SSBO_CHWC8:
-    cblocksize = 8;
-    break;
-  case TensorFormat::Optimal:
-  case TensorFormat::TEX_RGBA:
-  case TensorFormat::TEX_RGB:
-  case TensorFormat::TEX_RG:
-  case TensorFormat::TEX_R:
-    diag::invalid_state();
-  }
+  memory::vector<unsigned int> promissing;
 
-  memory::vector<unsigned int> configs;
-  configs.reserve(BASIC_UPSAMPLE_CONFIGS.size());
-  for (unsigned int c = 0; c < BASIC_UPSAMPLE_CONFIGS.size(); ++c) {
-    const auto &config = BASIC_UPSAMPLE_CONFIGS[c];
-    uint32_t wgC = config.wgC.value_or(C);
-    uint32_t workgroupInvocations = wgC * config.wgW * config.wgH;
-    if (workgroupInvocations > m_maxComputeWorkGroupInvocations) {
+  const bool vectorized = C % 8 == 0;
+  fmt::println("C = {}", C);
+
+  for (unsigned int c = 0; c < m_configs.size(); ++c) {
+    const auto &config = m_configs[c];
+
+    uint32_t ctile = config.invocC * config.wgC;
+
+    uint32_t cdispatches = (C + ctile - 1) / ctile;
+    // fmt::println("c-dispatches: {}", cdispatches);
+    if (C <= 256 && cdispatches != 1) {
       continue;
     }
-    if (wgC > m_maxComputeWorkGroupSize[0]) {
-      continue;
+
+    if (vectorized) {
+      if (config.invocC % 8 != 0) {
+        continue; // <- invalid configconfig
+      }
+
+      if (C % ctile != 0) {
+        continue;
+      }
+
+    } else {
+      if (config.invocC > 2) {
+        continue;
+      }
     }
-    if (config.wgW > m_maxComputeWorkGroupSize[1]) {
-      continue;
-    }
-    if (config.wgH > m_maxComputeWorkGroupSize[2]) {
-      continue;
-    }
-    if (config.invocC % cblocksize != 0) {
-      continue;
-    }
-    configs.push_back(c);
+
+    // fmt::println("{}x{}x{}  {}x{}x{}", config.invocC, config.invocW,
+    //              config.invocH, config.wgC, config.wgW, config.wgH);
+
+    promissing.push_back(c);
   }
-  return configs;
+  fmt::println("config-space: {}", promissing.size());
+  return promissing;
 }
 
 static spirv::GlslCompilerInstance
@@ -228,7 +272,7 @@ basic_upsample_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   shader.define("INVOC_C", config.invocC);
   shader.define("INVOC_W", config.invocW);
   shader.define("INVOC_H", config.invocH);
-  shader.define("WG_C", config.wgC.value_or(channels));
+  shader.define("WG_C", config.wgC);
   shader.define("WG_W", config.wgW);
   shader.define("WG_H", config.wgH);
 
@@ -243,7 +287,7 @@ void BasicUpsampleShader::implement(
     [[maybe_unused]] const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
         &match,
     SymGraph &symGraph) const {
-  const BasicUpsampleConfig config = BASIC_UPSAMPLE_CONFIGS[configKey];
+  const BasicUpsampleConfig config = m_configs[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandles.in];
@@ -260,7 +304,7 @@ void BasicUpsampleShader::implement(
       basic_upsample_compile(m_compiler, m_srcPath, in.format, out.format, C,
                              upsample.scalingFactor, config);
 
-  std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
+  std::uint32_t tileX = config.invocC * config.wgC;
   std::uint32_t tileY = config.invocW * config.wgW;
   std::uint32_t tileZ = config.invocH * config.wgH;
 
@@ -277,10 +321,9 @@ void BasicUpsampleShader::implement(
   dispatch.setName(name());
   dispatch.setOperation(fmt::format("upsample(x,scale_factor={},mode=nearest)",
                                     upsample.scalingFactor));
-  dispatch.setConfig(
-      fmt::format("INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}",
-                  config.invocC, config.invocW, config.invocH,
-                  config.wgC.value_or(C), config.wgW, config.wgH));
+  dispatch.setConfig(fmt::format(
+      "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}", config.invocC,
+      config.invocW, config.invocH, config.wgC, config.wgW, config.wgH));
 
   dispatch.setSourcePath(m_srcPath);
 
@@ -292,7 +335,5 @@ void BasicUpsampleShader::implement(
   dispatch.setFlops(Sym::Const(0));
   dispatch.usesCoopmat(false);
 }
-memory::string BasicUpsampleShader::name() const {
-  return "basic-upsample";
-}
+memory::string BasicUpsampleShader::name() const { return "basic-upsample"; }
 } // namespace denox::compiler::shaders

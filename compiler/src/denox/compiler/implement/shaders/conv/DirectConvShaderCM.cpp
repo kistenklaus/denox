@@ -143,8 +143,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                         WG_SH_OCCUPANCY) {
                   continue;
                 }
-                fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m, cm_k,
-                             cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
+                // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m, cm_k,
+                //              cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
 
                 m_configs.push_back(DirectConvConfigCM{
                     .cm_m = cm_m,
@@ -174,7 +174,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
         }
       }
     }
-    fmt::println("direct-conv config-space: {}", m_configs.size());
+    // fmt::println("direct-conv config-space: {}", m_configs.size());
   }
 
   // ==== Define implementable patterns ========
@@ -314,7 +314,7 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     uint32_t K_eff = std::max(K, config.cm_n);
 
     if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
-      continue;
+      // continue;
     }
 
     // POLICY: RSC % ktile == 0
@@ -382,7 +382,7 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
 
     promissing.push_back(c);
   }
-  fmt::println("config count = {}", promissing.size());
+  // fmt::println("config count = {}", promissing.size());
   return promissing;
 }
 
