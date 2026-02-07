@@ -61,7 +61,6 @@ BasicPoolShader::BasicPoolShader(spirv::GlslCompiler *compiler,
       }
     }
   }
-  // fmt::println("config-space: {}", m_configs.size());
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {

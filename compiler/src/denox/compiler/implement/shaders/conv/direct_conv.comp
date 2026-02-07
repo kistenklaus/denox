@@ -160,7 +160,6 @@ void main() {
     }
   }
   #endif
-
   #pragma end_block; // load_bias
 
   uint kk = 0;
@@ -169,8 +168,6 @@ void main() {
   uint ppx = 0;
 
   #pragma begin_block(prefetch_A);
-
-  #if VSTYPE_SIZE == 16
   #if defined(IN_LAYOUT_HWC)
   {
     const uint WG_TILE_Y = SG_M * WG_M;
@@ -387,9 +384,6 @@ void main() {
     }
   }
   #endif
-  #else
-  NOT_IMPLEMENTED; // VSTYPE_SIZE != 16
-  #endif
   #pragma end_block; // prefetch_A
 
   #pragma begin_block(prefetch_B);
@@ -601,12 +595,8 @@ void main() {
   #pragma end_block;
 
   #pragma begin_block(writeback);
-
-  #if VSTYPE_SIZE == 16
-
   #if defined(OUT_LAYOUT_HWC)
   // ostype: uint16_t
-  #if ATYPE_SIZE == 2
   {
     const uint W = (VSTYPE_SIZE / ATYPE_SIZE); // 8 for uvec4+f16
     const uint INVOC_N8 = INVOC_N / W;
@@ -667,13 +657,9 @@ void main() {
       }
     }
   }
-  #else
-  NOT_SUPPORTED; // atype != float16_t
-  #endif
 
   #elif defined(OUT_LAYOUT_HWC8)
   // ostype: uvec4 <=> vstype: uvec4
-  #if ATYPE_SIZE == 2
   // atype : float16_t
   // => HWC8 layout. => OUT_CH % 8 == 0
   {
@@ -710,13 +696,8 @@ void main() {
     }
   }
 
-  #else
-  NOT_IMPLEMENTED; // atype != float16_t
-  #endif
-
   #elif defined(OUT_LAYOUT_CHWC8)
   // ostype: uvec4 <=> vstype
-  #if ATYPE_SIZE == 2
   {
     const uint W = (VSTYPE_SIZE / ATYPE_SIZE); // 8 for uvec4 + f16
     const uint INVOC_N8 = INVOC_N / W;
@@ -749,19 +730,9 @@ void main() {
       }
     }
   }
-
-  #else
-  NOT_IMPLEMENTED; // atype != float16_t
-  #endif
-
   #else
   UNDEFINED_OUT_LAYOUT;
   #endif
-
-  #else
-  NOT_IMPLEMENTED; // vstype != uvec4
-  #endif
-
   #pragma end_block;
 
   #pragma inline_block(load_bias);

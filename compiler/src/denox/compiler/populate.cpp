@@ -71,6 +71,7 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
 
   // Compile all glsl source units.
   uint32_t jj = std::thread::hardware_concurrency();
+  // uint32_t jj = 1;
   memory::vector<std::thread> threads(jj);
   uint32_t thread_count = static_cast<uint32_t>(threads.size());
   std::atomic<uint32_t> progess = 0;

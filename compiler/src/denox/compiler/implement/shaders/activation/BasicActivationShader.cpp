@@ -1,7 +1,6 @@
 #include "denox/compiler/implement/shaders/activation/BasicActivationShader.hpp"
 #include "denox/common/ActivationFunction.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/not_implemented.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 
 namespace denox::compiler::shaders {
@@ -15,47 +14,130 @@ struct BasicActivationConfig {
   std::uint32_t wgH;
 };
 
-static constexpr std::array<BasicActivationConfig, 5> BASIC_ACTIVATION_CONFIGS =
-    {BasicActivationConfig{
-         .invocC = 2,
-         .invocW = 2,
-         .invocH = 1,
-         .wgC = 8,
-         .wgW = 32,
-         .wgH = 1,
-     },
-     BasicActivationConfig{
-         .invocC = 1,
-         .invocW = 4,
-         .invocH = 1,
-         .wgC = memory::nullopt, // <- insert channel count.
-         .wgW = 32,
-         .wgH = 1,
-     },
-     BasicActivationConfig{
-         .invocC = 8,
-         .invocW = 1,
-         .invocH = 1,
-         .wgC = 4,
-         .wgW = 64,
-         .wgH = 1,
-     },
-     BasicActivationConfig{
-         .invocC = 8,
-         .invocW = 1,
-         .invocH = 1,
-         .wgC = 2,
-         .wgW = 128,
-         .wgH = 1,
-     },
-     BasicActivationConfig{
-         .invocC = 8,
-         .invocW = 1,
-         .invocH = 1,
-         .wgC = 1,
-         .wgW = 256,
-         .wgH = 1,
-     }};
+static std::array<BasicActivationConfig, 15> BASIC_ACTIVATION_CONFIGS{
+    BasicActivationConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 8,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 4,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 2,
+        .wgC = 8,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 2,
+        .wgC = 4,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 16,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 8,
+        .wgH = 1,
+    },
+
+    BasicActivationConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 4,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 2,
+        .wgH = 1,
+    },
+
+    BasicActivationConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 1,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 4,
+        .wgW = 64,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 2,
+        .wgW = 64,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 2,
+        .wgW = 128,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 1,
+        .wgW = 128,
+        .wgH = 1,
+    },
+    BasicActivationConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 1,
+        .wgW = 256,
+        .wgH = 1,
+    },
+};
 
 BasicActivationShader::BasicActivationShader(spirv::GlslCompiler *compiler,
                                              const CompileOptions &options)

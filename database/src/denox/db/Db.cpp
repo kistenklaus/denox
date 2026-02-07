@@ -271,6 +271,11 @@ bool denox::Db::atomic_writeback() const {
   if (m_db->m_path.empty()) {
     return false;
   }
+
+  // fmt::println("env-count: {}", m_db->environments.size());
+  // fmt::println("binaries: {}", m_db->binaries.size());
+  // fmt::println("dispatches: {}", m_db->dispatches.size());
+
   static std::mutex write_back_lock;
   std::lock_guard lck{write_back_lock};
 
@@ -753,10 +758,10 @@ const denox::io::Path &denox::Db::path() const { return m_db->m_path; }
 
 uint32_t denox::Db::create_bench_environment(
     std::string device, std::string os, std::string driver_version,
-    std::string denox_version,
-    std::string denox_commit_hash, uint64_t start_timestamp,
-    DbClockMode clockMode, uint16_t l2_warmup_iterations,
-    uint16_t jit_warmup_iterations, uint16_t measurement_iterations) {
+    std::string denox_version, std::string denox_commit_hash,
+    uint64_t start_timestamp, DbClockMode clockMode,
+    uint16_t l2_warmup_iterations, uint16_t jit_warmup_iterations,
+    uint16_t measurement_iterations) {
   uint32_t id = static_cast<uint32_t>(m_db->environments.size());
   m_db->environments.push_back(DbEnv{
       .device = device,

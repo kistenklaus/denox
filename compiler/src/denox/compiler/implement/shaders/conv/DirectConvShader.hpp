@@ -11,6 +11,18 @@
 
 namespace denox::compiler::shaders {
 
+struct DirectConvConfig {
+  uint32_t invoc_m;
+  uint32_t invoc_k;
+  uint32_t invoc_n;
+  uint32_t wg_m;
+  uint32_t wg_n;
+  uint32_t sg_m;
+  uint32_t sg_k;
+  uint32_t sg_n;
+  bool async;
+};
+
 class DirectConvShader final : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
@@ -67,6 +79,7 @@ private:
   unsigned int m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
+  memory::vector<DirectConvConfig> m_configs;
 };
 
 } // namespace denox::compiler::shaders

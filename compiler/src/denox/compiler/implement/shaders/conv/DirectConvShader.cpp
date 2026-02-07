@@ -3,141 +3,15 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/unreachable.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/memory/dtype/dtype.hpp"
-#include "denox/memory/tensor/ActivationLayout.hpp"
 #include <cassert>
+#include <exception>
 #include <flatbuffers/base.h>
 #include <fmt/format.h>
+#include <ratio>
 
 namespace denox::compiler::shaders {
-
-struct DirectConvConfig {
-  unsigned int invoc_m;
-  unsigned int invoc_k;
-  unsigned int invoc_n;
-  unsigned int wg_m;
-  unsigned int wg_n;
-  unsigned int sg_m;
-  unsigned int sg_k;
-  unsigned int sg_n;
-  bool async;
-};
-
-static constexpr DirectConvConfig DIRECT_CONV_CONFIGS[] = {
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 1,
-    //     .async = false,
-    // },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = false,
-    // },
-    DirectConvConfig{
-        // <- good for 32 -> 32 (but equal to 2,2,2)
-        .invoc_m = 16,
-        .invoc_k = 16,
-        .invoc_n = 16,
-        .wg_m = 4,
-        .wg_n = 2,
-        .sg_m = 2,
-        .sg_k = 2,
-        .sg_n = 4,
-        .async = true,
-    },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //     .sg_m = 2,
-    //     .sg_k = 2,
-    //     .sg_n = 2,
-    //     .async = false,
-    // },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 4,
-    //     .wg_n = 2,
-    //     .sg_m = 2,
-    //     .sg_k = 1,
-    //     .sg_n = 8,
-    //     .async = false,
-    // },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 6,
-    //     .async = false,
-    // },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 7,
-    //     .async = false,
-    // },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //     .sg_m = 1,
-    //     .sg_k = 1,
-    //     .sg_n = 8,
-    //     .async = false,
-    // },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //     .sg_m = 1,
-    //     .sg_k = 3,
-    //     .sg_n = 6,
-    //     .async = false,
-    // },
-    // DirectConvConfig{
-    //     .invoc_m = 16,
-    //     .invoc_k = 16,
-    //     .invoc_n = 16,
-    //     .wg_m = 8,
-    //     .wg_n = 1,
-    //     .sg_m = 1,
-    //     .sg_k = 3,
-    //     .sg_n = 7,
-    //     .async = false,
-    // },
-};
 
 DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
                                    const CompileOptions &options)
@@ -148,6 +22,101 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize) {
+
+  { // Create config space.
+
+    struct MicroKernel {
+      uint32_t M;
+      uint32_t K;
+      uint32_t N;
+    };
+    memory::vector<MicroKernel> micro_kernels{
+        MicroKernel{16, 16, 16},
+        MicroKernel{16, 8, 16},
+        // MicroKernel{16, 8, 8},
+    };
+
+    for (const auto &kernel : micro_kernels) {
+      assert(kernel.M % 8 == 0);
+      assert(kernel.K % 8 == 0);
+      assert(kernel.N % 8 == 0);
+
+      for (uint32_t wg_m = 1; wg_m < 16; ++wg_m) {
+        for (uint32_t wg_n = 1; wg_n < 16; ++wg_n) {
+          const uint32_t workgroup_size = wg_m * wg_n * m_subgroupSize;
+          if (workgroup_size < 128 ||
+              workgroup_size >
+                  options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
+            continue;
+          }
+          if (workgroup_size > 512) {
+            continue; // heuristic!
+          }
+
+          for (uint32_t sg_m = 1; sg_m <= 8; ++sg_m) {
+            for (uint32_t sg_k = 1; sg_k <= 8; ++sg_k) {
+              for (uint32_t sg_n = 1; sg_n <= 8; ++sg_n) {
+
+                static constexpr size_t PIPELINE_DEPTH = 2;
+                const uint32_t sh_a_size =
+                    PIPELINE_DEPTH *
+                    (sg_m * wg_m * kernel.M * sg_k * kernel.K * 2);
+                const uint32_t sh_b_size =
+                    PIPELINE_DEPTH *
+                    (kernel.N * sg_n * wg_n * sg_k * kernel.K * 2);
+                const uint32_t sh_size = sh_a_size + sh_b_size;
+
+                static constexpr double MIN_WG_OCCUPANCY = 0.75;
+                if (static_cast<double>(sh_size) >
+                    static_cast<double>(
+                        options.deviceInfo.limits.maxComputeSharedMemory) *
+                        MIN_WG_OCCUPANCY) {
+                  continue;
+                }
+
+                const uint32_t VECS_PER_INVOC =
+                    (kernel.N * kernel.M + 2 * m_subgroupSize - 1) /
+                    (2 * m_subgroupSize);
+                const uint32_t acc_regs =
+                    sg_n * sg_m * VECS_PER_INVOC * 4; // uvec4
+
+                if (acc_regs > 128) {
+                  continue;
+                }
+
+                // fmt::println("{}x{}x{}  {}x{}x{}  {}x{}   -> {}", kernel.M,
+                //              kernel.K, kernel.N, sg_m, sg_k, sg_n, wg_m, wg_n,
+                //              sh_size);
+
+                m_configs.push_back(DirectConvConfig{
+                    .invoc_m = kernel.M,
+                    .invoc_k = kernel.K,
+                    .invoc_n = kernel.N,
+                    .wg_m = wg_m,
+                    .wg_n = wg_n,
+                    .sg_m = sg_m,
+                    .sg_k = sg_k,
+                    .sg_n = sg_n,
+                    .async = true,
+                });
+                m_configs.push_back(DirectConvConfig{
+                    .invoc_m = kernel.M,
+                    .invoc_k = kernel.K,
+                    .invoc_n = kernel.N,
+                    .wg_m = wg_m,
+                    .wg_n = wg_n,
+                    .sg_m = sg_m,
+                    .sg_k = sg_k,
+                    .sg_n = sg_n,
+                    .async = false,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
   const auto tensorSupported = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
@@ -236,45 +205,90 @@ memory::vector<unsigned int> DirectConvShader::acceptMatch(
         &match) const {
   const auto &patternHandles = m_patternHandles[pattern];
   const auto &in = opGraph.get(match[patternHandles.in]);
+  const auto &conv = opGraph.get(match[patternHandles.conv]).conv();
   const auto &out = opGraph.get(match[patternHandles.out]);
 
   // TODO: Remove this restriction!
 
   if (m_subgroupSize > m_maxComputeWorkGroupSize[0]) {
-    fmt::println("invalid subgroup size");
+    // fmt::println("invalid subgroup size");
     return {};
   }
 
   if (in.channels.isSymbolic()) {
-    fmt::println("no config for symbolic channel count");
+    // fmt::println("no config for symbolic channel count");
     return {};
   }
 
   if (out.channels.isSymbolic()) {
-    fmt::println("no config for symbolic channel count");
+    // fmt::println("no config for symbolic channel count");
     return {};
   }
   const uint32_t K = static_cast<uint32_t>(out.channels.constant());
+  const uint32_t C = static_cast<uint32_t>(in.channels.constant());
+  const uint32_t R = conv->W->shape().r;
+  const uint32_t S = conv->W->shape().s;
 
-  std::vector<unsigned int> configs;
-  for (unsigned int i = 0;
-       i < sizeof(DIRECT_CONV_CONFIGS) / sizeof(DirectConvConfig); ++i) {
-    const auto &config = DIRECT_CONV_CONFIGS[i];
-    std::uint32_t channelTile = config.invoc_n * config.sg_n * config.wg_n;
+  std::vector<unsigned int> promissing;
+  for (unsigned int i = 0; i < m_configs.size(); ++i) {
+    const auto &config = m_configs[i];
     assert(config.invoc_n % 8 == 0 && "INVOC_N must be multiple of 8");
     assert(config.invoc_k % 8 == 0 && "INVOC_K must be multiple of 8");
     assert((config.invoc_n * config.sg_n * config.wg_n) % 8 == 0 &&
            "WG_TILE_N must be multiple of 8");
-    if (K > channelTile) {
+
+    static constexpr size_t KK_ASYNC_LIMIT = 3;
+    static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;
+    static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
+
+    const uint32_t RSC = R * S * C;
+    const uint32_t ktile = config.invoc_k * config.sg_k;
+    const uint32_t KK = (RSC + ktile - 1) / ktile;
+    if (RSC * MAX_KTILE_OVERALLOCATION < ktile) {
       continue;
     }
-    configs.push_back(i);
-  }
-  if (configs.empty()) {
-    fmt::println("no config for K={}", K);
-  }
 
-  return configs;
+    const std::uint32_t ctile = config.invoc_n * config.sg_n * config.wg_n;
+    const uint32_t cdispatches = (K + ctile - 1) / ctile;
+    if (K <= 256 && cdispatches != 1) {
+      continue;
+    }
+    const uint32_t K_eff = std::max(K, config.invoc_n);
+    if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
+      // continue;
+    }
+
+    if (RSC % config.invoc_k == 0) {
+      if (RSC % ktile != 0) {
+        continue;
+      }
+    } else {
+      uint32_t wasted = ktile - (RSC % ktile);
+      if (wasted > config.invoc_k) {
+        continue;
+      }
+    }
+
+    if (K % config.invoc_n == 0) {
+      if (K % ctile != 0) {
+        continue;
+      }
+    } else {
+      uint32_t wasted = ctile - (K % ctile);
+      if (wasted > config.invoc_n) {
+        continue;
+      }
+    }
+
+    uint32_t wgSize = config.wg_m * config.wg_n * m_subgroupSize;
+    if (wgSize < 128 || wgSize > 512) {
+      continue;
+    }
+
+    promissing.push_back(i);
+  }
+  // fmt::println("config-space: {}", promissing.size());
+  return promissing;
 }
 
 spirv::GlslCompilerInstance
@@ -413,7 +427,7 @@ void DirectConvShader::implement(
         &match,
     SymGraph &symGraph) const {
 
-  const DirectConvConfig &config = DIRECT_CONV_CONFIGS[configKey];
+  const DirectConvConfig &config = m_configs[configKey];
 
   const auto &patternHandles = m_patternHandles[pattern];
   memory::EdgeId convId = match[patternHandles.conv];
@@ -550,3 +564,118 @@ void DirectConvShader::implement(
 }
 memory::string DirectConvShader::name() const { return "direct-conv"; }
 } // namespace denox::compiler::shaders
+  //
+
+// static constexpr DirectConvConfig DIRECT_CONV_CONFIGS[] = {
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 8,
+//         .wg_n = 1,
+//         .sg_m = 1,
+//         .sg_k = 1,
+//         .sg_n = 1,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 8,
+//         .wg_n = 1,
+//         .sg_m = 2,
+//         .sg_k = 2,
+//         .sg_n = 2,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         // <- good for 32 -> 32 (but equal to 2,2,2)
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 4,
+//         .wg_n = 2,
+//         .sg_m = 2,
+//         .sg_k = 2,
+//         .sg_n = 4,
+//         .async = true,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 4,
+//         .wg_n = 2,
+//         .sg_m = 2,
+//         .sg_k = 2,
+//         .sg_n = 2,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 4,
+//         .wg_n = 2,
+//         .sg_m = 2,
+//         .sg_k = 1,
+//         .sg_n = 8,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 8,
+//         .wg_n = 1,
+//         .sg_m = 1,
+//         .sg_k = 1,
+//         .sg_n = 6,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 8,
+//         .wg_n = 1,
+//         .sg_m = 1,
+//         .sg_k = 1,
+//         .sg_n = 7,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 8,
+//         .wg_n = 1,
+//         .sg_m = 1,
+//         .sg_k = 1,
+//         .sg_n = 8,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 8,
+//         .wg_n = 1,
+//         .sg_m = 1,
+//         .sg_k = 3,
+//         .sg_n = 6,
+//         .async = false,
+//     },
+//     DirectConvConfig{
+//         .invoc_m = 16,
+//         .invoc_k = 16,
+//         .invoc_n = 16,
+//         .wg_m = 8,
+//         .wg_n = 1,
+//         .sg_m = 1,
+//         .sg_k = 3,
+//         .sg_n = 7,
+//         .async = false,
+//     },
+// };

@@ -27,7 +27,7 @@ struct CopyTransformConfig {
   unsigned int wgH;
 };
 
-static std::array<CopyTransformConfig, 5> COPY_TRANSFORM_CONFIGS{
+static std::array<CopyTransformConfig, 15> COPY_TRANSFORM_CONFIGS{
     CopyTransformConfig{
         .invocC = 2,
         .invocW = 2,
@@ -37,11 +37,77 @@ static std::array<CopyTransformConfig, 5> COPY_TRANSFORM_CONFIGS{
         .wgH = 1,
     },
     CopyTransformConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 4,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 2,
+        .wgC = 8,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 2,
+        .wgC = 4,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
         .wgC = memory::nullopt,
         .wgW = 32,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 16,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 8,
+        .wgH = 1,
+    },
+
+    CopyTransformConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 4,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 2,
+        .wgH = 1,
+    },
+
+    CopyTransformConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 1,
         .wgH = 1,
     },
     CopyTransformConfig{
@@ -57,6 +123,22 @@ static std::array<CopyTransformConfig, 5> COPY_TRANSFORM_CONFIGS{
         .invocW = 1,
         .invocH = 1,
         .wgC = 2,
+        .wgW = 64,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 2,
+        .wgW = 128,
+        .wgH = 1,
+    },
+    CopyTransformConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 1,
         .wgW = 128,
         .wgH = 1,
     },
@@ -454,8 +536,6 @@ void CopyTransformShader::implement(
   }
 }
 
-memory::string CopyTransformShader::name() const {
-  return "copy-transform";
-}
+memory::string CopyTransformShader::name() const { return "copy-transform"; }
 
 } // namespace denox::compiler::shaders

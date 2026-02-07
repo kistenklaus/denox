@@ -13,7 +13,23 @@ struct MemoryPadConfig {
   unsigned int wgH;
 };
 
-static std::array<MemoryPadConfig, 5> MEMORY_PAD_CONFIGS{
+static std::array<MemoryPadConfig, 15> MEMORY_PAD_CONFIGS{
+    MemoryPadConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 8,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    MemoryPadConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 1,
+        .wgC = 4,
+        .wgW = 32,
+        .wgH = 1,
+    },
     MemoryPadConfig{
         .invocC = 2,
         .invocW = 2,
@@ -23,11 +39,61 @@ static std::array<MemoryPadConfig, 5> MEMORY_PAD_CONFIGS{
         .wgH = 1,
     },
     MemoryPadConfig{
+        .invocC = 2,
+        .invocW = 2,
+        .invocH = 2,
+        .wgC = 4,
+        .wgW = 32,
+        .wgH = 1,
+    },
+    MemoryPadConfig{
         .invocC = 1,
         .invocW = 4,
         .invocH = 1,
-        .wgC = 8,
+        .wgC = memory::nullopt,
         .wgW = 32,
+        .wgH = 1,
+    },
+    MemoryPadConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 16,
+        .wgH = 1,
+    },
+    MemoryPadConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 8,
+        .wgH = 1,
+    },
+
+    MemoryPadConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 4,
+        .wgH = 1,
+    },
+    MemoryPadConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 2,
+        .wgH = 1,
+    },
+
+    MemoryPadConfig{
+        .invocC = 1,
+        .invocW = 4,
+        .invocH = 1,
+        .wgC = memory::nullopt,
+        .wgW = 1,
         .wgH = 1,
     },
     MemoryPadConfig{
@@ -43,6 +109,22 @@ static std::array<MemoryPadConfig, 5> MEMORY_PAD_CONFIGS{
         .invocW = 1,
         .invocH = 1,
         .wgC = 2,
+        .wgW = 64,
+        .wgH = 1,
+    },
+    MemoryPadConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 2,
+        .wgW = 128,
+        .wgH = 1,
+    },
+    MemoryPadConfig{
+        .invocC = 8,
+        .invocW = 1,
+        .invocH = 1,
+        .wgC = 1,
         .wgW = 128,
         .wgH = 1,
     },

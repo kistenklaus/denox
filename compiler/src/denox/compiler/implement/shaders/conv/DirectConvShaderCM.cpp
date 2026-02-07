@@ -41,7 +41,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
     memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
         coopmatShapes;
-    static constexpr size_t COOPMAT_SHAPE_SPACE = 1;
+    static constexpr size_t COOPMAT_SHAPE_SPACE = 2;
     for (const denox::CoopmatShape &shape : options.deviceInfo.coopmat.shapes) {
       if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
           shape.atype != memory::Dtype::F16 ||
@@ -88,9 +88,9 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                   options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
             continue; // unreasonable workgroup size
           }
-          for (uint32_t sg_m = 1; sg_m < 8; ++sg_m) {
-            for (uint32_t sg_k = 1; sg_k < 8; ++sg_k) {
-              for (uint32_t sg_n = 1; sg_n < 8; ++sg_n) {
+          for (uint32_t sg_m = 1; sg_m <= 8; ++sg_m) {
+            for (uint32_t sg_k = 1; sg_k <= 8; ++sg_k) {
+              for (uint32_t sg_n = 1; sg_n <= 8; ++sg_n) {
                 const uint32_t coopmats_register_estimate =
                     acc_register_estimate * sg_n * sg_m +
                     a_register_estimate * sg_m + b_register_estimate * sg_n;
