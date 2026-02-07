@@ -60,3 +60,5 @@ cmake-debug-build
 *.engine
 *.csv
 *.gpu
+
+/data

@@ -226,34 +226,34 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                         .b_async = false,
                     });
 
-                    m_configs.push_back(ConcatConvConfig{
-                        .cm_m = cm_m,
-                        .a_cm_k = a_cm_k,
-                        .b_cm_k = b_cm_k,
-                        .cm_n = cm_n,
-                        .wg_m = wg_m,
-                        .wg_n = wg_n,
-                        .sg_m = sg_m,
-                        .a_sg_k = a_sg_k,
-                        .b_sg_k = b_sg_k,
-                        .sg_n = sg_n,
-                        .a_async = true,
-                        .b_async = false,
-                    });
-                    m_configs.push_back(ConcatConvConfig{
-                        .cm_m = cm_m,
-                        .a_cm_k = a_cm_k,
-                        .b_cm_k = b_cm_k,
-                        .cm_n = cm_n,
-                        .wg_m = wg_m,
-                        .wg_n = wg_n,
-                        .sg_m = sg_m,
-                        .a_sg_k = a_sg_k,
-                        .b_sg_k = b_sg_k,
-                        .sg_n = sg_n,
-                        .a_async = false,
-                        .b_async = true,
-                    });
+                    // m_configs.push_back(ConcatConvConfig{
+                    //     .cm_m = cm_m,
+                    //     .a_cm_k = a_cm_k,
+                    //     .b_cm_k = b_cm_k,
+                    //     .cm_n = cm_n,
+                    //     .wg_m = wg_m,
+                    //     .wg_n = wg_n,
+                    //     .sg_m = sg_m,
+                    //     .a_sg_k = a_sg_k,
+                    //     .b_sg_k = b_sg_k,
+                    //     .sg_n = sg_n,
+                    //     .a_async = true,
+                    //     .b_async = false,
+                    // });
+                    // m_configs.push_back(ConcatConvConfig{
+                    //     .cm_m = cm_m,
+                    //     .a_cm_k = a_cm_k,
+                    //     .b_cm_k = b_cm_k,
+                    //     .cm_n = cm_n,
+                    //     .wg_m = wg_m,
+                    //     .wg_n = wg_n,
+                    //     .sg_m = sg_m,
+                    //     .a_sg_k = a_sg_k,
+                    //     .b_sg_k = b_sg_k,
+                    //     .sg_n = sg_n,
+                    //     .a_async = false,
+                    //     .b_async = true,
+                    // });
                     m_configs.push_back(ConcatConvConfig{
                         .cm_m = cm_m,
                         .a_cm_k = a_cm_k,
@@ -487,6 +487,7 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
     }
     promissing.push_back(c);
   }
+  // fmt::println("concat-conv-promissing: {}", promissing.size());
   return promissing;
 }
 

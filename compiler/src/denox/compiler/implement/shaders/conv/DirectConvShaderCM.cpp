@@ -41,7 +41,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
     memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
         coopmatShapes;
-    static constexpr size_t COOPMAT_SHAPE_SPACE = 2;
+    static constexpr size_t COOPMAT_SHAPE_SPACE = 1;
     for (const denox::CoopmatShape &shape : options.deviceInfo.coopmat.shapes) {
       if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
           shape.atype != memory::Dtype::F16 ||
