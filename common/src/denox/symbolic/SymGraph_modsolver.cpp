@@ -1,4 +1,5 @@
 #include "denox/algorithm/lcm.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/symbolic/SymGraph.hpp"
 #include <limits>
 
@@ -58,6 +59,9 @@ SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs, Sym rhs,
   }
   depth += 1;
   if (depth > MAX_MODSOLVER_DEPTH) {
+    DENOX_WARN("symbolic engines modsolver reached max depth. This is "
+               "unexpected behaviour, feel free to create a github issue "
+               "https://github.com/kistenklaus/denox");
     return memory::nullopt;
   }
 

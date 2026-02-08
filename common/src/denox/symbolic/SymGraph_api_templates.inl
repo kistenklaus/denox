@@ -114,7 +114,7 @@ Sym SymGraph::pow(L lhs, value_type rhs, bool dno) {
 template <typename L, typename R>
   requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
           (std::same_as<R, Sym> || std::is_integral_v<R>)
-Sym SymGraph::div(L lhs, R rhs, bool dno) {
+Sym SymGraph::div(L lhs, R rhs, bool dno, bool modproofs) {
   Sym a;
   if constexpr (std::same_as<L, Sym>) {
     a = resolve(lhs);
@@ -127,23 +127,18 @@ Sym SymGraph::div(L lhs, R rhs, bool dno) {
   } else {
     b = Sym::Const(rhs);
   }
-  return div_xx(a, b, dno);
+  return div_xx(a, b, dno, modproofs);
 }
 
 template <typename L, typename R>
   requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
           (std::same_as<R, Sym> || std::is_integral_v<R>)
-Sym SymGraph::cdiv(L lhs, R rhs, bool dno) {
+Sym SymGraph::cdiv(L lhs, R rhs, bool dno, bool modproofs) {
   const auto r = resolve(rhs);
   if (r.isConstant() && r.constant() - 1 >= 0) {
-    // NOTE: This helps to avoid some of the mod blowup 
-    Sym divisibilityCheck = mod(lhs, r.constant());
-    if (divisibilityCheck.isConstant() && divisibilityCheck.constant() == 0) {
-      return div(lhs, r.constant());
-    }
-    return div(add(lhs, r.constant() - 1), rhs, dno);
+    return div(add(lhs, r.constant() - 1), rhs, dno, modproofs);
   }
-  return div(sub(add(lhs, rhs, false), 1), rhs, dno);
+  return div(sub(add(lhs, rhs, false), 1), rhs, dno, modproofs);
 }
 
 template <typename L, typename R>

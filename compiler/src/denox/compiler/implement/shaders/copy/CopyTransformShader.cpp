@@ -449,8 +449,10 @@ void CopyTransformShader::implement(
       // tileY = 2 * 32 = 64
       // tileZ = 1 * 1 = 1
 
-      Sym workgroupCountX = symGraph.cdiv(src0.channels, tileX); // 8 / 16 = 1
-      Sym workgroupCountY = symGraph.cdiv(src0.width, tileY); // 1920 / 64 = 30
+      Sym workgroupCountX =
+          symGraph.cdiv(src0.channels, tileX, false, false); // 8 / 16 = 1
+      Sym workgroupCountY =
+          symGraph.cdiv(src0.width, tileY, false, false); // 1920 / 64 = 30
       Sym workgroupCountZ =
           symGraph.cdiv(src0.height, tileZ); // 1080 / 1 = 1080
 
@@ -500,9 +502,9 @@ void CopyTransformShader::implement(
       std::uint32_t tileY = config1.invocW * config1.wgW;
       std::uint32_t tileZ = config1.invocH * config1.wgH;
 
-      Sym workgroupCountX = symGraph.cdiv(src1.channels, tileX);
-      Sym workgroupCountY = symGraph.cdiv(src1.width, tileY);
-      Sym workgroupCountZ = symGraph.cdiv(src1.height, tileZ);
+      Sym workgroupCountX = symGraph.cdiv(src1.channels, tileX, false, false);
+      Sym workgroupCountY = symGraph.cdiv(src1.width, tileY, false, false);
+      Sym workgroupCountZ = symGraph.cdiv(src1.height, tileZ, false, false);
 
       auto copySrc1Dispatch =
           impl.registerDispatch(std::move(shader1), workgroupCountX,

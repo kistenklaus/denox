@@ -269,7 +269,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                         .b_async = true,
                     });
 
-                    // fmt::println("{}x{}/{}x{}   {}x{}/{}x{}   {}x{}   ->  {}",
+                    // fmt::println("{}x{}/{}x{}   {}x{}/{}x{}   {}x{}   -> {}",
                     //              cm_m, a_cm_k, b_cm_k, cm_n, sg_m, a_sg_k,
                     //              b_sg_k, sg_n, wg_m, wg_n, sh_size);
                   }
@@ -285,7 +285,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
 
   const auto tensorSupported = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
-return false;
+      return false;
     }
     if (tensor.channels.isSymbolic()) {
       return false;
@@ -422,8 +422,10 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
       continue;
     }
 
-    // fmt::println("{}x{}/{}x{}   {}x{}/{}x{}   {}x{}", config.cm_m, config.a_cm_k,
-    //              config.b_cm_k, config.cm_n, config.sg_m, config.a_sg_k, config.b_sg_k, config.sg_n, config.wg_m, config.wg_n);
+    // fmt::println("{}x{}/{}x{}   {}x{}/{}x{}   {}x{}", config.cm_m,
+    // config.a_cm_k,
+    //              config.b_cm_k, config.cm_n, config.sg_m, config.a_sg_k,
+    //              config.b_sg_k, config.sg_n, config.wg_m, config.wg_n);
 
     // output channel tile!
     const uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
@@ -451,7 +453,7 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
         continue;
       }
     }
-    
+
     if (A_RSC * MAX_KTILE_OVERALLOCATION < A_ktile) {
       continue;
     }
@@ -768,9 +770,11 @@ void ConcatConvCMShader::implement(
   std::uint32_t tileY = config.cm_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX); // 8 / 16 = 1
-  Sym workgroupCountY = symGraph.cdiv(W, tileY);            // 1920 / 16 = 120
-  Sym workgroupCountZ = symGraph.cdiv(H, tileZ);            // 1080 / 16 = 68
+  Sym workgroupCountX =
+      symGraph.cdiv(out.channels, tileX, false, false); // 8 / 16 = 1
+  Sym workgroupCountY =
+      symGraph.cdiv(W, tileY, false, false); // 1920 / 16 = 120
+  Sym workgroupCountZ = symGraph.cdiv(H, tileZ, false, false); // 1080 / 16 = 68
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);

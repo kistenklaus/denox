@@ -2,18 +2,18 @@
 
 namespace denox {
 
-Sym SymGraph::div_xx(Sym lhs, Sym rhs, bool dno) {
+Sym SymGraph::div_xx(Sym lhs, Sym rhs, bool dno, bool modproofs) {
   if (lhs.isConstant() && rhs.isConstant()) {
     return div_cc(lhs.constant(), rhs.constant(), dno);
   } else if (lhs.isConstant()) {
-    return div_cs(lhs.constant(), rhs.sym(), dno);
+    return div_cs(lhs.constant(), rhs.sym(), dno, modproofs);
   } else if (rhs.isConstant()) {
-    return div_sc(lhs.sym(), rhs.constant(), dno);
+    return div_sc(lhs.sym(), rhs.constant(), dno, modproofs);
   } else {
-    return div_ss(lhs.sym(), rhs.sym(), dno);
+    return div_ss(lhs.sym(), rhs.sym(), dno, modproofs);
   }
 }
-Sym SymGraph::div_ss(symbol lhs, symbol rhs, bool dno) {
+Sym SymGraph::div_ss(symbol lhs, symbol rhs, bool dno, bool modproofs) {
   const auto &a = m_expressions[lhs];
   const auto &b = m_expressions[rhs];
   denox::memory::optional<AffineExpr> affine = affine_div(a.affine, b.affine);
@@ -21,27 +21,27 @@ Sym SymGraph::div_ss(symbol lhs, symbol rhs, bool dno) {
     return require_affine_sym(ExprType::Div, Sym::Symbol(lhs), Sym::Symbol(rhs),
                               *affine, dno);
   } else {
-    return nonaffine_div(Sym::Symbol(lhs), Sym::Symbol(rhs), dno);
+    return nonaffine_div(Sym::Symbol(lhs), Sym::Symbol(rhs), dno, modproofs);
   }
 }
-Sym SymGraph::div_sc(symbol lhs, value_type rhs, bool dno) {
+Sym SymGraph::div_sc(symbol lhs, value_type rhs, bool dno, bool modproofs) {
   const auto &a = m_expressions[lhs];
   denox::memory::optional<AffineExpr> affine = affine_div(a.affine, rhs);
   if (affine.has_value()) {
     return require_affine_sym(ExprType::Div, Sym::Symbol(lhs), Sym::Const(rhs),
                               *affine, dno);
   } else {
-    return nonaffine_div(Sym::Symbol(lhs), Sym::Const(rhs), dno);
+    return nonaffine_div(Sym::Symbol(lhs), Sym::Const(rhs), dno, modproofs);
   }
 }
-Sym SymGraph::div_cs(value_type lhs, symbol rhs, bool dno) {
+Sym SymGraph::div_cs(value_type lhs, symbol rhs, bool dno, bool modproofs) {
   if (lhs == 0) {
     AffineExpr affine;
     affine.constant = 0;
     return require_affine_sym(ExprType::Div, Sym::Const(lhs), Sym::Symbol(rhs),
                               affine, dno);
   } else {
-    return nonaffine_div(Sym::Const(lhs), Sym::Symbol(rhs), dno);
+    return nonaffine_div(Sym::Const(lhs), Sym::Symbol(rhs), dno, modproofs);
   }
 }
 Sym SymGraph::div_cc(value_type lhs, value_type rhs, bool dno) {
@@ -52,4 +52,4 @@ Sym SymGraph::div_cc(value_type lhs, value_type rhs, bool dno) {
                             affine, dno);
 }
 
-} // namespace vkcnn
+} // namespace denox

@@ -354,9 +354,9 @@ void BasicActivationShader::implement(
   std::uint32_t tileW = config.invocW * config.wgW;
   std::uint32_t tileH = config.invocH * config.wgH;
 
-  Sym workgroupCountX = symGraph.cdiv(in.channels, tileC);
-  Sym workgroupCountY = symGraph.cdiv(in.width, tileW);
-  Sym workgroupCountZ = symGraph.cdiv(in.height, tileH);
+  Sym workgroupCountX = symGraph.cdiv(in.channels, tileC, false, false);
+  Sym workgroupCountY = symGraph.cdiv(in.width, tileW, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(in.height, tileH, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);

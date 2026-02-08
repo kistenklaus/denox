@@ -147,7 +147,7 @@ Sym SymGraph::nonaffine_mul(symbol lhs, symbol rhs, bool dno) {
                             out, dno);
 }
 
-Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
+Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno, bool modproofs) {
   // at least one side must be symbolic (both-const handled upstream)
   assert(lhs.isSymbolic() || rhs.isSymbolic());
 
@@ -284,11 +284,18 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
                 construct_affine_sym(num2, /*dno*/ false, sumTiSym.sym());
 
             // Recurse on strictly smaller divisor
-            return nonaffine_div(num2Sym, Sym::Const(d2), dno);
+            return nonaffine_div(num2Sym, Sym::Const(d2), dno, modproofs);
           }
         }
       }
       // === END NEW fast-paths ===
+
+      if (!modproofs) {
+        NonAffineExpr na;
+        na.expr = ExprType::Div;
+        na.symbols = {lhs, rhs};
+        return Sym::Symbol(require_nonaffine_sym(na));
+      }
 
       // 1) If A ≡ 0 (mod d), keep a single Div(A,d)
       if (auto r = modsolve_resume(lhs.sym(), Sym::Const(d)); r && *r == 0) {
@@ -312,7 +319,7 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
         } else {
           // term was hoisted via S≡0 (mod d); encode sign via +/- Div(|f|*S, d)
           Sym fS = mul_sc(qc.sym, std::abs(qc.factor), /*dno*/ false);
-          Sym fSdiv = div_sc(fS.sym(), d, /*dno*/ false);
+          Sym fSdiv = div_sc(fS.sym(), d, /*dno*/ false, modproofs);
           affine_add_sym(Qdiv, fSdiv.sym(),
                          (qc.factor < 0) ? value_type(-1) : value_type(1));
         }

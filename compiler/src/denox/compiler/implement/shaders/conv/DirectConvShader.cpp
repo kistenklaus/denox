@@ -85,8 +85,8 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
                 }
 
                 // fmt::println("{}x{}x{}  {}x{}x{}  {}x{}   -> {}", kernel.M,
-                //              kernel.K, kernel.N, sg_m, sg_k, sg_n, wg_m, wg_n,
-                //              sh_size);
+                //              kernel.K, kernel.N, sg_m, sg_k, sg_n, wg_m,
+                //              wg_n, sh_size);
 
                 m_configs.push_back(DirectConvConfig{
                     .invoc_m = kernel.M,
@@ -465,9 +465,12 @@ void DirectConvShader::implement(
   std::uint32_t tileY = config.invoc_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX); // 8 / 16 = 1
-  Sym workgroupCountY = symGraph.cdiv(in.width, tileY);     // 1920 / 16 = 120
-  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ);    // 1080 / 16 = 68
+  Sym workgroupCountX =
+      symGraph.cdiv(out.channels, tileX, false, false); 
+  Sym workgroupCountY =
+      symGraph.cdiv(in.width, tileY, false, false); 
+  Sym workgroupCountZ =
+      symGraph.cdiv(in.height, tileZ, false, false); 
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -564,118 +567,3 @@ void DirectConvShader::implement(
 }
 memory::string DirectConvShader::name() const { return "direct-conv"; }
 } // namespace denox::compiler::shaders
-  //
-
-// static constexpr DirectConvConfig DIRECT_CONV_CONFIGS[] = {
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 8,
-//         .wg_n = 1,
-//         .sg_m = 1,
-//         .sg_k = 1,
-//         .sg_n = 1,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 8,
-//         .wg_n = 1,
-//         .sg_m = 2,
-//         .sg_k = 2,
-//         .sg_n = 2,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         // <- good for 32 -> 32 (but equal to 2,2,2)
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 4,
-//         .wg_n = 2,
-//         .sg_m = 2,
-//         .sg_k = 2,
-//         .sg_n = 4,
-//         .async = true,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 4,
-//         .wg_n = 2,
-//         .sg_m = 2,
-//         .sg_k = 2,
-//         .sg_n = 2,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 4,
-//         .wg_n = 2,
-//         .sg_m = 2,
-//         .sg_k = 1,
-//         .sg_n = 8,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 8,
-//         .wg_n = 1,
-//         .sg_m = 1,
-//         .sg_k = 1,
-//         .sg_n = 6,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 8,
-//         .wg_n = 1,
-//         .sg_m = 1,
-//         .sg_k = 1,
-//         .sg_n = 7,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 8,
-//         .wg_n = 1,
-//         .sg_m = 1,
-//         .sg_k = 1,
-//         .sg_n = 8,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 8,
-//         .wg_n = 1,
-//         .sg_m = 1,
-//         .sg_k = 3,
-//         .sg_n = 6,
-//         .async = false,
-//     },
-//     DirectConvConfig{
-//         .invoc_m = 16,
-//         .invoc_k = 16,
-//         .invoc_n = 16,
-//         .wg_m = 8,
-//         .wg_n = 1,
-//         .sg_m = 1,
-//         .sg_k = 3,
-//         .sg_n = 7,
-//         .async = false,
-//     },
-// };

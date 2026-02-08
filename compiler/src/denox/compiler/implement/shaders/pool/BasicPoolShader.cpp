@@ -579,25 +579,9 @@ void BasicPoolShader::implement(
   std::uint32_t tileY = config.invocW * config.wgW;
   std::uint32_t tileZ = config.invocH * config.wgH;
 
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
-
-  auto start = std::chrono::high_resolution_clock::now();
-  // auto x = symGraph.mod(out.width, tileY);
-  // auto y = symGraph.div(out.width, tileY);
-  auto end2 = std::chrono::high_resolution_clock::now();
-
-  Sym workgroupCountY = symGraph.cdiv(out.width, tileY);
-  auto end = std::chrono::high_resolution_clock::now();
-  auto dur =
-      std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-          end - start);
-
-  auto dur2 =
-      std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-          end2 - start);
-  fmt::println("cdiv took {}   / {}", dur, dur2);
-
-  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ);
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX, false, false);
+  Sym workgroupCountY = symGraph.cdiv(out.width, tileY, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);

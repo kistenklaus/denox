@@ -292,9 +292,9 @@ void MemorySliceShader::implement(
   std::uint32_t tileY = config.invocW * config.wgW;
   std::uint32_t tileZ = config.invocH * config.wgH;
 
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(out.width, tileY);
-  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ);
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX, false, false);
+  Sym workgroupCountY = symGraph.cdiv(out.width, tileY, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);

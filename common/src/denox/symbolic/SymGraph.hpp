@@ -33,7 +33,7 @@ private:
   using ModSolverHandle = symbolic::details::ModSolverHandle;
   // NOTE: If we ever hit a case where the modsolver is to weak it's time to 
   // tune those and look where exactly the modsolver blows up.
-  static constexpr size_t MAX_MODSOLVER_DEPTH = 10;
+  static constexpr size_t MAX_MODSOLVER_DEPTH = 16;
   static constexpr size_t MAX_MODSOLVER_COUNT = 1 << 16; // ~32K
 
 public:
@@ -118,12 +118,12 @@ public:
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym div(L lhs, R rhs, bool dno = false);
+  Sym div(L lhs, R rhs, bool dno = false, bool modproofs = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
             (std::same_as<R, Sym> || std::is_integral_v<R>)
-  Sym cdiv(L lhs, R rhs, bool dno = false);
+  Sym cdiv(L lhs, R rhs, bool dno = false, bool modproofs = true);
 
   template <typename L, typename R>
     requires(std::same_as<L, Sym> || std::is_integral_v<L>) &&
@@ -228,10 +228,10 @@ private:
   Sym mul_sc(symbol lhs, value_type rhs, bool dno);
   Sym mul_cc(value_type lhs, value_type rhs, bool dno);
 
-  Sym div_xx(Sym lhs, Sym rhs, bool dno);
-  Sym div_ss(symbol lhs, symbol rhs, bool dno);
-  Sym div_sc(symbol lhs, value_type rhs, bool dno);
-  Sym div_cs(value_type lhs, symbol rhs, bool dno);
+  Sym div_xx(Sym lhs, Sym rhs, bool dno, bool modproofs);
+  Sym div_ss(symbol lhs, symbol rhs, bool dno, bool modproofs);
+  Sym div_sc(symbol lhs, value_type rhs, bool dno, bool modproofs);
+  Sym div_cs(value_type lhs, symbol rhs, bool dno, bool modproofs);
   Sym div_cc(value_type lhs, value_type rhs, bool dno);
 
   Sym mod_xx(Sym lhs, Sym rhs, bool dno);
@@ -273,7 +273,7 @@ private:
       -> memory::optional<symbol>;
 
   Sym nonaffine_mul(symbol lhs, symbol rhs, bool dno);
-  Sym nonaffine_div(Sym lhs, Sym rhs, bool dno);
+  Sym nonaffine_div(Sym lhs, Sym rhs, bool dno, bool modproofs);
   Sym nonaffine_mod(Sym lhs, Sym rhs, bool dno);
 
   // Mod Solver

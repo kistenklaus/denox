@@ -143,7 +143,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                         WG_SH_OCCUPANCY) {
                   continue;
                 }
-                // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m, cm_k,
+                // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m,
+                // cm_k,
                 //              cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
 
                 m_configs.push_back(DirectConvConfigCM{
@@ -577,9 +578,9 @@ void DirectConvShaderCM::implement(
   std::uint32_t tileY = config.cm_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX);
-  Sym workgroupCountY = symGraph.cdiv(in.width, tileY);
-  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ);
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX, false, false);
+  Sym workgroupCountY = symGraph.cdiv(in.width, tileY, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
