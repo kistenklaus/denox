@@ -21,7 +21,33 @@ class BasicPoolShader final : public IShader {
   static constexpr std::size_t HWC_HWC_F16_PATTERN = 0;
   static constexpr std::size_t CHWC8_CHWC8_F16_PATTERN = 1;
 
+  struct Config_HWC {
+    uint32_t invocC;
+    uint32_t invocH;
+    uint32_t wgSizeHint;
+  };
+
+  struct Config_HWC8 {
+    uint32_t invocW;
+    uint32_t invocH;
+    uint32_t wgSizeHint;
+  };
+  struct Config_CHWC8 {
+    uint32_t invocW;
+    uint32_t invocH;
+    uint32_t wgSize;
+  };
+
 public:
+  struct Config {
+    uint32_t invocC;
+    uint32_t invocW;
+    uint32_t invocH;
+    uint32_t wgC;
+    uint32_t wgW;
+    uint32_t wgH;
+  };
+
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   BasicPoolShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
@@ -60,7 +86,15 @@ private:
       io::Path::assets() /
       "compiler/src/denox/compiler/implement/shaders/pool/basic_pool.comp";
 
-  memory::vector<BasicPoolConfig> m_configs;
+  uint32_t m_subgroupSize;
+  uint32_t m_maxComputeWorkGroupInvocations;
+  std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
+
+  memory::vector<Config_HWC> m_hwc_configs;
+  memory::vector<Config_HWC8> m_hwc8_configs;
+  memory::vector<Config_CHWC8> m_chwc8_configs;
+
+  uint32_t m_optimizationLevel;
 };
 
 } // namespace denox::compiler::shaders

@@ -136,7 +136,12 @@ template <typename L, typename R>
 Sym SymGraph::cdiv(L lhs, R rhs, bool dno) {
   const auto r = resolve(rhs);
   if (r.isConstant() && r.constant() - 1 >= 0) {
-    return div(add(lhs, r.constant() - 1, false), rhs, dno);
+    // NOTE: This helps to avoid some of the mod blowup 
+    Sym divisibilityCheck = mod(lhs, r.constant());
+    if (divisibilityCheck.isConstant() && divisibilityCheck.constant() == 0) {
+      return div(lhs, r.constant());
+    }
+    return div(add(lhs, r.constant() - 1), rhs, dno);
   }
   return div(sub(add(lhs, rhs, false), 1), rhs, dno);
 }
@@ -243,4 +248,4 @@ Sym SymGraph::max(L lhs, R rhs, bool dno) {
   return max_xx(a, b, dno);
 }
 
-} // namespace denox::compiler
+} // namespace denox

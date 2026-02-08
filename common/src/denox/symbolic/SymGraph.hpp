@@ -31,6 +31,10 @@ private:
   using NonAffineExpr = symbolic::details::NonAffineExpr;
   using ModExpr = symbolic::details::ModExpr;
   using ModSolverHandle = symbolic::details::ModSolverHandle;
+  // NOTE: If we ever hit a case where the modsolver is to weak it's time to 
+  // tune those and look where exactly the modsolver blows up.
+  static constexpr size_t MAX_MODSOLVER_DEPTH = 10;
+  static constexpr size_t MAX_MODSOLVER_COUNT = 1 << 16; // ~32K
 
 public:
   using symbol = symbolic::details::symbol;
@@ -176,7 +180,8 @@ public:
     return sub(0, sym, dno);
   }
 
-  SymGraphEval eval(memory::span<const SymSpec> symSpecs, Sym::value_type defaultVarValue = 0) const;
+  SymGraphEval eval(memory::span<const SymSpec> symSpecs,
+                    Sym::value_type defaultVarValue = 0) const;
 
   Sym resolve(value_type v) const;
   Sym resolve(Sym sym) const;
@@ -272,20 +277,22 @@ private:
   Sym nonaffine_mod(Sym lhs, Sym rhs, bool dno);
 
   // Mod Solver
-  auto require_modsolver(Sym sym) -> const ModSolverHandle &;
-  auto modsolve_resume(symbol lhs, Sym m)
+  auto require_modsolver(Sym sym) -> ModSolverHandle;
+  auto modsolve_resume(symbol lhs, Sym m, uint32_t depth = 0)
       -> denox::memory::optional<value_type>;
-  auto modsolve_reduce_symbol_mod_m(symbol sym, const Sym mod)
-      -> const ModExpr &;
-  auto modsolve_reduce_affine_mod_m(const AffineExpr &affine, const Sym msym)
+  auto modsolve_reduce_symbol_mod_m(symbol sym, const Sym mod, uint32_t depth = 0)
+      -> memory::optional<ModExpr>;
+  auto modsolve_reduce_affine_mod_m(const AffineExpr &affine, const Sym msym,
+                                    uint32_t depth = 0)
       -> denox::memory::optional<ModExpr>;
-  auto modsolve_resume_solver(ModSolverHandle solver, symbol lhs, Sym rhs)
+  auto modsolve_resume_solver(ModSolverHandle solver, symbol lhs, Sym rhs,
+                              uint32_t depth = 0)
       -> denox::memory::optional<value_type>;
-  auto modsolve_reverse_peel(AffineExpr expr, value_type m)
+  auto modsolve_reverse_peel(AffineExpr expr, value_type m, uint32_t depth = 0)
       -> denox::memory::optional<value_type>;
-  auto modsolve_mul_only_exact(AffineExpr lhs, Sym rhs)
+  auto modsolve_mul_only_exact(AffineExpr lhs, Sym rhs, uint32_t depth = 0)
       -> std::pair<AffineExpr, AffineExpr>;
-  auto modsolve_peel_by_d(AffineExpr lhs, value_type d)
+  auto modsolve_peel_by_d(AffineExpr lhs, value_type d, uint32_t depth = 0)
       -> std::pair<AffineExpr, AffineExpr>;
   auto modsolve_affine_add(value_type m, const AffineExpr &lhs,
                            const AffineExpr &rhs) -> ModExpr;
@@ -300,10 +307,11 @@ private:
                     Sym rhs) -> ModExpr;
   auto modsolve_mul(const ModSolverHandle &solver, value_type m, Sym lhs,
                     Sym rhs) -> denox::memory::optional<ModExpr>;
-  auto modsolve_div(value_type m, Sym lhs, Sym rhs)
+  auto modsolve_div(value_type m, Sym lhs, Sym rhs, uint32_t depth)
       -> denox::memory::optional<ModExpr>;
   auto modsolve_mod(const ModSolverHandle &solver, value_type m, Sym lhs,
-                    Sym rhs) -> denox::memory::optional<ModExpr>;
+                    Sym rhs, uint32_t depth)
+      -> denox::memory::optional<ModExpr>;
 
   // Helpers:
   static auto floordivmod(value_type a, value_type b)
@@ -321,7 +329,7 @@ private:
   symbolic::details::ModSolverCache m_modSolverCache;
 };
 
-} // namespace denox::compiler
+} // namespace denox
 
 // Templated functions definitions.
 #include "denox/symbolic/SymGraph_api_templates.inl"

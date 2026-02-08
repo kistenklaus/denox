@@ -1,30 +1,41 @@
-#include "denox/symbolic/SymGraph.hpp"
 #include "denox/algorithm/lcm.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 #include <limits>
 
 namespace denox {
 
-  denox::memory::optional<SymGraph::value_type> SymGraph::modsolve_resume(symbol lhs,
-                                                              Sym m) {
+denox::memory::optional<SymGraph::value_type>
+SymGraph::modsolve_resume(symbol lhs, Sym m, uint32_t depth) {
   if (m.isSymbolic()) {
     return denox::memory::nullopt;
   }
   if (m.isConstant() && m.constant() >= std::numeric_limits<uint32_t>::max()) {
     return denox::memory::nullopt;
   }
-  const auto &solver = require_modsolver(m);
-  return modsolve_resume_solver(solver, lhs, m);
+  auto solver = require_modsolver(m);
+  return modsolve_resume_solver(solver, lhs, m, depth);
 }
-const SymGraph::ModExpr &SymGraph::modsolve_reduce_symbol_mod_m(symbol sym,
-                                                                const Sym mod) {
-  const auto &solver = require_modsolver(mod);
-  modsolve_resume_solver(solver, sym, mod);
+memory::optional<SymGraph::ModExpr>
+SymGraph::modsolve_reduce_symbol_mod_m(symbol sym, const Sym mod,
+                                       uint32_t depth) {
+  auto solver = require_modsolver(mod);
+  if (solver == nullptr) {
+    return memory::nullopt;
+  }
+  auto r = modsolve_resume_solver(solver, sym, mod, depth);
+  if (!r) {
+    return memory::nullopt;
+  }
   return solver->expressions[sym];
 }
 denox::memory::optional<SymGraph::ModExpr>
-SymGraph::modsolve_reduce_affine_mod_m(const AffineExpr &affine,
-                                       const Sym msym) {
-  const auto &solver = require_modsolver(msym);
+SymGraph::modsolve_reduce_affine_mod_m(const AffineExpr &affine, const Sym msym,
+                                       uint32_t depth) {
+  auto solver = require_modsolver(msym);
+  if (solver == nullptr) {
+    return memory::nullopt;
+  }
+
   if (msym.isSymbolic()) {
     return denox::memory::nullopt;
   }
@@ -33,15 +44,23 @@ SymGraph::modsolve_reduce_affine_mod_m(const AffineExpr &affine,
   ModExpr modexpr;
   modexpr.affine.constant = emod(affine.constant, m);
   for (const auto coef : affine.coef) {
-    modsolve_resume_solver(solver, coef.sym, msym);
+    modsolve_resume_solver(solver, coef.sym, msym, depth);
     const auto &c_affine = solver->expressions[coef.sym].affine;
     modsolve_affine_mul_add_acc(m, modexpr, c_affine, coef.factor);
   }
   return modexpr;
 }
 denox::memory::optional<SymGraph::value_type>
-SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs,
-                                 Sym rhs) {
+SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs, Sym rhs,
+                                 uint32_t depth) {
+  if (solver == nullptr) {
+    return memory::nullopt;
+  }
+  depth += 1;
+  if (depth > MAX_MODSOLVER_DEPTH) {
+    return memory::nullopt;
+  }
+
   if (rhs.isConstant()) {
     const value_type m = rhs.constant();
     while (solver->expressions.size() <= lhs) {
@@ -81,11 +100,12 @@ SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs,
               "nonaffine expression types");
           break;
         case ExprType::Div:
-          modexpr = modsolve_div(m, nonaffine.symbols[0], nonaffine.symbols[1]);
+          modexpr = modsolve_div(m, nonaffine.symbols[0], nonaffine.symbols[1],
+                                 depth);
           break;
         case ExprType::Mod:
           modexpr = modsolve_mod(solver, m, nonaffine.symbols[0],
-                                 nonaffine.symbols[1]);
+                                 nonaffine.symbols[1], depth);
           break;
         case ExprType::Min:
         case ExprType::Max:
@@ -96,11 +116,11 @@ SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs,
         break;
       }
       case ExprType::Div: {
-        modexpr = modsolve_div(m, expr.lhs, expr.rhs);
+        modexpr = modsolve_div(m, expr.lhs, expr.rhs, depth);
         break;
       }
       case ExprType::Mod: {
-        modexpr = modsolve_mod(solver, m, expr.lhs, expr.rhs);
+        modexpr = modsolve_mod(solver, m, expr.lhs, expr.rhs, depth);
         break;
       }
       case ExprType::Sub: {
@@ -144,7 +164,7 @@ SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs,
 }
 
 denox::memory::optional<SymGraph::value_type>
-SymGraph::modsolve_reverse_peel(AffineExpr expr, value_type m) {
+SymGraph::modsolve_reverse_peel(AffineExpr expr, value_type m, uint32_t depth) {
 
   // NOTE: Find d, such that, there exists a U with, expr = Q div d.
   value_type d = 1;
@@ -156,7 +176,7 @@ SymGraph::modsolve_reverse_peel(AffineExpr expr, value_type m) {
           c_nonaffine.symbols[1].isConstant()) {
         auto num = c_nonaffine.symbols[0];
         auto denom = c_nonaffine.symbols[1].constant();
-        auto r = modsolve_resume(num.sym(), Sym::Const(denom));
+        auto r = modsolve_resume(num.sym(), Sym::Const(denom), depth);
         if (!r.has_value() || *r != 0)
           return denox::memory::nullopt;
         d = denox::algorithm::lcm(d, denom);
@@ -193,7 +213,8 @@ SymGraph::modsolve_reverse_peel(AffineExpr expr, value_type m) {
     //   U div d = k*m + floor(r/d)
     // So (U div d) mod m == (floor(r/d) mod m)
     const value_type lifted_mod = m * d;
-    auto modexpr = modsolve_reduce_affine_mod_m(U, Sym::Const(lifted_mod));
+    auto modexpr =
+        modsolve_reduce_affine_mod_m(U, Sym::Const(lifted_mod), depth);
     if (modexpr.has_value()) {
       if (modexpr->affine.isPureConstant()) {
         assert(modexpr->affine.constant < lifted_mod);
@@ -207,7 +228,7 @@ SymGraph::modsolve_reverse_peel(AffineExpr expr, value_type m) {
   return d;
 }
 std::pair<SymGraph::AffineExpr, SymGraph::AffineExpr>
-SymGraph::modsolve_mul_only_exact(AffineExpr lhs, Sym rhs) {
+SymGraph::modsolve_mul_only_exact(AffineExpr lhs, Sym rhs, uint32_t depth) {
   AffineExpr Q, R;
   if (!rhs.isConstant()) {
     R = lhs;
@@ -232,7 +253,7 @@ SymGraph::modsolve_mul_only_exact(AffineExpr lhs, Sym rhs) {
             auto d = m_expressions[num.sym()];
             affine_mul_add_acc(Q, d.affine, scaled);
             continue;
-          } else if (auto r = modsolve_resume(num.sym(), denom)) {
+          } else if (auto r = modsolve_resume(num.sym(), denom, depth)) {
             if (*r == 0) {
               if ((coef.factor * k) % c == 0) {
                 auto d = m_expressions[num.sym()];
@@ -249,7 +270,7 @@ SymGraph::modsolve_mul_only_exact(AffineExpr lhs, Sym rhs) {
   return {Q, R};
 }
 std::pair<SymGraph::AffineExpr, SymGraph::AffineExpr>
-SymGraph::modsolve_peel_by_d(AffineExpr lhs, value_type d) {
+SymGraph::modsolve_peel_by_d(AffineExpr lhs, value_type d, uint32_t depth) {
   assert(d > 0);
   AffineExpr Q, R;
 
@@ -265,7 +286,7 @@ SymGraph::modsolve_peel_by_d(AffineExpr lhs, value_type d) {
     const value_type f = c.factor;
 
     // If symbol is known divisible mod d, hoist the entire term to Q.
-    if (auto r = modsolve_resume(s, Sym::Const(d)); r && *r == 0) {
+    if (auto r = modsolve_resume(s, Sym::Const(d), depth); r && *r == 0) {
       Q.coef.push_back({s, f});
       continue;
     }
@@ -382,8 +403,8 @@ SymGraph::modsolve_mul(const ModSolverHandle &solver, value_type m, Sym lhs,
   emod_affine(modexpr.affine, m);
   return modexpr;
 }
-denox::memory::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, Sym lhs,
-                                                        Sym rhs) {
+denox::memory::optional<SymGraph::ModExpr>
+SymGraph::modsolve_div(value_type m, Sym lhs, Sym rhs, uint32_t depth) {
   assert(m > 0);
 
   // --- Constant / Constant: trivial
@@ -425,13 +446,11 @@ denox::memory::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, 
     //   U = k*(m*d) + r   with 0 <= r < m*d
     //   U div d = k*m + floor(r/d)
     // So (U div d) mod m == (floor(r/d) mod m)
-    //
-    // Try to get r by resuming the modsolver on modulus (m*d).
-    // (Overflow on m*d is acceptable per your UB model.)
     const value_type lifted_mod = m * d;
-    modsolve_resume(lhs.sym(), Sym::Const(lifted_mod));
+    modsolve_resume(lhs.sym(), Sym::Const(lifted_mod), depth);
     const auto liftedSolver = require_modsolver(Sym::Const(lifted_mod));
-    if (lhs.sym() >= liftedSolver->expressions.size()) {
+    if (liftedSolver == nullptr ||
+        lhs.sym() >= liftedSolver->expressions.size()) {
       // failed to solve lifted expression.
       return memory::nullopt;
     }
@@ -490,7 +509,7 @@ denox::memory::optional<SymGraph::ModExpr> SymGraph::modsolve_div(value_type m, 
 }
 denox::memory::optional<SymGraph::ModExpr>
 SymGraph::modsolve_mod(const ModSolverHandle &solver, value_type m, Sym lhs,
-                       Sym rhs) {
+                       Sym rhs, uint32_t depth) {
   assert(m > 0);
   if (lhs.isConstant() && rhs.isConstant()) {
     ModExpr modexpr;
@@ -520,7 +539,7 @@ SymGraph::modsolve_mod(const ModSolverHandle &solver, value_type m, Sym lhs,
     emod_affine(modexpr.affine, m);
     return modexpr;
   } else if (lhs.isSymbolic()) {
-    if (auto constant = modsolve_resume(lhs.sym(), rhs)) {
+    if (auto constant = modsolve_resume(lhs.sym(), rhs, depth)) {
       ModExpr modexpr;
       modexpr.affine.constant = emod(*constant, m);
       return modexpr;
@@ -529,4 +548,4 @@ SymGraph::modsolve_mod(const ModSolverHandle &solver, value_type m, Sym lhs,
   return denox::memory::nullopt;
 }
 
-} // namespace vkcnn
+} // namespace denox

@@ -1,6 +1,6 @@
-#include "denox/symbolic/SymGraph.hpp"
 #include "denox/algorithm/gcd.hpp"
 #include "denox/algorithm/unstable_sort.hpp"
+#include "denox/symbolic/SymGraph.hpp"
 
 namespace denox {
 
@@ -837,7 +837,6 @@ Sym SymGraph::nonaffine_div(Sym lhs, Sym rhs, bool dno) {
     return fail_build_div();
   }
 
-
   /* 4) Fallback: generic Div */
   {
     symbolic::details::NonAffineExpr nonaffine;
@@ -894,8 +893,16 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
     }
 
     // Reduce affine numerator modulo n (no modsolver facts needed)
-    ModExpr amod =
+    memory::optional<ModExpr> amod_opt =
         modsolve_reduce_symbol_mod_m(lhs.sym(), rhs); // keep your path
+    if (!amod_opt.has_value()) {
+      NonAffineExpr na;
+      na.expr = ExprType::Mod;
+      na.symbols = {lhs, rhs};
+      return Sym::Symbol(require_nonaffine_sym(na));
+    }
+    const ModExpr &amod = *amod_opt;
+
     AffineExpr affine;
     affine.constant = amod.affine.constant;
     for (const auto coef : amod.affine.coef) {
@@ -1060,4 +1067,4 @@ Sym SymGraph::nonaffine_mod(Sym lhs, Sym rhs, bool dno) {
   }
 }
 
-} // namespace denox::compiler
+} // namespace denox
