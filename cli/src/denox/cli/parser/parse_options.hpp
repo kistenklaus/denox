@@ -82,3 +82,6 @@ uint32_t parse_relative_error(std::span<const Token> tokens,
 
 uint32_t parse_input(std::span<const Token> tokens,
                      denox::memory::optional<IOEndpoint> *endpoint);
+
+uint32_t parse_optimizationLevel(std::span<const Token> tokens,
+                                uint32_t *optimizationLevel);

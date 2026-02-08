@@ -68,6 +68,7 @@ struct CompileOptions {
   diag::LogLevel loglevel;
   OptimizationAssumptions assumptions;
   DebugInfo debugInfo;
+  uint32_t optimizationLevel;
 };
 
 } // namespace denox::compiler

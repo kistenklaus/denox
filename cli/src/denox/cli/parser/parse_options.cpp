@@ -12,8 +12,6 @@
 #include <fmt/format.h>
 #include <stdexcept>
 
-
-
 static uint32_t parse_bool_flag(std::span<const Token> tokens,
                                 OptionToken expected, bool *out,
                                 std::string_view name) {
@@ -766,4 +764,35 @@ uint32_t parse_help(std::span<const Token> tokens, bool *help) {
     *help = true;
   }
   return 1;
+}
+
+uint32_t parse_optimizationLevel(std::span<const Token> tokens,
+                                uint32_t *optimizationLevel) {
+  if (tokens.empty()) {
+    return 0;
+  }
+  const auto &head = tokens.front();
+  if (head.kind() != TokenKind::Option) {
+    return 0;
+  }
+  if (head.option() != OptionToken::OptimizationLevel) {
+    return 0;
+  }
+  if (tokens.size() < 2) {
+    throw ParseError("option '--optimization-level' required [0-5]");
+  }
+  const auto level = tokens[1];
+  if (level.kind() != TokenKind::Literal) {
+    throw ParseError("option '--optimization-level' required [0-5]");
+  }
+  const auto &lit = level.literal();
+  if (!lit.is_unsigned_int()) {
+    throw ParseError("option '--optimization-level' required [0-5]");
+  }
+  uint32_t l = static_cast<uint32_t>(lit.as_unsigned_int());
+  if (optimizationLevel) {
+    *optimizationLevel = l;
+  }
+
+  return 2;
 }

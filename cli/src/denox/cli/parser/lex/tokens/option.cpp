@@ -4,7 +4,6 @@ std::optional<OptionToken> parse_option(std::string_view str) {
   if (str.empty()) {
     return std::nullopt;
   }
-
   // SPIR-V options
   if (str == "spirv-optimize" || str == "spv-opt") {
     return OptionToken::SpirvOptimize;
@@ -84,12 +83,16 @@ std::optional<OptionToken> parse_option(std::string_view str) {
   if (str == "spec" || str == "specialize") {
     return OptionToken::Specialize;
   }
-  
+
   if (str == "samples") {
     return OptionToken::Samples;
   }
   if (str == "relative-error") {
     return OptionToken::RelativeError;
+  }
+  if (str == "opt" || str == "optimization-level" ||
+      str == "optimizationLevel" || str == "O") {
+    return OptionToken::OptimizationLevel;
   }
 
   return std::nullopt;

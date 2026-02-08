@@ -31,6 +31,8 @@ enum class OptionToken {
   Output,    //
   Input,
   Database, //
+
+  OptimizationLevel,
 };
 
 std::optional<OptionToken> parse_option(std::string_view str);
@@ -51,7 +53,6 @@ struct fmt::formatter<OptionToken> : fmt::formatter<std::string_view> {
     case OptionToken::SpirvDebugInfo:
       name = "spirv-debug-info";
       break;
-
     case OptionToken::FeatureCoopmat:
       name = "feature-coopmat";
       break;
@@ -115,6 +116,9 @@ struct fmt::formatter<OptionToken> : fmt::formatter<std::string_view> {
       break;
     case OptionToken::RelativeError:
       name = "relative-error";
+      break;
+    case OptionToken::OptimizationLevel:
+      name = "optimization-level";
       break;
     }
 

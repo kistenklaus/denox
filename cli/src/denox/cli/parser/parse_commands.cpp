@@ -124,6 +124,11 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_optimizationLevel(tail, &options.optimizationLevel))) {
+      i += jump;
+      continue;
+    }
+
     if ((jump = parse_feature_coopmat(tail, &options.features.coopmat))) {
       i += jump;
       continue;
@@ -316,6 +321,11 @@ Action parse_populate(std::span<const Token> tokens) {
 
     if ((jump = parse_spirv_non_semantic_debug_info(
              tail, &spirv_nonSemanticDebugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_optimizationLevel(tail, &options.optimizationLevel))) {
       i += jump;
       continue;
     }
@@ -667,7 +677,6 @@ Action parse_infer(std::span<const Token> tokens) {
   denox::memory::optional<IOEndpoint> input;
   denox::memory::optional<IOEndpoint> output;
 
-
   bool help = false;
   bool fusion = true;
 
@@ -783,7 +792,6 @@ Action parse_infer(std::span<const Token> tokens) {
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
 
-
   if (help) {
     return HelpAction(HelpScope::Infer);
   }
@@ -807,7 +815,6 @@ Action parse_infer(std::span<const Token> tokens) {
     options.assumptions.valueAssumptions.emplace_back(name, value);
   }
 
-
   if (!input.has_value()) {
     throw ParseError(fmt::format("requires --input argument"));
   }
@@ -821,7 +828,6 @@ Action parse_infer(std::span<const Token> tokens) {
     }
     denox::diag::unreachable();
   }());
-
 
   return InferAction{
       .model = std::move(model),
