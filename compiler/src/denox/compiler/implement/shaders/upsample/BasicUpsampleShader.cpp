@@ -8,55 +8,6 @@
 
 namespace denox::compiler::shaders {
 
-// static std::array<BasicUpsampleConfig, 5> BASIC_UPSAMPLE_CONFIGS{
-//     BasicUpsampleConfig{
-//         // not supported
-//         .invocC = 2,
-//         .invocW = 2,
-//         .invocH = 1,
-//         .wgC = 8,
-//         .wgW = 32,
-//         .wgH = 1,
-//     },
-//     BasicUpsampleConfig{
-//         // not supported
-//         .invocC = 1,
-//         .invocW = 4,
-//         .invocH = 1,
-//         .wgC = memory::nullopt,
-//         .wgW = 32,
-//         .wgH = 1,
-//     },
-//     BasicUpsampleConfig{
-//         // 0.383ms
-//         .invocC = 8,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 4,
-//         .wgW = 64,
-//         .wgH = 1,
-//     },
-//     BasicUpsampleConfig{
-//         // 0.319ms
-//         .invocC = 8,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 2,
-//         .wgW = 128,
-//         .wgH = 1,
-//     },
-//     BasicUpsampleConfig{
-//         // 0.318ms
-//         .invocC = 8,
-//         .invocW = 1,
-//         .invocH = 1,
-//         .wgC = 1,
-//         .wgW = 256,
-//         .wgH = 1,
-//     },
-//
-// };
-
 BasicUpsampleShader::BasicUpsampleShader(spirv::GlslCompiler *compiler,
                                          const CompileOptions &options)
     : m_compiler(compiler),

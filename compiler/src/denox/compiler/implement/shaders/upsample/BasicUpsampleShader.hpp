@@ -57,6 +57,7 @@ private:
                            "upsample/basic_upsample.comp";
 
   uint32_t m_maxComputeWorkGroupInvocations;
+// static std::array<BasicUpsampleConfig, 5> BASIC_UPSAMPLE_CONFIGS{
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   memory::vector<BasicUpsampleConfig> m_configs;
 };

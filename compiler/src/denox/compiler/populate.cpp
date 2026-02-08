@@ -4,7 +4,6 @@
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/dce/dce.hpp"
-#include "denox/compiler/dce/prune_dead_supergraph.hpp"
 #include "denox/compiler/dce/prune_topological.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
 #include "denox/compiler/implement/implement.hpp"
@@ -18,8 +17,6 @@
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/spirv/SpirvTools.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
-#include <cerrno>
-#include <chrono>
 #include <fmt/format.h>
 #include <unordered_set>
 

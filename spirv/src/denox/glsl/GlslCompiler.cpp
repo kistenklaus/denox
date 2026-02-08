@@ -1,4 +1,5 @@
 #include "denox/glsl/GlslCompiler.hpp"
+#include "denox/glsl/global_glslang_runtime.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include <glslang/Include/ResourceLimits.h>
@@ -12,6 +13,8 @@ GlslCompiler::GlslCompiler(SpirvTools* tools, const DeviceInfo &deviceInfo,
     : m_tools(tools), m_deviceInfo(deviceInfo),
       m_buildInResource(malloc(sizeof(TBuiltInResource))),
       m_debugInfo(debugInfo), m_optimize(opt) {
+
+  denox::glslang::ensure_initialized();
 
   auto resource = static_cast<TBuiltInResource *>(m_buildInResource);
   std::construct_at(resource);

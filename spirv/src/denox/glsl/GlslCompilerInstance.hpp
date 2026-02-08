@@ -84,14 +84,15 @@ private:
   GlslCompilerInstance(GlslCompiler *compiler, memory::vector<std::byte> src,
                        io::Path sourcePath)
       : m_compiler(compiler), m_src(std::move(src)),
-        m_sourcePath(std::move(sourcePath)) {}
+        m_sourcePath(std::move(sourcePath)), m_mutex(std::make_shared<std::mutex>()){}
 
 private:
   GlslCompiler *m_compiler;
   memory::vector<std::byte> m_src;
   io::Path m_sourcePath;
   memory::string m_preamble;
-  bool m_denoxPreprocessor = false;
+  bool m_denoxPreprocessor = true;
+  std::shared_ptr<std::mutex> m_mutex;
 };
 
 } // namespace denox::spirv
