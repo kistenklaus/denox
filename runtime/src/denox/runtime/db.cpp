@@ -821,9 +821,8 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
     if (!first_iteration &&
         acquire_took > std::chrono::duration<float, std::milli>(200.0f)) {
       if (!warned_about_block) {
-        DENOX_WARN("main thread waited for {} for pipeline creation! Enable "
-                   "parallel pipeline construction",
-                   acquire_took);
+        logger.warn("main thread waited for {} for pipeline creation!",
+                    acquire_took);
         // warned_about_block = true;
       }
     }
