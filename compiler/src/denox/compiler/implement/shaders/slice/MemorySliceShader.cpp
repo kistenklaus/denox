@@ -1,145 +1,137 @@
 #include "denox/compiler/implement/shaders/slice/MemorySliceShader.hpp"
-#include "denox/diag/invalid_state.hpp"
+#include "denox/algorithm/align_up.hpp"
+#include "denox/compiler/Options.hpp"
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
 
-struct MemorySliceConfig {
-  unsigned int invocC;
-  unsigned int invocW;
-  unsigned int invocH;
-  memory::optional<unsigned int> wgC;
-  unsigned int wgW;
-  unsigned int wgH;
-};
+MemorySliceShader::MemorySliceShader(spirv::GlslCompiler *compiler,
+                                     const CompileOptions &options)
+    : m_compiler(compiler),
+      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
+      m_maxComputeWorkGroupInvocations(
+          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
+      m_maxComputeWorkGroupSize(
+          options.deviceInfo.limits.maxComputeWorkGroupSize),
+      m_optimizationLevel(options.optimizationLevel) {
+  { // Generate HWC config space
+    uint32_t min_invocC = 1;
+    uint32_t max_invocC = 4;
+    if (options.optimizationLevel < 4) {
+      min_invocC = 2;
+      max_invocC = 2;
+    }
 
-static std::array<MemorySliceConfig, 15> MEMORY_SLICE_CONFIGS{
-    MemorySliceConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 1,
-        .wgC = 8,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 2,
-        .wgC = 8,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 2,
-        .wgC = 4,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 16,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 8,
-        .wgH = 1,
-    },
+    uint32_t min_invocH = 1;
+    uint32_t max_invocH = 8;
+    if (options.optimizationLevel < 4) {
+      min_invocH = 4;
+      max_invocH = 4;
+    }
+    uint32_t min_wg_size = m_subgroupSize;
+    uint32_t max_wg_size = std::max(
+        static_cast<uint32_t>(algorithm::align_up(512, m_subgroupSize)),
+        options.deviceInfo.limits.maxComputeWorkGroupInvocations);
 
-    MemorySliceConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 4,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 2,
-        .wgH = 1,
-    },
+    if (options.optimizationLevel < 4) {
+      min_wg_size =
+          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
+      max_wg_size =
+          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
+    }
 
-    MemorySliceConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 1,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 2,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 2,
-        .wgW = 128,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 1,
-        .wgW = 128,
-        .wgH = 1,
-    },
-    MemorySliceConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 1,
-        .wgW = 256,
-        .wgH = 1,
-    },
-};
+    for (uint32_t invocC = min_invocC; invocC <= max_invocC; ++invocC) {
+      for (uint32_t invocH = min_invocH; invocH <= max_invocH; ++invocH) {
+        for (uint32_t wgSize = min_wg_size; wgSize <= max_wg_size;
+             wgSize += m_subgroupSize) {
+          m_hwc_configs.push_back(Config_HWC{
+              .invocC = invocC,
+              .invocH = invocH,
+              .wgSizeHint = wgSize,
+          });
+        }
+      }
+    }
+  }
+  { // HWC8 config space
+    uint32_t min_invocH = 1;
+    uint32_t max_invocH = 2;
+    if (options.optimizationLevel < 4) {
+      min_invocH = 1;
+      max_invocH = 1;
+    }
 
-MemorySliceShader::MemorySliceShader(spirv::GlslCompiler *compiler)
-    : m_compiler(compiler) {
+    uint32_t min_invocW = 1;
+    uint32_t max_invocW = 2;
+    if (options.optimizationLevel < 4) {
+      min_invocW = 1;
+      max_invocW = 1;
+    }
+    uint32_t min_wg_size = m_subgroupSize;
+    uint32_t max_wg_size = std::max(
+        static_cast<uint32_t>(algorithm::align_up(512, m_subgroupSize)),
+        options.deviceInfo.limits.maxComputeWorkGroupInvocations);
+
+    if (options.optimizationLevel < 4) {
+      min_wg_size =
+          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
+      max_wg_size =
+          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
+    }
+
+    for (uint32_t invocW = min_invocW; invocW <= max_invocW; ++invocW) {
+      for (uint32_t invocH = min_invocH; invocH <= max_invocH; ++invocH) {
+
+        for (uint32_t wgSize = min_wg_size; wgSize <= max_wg_size;
+             wgSize += m_subgroupSize) {
+          m_hwc8_configs.push_back(Config_HWC8{
+              .invocW = invocW,
+              .invocH = invocH,
+              .wgSizeHint = wgSize,
+          });
+        }
+      }
+    }
+  }
+  { // CHWC8 config space
+    uint32_t min_invocH = 1;
+    uint32_t max_invocH = 2;
+    if (options.optimizationLevel < 4) {
+      min_invocH = 1;
+      max_invocH = 1;
+    }
+
+    uint32_t min_invocW = 1;
+    uint32_t max_invocW = 2;
+    if (options.optimizationLevel < 4) {
+      min_invocW = 1;
+      max_invocW = 1;
+    }
+
+    uint32_t min_wg_size = m_subgroupSize;
+    uint32_t max_wg_size = std::max(
+        static_cast<uint32_t>(algorithm::align_up(512, m_subgroupSize)),
+        options.deviceInfo.limits.maxComputeWorkGroupInvocations);
+
+    if (options.optimizationLevel < 4) {
+      min_wg_size =
+          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
+      max_wg_size =
+          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
+    }
+    for (uint32_t invocW = min_invocW; invocW <= max_invocW; ++invocW) {
+      for (uint32_t invocH = min_invocH; invocH <= max_invocH; ++invocH) {
+        for (uint32_t wgSize = min_wg_size; wgSize <= max_wg_size;
+             wgSize += m_subgroupSize) {
+          m_chwc8_configs.push_back(Config_CHWC8{
+              .invocW = invocW,
+              .invocH = invocH,
+              .wgSize = wgSize,
+          });
+        }
+      }
+    }
+  }
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
@@ -185,44 +177,253 @@ memory::vector<unsigned int> MemorySliceShader::acceptMatch(
     return {};
   }
 
-  uint32_t cblocksize;
-  switch (in.format) {
-  case TensorFormat::SSBO_HWC:
-    if (in.channels.constant() % 8 == 0) {
-      cblocksize = 8;
-    } else {
-      cblocksize = 1;
-    }
-    break;
-  case TensorFormat::SSBO_CHW:
-    cblocksize = 1;
-    break;
-  case TensorFormat::SSBO_CHWC8:
-    cblocksize = 8;
-    break;
-  case TensorFormat::Optimal:
-  case TensorFormat::TEX_RGBA:
-  case TensorFormat::TEX_RGB:
-  case TensorFormat::TEX_RG:
-  case TensorFormat::TEX_R:
-    diag::invalid_state();
-    break;
+  if (in.type != TensorDataType::Float16) {
+    return {};
+  }
+  if (out.type != TensorDataType::Float16) {
+    return {};
   }
 
-  memory::vector<unsigned int> configs;
-  configs.reserve(MEMORY_SLICE_CONFIGS.size());
-  for (unsigned int c = 0; c < MEMORY_SLICE_CONFIGS.size(); ++c) {
-    if (MEMORY_SLICE_CONFIGS[c].invocC % cblocksize == 0) {
-      configs.push_back(c);
-    }
+  uint32_t C = static_cast<uint32_t>(in.channels.constant());
+
+  enum Variant {
+    HWC,
+    HWC8,
+    CHWC8,
+  };
+  bool vec = in.channels.constant() % 8 == 0;
+  Variant variant = HWC;
+  if (in.format == TensorFormat::SSBO_HWC && vec) {
+    variant = HWC8;
+  } else if (in.format == TensorFormat::SSBO_CHWC8) {
+    assert(vec);
+    variant = CHWC8;
   }
-  return configs;
+
+  memory::vector<unsigned int> promissing;
+  switch (variant) {
+  case HWC: {
+    for (uint32_t c = 0; c < m_hwc_configs.size(); ++c) {
+      const auto &config = m_hwc_configs[c];
+      uint32_t wgC;
+      if (C < 256) {
+        wgC = (C + config.invocC - 1) / config.invocC;
+      } else {
+        wgC = 128;
+      }
+      uint32_t ctile = wgC * config.invocC;
+      if (C >= 256 && ctile < C) {
+        continue;
+      }
+      uint32_t wgH = 1;
+      uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
+      uint32_t wgSize = wgC * wgW * wgH;
+      if (wgSize < 64 ||
+          wgSize > std::min(512u, m_maxComputeWorkGroupInvocations)) {
+        continue;
+      }
+      if (wgSize % 32 != 0) {
+        continue;
+      }
+      if (wgC >= m_maxComputeWorkGroupSize[0]) {
+        continue;
+      }
+      if (wgW >= m_maxComputeWorkGroupSize[1]) {
+        continue;
+      }
+      if (wgH >= m_maxComputeWorkGroupSize[2]) {
+        continue;
+      }
+
+      if (m_optimizationLevel < 4) {
+        if (std::popcount(wgSize) != 1) {
+          continue; // only accept powers of 2
+        }
+      }
+
+      promissing.push_back(c);
+    }
+    if (promissing.empty()) {
+      for (uint32_t c = 0; c < m_hwc_configs.size(); ++c) {
+        const auto &config = m_hwc_configs[c];
+        uint32_t wgC;
+        if (C < 256) {
+          wgC = (C + config.invocC - 1) / config.invocC;
+        } else {
+          wgC = 128;
+        }
+        uint32_t ctile = wgC * config.invocC;
+        if (C >= 256 && ctile < C) { // weaker condition
+          continue;
+        }
+        uint32_t wgH = 1;
+        uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
+        uint32_t wgSize = wgC * wgW * wgH;
+
+        if (wgSize < m_subgroupSize ||
+            wgSize >= m_maxComputeWorkGroupInvocations) {
+          continue;
+        }
+        if (wgSize % 32 != 0) {
+          continue;
+        }
+
+        if (wgC >= m_maxComputeWorkGroupSize[0]) {
+          continue;
+        }
+        if (wgW >= m_maxComputeWorkGroupSize[1]) {
+          continue;
+        }
+        if (wgH >= m_maxComputeWorkGroupSize[2]) {
+          continue;
+        }
+
+        promissing.push_back(c);
+      }
+    }
+    if (promissing.empty()) {
+      for (uint32_t c = 0; c < m_hwc_configs.size(); ++c) {
+        const auto &config = m_hwc_configs[c];
+        uint32_t wgC;
+        if (C < 256) {
+          wgC = (C + config.invocC - 1) / config.invocC;
+        } else {
+          wgC = 128;
+        }
+        uint32_t ctile = wgC * config.invocC;
+        if (C <= 256 && ctile < C) { // weaker condition
+          continue;
+        }
+        uint32_t wgH = 1;
+        uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
+        uint32_t wgSize = wgC * wgW * wgH;
+
+        if (wgSize < m_subgroupSize ||
+            wgSize >= m_maxComputeWorkGroupInvocations) {
+          continue;
+        }
+
+        if (wgC >= m_maxComputeWorkGroupSize[0]) {
+          continue;
+        }
+        if (wgW >= m_maxComputeWorkGroupSize[1]) {
+          continue;
+        }
+        if (wgH >= m_maxComputeWorkGroupSize[2]) {
+          continue;
+        }
+
+        promissing.push_back(c);
+      }
+    }
+    assert(!promissing.empty());
+    break;
+  }
+  case HWC8: {
+    for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
+      const auto &config = m_hwc8_configs[c];
+      uint32_t wgC;
+      if (C < std::min(m_subgroupSize * 8, 512u)) {
+        assert(C % 8 == 0);
+        wgC = C / 8;
+      } else {
+        wgC = 128u;
+      }
+      const uint32_t wgH = 1;
+      uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
+
+      uint32_t wgSize = wgC * wgW * wgH;
+
+      if (wgSize < m_subgroupSize ||
+          wgSize >= m_maxComputeWorkGroupInvocations) {
+        continue;
+      }
+
+      if (wgC >= m_maxComputeWorkGroupSize[0]) {
+        continue;
+      }
+      if (wgW >= m_maxComputeWorkGroupSize[1]) {
+        continue;
+      }
+      if (wgH >= m_maxComputeWorkGroupSize[2]) {
+        continue;
+      }
+      if (m_optimizationLevel < 4 && std::popcount(wgSize) != 1) {
+        continue;
+      }
+      if (m_optimizationLevel < 4 &&
+          (wgSize < std::min(4 * m_subgroupSize, 128u) ||
+           wgSize > std::max(512u, m_subgroupSize * 8))) {
+        continue;
+      }
+
+      promissing.push_back(c);
+    }
+
+    if (promissing.empty()) {
+      for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
+        const auto &config = m_hwc8_configs[c];
+        uint32_t wgC;
+        if (C < std::min(m_subgroupSize * 8, 512u)) {
+          assert(C % 8 == 0);
+          wgC = C / 8;
+        } else {
+          wgC = 128u;
+        }
+        const uint32_t wgH = 1;
+        uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
+
+        uint32_t wgSize = wgC * wgW * wgH;
+
+        if (wgSize < m_subgroupSize ||
+            wgSize > m_maxComputeWorkGroupInvocations) {
+          continue;
+        }
+
+        if (wgC >= m_maxComputeWorkGroupSize[0]) {
+          continue;
+        }
+        if (wgW >= m_maxComputeWorkGroupSize[1]) {
+          continue;
+        }
+        if (wgH >= m_maxComputeWorkGroupSize[2]) {
+          continue;
+        }
+        promissing.push_back(c);
+      }
+    }
+
+    assert(!promissing.empty());
+    break;
+  }
+  case CHWC8: {
+    for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
+      const auto &config = m_chwc8_configs[c];
+      uint32_t wgW = config.wgSize;
+      if (m_optimizationLevel < 4 && std::popcount(wgW) != 1) {
+        continue;
+      }
+      promissing.push_back(c);
+    }
+    if (promissing.empty()) {
+      for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
+        promissing.push_back(c);
+      }
+    }
+    assert(!promissing.empty());
+    break;
+  default:
+    denox::diag::unreachable();
+  }
+  }
+  return promissing;
 }
 
 static spirv::GlslCompilerInstance
 memory_slice_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
                      TensorFormat inputFormat, TensorFormat outputFormat,
-                     unsigned int channels, const MemorySliceConfig &config) {
+                     unsigned int channels,
+                     const MemorySliceShader::Config &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("CH", channels);
@@ -258,7 +459,7 @@ memory_slice_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   shader.define("INVOC_C", config.invocC);
   shader.define("INVOC_W", config.invocW);
   shader.define("INVOC_H", config.invocH);
-  shader.define("WG_C", config.wgC.value_or(channels));
+  shader.define("WG_C", config.wgC);
   shader.define("WG_W", config.wgW);
   shader.define("WG_H", config.wgH);
   return shader;
@@ -269,8 +470,6 @@ void MemorySliceShader::implement(
     unsigned int pattern, unsigned int configKey,
     const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
     SymGraph &symGraph) const {
-
-  const MemorySliceConfig &config = MEMORY_SLICE_CONFIGS[configKey];
 
   const auto &patternHandle = m_patternHandles[pattern];
   memory::NodeId inId = match[patternHandle.in];
@@ -285,10 +484,67 @@ void MemorySliceShader::implement(
 
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
 
+  enum Variant {
+    HWC,
+    HWC8,
+    CHWC8,
+  };
+  bool vec = in.channels.constant() % 8 == 0;
+  Variant variant = HWC;
+  if (in.format == TensorFormat::SSBO_HWC && vec) {
+    variant = HWC8;
+  } else if (in.format == TensorFormat::SSBO_CHWC8) {
+    assert(vec);
+    variant = CHWC8;
+  }
+
+  Config config{};
+  switch (variant) {
+  case HWC: {
+    config.invocC = m_hwc_configs[configKey].invocC;
+    config.invocW = 1;
+    config.invocH = m_hwc_configs[configKey].invocH;
+    if (C < 256) {
+      config.wgC = (C + config.invocC - 1) / config.invocC;
+    } else {
+      config.wgC = 128;
+    }
+    config.wgH = 1;
+    config.wgW =
+        (m_hwc_configs[configKey].wgSizeHint + config.wgC * config.wgH - 1) /
+        (config.wgC * config.wgH);
+    break;
+  }
+  case HWC8: {
+    config.invocC = 8;
+    config.invocW = m_hwc8_configs[configKey].invocW;
+    config.invocH = m_hwc8_configs[configKey].invocH;
+    if (C < 256) {
+      config.wgC = (C + config.invocC - 1) / config.invocC;
+    } else {
+      config.wgC = 128;
+    }
+    config.wgH = 1;
+    config.wgW =
+        (m_hwc8_configs[configKey].wgSizeHint + config.wgC * config.wgH - 1) /
+        (config.wgC * config.wgH);
+    break;
+  }
+  case CHWC8: {
+    config.invocC = 8;
+    config.invocW = m_chwc8_configs[configKey].invocW;
+    config.invocH = m_chwc8_configs[configKey].invocH;
+    config.wgC = 1;
+    config.wgH = 1;
+    config.wgW = m_chwc8_configs[configKey].wgSize;
+    break;
+  }
+  }
+
   auto shader = memory_slice_compile(m_compiler, m_srcPath, in.format,
                                      out.format, C, config);
 
-  std::uint32_t tileX = config.invocC * config.wgC.value_or(C);
+  std::uint32_t tileX = config.invocC * config.wgC;
   std::uint32_t tileY = config.invocW * config.wgW;
   std::uint32_t tileZ = config.invocH * config.wgH;
 
@@ -318,10 +574,9 @@ void MemorySliceShader::implement(
                                : "<dyn>",
       in.width.isConstant() ? fmt::format("{}", in.width.constant())
                             : "<dyn>"));
-  dispatch.setConfig(
-      fmt::format("INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H",
-                  config.invocC, config.invocW, config.invocW,
-                  config.wgC.value_or(C), config.wgW, config.wgH));
+  dispatch.setConfig(fmt::format(
+      "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H", config.invocC,
+      config.invocW, config.invocW, config.wgC, config.wgW, config.wgH));
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
