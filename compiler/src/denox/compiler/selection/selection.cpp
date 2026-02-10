@@ -125,15 +125,12 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
       constWeightedSupergraph{std::move(weightedSupergraph)};
 
-
   // prune duplicate edges
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> prunedSupergraph =
       algorithm::prune_duplicate_edges(constWeightedSupergraph);
 
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
       constPrunedSupergraph{std::move(prunedSupergraph)};
-
-
 
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
       algorithm::minimum_cost_subgraph(constWeightedSupergraph,
@@ -244,6 +241,19 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     assert(tensorRemap[tid].has_value());
     outputs.push_back(*tensorRemap[tid]);
   }
+
+  // for (auto &d : dispatches) {
+  //
+  //   fmt::println("selected dispatch: {}", d.info.name);
+  //   fmt::println("config: {}", *d.info.config);
+  //
+  //   for (auto &b : d.bindings) {
+  //     fmt::println("BINDING: {} -> {},  {}  ({})", b.binding,
+  //                  tensors[b.tensorId.index].info.format, b.accessFlag,
+  //                  tensors[b.tensorId.index].info.channels.has_value() ? 
+  //                  tensors[b.tensorId.index].info.channels->constant() : -1);
+  //   }
+  // }
 
   return OptSchedule{
       .symGraph = std::move(supergraph.symGraph),

@@ -347,7 +347,7 @@ class UNetAlignment(nn.Module):
         return output[:,:,:H,:W]
 
 
-Small = False
+Small = True
 
 rt_ldr = UNetAlignment(UNet(3, 3, Small))
 rt_ldr = rt_ldr.to(torch.float16)
@@ -381,29 +381,29 @@ program.save("net.onnx")
 # dnx.save("net.dnx")
 #
 #
-# img = Image.open("input.png").convert("RGB")
-#
-# to_tensor = transforms.ToTensor()
-# input_tensor: torch.Tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
-#
+img = Image.open("input.png").convert("RGB")
+
+to_tensor = transforms.ToTensor()
+input_tensor: torch.Tensor = to_tensor(img).unsqueeze(0).to(dtype=torch.float16)
+
 # output_tensor = torch.utils.dlpack.from_dlpack(dnx(input_tensor))
 # output_tensor = output_tensor.squeeze(0)
 # output_tensor = torch.clamp(output_tensor, 0.0, 1.0)
 #
-# rt_ldr = rt_ldr.eval()
-# device = torch.cuda.current_device()
-# rt_ldr = rt_ldr.to(device=device)
-# input_tensor = input_tensor.to(device=device)
+rt_ldr = rt_ldr.eval()
+device = torch.cuda.current_device()
+rt_ldr = rt_ldr.to(device=device)
+input_tensor = input_tensor.to(device=device)
 #
-# output_tensor_ref = rt_ldr(input_tensor)
+output_tensor_ref = rt_ldr(input_tensor)
 #
-# output_tensor_ref = output_tensor_ref.squeeze(0)
-# output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
+output_tensor_ref = output_tensor_ref.squeeze(0)
+output_tensor_ref = torch.clamp(output_tensor_ref, 0.0, 1.0)
 #
-# to_pil = transforms.ToPILImage()
+to_pil = transforms.ToPILImage()
 #
 # output_img = to_pil(output_tensor)
 # output_img.save("output.png")
 #
-# output_ref_img = to_pil(output_tensor_ref)
-# output_ref_img.save("output_ref.png")
+output_ref_img = to_pil(output_tensor_ref)
+output_ref_img.save("output_ref.png")

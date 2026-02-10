@@ -1553,6 +1553,6 @@ void main() {
 
   // === Writeback ===
   #pragma inline_block(activation);
-  barrier();
+  barrier(); // barrier because we reuse shared memory.
   #pragma inline_block(writeback);
 }

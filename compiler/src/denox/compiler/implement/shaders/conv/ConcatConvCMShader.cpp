@@ -392,6 +392,31 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
   const uint32_t K = static_cast<uint32_t>(out.channels.constant());
   const uint32_t R = conv->W->shape().r;
   const uint32_t S = conv->W->shape().s;
+  
+  // if (A_C == 64 && B_C == 32 && K == 64) {
+  //   if (a.format != TensorFormat::SSBO_HWC) {
+  //     return {};
+  //   }
+  //   if (b.format != TensorFormat::SSBO_HWC) {
+  //     return {};
+  //   }
+  //   if (out.format != TensorFormat::SSBO_HWC) {
+  //     return {};
+  //   }
+  //   auto it = std::ranges::find_if(
+  //       m_configs, [](const ConcatConvConfig &config) -> bool {
+  //         return config.cm_m == 16 && config.a_cm_k == 16 &&
+  //                config.b_cm_k == 16 //
+  //                && config.cm_n == 16 && config.sg_m == 4 &&
+  //                config.a_sg_k == 3 && config.b_sg_k == 3 && config.sg_n == 2 //
+  //                && config.wg_m == 2 && config.wg_n == 2                      //
+  //                && config.a_async == true && config.b_async == true;
+  //       });
+  //
+  //   assert(it != m_configs.end());
+  //   uint32_t c = static_cast<uint32_t>(std::distance(m_configs.begin(), it));
+  //   return {c};
+  // }
 
   memory::vector<unsigned int> promissing;
   for (uint32_t c = 0; c < m_configs.size(); ++c) {

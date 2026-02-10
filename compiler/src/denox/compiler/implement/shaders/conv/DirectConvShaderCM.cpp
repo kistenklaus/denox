@@ -2,6 +2,7 @@
 #include "denox/common/ActivationFunction.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
+#include "denox/compiler/implement/shaders/conv/ConcatConvCMShader.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
@@ -9,6 +10,7 @@
 #include "denox/memory/tensor/BiasTensor.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FilterTensor.hpp"
+#include <algorithm>
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
@@ -38,6 +40,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
   // ==== Generate all valid configurations ====
   {
+    // special config:
 
     memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
         coopmatShapes;
