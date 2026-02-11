@@ -465,12 +465,9 @@ void DirectConvShader::implement(
   std::uint32_t tileY = config.invoc_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
-  Sym workgroupCountX =
-      symGraph.cdiv(out.channels, tileX, false, false); 
-  Sym workgroupCountY =
-      symGraph.cdiv(in.width, tileY, false, false); 
-  Sym workgroupCountZ =
-      symGraph.cdiv(in.height, tileZ, false, false); 
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX, false, false);
+  Sym workgroupCountY = symGraph.cdiv(in.width, tileY, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);

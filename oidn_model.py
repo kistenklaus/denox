@@ -362,7 +362,7 @@ else:
 example_input = torch.ones(1, 3, 1080, 1920, dtype=torch.float16)
 
 program = torch.onnx.export(
-    rt_ldr,
+    rt_ldr.eval(),
     (example_input,),
     dynamic_shapes={
         "input": {2: torch.export.Dim.DYNAMIC, 3: torch.export.Dim.DYNAMIC}

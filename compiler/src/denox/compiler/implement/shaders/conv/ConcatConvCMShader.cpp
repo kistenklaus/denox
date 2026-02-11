@@ -342,7 +342,8 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       return op.tag() == ComputeOpKind::Conv;
     });
     relu->matchValue([](const ComputeOp &op) -> bool {
-      return op.tag() == ComputeOpKind::Activation;
+      return op.tag() == ComputeOpKind::Activation &&
+             op.activation().func == ActivationFunction::ReLU;
     });
     a->matchValue(tensorSupported);
     b->matchValue(tensorSupported);
@@ -392,7 +393,7 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
   const uint32_t K = static_cast<uint32_t>(out.channels.constant());
   const uint32_t R = conv->W->shape().r;
   const uint32_t S = conv->W->shape().s;
-  
+
   // if (A_C == 64 && B_C == 32 && K == 64) {
   //   if (a.format != TensorFormat::SSBO_HWC) {
   //     return {};
@@ -408,8 +409,9 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
   //         return config.cm_m == 16 && config.a_cm_k == 16 &&
   //                config.b_cm_k == 16 //
   //                && config.cm_n == 16 && config.sg_m == 4 &&
-  //                config.a_sg_k == 3 && config.b_sg_k == 3 && config.sg_n == 2 //
-  //                && config.wg_m == 2 && config.wg_n == 2                      //
+  //                config.a_sg_k == 3 && config.b_sg_k == 3 && config.sg_n == 2
+  //                //
+  //                && config.wg_m == 2 && config.wg_n == 2 //
   //                && config.a_async == true && config.b_async == true;
   //       });
   //
@@ -562,7 +564,8 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
   } else if (A_inputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("A_IN_LAYOUT_CHWC8");
   } else {
-    diag::invalid_state();
+    diag::invalid_state("ConcatConvCMShader: Invalid A_inputFormat, during "
+                        "GLSL macro selection.");
   }
 
   if (B_inputFormat == TensorFormat::SSBO_HWC && B_C % 8 == 0) {
@@ -572,7 +575,8 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
   } else if (B_inputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("B_IN_LAYOUT_CHWC8");
   } else {
-    diag::invalid_state();
+    diag::invalid_state("ConcatConvCMShader: Invalid B_inputFormat, during "
+                        "GLSL macro selection.");
   }
 
   if (outputFormat == TensorFormat::SSBO_HWC && K % 8 == 0) {
@@ -582,7 +586,8 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
   } else if (outputFormat == TensorFormat::SSBO_CHWC8) {
     shader.define("OUT_LAYOUT_CHWC8");
   } else {
-    diag::invalid_state();
+    diag::invalid_state("ConcatConvCMShader: Invalid outputFormat, during GLSL "
+                        "macro selection.");
   }
 
   if (activationFunction) {
@@ -592,7 +597,8 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
       break;
     case ActivationFunction::LeakyReLU:
     case ActivationFunction::SiLU:
-      diag::invalid_state();
+      diag::invalid_state("ConcatConvCMShader: Invalid activationFunction, "
+                          "during GLSL mascro selection.");
       break;
     }
   } else {
@@ -613,7 +619,9 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
       shader.define("a_fstype", "uvec4");
       shader.define("A_FSTYPE_SIZE", 16);
     } else {
-      diag::invalid_state();
+      diag::invalid_state(
+          "ConcatConvCMShader: Invalid cooperative matrix shape, during "
+          "GLSL macro selection, of A_filterLayout.");
     }
   } else if (K % config.cm_n == 0 && (config.cm_n == 8 || config.cm_n == 16)) {
     if (config.cm_n == 8) {
@@ -627,7 +635,9 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
       shader.define("a_fstype", "uvec4");
       shader.define("A_FSTYPE_SIZE", 16);
     } else {
-      diag::invalid_state();
+      diag::invalid_state(
+          "ConcatConvCMShader: Invalid cooperative matrix shape, during "
+          "GLSL macro selection, of A_filterLayout.");
     }
   } else {
     A_filterLayout = memory::FilterLayout::RSCK;
@@ -649,7 +659,9 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
       shader.define("b_fstype", "uvec4");
       shader.define("B_FSTYPE_SIZE", 16);
     } else {
-      diag::invalid_state();
+      diag::invalid_state(
+          "ConcatConvCMShader: Invalid cooperative matrix shape, during "
+          "GLSL macro selection, of B_filterLayout.");
     }
   } else if (K % config.cm_n == 0 && (config.cm_n == 8 || config.cm_n == 16)) {
     if (config.cm_n == 8) {
@@ -663,7 +675,9 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
       shader.define("b_fstype", "uvec4");
       shader.define("B_FSTYPE_SIZE", 16);
     } else {
-      diag::invalid_state();
+      diag::invalid_state(
+          "ConcatConvCMShader: Invalid cooperative matrix shape, during "
+          "GLSL macro selection, of B_filterLayout.");
     }
   } else {
     B_filterLayout = memory::FilterLayout::RSCK;
