@@ -26,6 +26,8 @@ const uint TILE_W = WG_W * INVOC_W;
 out_atype activation(in_atype v) {
     #ifdef ACTIVATION_ReLU
     return out_atype(max(v, in_atype(0)));
+    #elif defined(ACTIVATION_LeakyReLU)
+    return out_atype(max(v, in_atype(ACTIVATION_LeakyReLU_alpha) * v));
     #else
     NOT_IMPLEMENTED;
     #endif

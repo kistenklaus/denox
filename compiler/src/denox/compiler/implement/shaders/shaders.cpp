@@ -28,8 +28,8 @@ get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options) {
     shaders.push_back(std::make_unique<compiler::shaders::DirectConvShader>(
         compiler, options));
   }
-  // shaders.push_back(std::make_unique<compiler::shaders::CopyTransformShader>(
-  //     compiler, options));
+  shaders.push_back(std::make_unique<compiler::shaders::CopyTransformShader>(
+      compiler, options));
 
   shaders.push_back(
       std::make_unique<compiler::shaders::BasicPoolShader>(compiler, options));

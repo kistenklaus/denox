@@ -165,10 +165,9 @@ BasicActivationShader::BasicActivationShader(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Activation) {
         return false;
       }
-      if (op.activation().func != ActivationFunction::ReLU) {
-        return false;
-      }
-      return true;
+      const auto &func = op.activation().func;
+      return (func.kind() == ActivationFunctionKind::ReLU) ||
+             (func.kind() == ActivationFunctionKind::LeakyReLU);
     });
     m_patternHandles.emplace_back(in, std::move(acti), out);
     m_capabilities.patterns.emplace_back(std::move(basicPattern), std::move(in),
@@ -452,12 +451,17 @@ basic_activation_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   shader.define("out_atype", "float16_t");
   shader.define("OUT_ATYPE_SIZE", 2);
 
-  switch (activationFunction) {
-  case ActivationFunction::ReLU:
+  switch (activationFunction.kind()) {
+  case ActivationFunctionKind::ReLU:
     shader.define("ACTIVATION_ReLU");
     break;
-  case ActivationFunction::LeakyReLU:
-  case ActivationFunction::SiLU:
+  case ActivationFunctionKind::LeakyReLU:
+    shader.define("ACTIVATION_LeakyReLU");
+    shader.define("ACTIVATION_LeakyReLU_alpha",
+                  fmt::format("({}f)", activationFunction.leaky_relu().alpha));
+    break;
+  case ActivationFunctionKind::SiLU:
+  case ActivationFunctionKind::Swish:
     diag::invalid_state();
   }
 
@@ -616,20 +620,29 @@ void BasicActivationShader::implement(
       config.invocW, config.invocW, config.wgC, config.wgW, config.wgH));
   dispatch.usesCoopmat(false);
 
-  switch (acti.func) {
-  case ActivationFunction::ReLU:
+  switch (acti.func.kind()) {
+  case ActivationFunctionKind::ReLU:
     dispatch.setOperation("relu(x)");
     // we do not count comparison as a FLOP!
     dispatch.setFlops(Sym::Const(0));
     break;
-  case ActivationFunction::LeakyReLU:
-    dispatch.setOperation("leaky_relu(x)");
+  case ActivationFunctionKind::LeakyReLU:
+    dispatch.setOperation(
+        fmt::format("leaky_relu(x,alpha={})", acti.func.leaky_relu().alpha));
     // leaky relu counts as one FLOP!
     dispatch.setFlops(symGraph.mul(symGraph.mul(out.width, out.height),
                                    symGraph.mul(out.channels, 1)));
     break;
-  case ActivationFunction::SiLU:
+  case ActivationFunctionKind::SiLU:
     dispatch.setOperation("sliu(x)");
+    // silu counts as 20 FLOPs (obvious approximation because it contains a exp
+    // which is kind oj)
+    dispatch.setFlops(symGraph.mul(symGraph.mul(out.width, out.height),
+                                   symGraph.mul(out.channels, 20)));
+    break;
+  case ActivationFunctionKind::Swish:
+    dispatch.setOperation(
+        fmt::format("swish(x,beta={})", acti.func.swish().beta));
     // silu counts as 20 FLOPs (obvious approximation because it contains a exp
     // which is kind oj)
     dispatch.setFlops(symGraph.mul(symGraph.mul(out.width, out.height),

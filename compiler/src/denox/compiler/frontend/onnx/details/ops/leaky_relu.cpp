@@ -1,5 +1,5 @@
-#include "denox/compiler/frontend/onnx/details/ops/ops.hpp"
 #include "denox/common/ActivationFunction.hpp"
+#include "denox/compiler/frontend/onnx/details/ops/ops.hpp"
 
 #include <fmt/format.h>
 #include <stdexcept>
@@ -39,7 +39,7 @@ memory::vector<Tensor> leaky_relu(
   const std::size_t r = inDev.rank();
   // TODO: Remodel activation function to include parameters.
   compiler::TensorHandle outHandle = state.output.activation(
-      inDev.handle(), ActivationFunction::LeakyReLU);
+      inDev.handle(), ActivationFunction::LeakyReLU(alpha));
 
   DeviceTensor outDev(r, std::move(outHandle));
   return {Tensor::Device(std::move(outDev))};

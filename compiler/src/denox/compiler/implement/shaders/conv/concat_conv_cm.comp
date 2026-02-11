@@ -852,6 +852,16 @@ void main() {
       }
     }
   }
+  #elif defined(ACTIVATION_LeakyReLU)
+  for (uint zn = 0; zn < SG_N; zn++) {
+    for (uint zm = 0; zm < SG_M; zm++) {
+      for (uint i = 0; i < sum[zn][zm].length(); ++i) {
+        sum[zn][zm][i] = max(
+            atype(ACTIVATION_LeakyReLU_alpha) * sum[zn][zm][i],
+            sum[zn][zm][i]);
+      }
+    }
+  }
   #else
   UNDEFINED_ACTIVATION; // activation not one of {None, ReLU}
   #endif

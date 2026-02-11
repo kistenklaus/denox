@@ -173,8 +173,8 @@ void main() {
   // simply load the bias directly from global memory.
   // The memory overhead is very close to zero.
   for (uint zn = 0; zn < SG_N; zn++) {
-    coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > bias = 
-      coopmat<atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator>(0.0f);
+    coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > bias =
+      coopmat < atype, gl_ScopeSubgroup, CM_M, CM_N, gl_MatrixUseAccumulator > (0.0f);
     // 16 / 2 == 8
     const uint offset = (wgni + (sgni * SG_N + zn) * CM_N) / (VSTYPE_SIZE / ATYPE_SIZE);
     const uint OUT_CH_PADDED = (OUT_CH + CM_N - 1) / CM_N * CM_N;
@@ -1068,6 +1068,16 @@ void main() {
       }
     }
   }
+  #elif defined(ACTIVATION_LeakyReLU)
+  for (uint zn = 0; zn < SG_N; zn++) {
+    for (uint zm = 0; zm < SG_M; zm++) {
+      for (uint i = 0; i < sum[zn][zm].length(); ++i) {
+        sum[zn][zm][i] = max(
+            atype(ACTIVATION_LeakyReLU_alpha) * sum[zn][zm][i],
+            sum[zn][zm][i]);
+      }
+    }
+  }
   #else
   UNDEFINED_ACTIVATION; // activation not one of {None, ReLU}
   #endif
@@ -1517,7 +1527,7 @@ void main() {
     #pragma inline_block(copy_prefetch_A);
     #pragma inline_block(copy_prefetch_B);
     barrier();
-    // NOTE: This loop should absolutely contain a single barrier 2 this doesn't really 
+    // NOTE: This loop should absolutely contain a single barrier 2 this doesn't really
     // make a lot of sense otherwise.
     // TODO Try if it makes a difference if we prefetch after GEMM it shouldn't
     // but maybe worth trying if compilers are better at picking up this pattern.

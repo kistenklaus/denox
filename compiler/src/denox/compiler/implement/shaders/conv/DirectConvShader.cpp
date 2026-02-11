@@ -167,7 +167,7 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Activation) {
         return false;
       }
-      if (op.activation().func != ActivationFunction::ReLU) {
+      if (op.activation().func.kind() != ActivationFunctionKind::ReLU) {
         return false;
       }
       return true;
@@ -346,12 +346,13 @@ direct_conv_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   }
 
   if (activationFunction) {
-    switch (*activationFunction) {
-    case ActivationFunction::ReLU:
+    switch (activationFunction->kind()) {
+    case ActivationFunctionKind::ReLU:
       shader.define("ACTIVATION_ReLU");
       break;
-    case ActivationFunction::LeakyReLU:
-    case ActivationFunction::SiLU:
+    case ActivationFunctionKind::LeakyReLU:
+    case ActivationFunctionKind::SiLU:
+    case ActivationFunctionKind::Swish:
       diag::invalid_state();
       break;
     }
@@ -523,27 +524,36 @@ void DirectConvShader::implement(
                    2 * C * K * conv->W->shape().r * conv->W->shape().s));
 
   if (activationFunction) {
-    switch (*activationFunction) {
-    case ActivationFunction::ReLU:
+    switch (activationFunction->kind()) {
+    case ActivationFunctionKind::ReLU:
       dispatch.setOperation(fmt::format(
           "relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
           "{}),padding=({},{}),dialation=(1,1)))",
           conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
           conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
       break;
-    case ActivationFunction::LeakyReLU:
+    case ActivationFunctionKind::LeakyReLU:
       dispatch.setOperation(fmt::format(
           "leaky_relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
-          "{}),padding=({},{}),dialation=(1,1)))",
+          "{}),padding=({},{}),dialation=(1,1)),alpha={})",
           conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+          activationFunction->leaky_relu().alpha));
       break;
-    case ActivationFunction::SiLU:
+    case ActivationFunctionKind::SiLU:
       dispatch.setOperation(fmt::format(
           "silu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
           "{}),padding=({},{}),dialation=(1,1)))",
           conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
           conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      break;
+    case ActivationFunctionKind::Swish:
+      dispatch.setOperation(fmt::format(
+          "swich(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+          "{}),padding=({},{}),dialation=(1,1)),beta={})",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+          activationFunction->swish().beta));
       break;
     }
   } else {

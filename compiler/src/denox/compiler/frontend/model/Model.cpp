@@ -375,15 +375,18 @@ memory::string Model::to_string() const {
     }
     case ComputeOpKind::Activation: {
       const auto acti = op.activation();
-      switch (acti.func) {
-      case ActivationFunction::ReLU:
+      switch (acti.func.kind()) {
+      case ActivationFunctionKind::ReLU:
         str.append(fmt::format("    ReLU: {}\n", inout));
         break;
-      case ActivationFunction::LeakyReLU:
+      case ActivationFunctionKind::LeakyReLU:
         str.append(fmt::format("    LeakyReLU: {}\n", inout));
         break;
-      case ActivationFunction::SiLU:
+      case ActivationFunctionKind::SiLU:
         str.append(fmt::format("    SiLU: {}\n", inout));
+        break;
+      case ActivationFunctionKind::Swish:
+        str.append(fmt::format("    Swish: {}\n", inout));
         break;
       }
       break;
