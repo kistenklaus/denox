@@ -2,6 +2,7 @@
 #include "denox/algorithm/pattern_matching/match.hpp"
 #include "denox/compiler/implement/SuperGraphBuilder.hpp"
 #include "denox/compiler/implement/shaders/shaders.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include <fmt/format.h>
@@ -10,7 +11,8 @@ namespace denox::compiler {
 
 SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
                      spirv::GlslCompiler *glslCompiler,
-                     const CompileOptions &options, diag::Logger &logger) {
+                     const CompileOptions &options, diag::Logger &logger,
+                     diag::Progress progress) {
 
   const size_t nodeCount = model.graph.nodeCount();
   SuperGraphBuilder supergraphBuilder(model, symGraphRef,
@@ -21,12 +23,12 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
   for (size_t s = 0; s < shaders.size(); ++s) {
     const auto &shader = shaders[s];
 
-    const uint32_t percentage = static_cast<uint32_t>(
-        std::floor(static_cast<float>((s + 1)) * 50.0f /
-                   static_cast<float>(shaders.size() + 1)));
+    const float prog =
+        static_cast<float>(s + 1) / static_cast<float>(shaders.size());
 
-    logger.info("[{:>3}%] {}Generating {} GLSL compute shader configurations{}",
-                percentage, logger.green(), shader->name(), logger.reset());
+    progress.step(logger, prog,
+                  "{}Generating {} GLSL compute shader configurations{}",
+                  logger.green(), shader->name(), logger.reset());
 
     const ShaderCapabilities &caps = shader->capabilities();
     for (uint32_t p = 0; p < caps.patterns.size(); ++p) {

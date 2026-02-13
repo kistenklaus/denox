@@ -4,11 +4,13 @@
 #include "denox/db/Db.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/span.hpp"
+#include "denox/runtime/context.hpp"
 
 namespace denox {
 
-memory::vector<std::byte> compile(memory::span<const std::byte> onnx,
-                                  memory::optional<Db> db,
-                                  const compiler::CompileOptions &options);
+memory::vector<std::byte>
+compile(memory::span<const std::byte> onnx, memory::optional<Db> db,
+        memory::optional<denox::runtime::ContextHandle> context,
+        const compiler::CompileOptions &options);
 
 } // namespace denox

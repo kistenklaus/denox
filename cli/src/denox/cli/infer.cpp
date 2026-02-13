@@ -28,9 +28,18 @@ void infer(InferAction &action) {
     if (action.database) {
       db = denox::Db::open(action.database->endpoint.path());
     }
+    const char *deviceName = nullptr;
+    if (action.deviceName.has_value()) {
+      deviceName = action.deviceName->c_str();
+    }
+    denox::runtime::ContextHandle context =
+        denox::runtime::Context::make(deviceName, action.apiVersion);
+
     action.options.deviceInfo = denox::query_driver_device_info(
-        ctx->vkInstance(), action.deviceName, action.apiVersion);
-    auto dnxbuf = denox::compile(action.model.dnx().data, db, action.options);
+        vk::Instance{context->vkInstance()},
+        vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
+    auto dnxbuf =
+        denox::compile(action.model.dnx().data, db, context, action.options);
     model = denox::runtime::Model::make(dnxbuf, ctx);
     break;
   }

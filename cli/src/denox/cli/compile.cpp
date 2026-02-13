@@ -3,11 +3,20 @@
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/io/fs/File.hpp"
+#include "denox/runtime/context.hpp"
+#include <vulkan/vulkan.hpp>
 
 void compile(CompileAction &action) {
-  denox::ApiVersion apiVersion = action.apiVersion;
-  action.options.deviceInfo =
-      denox::query_driver_device_info(apiVersion, action.deviceName);
+  const char *deviceName = nullptr;
+  if (action.deviceName.has_value()) {
+    deviceName = action.deviceName->c_str();
+  }
+  denox::runtime::ContextHandle context =
+      denox::runtime::Context::make(deviceName, action.apiVersion);
+
+  action.options.deviceInfo = denox::query_driver_device_info(
+      vk::Instance{context->vkInstance()},
+      vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
 
   denox::memory::optional<denox::Db> db;
   if (action.database) {
@@ -21,7 +30,7 @@ void compile(CompileAction &action) {
   action.options.assumptions.valueAssumptions.emplace_back("W", 1920);
   action.options.debugInfo = denox::compiler::DebugInfo::Enable;
 
-  auto dnxbuf = denox::compile(action.input.data, db, action.options);
+  auto dnxbuf = denox::compile(action.input.data, db, context, action.options);
 
   switch (action.output.kind()) {
   case IOEndpointKind::Path: {
@@ -34,5 +43,9 @@ void compile(CompileAction &action) {
   }
   case IOEndpointKind::Pipe:
     Pipe{}.write_exact(dnxbuf);
+  }
+
+  if (db.has_value()) {
+    db->atomic_writeback();
   }
 }

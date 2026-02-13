@@ -7,6 +7,7 @@
 #include "denox/db/DbEnv.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/diag/logging.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -602,9 +603,9 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
   };
 }
 
-static bool print_progress_report(const denox::Db &db,
-                                  const runtime::DbBenchOptions &options,
-                                  diag::Logger &logger) {
+static std::pair<memory::optional<std::string>, float>
+print_progress_report(const denox::Db &db,
+                      const runtime::DbBenchOptions &options) {
   const auto dispatches = db.dispatches();
   const uint64_t total = dispatches.size();
 
@@ -649,28 +650,32 @@ static bool print_progress_report(const denox::Db &db,
       converged += 1;
   }
 
-  float progress =
-      static_cast<float>(converged) / static_cast<float>(total) * 100.0f;
-
-  logger.info("[{:>3}%] converged: {} / {} | "
-              "minSamples pending: {} | "
-              "precision pending: {} | "
-              "no data: {}",
-              static_cast<uint64_t>(std::floor(progress)), converged, total,
-              insufficientSamples, insufficientPrecision, noData);
-
-  return converged == total;
+  if (converged == total) {
+    return std::make_pair(memory::nullopt, 1.0f);
+  } else {
+    float prog = static_cast<float>(converged) / static_cast<float>(total);
+    return std::make_pair(fmt::format("converged: {} / {} | "
+                                      "minSamples pending: {} | "
+                                      "precision pending: {} | "
+                                      "no data: {}",
+                                      converged, total, insufficientSamples,
+                                      insufficientPrecision, noData),
+                          prog);
+  }
 }
 
-void denox::runtime::Db::bench(const DbBenchOptions &options) {
+void denox::runtime::Db::bench(const DbBenchOptions &options,
+                               diag::Progress progress) {
   assert(options.minSamples >= 1);
 
   BenchmarkState state = create_benchmark_state(m_context);
 
   diag::Logger logger("runtime.bench.db", true);
 
-  bool done = print_progress_report(m_db, options, logger);
-  if (done) {
+  auto [msg, prog] = print_progress_report(m_db, options);
+  if (msg) {
+    progress.step_inplace(logger, prog, true, "{}{}{}", logger.blue(), *msg, logger.reset());
+  } else {
     return;
   }
 
@@ -771,7 +776,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
           constructedEpochs.release();
           stage = (stage + 1) % ASYNC_EPOCH_DEPTH;
         }
-        fmt::println("[epoch-construction] exit");
+        // fmt::println("[epoch-construction] exit");
       },
       stop.get_token());
 
@@ -792,7 +797,11 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
                                                std::move(timing.samples));
           }
 
-          print_progress_report(m_db, options, logger);
+          auto [msg, prog] =
+              print_progress_report(m_db, options);
+          if (msg) {
+            progress.step_inplace(logger, prog, false, "{}{}{}", logger.blue(), *msg, logger.reset());
+          }
 
           if (options.saveProgress) {
             m_db.atomic_writeback();
@@ -803,7 +812,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
         if (options.saveProgress) {
           m_db.atomic_writeback();
         }
-        fmt::println("[writeback] exit");
+        // fmt::println("[writeback] exit");
       },
       stop.get_token());
 
@@ -865,4 +874,6 @@ void denox::runtime::Db::bench(const DbBenchOptions &options) {
       epochs[i].targets.clear();
     }
   }
+
+  progress.step_inplace(logger, prog, false, "{}{}{}", logger.green(), "Benchmarking completed for all relevant dispatch configurations.", logger.reset());
 }

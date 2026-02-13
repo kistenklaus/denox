@@ -2,6 +2,7 @@
 
 #include "denox/db/Db.hpp"
 #include "denox/device_info/ApiVersion.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/runtime/context.hpp"
 
 namespace denox::runtime {
@@ -34,7 +35,7 @@ public:
     return std::shared_ptr<Db>(new Db(context, db));
   }
 
-  void bench(const DbBenchOptions &options = {});
+  void bench(const DbBenchOptions &options = {}, diag::Progress progress = {});
 
 private:
   explicit Db(const ContextHandle &context, const denox::Db &db)

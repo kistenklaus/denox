@@ -4,10 +4,10 @@
 #include "denox/algorithm/prune_dominated_edges.hpp"
 #include "denox/algorithm/topological_edge_sort.hpp"
 #include "denox/common/TensorFormat.hpp"
-#include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/diag/not_implemented.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
@@ -21,14 +21,13 @@ using weight_type = std::chrono::duration<float, std::milli>;
 static constexpr weight_type INF_WEIGHT = weight_type(3600000000); // 1h
 
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
-                            const Model &model, const CompileOptions &options,
-                            diag::Logger &logger) {
+                            [[maybe_unused]] const Model &model,
+                            const SymGraphEval &symeval,
+                            [[maybe_unused]] const CompileOptions &options,
+                            diag::Progress progress, diag::Logger &logger) {
 
-  logger.info("[ 50%] {}{}Selecting compute shader dispatches{}", logger.bold(),
-              logger.green(), logger.reset());
-
-  SymGraphEval eval =
-      assumed_symeval(supergraph.symGraph, model.valueNames(), options);
+  progress.step(logger, 0.0f, "{}Collecting dispatch latencies {}",
+                logger.green(), logger.reset());
 
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> weightedSupergraph;
   // 1. Add all nodes
@@ -53,7 +52,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
         int64_t value;
         if (pc.isDynamic()) {
           Sym::symbol symbol = pc.dynamic();
-          value = *eval[Sym::Symbol(symbol)];
+          value = *symeval[Sym::Symbol(symbol)];
         } else {
           switch (pc.type().kind()) {
           case memory::DtypeKind::F16:
@@ -102,11 +101,11 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
       }
 
       uint32_t workgroupCountX =
-          static_cast<uint32_t>(*eval[dispatch.workgroupCountX]);
+          static_cast<uint32_t>(*symeval[dispatch.workgroupCountX]);
       uint32_t workgroupCountY =
-          static_cast<uint32_t>(*eval[dispatch.workgroupCountY]);
+          static_cast<uint32_t>(*symeval[dispatch.workgroupCountY]);
       uint32_t workgroupCountZ =
-          static_cast<uint32_t>(*eval[dispatch.workgroupCountZ]);
+          static_cast<uint32_t>(*symeval[dispatch.workgroupCountZ]);
 
       auto query = db.query_dispatch_latency(hash, pcbuf, workgroupCountX,
                                              workgroupCountY, workgroupCountZ);
@@ -125,6 +124,9 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
       constWeightedSupergraph{std::move(weightedSupergraph)};
 
+  progress.step(logger, 0.2f,
+                "{}Selecting optimal implementation for each logical op{}",
+                logger.green(), logger.reset());
   // prune duplicate edges
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> prunedSupergraph =
       algorithm::prune_duplicate_edges(constWeightedSupergraph);
@@ -132,11 +134,16 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type>
       constPrunedSupergraph{std::move(prunedSupergraph)};
 
+  progress.step(logger, 0.3f, "{}Selecting minimum-cost dispatch schedule{}",
+                logger.green(), logger.reset());
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
       algorithm::minimum_cost_subgraph(constWeightedSupergraph,
                                        supergraph.inputs, supergraph.outputs);
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(
       std::move(minimumCostSubgraph));
+
+  progress.step(logger, 0.3f, "{}Linearizing optimal schedule{}",
+                logger.green(), logger.reset());
 
   memory::vector<memory::EdgeId> minSchedule =
       algorithm::topological_sort_edges(constMinCostGraph);
@@ -250,7 +257,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   //   for (auto &b : d.bindings) {
   //     fmt::println("BINDING: {} -> {},  {}  ({})", b.binding,
   //                  tensors[b.tensorId.index].info.format, b.accessFlag,
-  //                  tensors[b.tensorId.index].info.channels.has_value() ? 
+  //                  tensors[b.tensorId.index].info.channels.has_value() ?
   //                  tensors[b.tensorId.index].info.channels->constant() : -1);
   //   }
   // }

@@ -5,6 +5,7 @@
 #include "denox/compiler/compile_symbols/SymProgram.hpp"
 #include "denox/compiler/frontend/model/Model.hpp"
 #include "denox/compiler/frontend/model/NamedValue.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/memory/container/vector.hpp"
 #include "denox/symbolic/SymIR.hpp"
 
@@ -12,6 +13,7 @@ namespace denox::compiler {
 
 SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
                            const CompileOptions &options,
+                           diag::Progress progress,
                            diag::Logger& logger);
 
 } // namespace denox::compiler

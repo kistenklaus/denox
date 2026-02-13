@@ -262,19 +262,18 @@ uint32_t parse_database(std::span<const Token> tokens,
         "invalid argument to '--database': expected database path"));
   }
   const auto &path = lit.as_path();
-  if (!path.exists()) {
-    throw ParseError(fmt::format("file not found: '{}'", path));
-  }
-  if (path.is_dir()) {
-    throw ParseError(fmt::format("'{}' is a directory", path));
-  }
+  if (path.exists()) {
+    if (path.is_dir()) {
+      throw ParseError(fmt::format("'{}' is a directory", path));
+    }
 
-  auto file = denox::io::File::open(path, denox::io::File::OpenMode::Read);
-  std::vector<std::byte> data(file.size());
-  file.read_exact(data);
-  bool isDB = is_db(data);
-  if (!isDB) {
-    throw ParseError(fmt::format("'{}' is not a valid database", path));
+    auto file = denox::io::File::open(path, denox::io::File::OpenMode::Read);
+    std::vector<std::byte> data(file.size());
+    file.read_exact(data);
+    bool isDB = is_db(data);
+    if (!isDB) {
+      throw ParseError(fmt::format("'{}' is not a valid database", path));
+    }
   }
 
   if (db) {
@@ -767,7 +766,7 @@ uint32_t parse_help(std::span<const Token> tokens, bool *help) {
 }
 
 uint32_t parse_optimizationLevel(std::span<const Token> tokens,
-                                uint32_t *optimizationLevel) {
+                                 uint32_t *optimizationLevel) {
   if (tokens.empty()) {
     return 0;
   }

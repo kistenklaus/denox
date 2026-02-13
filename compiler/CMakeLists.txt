@@ -120,6 +120,8 @@ add_library(denox_compiler
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/serialize/serialize.cpp
 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/populate/populate.cpp
+
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/assumed_symeval/assumed_symeval.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/compile.cpp
@@ -139,6 +141,7 @@ target_link_libraries(denox_compiler
     denox_common
     denox_spirv
     denox_database
+    denox_runtime
 )
 
 add_dependencies(denox_compiler denox_compiler_shaders)

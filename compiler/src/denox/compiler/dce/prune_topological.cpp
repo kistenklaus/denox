@@ -1,5 +1,6 @@
 #include "denox/compiler/dce/prune_topological.hpp"
 #include "denox/algorithm/all_minimum_cost_subgraphs.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -85,10 +86,21 @@ construct_topological_graph(const denox::compiler::SuperGraph &supergraph) {
                             uint32_t>(std::move(tgraph_builder));
 }
 
-void denox::compiler::prune_topological(SuperGraph &supergraph) {
+void denox::compiler::prune_topological(SuperGraph &supergraph,
+                                        diag::Progress progress,
+                                        diag::Logger &logger) {
+
+  progress.step(logger, 0.0f,
+                "{}Selecting minimal-dispatch implementations for multiedges{}",
+                logger.green(), logger.reset());
 
   memory::ConstGraph<memory::NodeId, memory::vector<memory::EdgeId>, uint32_t>
       tgraph = construct_topological_graph(supergraph);
+
+  progress.step(
+      logger, 0.5f,
+      "{}Eliminating dispatches not in the minimum-dispatch subgraphs{}",
+      logger.green(), logger.reset());
 
   auto all_minimum_cost_subgraphs = algorithm::all_minimum_cost_subgraphs(
       tgraph, supergraph.inputs, supergraph.outputs);
@@ -97,6 +109,11 @@ void denox::compiler::prune_topological(SuperGraph &supergraph) {
     // TODO: Proper error message (issue #92)
     throw std::runtime_error("Failed to implement model");
   }
+
+  progress.step(
+      logger, 1.0f,
+      "{}Reconstructing implementation graph from minimum-dispatch subgraphs{}",
+      logger.green(), logger.reset());
 
   memory::vector<memory::optional<memory::NodeId>> nodeRemap(
       supergraph.graph.nodeCount(), memory::nullopt);
@@ -148,5 +165,4 @@ void denox::compiler::prune_topological(SuperGraph &supergraph) {
     assert(nodeRemap[*nid]);
     nid = *nodeRemap[*nid];
   }
-
 }

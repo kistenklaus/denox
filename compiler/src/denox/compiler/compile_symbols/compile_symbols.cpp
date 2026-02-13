@@ -1,6 +1,7 @@
 #include "denox/compiler/compile_symbols/compile_symbols.hpp"
 #include "denox/common/PushConstant.hpp"
 #include "denox/compiler/frontend/model/NamedValue.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include <fmt/format.h>
 
@@ -8,9 +9,10 @@ namespace denox::compiler {
 
 SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
                            [[maybe_unused]] const CompileOptions &options,
-                           diag::Logger &logger) {
+                           diag::Progress progress, diag::Logger &logger) {
 
-  logger.info("[ 98%] {}Building SymIR{}", logger.green(), logger.reset());
+  progress.step(logger, 0.0f, "{}Building SymIR{}", logger.green(),
+                logger.reset());
 
   memory::vector<Sym::symbol> symbols;
   memory::dynamic_bitset symbolAdded(schedule.symGraph.symbolCount());

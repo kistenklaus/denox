@@ -2,6 +2,7 @@
 
 #include "denox/algorithm/union_find.hpp"
 #include "denox/diag/not_implemented.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -15,12 +16,16 @@ namespace denox::compiler {
 
 static constexpr uint64_t u64sential = std::numeric_limits<uint64_t>::max();
 
-MemSchedule placement(const OptSchedule &schedule) {
+MemSchedule placement(const OptSchedule &schedule, diag::Progress progress,
+                      diag::Logger &logger) {
   MemSchedule out{};
   out.symGraph = schedule.symGraph;
   out.dispatches = schedule.dispatches;
 
   SymGraph &sym = out.symGraph;
+
+  progress.step(logger, 0.0f, "{}Resolving tensor placement within buffers{}", logger.green(),
+                logger.reset());
 
   const size_t tensorCount = schedule.tensors.size();
 

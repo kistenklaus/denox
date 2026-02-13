@@ -3,6 +3,7 @@
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/dce/ConstModel.hpp"
 #include "denox/compiler/implement/Supergraph.hpp"
+#include "denox/diag/progress.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 
 namespace denox::compiler {
@@ -10,5 +11,5 @@ namespace denox::compiler {
 SuperGraph implement(const ConstModel &model, const SymGraph &symGraph,
     spirv::GlslCompiler* glslCompiler,
                     const CompileOptions &options, 
-                    diag::Logger& logger);
+                    diag::Logger& logger, diag::Progress progress);
 }

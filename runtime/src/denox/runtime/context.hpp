@@ -237,8 +237,14 @@ public:
   bool extPCIbusInfoAvailable() const { return m_extPCIbufInfoAvailable; }
 
 private:
+#ifdef NDEBUG
+  static constexpr bool ENABLE_VALIDATION_BY_DEFAULT = false;
+#else
+  static constexpr bool ENABLE_VALIDATION_BY_DEFAULT = true;
+#endif
+
   explicit Context(const char *deviceName, ApiVersion target_env,
-                   bool validationLayers = true);
+                   bool validationLayers = ENABLE_VALIDATION_BY_DEFAULT);
 
 private:
   VkInstance m_instance;

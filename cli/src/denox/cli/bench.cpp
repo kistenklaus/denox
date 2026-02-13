@@ -17,10 +17,19 @@ void bench(BenchAction &action) {
       db = denox::Db::open(action.database->endpoint.path());
     }
 
-    action.options.deviceInfo =
-        denox::query_driver_device_info(action.apiVersion, action.deviceName);
+    const char *deviceName = nullptr;
+    if (action.deviceName.has_value()) {
+      deviceName = action.deviceName->c_str();
+    }
+    denox::runtime::ContextHandle context =
+        denox::runtime::Context::make(deviceName, action.apiVersion);
 
-    auto dnxbuf = denox::compile(action.target.onnx().data, db, action.options);
+    action.options.deviceInfo = denox::query_driver_device_info(
+        vk::Instance{context->vkInstance()},
+        vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
+
+    auto dnxbuf =
+        denox::compile(action.target.onnx().data, db, context, action.options);
 
     const char *device = nullptr;
     if (action.deviceName) {

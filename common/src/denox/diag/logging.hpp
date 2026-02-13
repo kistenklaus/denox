@@ -68,8 +68,11 @@ private:
     memory::string_view green = "";
     memory::string_view yellow = "";
     memory::string_view blue = "";
+    memory::string_view gray = "";
     memory::string_view bold = "";
     memory::string_view reset = "";
+    memory::string_view clear_line = "";
+    memory::string_view cursor_up = "";
   };
 
 public:
@@ -82,8 +85,11 @@ public:
       m_codes->green = "\x1B[32m";
       m_codes->yellow = "\x1B[33m";
       m_codes->blue = "\x1B[34m";
+      m_codes->gray = "\x1B[90m";
       m_codes->bold = "\x1B[1m";
       m_codes->reset = "\x1B[0m";
+      m_codes->clear_line = "\r\x1B[K";
+      m_codes->cursor_up = "\x1B[A";
     }
     m_logger->set_pattern("%v");
   }
@@ -92,8 +98,12 @@ public:
   memory::string_view green() const { return m_codes->green; }
   memory::string_view yellow() const { return m_codes->yellow; }
   memory::string_view blue() const { return m_codes->blue; }
+  memory::string_view gray() const { return m_codes->gray; }
   memory::string_view bold() const { return m_codes->bold; }
   memory::string_view reset() const { return m_codes->reset; }
+
+  memory::string_view clear_line() const { return m_codes->clear_line; }
+  memory::string_view cursor_up() const { return m_codes->cursor_up; }
 
   template <typename... Args>
   void trace(spdlog::format_string_t<Args...> fmt, Args &&...args) {
