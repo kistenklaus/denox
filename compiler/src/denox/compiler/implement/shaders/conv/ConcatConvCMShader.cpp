@@ -109,11 +109,19 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
 
                     const uint32_t A_prefetch_A_QQ =
                         (cm_m * a_cm_k * a_sg_k * sg_m) / 8;
+                    if (A_prefetch_A_QQ % wg_n != 0) {
+                      continue;
+                    }
 
                     const uint32_t B_prefetch_A_QQ =
                         (cm_m * b_cm_k * b_sg_k * sg_m) / 8;
+                    if (B_prefetch_A_QQ % wg_n != 0) {
+                      continue;
+                    }
 
                     const uint32_t A_prefetch_A_SQQ = A_prefetch_A_QQ / wg_n;
+
+
                     const uint32_t B_prefetch_A_SQQ = B_prefetch_A_QQ / wg_n;
                     // 16bytes word fetched per invocation!
                     const uint32_t A_prefetch_A_IQQ =
@@ -135,6 +143,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                       continue; // uneven load balancing between subgroups.
                     }
 
+
                     const uint32_t A_prefetch_B_SQQ = A_prefetch_B_QQ / wg_m;
                     const uint32_t B_prefetch_B_SQQ = B_prefetch_B_QQ / wg_m;
 
@@ -145,6 +154,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                     const uint32_t B_prefetch_B_IQQ =
                         (B_prefetch_B_SQQ + m_subgroupSize - 1) /
                         m_subgroupSize;
+
+
+
 
                     const uint32_t A_prefetch_A_register_estimate =
                         A_prefetch_A_IQQ * 4; // uvec4
@@ -317,7 +329,10 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     a->matchValue(tensorSupported);
     b->matchValue(tensorSupported);
     out->matchValue(tensorSupported);
-    m_patternHandles.emplace_back(a, b, concat, conv, memory::nullopt, out);
+
+    m_concat_conv_pattern = static_cast<uint32_t>(m_patternHandles.size());
+    m_patternHandles.emplace_back(a, b, x, memory::nullopt, concat, conv,
+                                  memory::nullopt, out);
     m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
                                          std::move(a), std::move(b),
                                          std::move(out));
@@ -351,12 +366,220 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     a->matchValue(tensorSupported);
     b->matchValue(tensorSupported);
     out->matchValue(tensorSupported);
-    m_patternHandles.emplace_back(a, b, std::move(concat), std::move(conv),
-                                  std::move(relu), out);
+
+    m_concat_conv_activation_pattern =
+        static_cast<uint32_t>(m_patternHandles.size());
+    m_patternHandles.emplace_back(a, b, x, memory::nullopt, std::move(concat),
+                                  std::move(conv), std::move(relu), out);
     m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
                                          std::move(a), std::move(b),
                                          std::move(out));
   }
+
+  if (options.features.enableUpsampleConvFusion) {
+    Pattern concat_conv_pattern;
+    auto concat = concat_conv_pattern.matchEdge();
+    auto y = concat->matchSrc(0);
+    auto upsample = y->matchIncoming();
+    auto a = upsample->matchSrc(0);
+    auto b = concat->matchSrc(1);
+    auto x = concat->matchDst();
+    auto conv = x->matchOutgoing();
+    auto out = conv->matchDst();
+
+    concat->matchRank(2);
+    concat->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Concat;
+    });
+
+    upsample->matchRank(1);
+    upsample->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Upsample) {
+        return false;
+      }
+      const auto &upsample = op.upsample();
+      if (upsample.scalingFactor != 2) {
+        return false;
+      }
+      return true;
+    });
+
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Conv;
+    });
+    a->matchValue(tensorSupported);
+    b->matchValue(tensorSupported);
+    out->matchValue(tensorSupported);
+
+    m_A_upsample_concat_conv_pattern =
+        static_cast<uint32_t>(m_patternHandles.size());
+    m_patternHandles.emplace_back(a, b, x, upsample, concat, conv,
+                                  memory::nullopt, out);
+    m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
+                                         std::move(a), std::move(b),
+                                         std::move(out));
+  }
+  // if (options.features.enableUpsampleConvFusion) {
+  //   Pattern concat_conv_pattern;
+  //   auto concat = concat_conv_pattern.matchEdge();
+  //   auto a = concat->matchSrc(0);
+  //   auto y = concat->matchSrc(1);
+  //   auto upsample = y->matchIncoming();
+  //   auto b = upsample->matchSrc(0);
+  //   auto x = concat->matchDst();
+  //   auto conv = x->matchOutgoing();
+  //   auto out = conv->matchDst();
+  //
+  //   concat->matchRank(2);
+  //   concat->matchValue([](const ComputeOp &op) -> bool {
+  //     return op.tag() == ComputeOpKind::Concat;
+  //   });
+  //
+  //   upsample->matchRank(1);
+  //   upsample->matchValue([](const ComputeOp &op) -> bool {
+  //     if (op.tag() != ComputeOpKind::Upsample) {
+  //       return false;
+  //     }
+  //     const auto &upsample = op.upsample();
+  //     if (upsample.scalingFactor != 2) {
+  //       return false;
+  //     }
+  //     return true;
+  //   });
+  //
+  //   conv->matchValue([](const ComputeOp &op) -> bool {
+  //     return op.tag() == ComputeOpKind::Conv;
+  //   });
+  //   a->matchValue(tensorSupported);
+  //   b->matchValue(tensorSupported);
+  //   out->matchValue(tensorSupported);
+  //
+  //   m_B_upsample_concat_conv_pattern =
+  //       static_cast<uint32_t>(m_patternHandles.size());
+  //
+  //   m_patternHandles.emplace_back(a, b, x, upsample, concat, conv,
+  //                                 memory::nullopt, out);
+  //
+  //   m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
+  //                                        std::move(a), std::move(b),
+  //                                        std::move(out));
+  // }
+
+  if (options.features.enableUpsampleConvFusion &&
+      options.features.enableConvReluFusion) {
+    Pattern concat_conv_pattern;
+    auto concat = concat_conv_pattern.matchEdge();
+    auto y = concat->matchSrc(0);
+    auto upsample = y->matchIncoming();
+    auto a = upsample->matchSrc(0);
+    auto b = concat->matchSrc(1);
+
+    auto x = concat->matchDst();
+    auto conv = x->matchOutgoing();
+    auto z = conv->matchDst();
+    auto acti = z->matchOutgoing();
+    auto out = acti->matchDst();
+
+    concat->matchRank(2);
+    concat->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Concat;
+    });
+
+    upsample->matchRank(1);
+    upsample->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Upsample) {
+        return false;
+      }
+      const auto &upsample = op.upsample();
+      if (upsample.scalingFactor != 2) {
+        return false;
+      }
+      return true;
+    });
+
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Conv;
+    });
+    acti->matchRank(1);
+    acti->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Activation) {
+        return false;
+      }
+      const auto &func = op.activation().func;
+      return (func.kind() == ActivationFunctionKind::ReLU) ||
+             (func.kind() == ActivationFunctionKind::LeakyReLU);
+    });
+
+    a->matchValue(tensorSupported);
+    b->matchValue(tensorSupported);
+    out->matchValue(tensorSupported);
+
+    m_A_upsample_concat_conv_activation_pattern =
+        static_cast<uint32_t>(m_patternHandles.size());
+    m_patternHandles.emplace_back(a, b, x, upsample, concat, conv, acti, out);
+
+    m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
+                                         std::move(a), std::move(b),
+                                         std::move(out));
+  }
+  // if (options.features.enableUpsampleConvFusion &&
+  //     options.features.enableConvReluFusion) {
+  //   Pattern concat_conv_pattern;
+  //   auto concat = concat_conv_pattern.matchEdge();
+  //   auto a = concat->matchSrc(0);
+  //   auto y = concat->matchSrc(1);
+  //   auto upsample = y->matchIncoming();
+  //   auto b = upsample->matchSrc(0);
+  //   auto x = concat->matchDst();
+  //   auto conv = x->matchOutgoing();
+  //   auto z = conv->matchDst();
+  //   auto acti = z->matchOutgoing();
+  //   auto out = acti->matchDst();
+  //
+  //   concat->matchRank(2);
+  //   concat->matchValue([](const ComputeOp &op) -> bool {
+  //     return op.tag() == ComputeOpKind::Concat;
+  //   });
+  //
+  //   upsample->matchRank(1);
+  //   upsample->matchValue([](const ComputeOp &op) -> bool {
+  //     if (op.tag() != ComputeOpKind::Upsample) {
+  //       return false;
+  //     }
+  //     const auto &upsample = op.upsample();
+  //     if (upsample.scalingFactor != 2) {
+  //       return false;
+  //     }
+  //     return true;
+  //   });
+  //
+  //   conv->matchValue([](const ComputeOp &op) -> bool {
+  //     return op.tag() == ComputeOpKind::Conv;
+  //   });
+  //
+  //   acti->matchRank(1);
+  //   acti->matchValue([](const ComputeOp &op) -> bool {
+  //     if (op.tag() != ComputeOpKind::Activation) {
+  //       return false;
+  //     }
+  //     const auto &func = op.activation().func;
+  //     return (func.kind() == ActivationFunctionKind::ReLU) ||
+  //            (func.kind() == ActivationFunctionKind::LeakyReLU);
+  //   });
+  //   a->matchValue(tensorSupported);
+  //   b->matchValue(tensorSupported);
+  //   out->matchValue(tensorSupported);
+  //
+  //   m_B_upsample_concat_conv_activation_pattern =
+  //       static_cast<uint32_t>(m_patternHandles.size());
+  //
+  //   m_patternHandles.emplace_back(a, b, x, upsample, concat, conv, acti,
+  //   out);
+  //
+  //   m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
+  //                                        std::move(a), std::move(b),
+  //                                        std::move(out));
+  // }
 }
 std::size_t ConcatConvCMShader::parameterMemorySize(
     const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
@@ -530,7 +753,8 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
     TensorFormat outputFormat,
     memory::optional<ActivationFunction> activationFunction,
     memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
-    bool bias, const ConcatConvConfig &config,
+    bool bias, const ConcatConvConfig &config, uint32_t A_scalingFactor,
+    uint32_t B_scalingFactor,
     //
     memory::FilterLayout *out_A_filterLayout,
     memory::FilterLayout *out_B_filterLayout,
@@ -613,6 +837,9 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
   } else {
     shader.define("ACTIVATION_NONE");
   }
+
+  shader.define("A_SCALING_FACTOR", A_scalingFactor);
+  shader.define("B_SCALING_FACTOR", B_scalingFactor);
 
   memory::FilterLayout A_filterLayout = memory::FilterLayout::RSCK;
   if ((A_C % config.a_cm_k == 0) &&
@@ -770,26 +997,46 @@ void ConcatConvCMShader::implement(
   memory::EdgeId convId = match[patternHandles.conv];
   memory::NodeId aId = match[patternHandles.a];
   memory::NodeId bId = match[patternHandles.b];
+  memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
 
   const ComputeOp &op = opGraph.get(convId);
   const auto &a = opGraph.get(aId);
   const auto &b = opGraph.get(bId);
+  const auto &in = opGraph.get(inId);
   const auto &out = opGraph.get(outId);
   assert(op.tag() == ComputeOpKind::Conv);
   assert(a.channels.isConstant());
   assert(b.channels.isConstant());
   assert(out.channels.isConstant());
-  assert(a.width == b.width);
-  assert(a.height == b.height);
   assert(a.type == b.type);
-  assert(a.width == out.width);
-  assert(b.height == out.height);
+
+  assert(in.width == out.width);
+  assert(in.height == out.height);
   const ComputeOpConv &conv = op.conv();
 
-  memory::optional<ActivationFunction> activationFunction;
+  uint32_t A_scalingFactor = 1;
+  if (pattern == m_A_upsample_concat_conv_activation_pattern ||
+      pattern == m_A_upsample_concat_conv_pattern) {
+    assert(patternHandles.upsample.has_value());
+    A_scalingFactor =
+        opGraph.get(match[*patternHandles.upsample]).upsample().scalingFactor;
+  }
 
-  if (pattern == CONCAT_CONV_ACTIVATION_PATTERN) {
+  uint32_t B_scalingFactor = 1;
+  // if (pattern == m_B_upsample_concat_conv_activation_pattern ||
+  //     pattern == m_B_upsample_concat_conv_pattern) {
+  //   assert(patternHandles.upsample.has_value());
+  //   B_scalingFactor = opGraph.get(match[*m_patternHandles[pattern].upsample])
+  //                         .upsample()
+  //                         .scalingFactor;
+  // }
+  assert(B_scalingFactor == 1);
+
+  memory::optional<ActivationFunction> activationFunction;
+  if (pattern == m_concat_conv_activation_pattern ||
+      pattern == m_A_upsample_concat_conv_activation_pattern ||
+      pattern == m_B_upsample_concat_conv_activation_pattern) {
     activationFunction =
         opGraph.get(match[*m_patternHandles[pattern].relu]).activation().func;
   }
@@ -797,8 +1044,8 @@ void ConcatConvCMShader::implement(
   const uint32_t A_C = static_cast<uint32_t>(a.channels.constant());
   const uint32_t B_C = static_cast<uint32_t>(b.channels.constant());
   const uint32_t K = static_cast<uint32_t>(out.channels.constant());
-  const Sym H = a.height;
-  const Sym W = a.width;
+  const Sym H = in.height;
+  const Sym W = in.width;
   const uint32_t R = conv->W->shape().r;
   const uint32_t S = conv->W->shape().s;
 
@@ -808,21 +1055,21 @@ void ConcatConvCMShader::implement(
   memory::BiasLayout biasLayout = memory::BiasLayout::C;
 
   auto shader = direct_conv_cm_compile(
-      m_compiler, m_srcPath, m_subgroupSize, A_C, B_C, K, a.format, b.format,
-      out.format, activationFunction,
-      memory::uvec2(conv->W->shape().r, conv->W->shape().s), conv->padding,
-      conv->stride, conv->B != nullptr, config, //
+      m_compiler, m_srcPath, m_subgroupSize, A_C, B_C, K,      //
+      a.format, b.format, out.format,                          //
+      activationFunction,                                      //
+      memory::uvec2(conv->W->shape().r, conv->W->shape().s),   //
+      conv->padding, conv->stride, conv->B != nullptr, config, //
+      A_scalingFactor, B_scalingFactor,                        //
       &A_filterLayout, &B_filterLayout, &biasLayout);
 
   std::uint32_t tileX = config.cm_n * config.sg_n * config.wg_n;
   std::uint32_t tileY = config.cm_m;
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
-  Sym workgroupCountX =
-      symGraph.cdiv(out.channels, tileX, false, false); // 8 / 16 = 1
-  Sym workgroupCountY =
-      symGraph.cdiv(W, tileY, false, false); // 1920 / 16 = 120
-  Sym workgroupCountZ = symGraph.cdiv(H, tileZ, false, false); // 1080 / 16 = 68
+  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX, false, false);
+  Sym workgroupCountY = symGraph.cdiv(out.width, tileY, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -894,12 +1141,17 @@ void ConcatConvCMShader::implement(
   if (biasTensorId) {
     dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
-  dispatch.addPushConstant(PushConstant::Dynamic(W, memory::Dtype::U32));
-  dispatch.addPushConstant(PushConstant::Dynamic(H, memory::Dtype::U32));
+  dispatch.addPushConstant(
+      PushConstant::Dynamic(out.width, memory::Dtype::U32));
+  dispatch.addPushConstant(
+      PushConstant::Dynamic(out.height, memory::Dtype::U32));
   dispatch.setSourcePath(m_srcPath);
 
-  Sym inreads = symGraph.mul(symGraph.mul(W, H),
-                             (A_C + B_C) * size_of(TensorDataType::Float16));
+  Sym areads = symGraph.mul(symGraph.mul(a.width, a.height),
+                            A_C * size_of(TensorDataType::Float16));
+  Sym breads = symGraph.mul(symGraph.mul(b.width, b.height),
+                            B_C * size_of(TensorDataType::Float16));
+  Sym inreads = symGraph.add(areads, breads);
   size_t wreads = conv->W->byteSize() + (conv->B ? conv->B->byteSize() : 0ull);
   Sym reads = symGraph.add(wreads, inreads);
   Sym writes = symGraph.mul(symGraph.mul(out.width, out.height),
@@ -911,48 +1163,164 @@ void ConcatConvCMShader::implement(
                                  2 * (A_C + B_C) * K * conv->W->shape().r *
                                      conv->W->shape().s));
 
-  if (activationFunction) {
-    switch (activationFunction->kind()) {
-    case ActivationFunctionKind::ReLU:
-      dispatch.setOperation(fmt::format(
-          "relu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
-          "{}),padding=({},{}),dialation=(1,1)))",
-          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+  if (A_scalingFactor != 1) {
+    if (activationFunction) {
+      switch (activationFunction->kind()) {
+      case ActivationFunctionKind::ReLU:
+        dispatch.setOperation(fmt::format(
+            "relu(conv2d(concat([upsample(x,mode=nearest,scaling_factor={}),y],"
+            "0),kernel_size=({},{}),bias={},stride=({}"
+            ","
+            "{}),padding=({},{}),dialation=(1,1)))",
+            A_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+            conv->B != nullptr, conv->stride.x, conv->stride.y, conv->padding.x,
+            conv->padding.y,
 
-          conv->W->shape().s, conv->W->shape().r));
-      break;
-    case ActivationFunctionKind::LeakyReLU:
-      dispatch.setOperation(fmt::format(
-          "leaky_relu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},"
-          "stride=({},"
-          "{}),padding=({},{}),dialation=(1,1)),alpha={})",
-          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
-          activationFunction->leaky_relu().alpha));
-      break;
-    case ActivationFunctionKind::SiLU:
-      dispatch.setOperation(fmt::format(
-          "silu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
-          "{}),padding=({},{}),dialation=(1,1)))",
-          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
-      break;
-    case ActivationFunctionKind::Swish:
-      dispatch.setOperation(fmt::format(
-          "swish(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
-          "{}),padding=({},{}),dialation=(1,1)),beta={})",
-          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
-          activationFunction->swish().beta));
-      break;
+            conv->W->shape().s, conv->W->shape().r));
+        break;
+      case ActivationFunctionKind::LeakyReLU:
+        dispatch.setOperation(fmt::format(
+            "leaky_relu(conv2d(concat([upsample(x,mode=nearest,scaling_factor={"
+            "}),y],0),kernel_size=({},{}),bias={},"
+            "stride=({},"
+            "{}),padding=({},{}),dialation=(1,1)),alpha={})",
+            A_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+            conv->B != nullptr, conv->stride.x, conv->stride.y, conv->padding.x,
+            conv->padding.y, activationFunction->leaky_relu().alpha));
+        break;
+      case ActivationFunctionKind::SiLU:
+        dispatch.setOperation(fmt::format(
+            "silu(conv2d(concat([upsample(x,mode=nearest,scaling_factor={}),y],"
+            "0),kernel_size=({},{}),bias={},stride=({}"
+            ","
+            "{}),padding=({},{}),dialation=(1,1)))",
+            A_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+            conv->B != nullptr, conv->stride.x, conv->stride.y, conv->padding.x,
+            conv->padding.y));
+        break;
+      case ActivationFunctionKind::Swish:
+        dispatch.setOperation(fmt::format(
+            "swish(conv2d(concat([upsample(x,mode=nearest,scaling_factor={}),y]"
+            ",0),kernel_size=({},{}),bias={},stride=({"
+            "},"
+            "{}),padding=({},{}),dialation=(1,1)),beta={})",
+            A_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+            conv->B != nullptr, conv->stride.x, conv->stride.y, conv->padding.x,
+            conv->padding.y, activationFunction->swish().beta));
+        break;
+      }
+    } else {
+      dispatch.setOperation(
+          fmt::format("conv2d(concat([upsample(x,mode=nearest,scaling_factor={}"
+                      "),y],0),kernel_size=({},{}),bias={},stride=({},"
+                      "{}),padding=({},{}),dialation=(1,1))",
+                      A_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+                      conv->B != nullptr, conv->stride.x, conv->stride.y,
+                      conv->padding.x, conv->padding.y));
+    }
+
+  } else if (B_scalingFactor != 1) {
+    if (activationFunction) {
+      switch (activationFunction->kind()) {
+      case ActivationFunctionKind::ReLU:
+        dispatch.setOperation(
+            fmt::format("relu(conv2d(concat([x,upsample(y,mode=nearest,scaling_"
+                        "factor={})],0),kernel_size=({},{}),bias={},stride=({}"
+                        ","
+                        "{}),padding=({},{}),dialation=(1,1)))",
+                        B_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+                        conv->B != nullptr, conv->stride.x, conv->stride.y,
+                        conv->padding.x, conv->padding.y,
+
+                        conv->W->shape().s, conv->W->shape().r));
+        break;
+      case ActivationFunctionKind::LeakyReLU:
+        dispatch.setOperation(fmt::format(
+            "leaky_relu(conv2d(concat([x,upsample(y,mode=nearest,scaling_"
+            "factor={})],0),kernel_size=({},{}),bias={},"
+            "stride=({},"
+            "{}),padding=({},{}),dialation=(1,1)),alpha={})",
+            B_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+            conv->B != nullptr, conv->stride.x, conv->stride.y, conv->padding.x,
+            conv->padding.y, activationFunction->leaky_relu().alpha));
+        break;
+      case ActivationFunctionKind::SiLU:
+        dispatch.setOperation(
+            fmt::format("silu(conv2d(concat([x,upsample(y,mode=nearest,scaling_"
+                        "factor{}],0),kernel_size=({},{}),bias={},stride=({}"
+                        ","
+                        "{}),padding=({},{}),dialation=(1,1)))",
+                        B_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+                        conv->B != nullptr, conv->stride.x, conv->stride.y,
+                        conv->padding.x, conv->padding.y));
+        break;
+      case ActivationFunctionKind::Swish:
+        dispatch.setOperation(fmt::format(
+            "swish(conv2d(concat([x,upsample(y,mode=nearest,scaling_factor={})]"
+            ",0),kernel_size=({},{}),bias={},stride=({"
+            "},"
+            "{}),padding=({},{}),dialation=(1,1)),beta={})",
+            B_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+            conv->B != nullptr, conv->stride.x, conv->stride.y, conv->padding.x,
+            conv->padding.y, activationFunction->swish().beta));
+        break;
+      }
+    } else {
+      dispatch.setOperation(
+          fmt::format("conv2d(concat([x,upsample(y,mode=nearest,scaling_factor="
+                      "{})],0),kernel_size=({},{}),bias={},stride=({},"
+                      "{}),padding=({},{}),dialation=(1,1))",
+                      B_scalingFactor, conv->W->shape().s, conv->W->shape().r,
+                      conv->B != nullptr, conv->stride.x, conv->stride.y,
+                      conv->padding.x, conv->padding.y));
     }
   } else {
-    dispatch.setOperation(fmt::format(
-        "conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
-        "{}),padding=({},{}),dialation=(1,1))",
-        conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-        conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+    if (activationFunction) {
+      switch (activationFunction->kind()) {
+      case ActivationFunctionKind::ReLU:
+        dispatch.setOperation(fmt::format(
+            "relu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({}"
+            ","
+            "{}),padding=({},{}),dialation=(1,1)))",
+            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+
+            conv->W->shape().s, conv->W->shape().r));
+        break;
+      case ActivationFunctionKind::LeakyReLU:
+        dispatch.setOperation(fmt::format(
+            "leaky_relu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},"
+            "stride=({},"
+            "{}),padding=({},{}),dialation=(1,1)),alpha={})",
+            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+            activationFunction->leaky_relu().alpha));
+        break;
+      case ActivationFunctionKind::SiLU:
+        dispatch.setOperation(fmt::format(
+            "silu(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({}"
+            ","
+            "{}),padding=({},{}),dialation=(1,1)))",
+            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+        break;
+      case ActivationFunctionKind::Swish:
+        dispatch.setOperation(fmt::format(
+            "swish(conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({"
+            "},"
+            "{}),padding=({},{}),dialation=(1,1)),beta={})",
+            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+            activationFunction->swish().beta));
+        break;
+      }
+    } else {
+      dispatch.setOperation(fmt::format(
+          "conv2d(concat([x,y],0),kernel_size=({},{}),bias={},stride=({},"
+          "{}),padding=({},{}),dialation=(1,1))",
+          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+    }
   }
   dispatch.setConfig(
       fmt::format("CM_M={}#A_CM_K={}#B_CM_K={}#CM_N={}#SG_M={}#A_SG_K={}#B_SG_"

@@ -8,6 +8,7 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include <cassert>
+#include <limits>
 
 namespace denox::compiler::shaders {
 
@@ -30,11 +31,19 @@ class ConcatConvCMShader final : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
-  static constexpr unsigned int CONCAT_CONV_PATTERN = 0;
-  static constexpr unsigned int CONCAT_CONV_ACTIVATION_PATTERN = 1;
+  // static constexpr unsigned int CONCAT_CONV_PATTERN = 0;
+  // static constexpr unsigned int CONCAT_CONV_ACTIVATION_PATTERN = 1;
+  //
+  // static constexpr unsigned int A_UPSAMPLE_CONCAT_CONV_PATTERN = 2;
+  // static constexpr unsigned int B_UPSAMPLE_CONCAT_CONV_PATTERN = 3;
+  //
+  // static constexpr unsigned int A_UPSAMPLE_CONCAT_CONV_ACTIVATION_PATTERN =
+  // 4; static constexpr unsigned int B_UPSAMPLE_CONCAT_CONV_ACTIVATION_PATTERN
+  // = 5;
 
 public:
-  ConcatConvCMShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
+  ConcatConvCMShader(spirv::GlslCompiler *compiler,
+                     const CompileOptions &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -65,6 +74,8 @@ private:
   struct Handles {
     Pattern::NP a;
     Pattern::NP b;
+    Pattern::NP in;
+    memory::optional<Pattern::EP> upsample;
     Pattern::EP concat;
     Pattern::EP conv;
     memory::optional<Pattern::EP> relu;
@@ -85,6 +96,20 @@ private:
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   std::span<const CoopmatShape> m_supportedCoopmatShapes;
   memory::vector<ConcatConvConfig> m_configs;
+
+  unsigned int m_concat_conv_pattern = std::numeric_limits<unsigned int>::max();
+  unsigned int m_concat_conv_activation_pattern =
+      std::numeric_limits<unsigned int>::max();
+
+  unsigned int m_A_upsample_concat_conv_pattern =
+      std::numeric_limits<unsigned int>::max();
+  unsigned int m_B_upsample_concat_conv_pattern =
+      std::numeric_limits<unsigned int>::max();
+
+  unsigned int m_A_upsample_concat_conv_activation_pattern =
+      std::numeric_limits<unsigned int>::max();
+  unsigned int m_B_upsample_concat_conv_activation_pattern =
+      std::numeric_limits<unsigned int>::max();
 };
 
 } // namespace denox::compiler::shaders

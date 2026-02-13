@@ -8,6 +8,7 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include <cassert>
+#include <limits>
 
 namespace denox::compiler::shaders {
 
@@ -26,9 +27,6 @@ struct DirectConvConfigCM {
 class DirectConvShaderCM final : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
-
-  static constexpr unsigned int CONV_PATTERN = 0;
-  static constexpr unsigned int CONV_ACTIVATION_PATTERN = 1;
 
 public:
   DirectConvShaderCM(spirv::GlslCompiler *compiler,
@@ -62,6 +60,7 @@ public:
 private:
   struct Handles {
     Pattern::NP in;
+    memory::optional<Pattern::EP> upsample;
     Pattern::EP conv;
     memory::optional<Pattern::EP> relu;
     Pattern::NP out;
@@ -83,6 +82,13 @@ private:
   std::span<const CoopmatShape> m_supportedCoopmatShapes;
 
   std::vector<DirectConvConfigCM> m_configs;
+
+  unsigned int m_conv_pattern = std::numeric_limits<unsigned int>::max();
+  unsigned int m_conv_activation_pattern =
+      std::numeric_limits<unsigned int>::max();
+
+  unsigned int m_upsample_conv_pattern =
+      std::numeric_limits<unsigned int>::max();
 };
 
 } // namespace denox::compiler::shaders
