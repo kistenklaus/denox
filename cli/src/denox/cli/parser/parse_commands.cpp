@@ -68,6 +68,9 @@ Action parse_compile(std::span<const Token> tokens) {
 
   bool fusion = true;
 
+  options.benchOptions.maxRelativeError = 0.5f;
+  options.benchOptions.saveProgress = true;
+
   // parse remaining arguments
   uint32_t i = 1;
   while (i < tokens.size()) {
@@ -170,6 +173,17 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_samples(tail, &options.benchOptions.minSamples))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_relative_error(tail,
+                                     &options.benchOptions.maxRelativeError))) {
+      i += jump;
+      continue;
+    }
+
     if ((jump = parse_assume(tail, assumptions))) {
       i += jump;
       continue;
@@ -182,6 +196,7 @@ Action parse_compile(std::span<const Token> tokens) {
 
   options.features.enableConvReluFusion = fusion;
   options.features.enableConcatConvFusion = fusion;
+  options.features.enableUpsampleConvFusion = fusion;
 
   if (help) {
     return HelpAction(HelpScope::Compile);

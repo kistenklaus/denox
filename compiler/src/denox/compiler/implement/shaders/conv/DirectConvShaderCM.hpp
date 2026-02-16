@@ -89,6 +89,9 @@ private:
 
   unsigned int m_upsample_conv_pattern =
       std::numeric_limits<unsigned int>::max();
+
+  unsigned int m_upsample_conv_activation_pattern =
+      std::numeric_limits<unsigned int>::max();
 };
 
 } // namespace denox::compiler::shaders

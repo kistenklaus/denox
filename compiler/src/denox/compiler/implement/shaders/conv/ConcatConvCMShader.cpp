@@ -4,6 +4,7 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
@@ -121,7 +122,6 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
 
                     const uint32_t A_prefetch_A_SQQ = A_prefetch_A_QQ / wg_n;
 
-
                     const uint32_t B_prefetch_A_SQQ = B_prefetch_A_QQ / wg_n;
                     // 16bytes word fetched per invocation!
                     const uint32_t A_prefetch_A_IQQ =
@@ -143,7 +143,6 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                       continue; // uneven load balancing between subgroups.
                     }
 
-
                     const uint32_t A_prefetch_B_SQQ = A_prefetch_B_QQ / wg_m;
                     const uint32_t B_prefetch_B_SQQ = B_prefetch_B_QQ / wg_m;
 
@@ -154,9 +153,6 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                     const uint32_t B_prefetch_B_IQQ =
                         (B_prefetch_B_SQQ + m_subgroupSize - 1) /
                         m_subgroupSize;
-
-
-
 
                     const uint32_t A_prefetch_A_register_estimate =
                         A_prefetch_A_IQQ * 4; // uvec4
@@ -184,7 +180,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                     // register estimate is only proportional to the register
                     // counts, so there is a good chance that 160 estimate
                     // corresponds to only 50-60 live registers at a time.
-                    if (register_estimate > 160) {
+                    if (register_estimate > 200) {
                       continue; // to many registers (conservative limit,
                                 // because optimizers might reduce this
                                 // drastically)
@@ -236,6 +232,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                         .a_async = false,
                         .b_async = false,
                     });
+
+                    // TODO: After we have sqllite databases, we should look
+                    // into producing those configurations as well!
 
                     // m_configs.push_back(ConcatConvConfig{
                     //     .cm_m = cm_m,
@@ -290,6 +289,10 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
           }
         }
       }
+    }
+
+    if (m_configs.empty()) {
+      DENOX_WARN("ConcatConvCMShader: Failed to find any valid configuration.");
     }
     // fmt::println("config space: {}", m_configs.size());
   }
@@ -377,8 +380,8 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
   }
 
   if (options.features.enableUpsampleConvFusion) {
-    Pattern concat_conv_pattern;
-    auto concat = concat_conv_pattern.matchEdge();
+    Pattern upsample_a_concat_conv_pattern;
+    auto concat = upsample_a_concat_conv_pattern.matchEdge();
     auto y = concat->matchSrc(0);
     auto upsample = y->matchIncoming();
     auto a = upsample->matchSrc(0);
@@ -415,60 +418,60 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
         static_cast<uint32_t>(m_patternHandles.size());
     m_patternHandles.emplace_back(a, b, x, upsample, concat, conv,
                                   memory::nullopt, out);
-    m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
-                                         std::move(a), std::move(b),
-                                         std::move(out));
+    m_capabilities.patterns.emplace_back(
+        std::move(upsample_a_concat_conv_pattern), std::move(a), std::move(b),
+        std::move(out));
   }
-  // if (options.features.enableUpsampleConvFusion) {
-  //   Pattern concat_conv_pattern;
-  //   auto concat = concat_conv_pattern.matchEdge();
-  //   auto a = concat->matchSrc(0);
-  //   auto y = concat->matchSrc(1);
-  //   auto upsample = y->matchIncoming();
-  //   auto b = upsample->matchSrc(0);
-  //   auto x = concat->matchDst();
-  //   auto conv = x->matchOutgoing();
-  //   auto out = conv->matchDst();
-  //
-  //   concat->matchRank(2);
-  //   concat->matchValue([](const ComputeOp &op) -> bool {
-  //     return op.tag() == ComputeOpKind::Concat;
-  //   });
-  //
-  //   upsample->matchRank(1);
-  //   upsample->matchValue([](const ComputeOp &op) -> bool {
-  //     if (op.tag() != ComputeOpKind::Upsample) {
-  //       return false;
-  //     }
-  //     const auto &upsample = op.upsample();
-  //     if (upsample.scalingFactor != 2) {
-  //       return false;
-  //     }
-  //     return true;
-  //   });
-  //
-  //   conv->matchValue([](const ComputeOp &op) -> bool {
-  //     return op.tag() == ComputeOpKind::Conv;
-  //   });
-  //   a->matchValue(tensorSupported);
-  //   b->matchValue(tensorSupported);
-  //   out->matchValue(tensorSupported);
-  //
-  //   m_B_upsample_concat_conv_pattern =
-  //       static_cast<uint32_t>(m_patternHandles.size());
-  //
-  //   m_patternHandles.emplace_back(a, b, x, upsample, concat, conv,
-  //                                 memory::nullopt, out);
-  //
-  //   m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
-  //                                        std::move(a), std::move(b),
-  //                                        std::move(out));
-  // }
+  if (options.features.enableUpsampleConvFusion) {
+    Pattern upsample_b_concat_conv_pattern;
+    auto concat = upsample_b_concat_conv_pattern.matchEdge();
+    auto a = concat->matchSrc(0);
+    auto y = concat->matchSrc(1);
+    auto upsample = y->matchIncoming();
+    auto b = upsample->matchSrc(0);
+    auto x = concat->matchDst();
+    auto conv = x->matchOutgoing();
+    auto out = conv->matchDst();
+
+    concat->matchRank(2);
+    concat->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Concat;
+    });
+
+    upsample->matchRank(1);
+    upsample->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Upsample) {
+        return false;
+      }
+      const auto &upsample = op.upsample();
+      if (upsample.scalingFactor != 2) {
+        return false;
+      }
+      return true;
+    });
+
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Conv;
+    });
+    a->matchValue(tensorSupported);
+    b->matchValue(tensorSupported);
+    out->matchValue(tensorSupported);
+
+    m_B_upsample_concat_conv_pattern =
+        static_cast<uint32_t>(m_patternHandles.size());
+
+    m_patternHandles.emplace_back(a, b, x, upsample, concat, conv,
+                                  memory::nullopt, out);
+
+    m_capabilities.patterns.emplace_back(
+        std::move(upsample_b_concat_conv_pattern), std::move(a), std::move(b),
+        std::move(out));
+  }
 
   if (options.features.enableUpsampleConvFusion &&
       options.features.enableConvReluFusion) {
-    Pattern concat_conv_pattern;
-    auto concat = concat_conv_pattern.matchEdge();
+    Pattern upsample_a_concat_conv_relu_pattern;
+    auto concat = upsample_a_concat_conv_relu_pattern.matchEdge();
     auto y = concat->matchSrc(0);
     auto upsample = y->matchIncoming();
     auto a = upsample->matchSrc(0);
@@ -518,68 +521,67 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
         static_cast<uint32_t>(m_patternHandles.size());
     m_patternHandles.emplace_back(a, b, x, upsample, concat, conv, acti, out);
 
-    m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
-                                         std::move(a), std::move(b),
-                                         std::move(out));
+    m_capabilities.patterns.emplace_back(
+        std::move(upsample_a_concat_conv_relu_pattern), std::move(a),
+        std::move(b), std::move(out));
   }
-  // if (options.features.enableUpsampleConvFusion &&
-  //     options.features.enableConvReluFusion) {
-  //   Pattern concat_conv_pattern;
-  //   auto concat = concat_conv_pattern.matchEdge();
-  //   auto a = concat->matchSrc(0);
-  //   auto y = concat->matchSrc(1);
-  //   auto upsample = y->matchIncoming();
-  //   auto b = upsample->matchSrc(0);
-  //   auto x = concat->matchDst();
-  //   auto conv = x->matchOutgoing();
-  //   auto z = conv->matchDst();
-  //   auto acti = z->matchOutgoing();
-  //   auto out = acti->matchDst();
-  //
-  //   concat->matchRank(2);
-  //   concat->matchValue([](const ComputeOp &op) -> bool {
-  //     return op.tag() == ComputeOpKind::Concat;
-  //   });
-  //
-  //   upsample->matchRank(1);
-  //   upsample->matchValue([](const ComputeOp &op) -> bool {
-  //     if (op.tag() != ComputeOpKind::Upsample) {
-  //       return false;
-  //     }
-  //     const auto &upsample = op.upsample();
-  //     if (upsample.scalingFactor != 2) {
-  //       return false;
-  //     }
-  //     return true;
-  //   });
-  //
-  //   conv->matchValue([](const ComputeOp &op) -> bool {
-  //     return op.tag() == ComputeOpKind::Conv;
-  //   });
-  //
-  //   acti->matchRank(1);
-  //   acti->matchValue([](const ComputeOp &op) -> bool {
-  //     if (op.tag() != ComputeOpKind::Activation) {
-  //       return false;
-  //     }
-  //     const auto &func = op.activation().func;
-  //     return (func.kind() == ActivationFunctionKind::ReLU) ||
-  //            (func.kind() == ActivationFunctionKind::LeakyReLU);
-  //   });
-  //   a->matchValue(tensorSupported);
-  //   b->matchValue(tensorSupported);
-  //   out->matchValue(tensorSupported);
-  //
-  //   m_B_upsample_concat_conv_activation_pattern =
-  //       static_cast<uint32_t>(m_patternHandles.size());
-  //
-  //   m_patternHandles.emplace_back(a, b, x, upsample, concat, conv, acti,
-  //   out);
-  //
-  //   m_capabilities.patterns.emplace_back(std::move(concat_conv_pattern),
-  //                                        std::move(a), std::move(b),
-  //                                        std::move(out));
-  // }
+  if (options.features.enableUpsampleConvFusion &&
+      options.features.enableConvReluFusion) {
+    Pattern upsample_b_concat_conv_relu_pattern;
+    auto concat = upsample_b_concat_conv_relu_pattern.matchEdge();
+    auto a = concat->matchSrc(0);
+    auto y = concat->matchSrc(1);
+    auto upsample = y->matchIncoming();
+    auto b = upsample->matchSrc(0);
+    auto x = concat->matchDst();
+    auto conv = x->matchOutgoing();
+    auto z = conv->matchDst();
+    auto acti = z->matchOutgoing();
+    auto out = acti->matchDst();
+
+    concat->matchRank(2);
+    concat->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Concat;
+    });
+
+    upsample->matchRank(1);
+    upsample->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Upsample) {
+        return false;
+      }
+      const auto &upsample = op.upsample();
+      if (upsample.scalingFactor != 2) {
+        return false;
+      }
+      return true;
+    });
+
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      return op.tag() == ComputeOpKind::Conv;
+    });
+
+    acti->matchRank(1);
+    acti->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Activation) {
+        return false;
+      }
+      const auto &func = op.activation().func;
+      return (func.kind() == ActivationFunctionKind::ReLU) ||
+             (func.kind() == ActivationFunctionKind::LeakyReLU);
+    });
+    a->matchValue(tensorSupported);
+    b->matchValue(tensorSupported);
+    out->matchValue(tensorSupported);
+
+    m_B_upsample_concat_conv_activation_pattern =
+        static_cast<uint32_t>(m_patternHandles.size());
+
+    m_patternHandles.emplace_back(a, b, x, upsample, concat, conv, acti, out);
+
+    m_capabilities.patterns.emplace_back(
+        std::move(upsample_b_concat_conv_relu_pattern), std::move(a),
+        std::move(b), std::move(out));
+  }
 }
 std::size_t ConcatConvCMShader::parameterMemorySize(
     const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
@@ -620,36 +622,10 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
   const uint32_t R = conv->W->shape().r;
   const uint32_t S = conv->W->shape().s;
 
-  // if (A_C == 64 && B_C == 32 && K == 64) {
-  //   if (a.format != TensorFormat::SSBO_HWC) {
-  //     return {};
-  //   }
-  //   if (b.format != TensorFormat::SSBO_HWC) {
-  //     return {};
-  //   }
-  //   if (out.format != TensorFormat::SSBO_HWC) {
-  //     return {};
-  //   }
-  //   auto it = std::ranges::find_if(
-  //       m_configs, [](const ConcatConvConfig &config) -> bool {
-  //         return config.cm_m == 16 && config.a_cm_k == 16 &&
-  //                config.b_cm_k == 16 //
-  //                && config.cm_n == 16 && config.sg_m == 4 &&
-  //                config.a_sg_k == 3 && config.b_sg_k == 3 && config.sg_n == 2
-  //                //
-  //                && config.wg_m == 2 && config.wg_n == 2 //
-  //                && config.a_async == true && config.b_async == true;
-  //       });
-  //
-  //   assert(it != m_configs.end());
-  //   uint32_t c = static_cast<uint32_t>(std::distance(m_configs.begin(), it));
-  //   return {c};
-  // }
-
   memory::vector<unsigned int> promissing;
   for (uint32_t c = 0; c < m_configs.size(); ++c) {
 
-    static constexpr size_t KK_ASYNC_LIMIT = 3;
+    // static constexpr size_t KK_ASYNC_LIMIT = 3;
     static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;
     static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
     const auto &config = m_configs[c];
@@ -1024,28 +1000,25 @@ void ConcatConvCMShader::implement(
   }
 
   uint32_t B_scalingFactor = 1;
-  // if (pattern == m_B_upsample_concat_conv_activation_pattern ||
-  //     pattern == m_B_upsample_concat_conv_pattern) {
-  //   assert(patternHandles.upsample.has_value());
-  //   B_scalingFactor = opGraph.get(match[*m_patternHandles[pattern].upsample])
-  //                         .upsample()
-  //                         .scalingFactor;
-  // }
+  if (pattern == m_B_upsample_concat_conv_activation_pattern ||
+      pattern == m_B_upsample_concat_conv_pattern) {
+    assert(patternHandles.upsample.has_value());
+    B_scalingFactor =
+        opGraph.get(match[*patternHandles.upsample]).upsample().scalingFactor;
+  }
   assert(B_scalingFactor == 1);
 
   memory::optional<ActivationFunction> activationFunction;
-  if (pattern == m_concat_conv_activation_pattern ||
-      pattern == m_A_upsample_concat_conv_activation_pattern ||
-      pattern == m_B_upsample_concat_conv_activation_pattern) {
+  if (patternHandles.relu.has_value()) {
     activationFunction =
-        opGraph.get(match[*m_patternHandles[pattern].relu]).activation().func;
+        opGraph.get(match[*patternHandles.relu]).activation().func;
   }
 
   const uint32_t A_C = static_cast<uint32_t>(a.channels.constant());
   const uint32_t B_C = static_cast<uint32_t>(b.channels.constant());
   const uint32_t K = static_cast<uint32_t>(out.channels.constant());
-  const Sym H = in.height;
-  const Sym W = in.width;
+  // const Sym H = in.height;
+  // const Sym W = in.width;
   const uint32_t R = conv->W->shape().r;
   const uint32_t S = conv->W->shape().s;
 
@@ -1151,9 +1124,12 @@ void ConcatConvCMShader::implement(
                             A_C * size_of(TensorDataType::Float16));
   Sym breads = symGraph.mul(symGraph.mul(b.width, b.height),
                             B_C * size_of(TensorDataType::Float16));
+
   Sym inreads = symGraph.add(areads, breads);
   size_t wreads = conv->W->byteSize() + (conv->B ? conv->B->byteSize() : 0ull);
+
   Sym reads = symGraph.add(wreads, inreads);
+
   Sym writes = symGraph.mul(symGraph.mul(out.width, out.height),
                             K * size_of(TensorDataType::Float16));
   dispatch.setMemoryReads(reads);

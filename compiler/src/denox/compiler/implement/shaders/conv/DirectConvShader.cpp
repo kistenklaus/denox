@@ -6,10 +6,8 @@
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include <cassert>
-#include <exception>
 #include <flatbuffers/base.h>
 #include <fmt/format.h>
-#include <ratio>
 
 namespace denox::compiler::shaders {
 
@@ -237,13 +235,13 @@ memory::vector<unsigned int> DirectConvShader::acceptMatch(
     assert((config.invoc_n * config.sg_n * config.wg_n) % 8 == 0 &&
            "WG_TILE_N must be multiple of 8");
 
-    static constexpr size_t KK_ASYNC_LIMIT = 3;
+    // static constexpr size_t KK_ASYNC_LIMIT = 3;
     static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;
     static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
 
     const uint32_t RSC = R * S * C;
     const uint32_t ktile = config.invoc_k * config.sg_k;
-    const uint32_t KK = (RSC + ktile - 1) / ktile;
+    // const uint32_t KK = (RSC + ktile - 1) / ktile;
     if (RSC * MAX_KTILE_OVERALLOCATION < ktile) {
       continue;
     }

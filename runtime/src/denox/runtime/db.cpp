@@ -674,7 +674,8 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
 
   auto [msg, prog] = print_progress_report(m_db, options);
   if (msg) {
-    progress.step_inplace(logger, prog, true, "{}{}{}", logger.blue(), *msg, logger.reset());
+    progress.step_inplace(logger, prog, true, "{}{}{}", logger.blue(), *msg,
+                          logger.reset());
   } else {
     return;
   }
@@ -783,6 +784,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
   auto dbwriteback = std::thread(
       [&](std::stop_token token) {
         uint32_t stage = 0;
+        bool stop_printing = false;
         while (!token.stop_requested()) {
           fullResults.acquire();
           if (!result_is_live[stage].load()) {
@@ -797,10 +799,13 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
                                                std::move(timing.samples));
           }
 
-          auto [msg, prog] =
-              print_progress_report(m_db, options);
-          if (msg) {
-            progress.step_inplace(logger, prog, false, "{}{}{}", logger.blue(), *msg, logger.reset());
+          auto [msg, prog] = print_progress_report(m_db, options);
+          if (msg && !stop_printing) {
+            progress.step_inplace(logger, prog, false, "{}{}{}", logger.blue(),
+                                  *msg, logger.reset());
+            if (prog == 1.0f) {
+              stop_printing = true;
+            }
           }
 
           if (options.saveProgress) {
@@ -817,24 +822,26 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
       stop.get_token());
 
   uint32_t stage = 0;
-  bool first_iteration = true;
-  bool warned_about_block = false;
+  // bool first_iteration = true;
+  // bool warned_about_block = false;
 
   std::stop_token main_token = stop.get_token();
   while (!main_token.stop_requested()) {
-    auto before_acquire = std::chrono::high_resolution_clock::now();
+    // auto before_acquire = std::chrono::high_resolution_clock::now();
     constructedEpochs.acquire();
-    auto acquire_took =
-        std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-            std::chrono::high_resolution_clock::now() - before_acquire);
-    if (!first_iteration &&
-        acquire_took > std::chrono::duration<float, std::milli>(200.0f)) {
-      if (!warned_about_block) {
-        logger.warn("main thread waited for {} for pipeline creation!",
-                    acquire_took);
-        // warned_about_block = true;
-      }
-    }
+
+    // auto acquire_took =
+    //     std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+    //         std::chrono::high_resolution_clock::now() - before_acquire);
+
+    // if (!first_iteration &&
+    //     acquire_took > std::chrono::duration<float, std::milli>(200.0f)) {
+    // if (!warned_about_block) {
+    // logger.warn("main thread waited for {} for pipeline creation!",
+    //             acquire_took);
+    // warned_about_block = true;
+    // }
+    // }
 
     emptyResults.acquire();
 
@@ -861,7 +868,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
     fullResults.release();
     emptyEpochs.release();
     stage = (stage + 1) % ASYNC_EPOCH_DEPTH;
-    first_iteration = false;
+    // first_iteration = false;
   }
 
   epoch_creation.join();
@@ -875,5 +882,8 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
     }
   }
 
-  progress.step_inplace(logger, prog, false, "{}{}{}", logger.green(), "Benchmarking completed for all relevant dispatch configurations.", logger.reset());
+  progress.step_inplace(
+      logger, prog, false, "{}{}{}", logger.green(),
+      "Benchmarking completed for all relevant dispatch configurations.",
+      logger.reset());
 }

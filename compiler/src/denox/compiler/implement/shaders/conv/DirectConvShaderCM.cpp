@@ -98,7 +98,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                     a_register_estimate * sg_m + b_register_estimate * sg_n;
                 const uint32_t prefetch_A_QQ = (cm_m * cm_k * sg_k * sg_m) / 8;
                 if (prefetch_A_QQ % wg_n != 0) {
-                  continue; // uneven load balancing between subgroups.
+                  continue; // invalid configuration (uneven balance)!
                 }
                 const uint32_t prefetch_A_SQQ = prefetch_A_QQ / wg_n;
                 // 16bytes word fetched per invocation!
@@ -107,7 +107,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
                 const uint32_t prefetch_B_QQ = (cm_k * cm_n * sg_k * sg_n) / 8;
                 if (prefetch_B_QQ % wg_m != 0) {
-                  continue; // uneven load balancing between subgroups.
+                  continue; // invalid configuration (uneven balance)
                 }
                 const uint32_t prefetch_B_SQQ = prefetch_B_QQ / wg_m;
                 // 16 bytes word fetched per invocation!
@@ -177,7 +177,10 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
         }
       }
     }
-    // fmt::println("direct-conv config-space: {}", m_configs.size());
+    if (m_configs.empty()) {
+      DENOX_WARN(
+          "DirectConvShaderCM: Failed to find any valid configurations.");
+    }
   }
 
   // ==== Define implementable patterns ========
@@ -246,8 +249,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                                          std::move(in), std::move(out));
   }
   if (options.features.enableUpsampleConvFusion) {
-    Pattern upsample_conv_relu_pattern;
-    auto in = upsample_conv_relu_pattern.matchNode();
+    Pattern upsample_conv_pattern;
+    auto in = upsample_conv_pattern.matchNode();
     auto upsample = in->matchOutgoing();
     auto x = upsample->matchDst();
     auto conv = x->matchOutgoing();
@@ -270,6 +273,47 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
     m_upsample_conv_pattern = static_cast<uint32_t>(m_patternHandles.size());
     m_patternHandles.emplace_back(in, upsample, conv, memory::nullopt, out);
+    m_capabilities.patterns.emplace_back(std::move(upsample_conv_pattern),
+                                         std::move(in), std::move(out));
+  }
+  if (options.features.enableUpsampleConvFusion &&
+      options.features.enableConvReluFusion) {
+    Pattern upsample_conv_relu_pattern;
+    auto in = upsample_conv_relu_pattern.matchNode();
+    auto upsample = in->matchOutgoing();
+    auto x = upsample->matchDst();
+    auto conv = x->matchOutgoing();
+    auto y = conv->matchDst();
+    auto acti = y->matchOutgoing();
+    auto out = acti->matchDst();
+
+    upsample->matchRank(1);
+    upsample->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Upsample) {
+        return false;
+      }
+      return op.upsample().scalingFactor == 2;
+    });
+
+    conv->matchRank(1);
+    conv->matchValue(
+        [](const ComputeOp &op) { return op.tag() == ComputeOpKind::Conv; });
+
+    acti->matchRank(1);
+    acti->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Activation) {
+        return false;
+      }
+      const auto &func = op.activation().func;
+      return func.kind() == ActivationFunctionKind::ReLU ||
+             func.kind() == ActivationFunctionKind::LeakyReLU;
+    });
+
+    in->matchValue(tensorSupported);
+    out->matchValue(tensorSupported);
+
+    m_upsample_conv_pattern = static_cast<uint32_t>(m_patternHandles.size());
+    m_patternHandles.emplace_back(in, upsample, conv, acti, out);
     m_capabilities.patterns.emplace_back(std::move(upsample_conv_relu_pattern),
                                          std::move(in), std::move(out));
   }
@@ -598,15 +642,14 @@ void DirectConvShaderCM::implement(
 
   memory::optional<ActivationFunction> activationFunction;
 
-  if (pattern == m_conv_activation_pattern) {
+  if (patternHandles.relu.has_value()) {
     activationFunction =
-        opGraph.get(match[*m_patternHandles[pattern].relu]).activation().func;
+        opGraph.get(match[*patternHandles.relu]).activation().func;
   }
 
   uint32_t scalingFactor = 1;
 
-  if (pattern == m_upsample_conv_pattern) {
-    assert(patternHandles.upsample.has_value());
+  if (patternHandles.upsample.has_value()) {
     scalingFactor =
         opGraph.get(match[*patternHandles.upsample]).upsample().scalingFactor;
   }
@@ -667,16 +710,21 @@ void DirectConvShaderCM::implement(
     dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
 
-  dispatch.addPushConstant(PushConstant::Dynamic(out.width, memory::Dtype::U32));
+  dispatch.addPushConstant(
+      PushConstant::Dynamic(out.width, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(out.height, memory::Dtype::U32));
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.width, in.height), C * size_of(in.type));
+
   size_t wreads = conv->W->byteSize() + (conv->B ? conv->B->byteSize() : 0ull);
+
   Sym reads = symGraph.add(wreads, inreads);
+
   Sym writes =
       symGraph.mul(symGraph.mul(out.width, out.height), K * size_of(out.type));
+
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
 

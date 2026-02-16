@@ -6,6 +6,7 @@
 #include "denox/common/ValueSpec.hpp"
 #include "denox/device_info/DeviceInfo.hpp"
 #include "denox/diag/logging.hpp"
+#include "denox/runtime/db.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 
 namespace denox::compiler {
@@ -70,6 +71,8 @@ struct CompileOptions {
   OptimizationAssumptions assumptions;
   DebugInfo debugInfo;
   uint32_t optimizationLevel = 2;
+
+  runtime::DbBenchOptions benchOptions;
 };
 
 } // namespace denox::compiler

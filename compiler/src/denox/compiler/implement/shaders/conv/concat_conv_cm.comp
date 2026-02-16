@@ -401,6 +401,7 @@ void main() {
     #define FEATURE_LAYOUT_COLUMN_MAJOR
     #define FEATURE_LAYOUT_LINEAR
     #define FEATURE_LAYOUT_RSC
+    #if B_SCALING_FACTOR == 1
     const uint k = subgroupBroadcastFirst(B_CM_K * B_SG_K * kk);
     for (uint q = 0; q < PREFETCH_B_IQQ; ++q) {
       uvec4 v = uvec4(0);
@@ -453,6 +454,87 @@ void main() {
       }
       prefetch_feature[q] = v;
     }
+    #else
+    const uint k = subgroupBroadcastFirst(B_CM_K * B_SG_K * kk);
+    const uint sW = pc.IN_W / B_SCALING_FACTOR;
+    const uint sH = pc.IN_H / B_SCALING_FACTOR;
+    for (uint q = 0; q < PREFETCH_B_IQQ; ++q) {
+      uvec4 v = uvec4(0);
+      const uint liq8 = SG_SIZE * q + gl_SubgroupInvocationID;
+      if (liq8 < PREFETCH_B_SQQ) {
+        const uint siq8 = sgni * PREFETCH_B_SQQ + liq8;
+
+        const uint sgm = siq8 / (CM_M8 * B_CM_K * B_SG_K);
+
+        const uint sgij8 = siq8 % (CM_M8 * B_CM_K * B_SG_K);
+
+        const uint sgk = (sgij8 / CM_M8);
+        const uint zm8 = (sgij8 % CM_M8);
+
+        const uint zk = k + sgk; // "gloabl" column index of A matrix.
+
+        const uint zrs = zk / B_IN_CH;
+        const uint zc = zk % B_IN_CH; // <- uniform across 16byte access.
+
+        const uint zr = zrs / KERNEL_X;
+        const uint zs = zrs % KERNEL_X;
+
+        // NOTE: We abuse uint underflow here, as because we use zero padding anyway and
+        // we only have to detect if we are out of bound not where we went out of bound.
+        const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+
+        const uint zx = wgxy.x + zs + zm8 * 8 - PADDING_X; // x-pixel position <- non-uniform across 16byte access.
+
+        if (zy < pc.IN_H && zk < KERNEL_X * KERNEL_Y * B_IN_CH) {
+          const uint sy = zy / B_SCALING_FACTOR;
+          // optional extra safety if pc dims aren’t guaranteed multiples:
+          if (sy < sH) {
+
+            // fastpath condition: all 8 output x in-bounds
+            if (zx < pc.IN_W && (zx + 7) < pc.IN_W) {
+              const uint row = sy * (sW * B_IN_CH);
+
+              uint16_t a = b_input_tensor_blob[row + ((zx + 0) / B_SCALING_FACTOR) * B_IN_CH + zc];
+              uint16_t b = b_input_tensor_blob[row + ((zx + 1) / B_SCALING_FACTOR) * B_IN_CH + zc];
+              uint16_t c = b_input_tensor_blob[row + ((zx + 2) / B_SCALING_FACTOR) * B_IN_CH + zc];
+              uint16_t d = b_input_tensor_blob[row + ((zx + 3) / B_SCALING_FACTOR) * B_IN_CH + zc];
+              uint16_t e = b_input_tensor_blob[row + ((zx + 4) / B_SCALING_FACTOR) * B_IN_CH + zc];
+              uint16_t f = b_input_tensor_blob[row + ((zx + 5) / B_SCALING_FACTOR) * B_IN_CH + zc];
+              uint16_t g = b_input_tensor_blob[row + ((zx + 6) / B_SCALING_FACTOR) * B_IN_CH + zc];
+              uint16_t h = b_input_tensor_blob[row + ((zx + 7) / B_SCALING_FACTOR) * B_IN_CH + zc];
+
+              v = uvec4(
+                  packUint2x16(u16vec2(a, b)),
+                  packUint2x16(u16vec2(c, d)),
+                  packUint2x16(u16vec2(e, f)),
+                  packUint2x16(u16vec2(g, h))
+                );
+            } else {
+              // slowpath: per-lane output x bounds + per-lane source x bounds
+              const uint row = sy * (sW * A_IN_CH);
+
+              uint16_t a = ((zx + 0) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 0) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+              uint16_t b = ((zx + 1) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 1) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+              uint16_t c = ((zx + 2) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 2) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+              uint16_t d = ((zx + 3) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 3) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+              uint16_t e = ((zx + 4) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 4) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+              uint16_t f = ((zx + 5) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 5) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+              uint16_t g = ((zx + 6) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 6) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+              uint16_t h = ((zx + 7) < pc.IN_W) ? b_input_tensor_blob[row + ((zx + 7) / B_SCALING_FACTOR) * B_IN_CH + zc] : uint16_t(0);
+
+              v = uvec4(
+                  packUint2x16(u16vec2(a, b)),
+                  packUint2x16(u16vec2(c, d)),
+                  packUint2x16(u16vec2(e, f)),
+                  packUint2x16(u16vec2(g, h))
+                );
+            }
+          }
+        }
+      }
+      prefetch_feature[q] = v;
+    }
+    #endif
   }
   #elif defined(B_IN_LAYOUT_HWC8)
   {
@@ -479,8 +561,10 @@ void main() {
           const uint zs = zrs % KERNEL_X;
           const uint zx = wgxy.x + zs + zm - PADDING_X;
           const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y;
-          if (zx < pc.IN_W && zy < pc.IN_H && zc8 < B_IN_CH8) {
-            const uint o = zy * (pc.IN_W * B_IN_CH8) + zx * B_IN_CH8 + zc8;
+          if (zx < pc.IN_W && zy < pc.IN_H && zc8 < B_IN_CH8 && zk8 < B_RSC / 8) {
+            const uint o = (zy / B_SCALING_FACTOR) * ((pc.IN_W / B_SCALING_FACTOR) * B_IN_CH8)
+                + (zx / B_SCALING_FACTOR) * B_IN_CH8
+                + zc8;
             v = b_input_tensor_blob[o];
           }
         }
@@ -512,8 +596,10 @@ void main() {
         const uint zs = zrs % KERNEL_X;
         const uint zx = wgxy.x + zs + zm - PADDING_X;
         const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y;
-        if (zx < pc.IN_W && zy < pc.IN_H && zc8 < B_IN_CH8) {
-          const uint o = zc8 * (pc.IN_W * pc.IN_H) + zy * (pc.IN_W) + zx;
+        if (zx < pc.IN_W && zy < pc.IN_H && zc8 < B_IN_CH8 && zk8 < B_RSC / 8) {
+          const uint o = (zc8 / B_SCALING_FACTOR) * ((pc.IN_W / B_SCALING_FACTOR) * (pc.IN_H / B_SCALING_FACTOR))
+              + (zy / B_SCALING_FACTOR) * (pc.IN_W / B_SCALING_FACTOR)
+              + (zx / B_SCALING_FACTOR);
           v = b_input_tensor_blob[o];
         }
       }

@@ -67,15 +67,16 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   SymGraphEval symeval = compiler::assumed_symeval(supergraph.symGraph,
                                                    model.valueNames(), options);
 
-  compiler::populate(supergraph, db, symeval,
-                     progress.sub_progress(0.29f, 0.5f), logger, options);
-
-  auto runtimeDb = runtime::Db::open(context, db);
-  runtime::DbBenchOptions benchOptions;
-  benchOptions.maxRelativeError = 0.1f;
-  benchOptions.minSamples = 10;
-  benchOptions.saveProgress = false;
-  runtimeDb->bench(benchOptions, progress.sub_progress(0.5f, 0.95f));
+  if (options.benchOptions.minSamples > 0) {
+    compiler::populate(supergraph, db, symeval,
+                       progress.sub_progress(0.29f, 0.5f), logger, options);
+    auto runtimeDb = runtime::Db::open(context, db);
+    runtime::DbBenchOptions benchOptions;
+    benchOptions.maxRelativeError = options.benchOptions.maxRelativeError;
+    benchOptions.minSamples = options.benchOptions.minSamples;
+    benchOptions.saveProgress = false;
+    runtimeDb->bench(benchOptions, progress.sub_progress(0.5f, 0.95f));
+  }
 
   compiler::OptSchedule optSchedule = compiler::select_schedule(
       std::move(supergraph), db, model, symeval, options,
