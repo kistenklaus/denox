@@ -91,6 +91,7 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/specialization/specialization.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/dce.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/failed_to_implement.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/prune_dead_supergraph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/dce/prune_topological.cpp
     

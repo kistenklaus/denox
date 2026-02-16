@@ -327,7 +327,13 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       return op.tag() == ComputeOpKind::Concat;
     });
     conv->matchValue([](const ComputeOp &op) -> bool {
-      return op.tag() == ComputeOpKind::Conv;
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     a->matchValue(tensorSupported);
     b->matchValue(tensorSupported);
@@ -356,7 +362,13 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       return op.tag() == ComputeOpKind::Concat;
     });
     conv->matchValue([](const ComputeOp &op) -> bool {
-      return op.tag() == ComputeOpKind::Conv;
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     relu->matchValue([](const ComputeOp &op) -> bool {
       if (op.tag() != ComputeOpKind::Activation) {
@@ -408,7 +420,13 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     });
 
     conv->matchValue([](const ComputeOp &op) -> bool {
-      return op.tag() == ComputeOpKind::Conv;
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     a->matchValue(tensorSupported);
     b->matchValue(tensorSupported);
@@ -451,7 +469,13 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     });
 
     conv->matchValue([](const ComputeOp &op) -> bool {
-      return op.tag() == ComputeOpKind::Conv;
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     a->matchValue(tensorSupported);
     b->matchValue(tensorSupported);
@@ -501,7 +525,13 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     });
 
     conv->matchValue([](const ComputeOp &op) -> bool {
-      return op.tag() == ComputeOpKind::Conv;
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     acti->matchRank(1);
     acti->matchValue([](const ComputeOp &op) -> bool {
@@ -557,7 +587,13 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     });
 
     conv->matchValue([](const ComputeOp &op) -> bool {
-      return op.tag() == ComputeOpKind::Conv;
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
 
     acti->matchRank(1);

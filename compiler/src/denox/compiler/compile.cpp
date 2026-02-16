@@ -61,7 +61,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                           progress.sub_progress(0.0f, 0.2f));
 
   // compiler::prune_dead_supergraph(supergraph);
-  compiler::prune_topological(supergraph, progress.sub_progress(0.21f, 0.28f),
+  compiler::prune_topological(supergraph, cmodel, progress.sub_progress(0.21f, 0.28f),
                               logger);
 
   SymGraphEval symeval = compiler::assumed_symeval(supergraph.symGraph,

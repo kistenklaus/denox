@@ -138,8 +138,15 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     auto in = conv_pattern.matchNode();
     auto conv = in->matchOutgoing();
     conv->matchRank(1);
-    conv->matchValue(
-        [](const ComputeOp &op) { return op.tag() == ComputeOpKind::Conv; });
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+    });
     auto out = conv->matchDst();
 
     in->matchValue(tensorSupported);
@@ -158,8 +165,15 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     auto out = relu->matchDst();
 
     conv->matchRank(1);
-    conv->matchValue(
-        [](const ComputeOp &op) { return op.tag() == ComputeOpKind::Conv; });
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+    });
     relu->matchRank(1);
     relu->matchValue([](const ComputeOp &op) {
       if (op.tag() != ComputeOpKind::Activation) {

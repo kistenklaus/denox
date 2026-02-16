@@ -1,5 +1,6 @@
 #include "denox/compiler/dce/prune_topological.hpp"
 #include "denox/algorithm/all_minimum_cost_subgraphs.hpp"
+#include "denox/compiler/dce/failed_to_implement.hpp"
 #include "denox/diag/progress.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
@@ -87,8 +88,9 @@ construct_topological_graph(const denox::compiler::SuperGraph &supergraph) {
 }
 
 void denox::compiler::prune_topological(SuperGraph &supergraph,
-                                        diag::Progress progress,
-                                        diag::Logger &logger) {
+                                        const ConstModel &model,
+                                        denox::diag::Progress progress,
+                                        denox::diag::Logger &logger) {
 
   progress.step(logger, 0.0f,
                 "{}Selecting minimal-dispatch implementations for multiedges{}",
@@ -106,8 +108,7 @@ void denox::compiler::prune_topological(SuperGraph &supergraph,
       tgraph, supergraph.inputs, supergraph.outputs);
 
   if (all_minimum_cost_subgraphs.edgeCount() == 0) {
-    // TODO: Proper error message (issue #92)
-    throw std::runtime_error("Failed to implement model");
+    failed_to_implement(supergraph, model);
   }
 
   progress.step(

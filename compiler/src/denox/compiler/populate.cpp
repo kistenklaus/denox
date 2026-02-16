@@ -41,7 +41,7 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
                           progress.sub_progress(0, 0.1f));
 
   // compiler::prune_dead_supergraph(supergraph);
-  compiler::prune_topological(supergraph, progress.sub_progress(0, 0.12f),
+  compiler::prune_topological(supergraph, cmodel, progress.sub_progress(0, 0.12f),
                               logger);
 
   // Evaluate symbols to their assumed values!
