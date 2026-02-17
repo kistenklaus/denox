@@ -1,6 +1,7 @@
 #include "denox/compiler/dce/failed_to_implement.hpp"
 #include "denox/algorithm/minimum_const_subgraph.hpp"
 #include "denox/compiler/dce/ConstModel.hpp"
+#include <absl/strings/internal/str_format/extension.h>
 #include <stdexcept>
 
 void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
@@ -66,21 +67,114 @@ void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
     }
   }
 
+  std::ranges::reverse(unimplemented_ops);
+
+  // TODO proper error message!
   std::string msg;
   for (memory::EdgeId eid : unimplemented_ops) {
     const ComputeOp &op = model.graph.get(eid);
     const auto srcsIds = model.graph.src(eid);
     const auto dstId = model.graph.dst(eid);
 
-    std::string opString;
+    std::string srcString;
     if (srcsIds.size() == 1) {
-
+      const TensorInstance &tensor = model.graph.get(srcsIds.front());
+      srcString =
+          fmt::format("{}[{}:{}]", tensor.format, tensor.channels, tensor.type);
     } else {
-      assert(srcsIds.size() > 1);
+      srcString = "{";
+      bool first = true;
+      for (memory::NodeId src : srcsIds) {
+        const TensorInstance &tensor = model.graph.get(src);
+        if (!first) {
+          srcString += ",";
+        }
+        first = false;
+        srcString += fmt::format("{}[{}:{}]", tensor.format, tensor.channels,
+                                 tensor.type);
+      }
+      srcString += "}";
+    }
+    const auto &dstTensor = model.graph.get(dstId);
+    std::string dstString = fmt::format("{}[{}:{}]", dstTensor.format,
+                                        dstTensor.channels, dstTensor.type);
+
+    std::string opString;
+    std::string with;
+    switch (op.tag()) {
+    case ComputeOpKind::None:
+      opString = "noop";
+      break;
+    case ComputeOpKind::Conv:
+      opString = fmt::format("conv{}x{}", op.conv()->W->shape().r,
+                             op.conv()->W->shape().s);
+      with = fmt::format("{{padding=({},{}), stride=({},{})}}",
+                         op.conv()->padding.x, op.conv()->padding.y,
+                         op.conv()->stride.x, op.conv()->stride.y);
+      break;
+    case ComputeOpKind::Activation: {
+      switch (op.activation().func.kind()) {
+      case ActivationFunctionKind::ReLU:
+        opString = "relu";
+        break;
+      case ActivationFunctionKind::LeakyReLU:
+        opString = "leaky-relu";
+        break;
+      case ActivationFunctionKind::SiLU:
+        opString = "silu";
+        break;
+      case ActivationFunctionKind::Swish:
+        opString = "swish";
+        break;
+      }
+      break;
+    }
+    case ComputeOpKind::Upsample:
+      switch (op.upsample().mode) {
+      case FilterMode::Nearest:
+        opString = "nearest-upsample";
+        with =
+            fmt::format("{{scaling_factor={}}}", op.upsample().scalingFactor);
+        break;
+      }
+      break;
+    case ComputeOpKind::Pool:
+      switch (op.pool()->func) {
+      case PoolFunction::Max:
+        opString = fmt::format("max-pool{}x{}", op.pool()->kernelSize.x,
+                               op.pool()->kernelSize.y);
+        with = fmt::format("{{padding=({},{}), stride=({},{})}}",
+                           op.pool()->padding.x, op.pool()->padding.y,
+                           op.pool()->stride.x, op.pool()->stride.y);
+        break;
+      case PoolFunction::Avg:
+        opString = fmt::format("avg-pool{}x{}", op.pool()->kernelSize.x,
+                               op.pool()->kernelSize.y);
+        with = fmt::format("{{padding=({},{}), stride=({},{})}}",
+                           op.pool()->padding.x, op.pool()->padding.y,
+                           op.pool()->stride.x, op.pool()->stride.y);
+        break;
+      }
+      break;
+    case ComputeOpKind::Concat:
+      opString = "channel-concat";
+      break;
+    case ComputeOpKind::Pad:
+      opString = "pad";
+      break;
+    case ComputeOpKind::Slice:
+      opString = "slice";
+      break;
     }
 
-    msg += fmt::format("{}\n", op);
+    msg += fmt::format("{:>25} {:-^50} {}\n", srcString, opString, dstString);
+    if (!with.empty()) {
+      msg += fmt::format("{:>25} {:^50}\n", "", fmt::format("with: {}", with));
+    }
   }
+  msg.pop_back(); // pop last '\n' line break
 
-  throw std::runtime_error(fmt::format("Failed to implement model:\n{}", msg));
+  throw std::runtime_error(fmt::format(
+      "Failed to implement at least one of the following operations:\n{}",
+      msg));
 }

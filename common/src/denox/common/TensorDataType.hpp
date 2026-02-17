@@ -76,13 +76,13 @@ template <> struct fmt::formatter<denox::TensorDataType> {
       name = "Auto";
       break;
     case Float16:
-      name = "Float16";
+      name = "f16";
       break;
     case Float32:
-      name = "Float32";
+      name = "f32";
       break;
     case Float64:
-      name = "Float64";
+      name = "f64";
       break;
     default:
       denox::diag::unreachable();
