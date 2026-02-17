@@ -770,14 +770,17 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           }
 
           epoch_is_live[stage].store(true);
+          // fmt::println("[comp] creating epoch");
           epochs[stage] = create_epoch(m_context, m_db, selected_targets, env,
                                        batchSize, sample_count);
           assert(!epochs[stage].targets.empty());
 
+          // fmt::println("[comp] produced epoch");
+
           constructedEpochs.release();
           stage = (stage + 1) % ASYNC_EPOCH_DEPTH;
         }
-        // fmt::println("[epoch-construction] exit");
+        // fmt::println("[comp] exit");
       },
       stop.get_token());
 
@@ -785,7 +788,10 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
       [&](std::stop_token token) {
         uint32_t stage = 0;
         bool stop_printing = false;
+
+        bool throttle_writeback = false;
         while (!token.stop_requested()) {
+          // fmt::println("[writeback] waiting on main");
           fullResults.acquire();
           if (!result_is_live[stage].load()) {
             break;
@@ -801,6 +807,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
 
           auto [msg, prog] = print_progress_report(m_db, options);
           if (msg && !stop_printing) {
+            // fmt::println("[writeback] progress= {}", prog);
             progress.step_inplace(logger, prog, false, "{}{}{}", logger.blue(),
                                   *msg, logger.reset());
             if (prog == 1.0f) {
@@ -808,9 +815,19 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
             }
           }
 
-          if (options.saveProgress) {
+          if (options.saveProgress && (!throttle_writeback || stage == 0)) {
+            auto s = std::chrono::high_resolution_clock::now();
             m_db.atomic_writeback();
+            auto dur = std::chrono::duration_cast<
+                std::chrono::duration<float, std::milli>>(
+                std::chrono::high_resolution_clock::now() - s);
+            if (dur > std::chrono::duration<float, std::milli>(2000)) {
+              // fmt::println("[writeback] START THROTTLING WRITEBACK!!!!");
+              throttle_writeback = true;
+            }
+            // fmt::println("[writeback] took {}ms", dur);
           }
+          // fmt::println("[writeback] release");
           emptyResults.release();
           stage = (stage + 1) % ASYNC_EPOCH_DEPTH;
         }
@@ -828,6 +845,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
   std::stop_token main_token = stop.get_token();
   while (!main_token.stop_requested()) {
     // auto before_acquire = std::chrono::high_resolution_clock::now();
+    // fmt::println("[main] waiting on comp");
     constructedEpochs.acquire();
 
     // auto acquire_took =
@@ -843,7 +861,15 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
     // }
     // }
 
+    // auto before_acquire = std::chrono::high_resolution_clock::now();
+    //
+    // fmt::println("[main] waiting on writeback");
     emptyResults.acquire();
+
+    // auto acquire_took =
+    //     std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+    //         std::chrono::high_resolution_clock::now() - before_acquire);
+    // fmt::println("[main] writeback-acquire took: {}", acquire_took);
 
     if (!epoch_is_live[stage].load()) {
       result_is_live[stage] = false;
@@ -857,8 +883,10 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
     try {
       assert(!epoch.targets.empty());
       result_is_live[stage] = true; // <- mark result as live!
+      // fmt::println("[main] start epoch");
       results[stage] = bench_epoch(state, m_db, m_context, epoch, options,
                                    epoch.sample_count);
+      // fmt::println("[main] done with epoch");
     } catch (const std::exception &e) {
       // destroy_epoch(m_context, epoch);
       logger.error("{}Fatal exception exiting, without writeback\n{}{}",

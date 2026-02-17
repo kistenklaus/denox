@@ -42,19 +42,12 @@ bool is_dnx_model(std::span<const std::byte> data) {
   return denox::dnx::VerifyModelBuffer(verifier);
 }
 
-bool is_db(std::span<const std::byte> data) {
-  flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t *>(data.data()),
-                                 data.size());
-  return denox::db::VerifyDbBuffer(verifier);
-}
-
 static ArtefactParseResult resolve_artefact(std::span<const std::byte> data,
                                             IOEndpoint endpoint) {
   const bool isDNX = is_dnx_model(data);
   const bool isONNX = is_onnx_model(data);
-  const bool isDB = is_db(data);
 
-  const int count = (isDNX ? 1 : 0) + (isONNX ? 1 : 0) + (isDB ? 1 : 0);
+  const int count = (isDNX ? 1 : 0) + (isONNX ? 1 : 0);
 
   if (count == 0) {
     return ArtefactParseResult::failure(ArtefactParseError::UnrecognizedFormat);
@@ -114,13 +107,13 @@ ArtefactParseResult parse_artefact(const Token &token) {
 
     const denox::io::Path &path = lit.as_path();
 
+    if (path.extension() == ".db") {
+      return ArtefactParseResult::success(
+          Artefact(DbArtefact{IOEndpoint(path)}));
+    }
+
     // Database paths may not exist yet
     if (!path.exists()) {
-      if (path.extension() == ".db") {
-        return ArtefactParseResult::success(
-            Artefact(DbArtefact{IOEndpoint(path)}));
-      }
-
       return ArtefactParseResult::failure(ArtefactParseError::PathDoesNotExist);
     }
 

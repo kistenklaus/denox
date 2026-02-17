@@ -23,6 +23,7 @@ target_link_libraries(denox_database
     denox_common
     denox_spirv
     denox::db
+    denox::sqlite3
 )
 
 if (NOT DENOX_DISABLE_WARNINGS)

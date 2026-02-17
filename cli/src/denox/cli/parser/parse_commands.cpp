@@ -668,7 +668,7 @@ Action parse_infer(std::span<const Token> tokens) {
       denox::diag::invalid_argument();
     case ArtefactParseError::PathDoesNotExist:
       throw ParseError(fmt::format("Path does not exist"));
-    case ArtefactParseError::UnrecognizedFormat:
+    case ArtefactParseError::UnrecognizedFormat: // <- assume that it's a database (kind of hacky)
       throw ParseError(fmt::format("Unregonized format"));
     case ArtefactParseError::DatabasePiped:
       throw ParseError(fmt::format("Databases cannot be piped"));

@@ -29,6 +29,7 @@ include(cmake/dnx.cmake)
 include(cmake/db.cmake)
 include(cmake/vma.cmake)
 include(cmake/png.cmake)
+include(cmake/sqlite.cmake)
 
 add_subdirectory(common)
 add_subdirectory(device_info)

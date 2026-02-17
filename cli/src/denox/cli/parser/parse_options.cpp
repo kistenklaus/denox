@@ -270,7 +270,7 @@ uint32_t parse_database(std::span<const Token> tokens,
     auto file = denox::io::File::open(path, denox::io::File::OpenMode::Read);
     std::vector<std::byte> data(file.size());
     file.read_exact(data);
-    bool isDB = is_db(data);
+    bool isDB = path.extension() == ".db";
     if (!isDB) {
       throw ParseError(fmt::format("'{}' is not a valid database", path));
     }

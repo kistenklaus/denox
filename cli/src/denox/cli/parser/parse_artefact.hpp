@@ -28,6 +28,5 @@ struct ArtefactParseResult {
 bool is_onnx_model(std::span<const std::byte> data);
 
 bool is_dnx_model(std::span<const std::byte> data);
-bool is_db(std::span<const std::byte> data);
 
 ArtefactParseResult parse_artefact(const Token &token);

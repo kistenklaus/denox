@@ -444,7 +444,6 @@ SymGraph::modsolve_div(value_type m, Sym lhs, Sym rhs, uint32_t depth) {
       emod_affine(out.affine, m); // reduce coefficients mod m
       return out;                 // pure affine ModExpr, no new symbols
     }
-
     // LIFTING RULE:
     // If we know r = U mod (m*d), then:
     //   U = k*(m*d) + r   with 0 <= r < m*d
