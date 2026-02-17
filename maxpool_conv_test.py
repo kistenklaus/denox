@@ -34,6 +34,9 @@ class Net(nn.Module):
             dtype=torch.float16,
         )
 
+
+        self.pool = nn.MaxPool2d(2, 2)
+
         self.conv1 = nn.Conv2d(
             ch_in,
             ch_out,
@@ -53,15 +56,32 @@ class Net(nn.Module):
             bias=True,
             dtype=torch.float16,
         )
+        self.alignment = 2
 
     def forward(self, input):
         x = self.conv0(input)
         x = self.conv1(x)
+        x = F.relu(x)
+        x = self.pool(x)
         x = self.conv2(x)
         return x
 
+class UNetAlignment(nn.Module):
+    def __init__(self, net):
+        super(UNetAlignment, self).__init__()
+        self.net = net
 
-net: nn.Module = Net()
+    def forward(self, input):
+        alignment = self.net.alignment  # ensure even H/W so pool+upsample align perfectly
+        H, W = input.size(2), input.size(3)
+        pad_w = (alignment - (W % alignment)) % alignment
+        pad_h = (alignment - (H % alignment)) % alignment
+        aligned = F.pad(input, (0, pad_w, 0, pad_h), mode="replicate")
+        output = self.net(aligned)
+        return output
+
+
+net: nn.Module = UNetAlignment(Net())
 net.to(dtype=torch.float16)
 
 example_input = torch.ones(1, INPUT_CHANNELS_COUNT, 1080, 1920, dtype=torch.float16)

@@ -63,6 +63,8 @@ private:
     memory::optional<Pattern::EP> upsample;
     Pattern::EP conv;
     memory::optional<Pattern::EP> relu;
+    memory::optional<Pattern::EP> maxpool;
+    Pattern::NP conv_out;
     Pattern::NP out;
   };
 
@@ -91,6 +93,12 @@ private:
       std::numeric_limits<unsigned int>::max();
 
   unsigned int m_upsample_conv_activation_pattern =
+      std::numeric_limits<unsigned int>::max();
+
+  unsigned int m_conv_maxpool_pattern =
+      std::numeric_limits<unsigned int>::max();
+
+  unsigned int m_conv_activation_maxpool_pattern =
       std::numeric_limits<unsigned int>::max();
 };
 

@@ -17,6 +17,7 @@ struct Features {
   bool enableConvReluFusion = true;
   bool enableConcatConvFusion = true;
   bool enableUpsampleConvFusion = true;
+  bool enableConvMaxPoolFusion = true;
 };
 
 struct DescriptorPolicy {

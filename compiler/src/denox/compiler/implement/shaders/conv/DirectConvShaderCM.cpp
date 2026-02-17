@@ -1,8 +1,10 @@
 #include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
 #include "denox/common/ActivationFunction.hpp"
+#include "denox/common/PoolFunction.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
+#include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
@@ -222,7 +224,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
 
     m_conv_pattern = static_cast<uint32_t>(m_patternHandles.size());
     m_patternHandles.emplace_back(in, memory::nullopt, std::move(conv),
-                                  memory::nullopt, out);
+                                  memory::nullopt, memory::nullopt, out, out);
     m_capabilities.patterns.emplace_back(std::move(conv_pattern), std::move(in),
                                          std::move(out));
   }
@@ -258,7 +260,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     out->matchValue(tensorSupported);
 
     m_conv_activation_pattern = static_cast<uint32_t>(m_patternHandles.size());
-    m_patternHandles.emplace_back(in, memory::nullopt, conv, relu, out);
+    m_patternHandles.emplace_back(in, memory::nullopt, conv, relu,
+                                  memory::nullopt, out, out);
     m_capabilities.patterns.emplace_back(std::move(conv_relu_pattern),
                                          std::move(in), std::move(out));
   }
@@ -293,7 +296,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     out->matchValue(tensorSupported);
 
     m_upsample_conv_pattern = static_cast<uint32_t>(m_patternHandles.size());
-    m_patternHandles.emplace_back(in, upsample, conv, memory::nullopt, out);
+    m_patternHandles.emplace_back(in, upsample, conv, memory::nullopt,
+                                  memory::nullopt, out, out);
     m_capabilities.patterns.emplace_back(std::move(upsample_conv_pattern),
                                          std::move(in), std::move(out));
   }
@@ -341,8 +345,143 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     out->matchValue(tensorSupported);
 
     m_upsample_conv_pattern = static_cast<uint32_t>(m_patternHandles.size());
-    m_patternHandles.emplace_back(in, upsample, conv, acti, out);
+    m_patternHandles.emplace_back(in, upsample, conv, acti, memory::nullopt,
+                                  out, out);
     m_capabilities.patterns.emplace_back(std::move(upsample_conv_relu_pattern),
+                                         std::move(in), std::move(out));
+  }
+
+  if (options.features.enableConvMaxPoolFusion) {
+    Pattern conv_maxpool_pattern;
+    auto in = conv_maxpool_pattern.matchNode();
+    auto conv = in->matchOutgoing();
+    auto x = conv->matchDst();
+    auto pool = x->matchOutgoing();
+    auto out = pool->matchDst();
+
+    pool->matchRank(1);
+    pool->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Pool) {
+        return false;
+      }
+      const auto &pool = op.pool();
+      if (pool->func != PoolFunction::Max) {
+        return false;
+      }
+      return pool->kernelSize.x == 2 && pool->kernelSize.y == 2 &&
+             pool->padding.x == 0 && pool->padding.y == 0 &&
+             pool->stride.x == 2 && pool->stride.y == 2;
+    });
+
+    conv->matchRank(1);
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+    });
+
+    in->matchValue(tensorSupported);
+    out->matchValue([](const TensorInstance &tensor) -> bool {
+      if (tensor.type != TensorDataType::Float16) {
+        return false;
+      }
+      if (tensor.channels.isSymbolic()) {
+        return false;
+      }
+      if (tensor.channels.constant() % 8 != 0) {
+        return false; // <- possible remove me later!
+      }
+      if (tensor.storage != TensorStorage::StorageBuffer) {
+        return false;
+      }
+      if (tensor.format != TensorFormat::SSBO_CHWC8 &&
+          tensor.format != TensorFormat::SSBO_HWC) {
+        return false;
+      }
+      return true;
+    });
+
+    m_conv_maxpool_pattern = static_cast<uint32_t>(m_patternHandles.size());
+    m_patternHandles.emplace_back(in, memory::nullopt, std::move(conv),
+                                  memory::nullopt, pool, x, out);
+    m_capabilities.patterns.emplace_back(std::move(conv_maxpool_pattern),
+                                         std::move(in), std::move(out));
+  }
+  if (options.features.enableConvMaxPoolFusion &&
+      m_enableConvReluFusion) { // possibly more patterns.
+    Pattern conv_relu_maxpool_pattern;
+    auto in = conv_relu_maxpool_pattern.matchNode();
+    auto conv = in->matchOutgoing();
+    auto inter = conv->matchDst();
+    auto relu = inter->matchOutgoing();
+    auto x = relu->matchDst();
+    auto pool = x->matchOutgoing();
+    auto out = pool->matchDst();
+
+    conv->matchRank(1);
+    conv->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Conv) {
+        return false;
+      }
+      const auto &conv = op.conv();
+      return conv->stride.x == 1 && conv->stride.y == 1 &&
+             conv->padding.x == 1 && conv->padding.y == 1 &&
+             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+    });
+    relu->matchRank(1);
+    relu->matchValue([](const ComputeOp &op) {
+      if (op.tag() != ComputeOpKind::Activation) {
+        return false;
+      }
+      const auto &func = op.activation().func;
+      return func.kind() == ActivationFunctionKind::ReLU ||
+             func.kind() == ActivationFunctionKind::LeakyReLU;
+    });
+
+    pool->matchRank(1);
+    pool->matchValue([](const ComputeOp &op) -> bool {
+      if (op.tag() != ComputeOpKind::Pool) {
+        return false;
+      }
+      const auto &pool = op.pool();
+      if (pool->func != PoolFunction::Max) {
+        return false;
+      }
+      return pool->kernelSize.x == 2 && pool->kernelSize.y == 2 &&
+             pool->padding.x == 0 && pool->padding.y == 0 &&
+             pool->stride.x == 2 && pool->stride.y == 2;
+    });
+
+    in->matchValue(tensorSupported);
+    out->matchValue([](const TensorInstance &tensor) -> bool {
+      if (tensor.type != TensorDataType::Float16) {
+        return false;
+      }
+      if (tensor.channels.isSymbolic()) {
+        return false;
+      }
+      if (tensor.channels.constant() % 8 != 0) {
+        return false; // <- possible remove me later!
+      }
+      if (tensor.storage != TensorStorage::StorageBuffer) {
+        return false;
+      }
+      if (tensor.format != TensorFormat::SSBO_CHWC8 &&
+          tensor.format != TensorFormat::SSBO_HWC) {
+        return false;
+      }
+      return true;
+    });
+
+    m_conv_activation_maxpool_pattern =
+        static_cast<uint32_t>(m_patternHandles.size());
+    m_patternHandles.emplace_back(in, memory::nullopt, conv, relu, pool, x,
+                                  out);
+    m_capabilities.patterns.emplace_back(std::move(conv_relu_maxpool_pattern),
                                          std::move(in), std::move(out));
   }
 }
@@ -382,6 +521,8 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
 
   const uint32_t C = static_cast<uint32_t>(in.channels.constant());
   const uint32_t K = static_cast<uint32_t>(out.channels.constant());
+  assert(C == conv->W->shape().c);
+  assert(K == conv->W->shape().k);
   const uint32_t R = conv->W->shape().r;
   const uint32_t S = conv->W->shape().s;
 
@@ -393,6 +534,17 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     static constexpr size_t KK_ASYNC_LIMIT = 3;
     static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;
     static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
+
+    // maxpool220 invariant!
+    if (pattern == m_conv_maxpool_pattern ||
+        pattern == m_conv_activation_maxpool_pattern) {
+      if (config.sg_m % 2 != 0) {
+        continue;
+      }
+      if ((config.sg_m * config.wg_m) % 2 != 0) {
+        continue;
+      }
+    }
 
     // GEMM loop iterations
     const uint32_t RSC = R * S * C;
@@ -491,16 +643,18 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
   return promissing;
 }
 
-static spirv::GlslCompilerInstance direct_conv_cm_compile(
-    spirv::GlslCompiler *compiler, const io::Path &srcPath,
-    unsigned int subgroupSize, unsigned int C, unsigned int K,
-    TensorFormat inputFormat, TensorFormat outputFormat,
-    memory::optional<ActivationFunction> activationFunction,
-    uint32_t scalingFactor, memory::uvec2 kernelSize, memory::uvec2 padding,
-    memory::uvec2 stride, bool bias, const DirectConvConfigCM &config,
-    //
-    memory::FilterLayout *out_filterLayout,
-    memory::BiasLayout *out_biasLayout) {
+static spirv::GlslCompilerInstance
+direct_conv_cm_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
+                       unsigned int subgroupSize, unsigned int C,
+                       unsigned int K, TensorFormat inputFormat,
+                       TensorFormat outputFormat,
+                       memory::optional<ActivationFunction> activationFunction,
+                       uint32_t scalingFactor, memory::uvec2 kernelSize,
+                       memory::uvec2 padding, memory::uvec2 stride, bool bias,
+                       bool maxpool220, const DirectConvConfigCM &config,
+                       //
+                       memory::FilterLayout *out_filterLayout,
+                       memory::BiasLayout *out_biasLayout) {
   auto shader = compiler->read(srcPath);
   if (C % 8 == 0) {
     shader.define("istype", "uvec4");
@@ -558,6 +712,11 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
   }
 
   shader.define("SCALING_FACTOR", scalingFactor);
+  if (maxpool220) {
+    shader.define("MAXPOOL220");
+  } else {
+    shader.define("NMAXPOOL220");
+  }
 
   memory::FilterLayout filterLayout = memory::FilterLayout::RSCK;
   if ((C % config.cm_k == 0) && ((config.cm_k == 8) || (config.cm_k == 16))) {
@@ -660,13 +819,19 @@ void DirectConvShaderCM::implement(
   memory::EdgeId convId = match[patternHandles.conv];
   memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
+  memory::NodeId convOutId = match[patternHandles.conv_out];
   const ComputeOp &op = opGraph.get(convId);
   const auto &in = opGraph.get(inId);
   const auto &out = opGraph.get(outId);
+  const auto &convOut = opGraph.get(convOutId);
   assert(op.tag() == ComputeOpKind::Conv);
   assert(in.channels.isConstant());
   assert(out.channels.isConstant());
   const ComputeOpConv &conv = op.conv();
+  uint32_t C = static_cast<uint32_t>(in.channels.constant());
+  uint32_t K = static_cast<uint32_t>(out.channels.constant());
+  const Sym W = convOut.width;
+  const Sym H = convOut.height;
 
   memory::optional<ActivationFunction> activationFunction;
 
@@ -681,9 +846,30 @@ void DirectConvShaderCM::implement(
     scalingFactor =
         opGraph.get(match[*patternHandles.upsample]).upsample().scalingFactor;
   }
+  const bool maxpool220 = pattern == m_conv_maxpool_pattern ||
+                          pattern == m_conv_activation_maxpool_pattern;
 
-  uint32_t C = static_cast<uint32_t>(in.channels.constant());
-  uint32_t K = static_cast<uint32_t>(out.channels.constant());
+  if (maxpool220) {
+    assert(patternHandles.maxpool.has_value());
+    [[maybe_unused]] const auto &pool =
+        opGraph.get(match[*patternHandles.maxpool]).pool();
+    assert(pool->kernelSize.x == 2);
+    assert(pool->kernelSize.y == 2);
+    assert(pool->padding.x == 0);
+    assert(pool->padding.y == 0);
+    assert(pool->stride.x == 2);
+    assert(pool->stride.y == 2);
+
+    assert(convOut.channels.constant() % 8 == 0);
+
+    assert(in.width == W);
+    assert(in.height == H);
+    assert(symGraph.mul(out.width, 2) == W);
+    assert(symGraph.mul(out.height, 2) == H);
+
+    assert(config.sg_m % 2 == 0);
+    assert((config.sg_m * config.wg_m) % 2 == 0);
+  }
 
   memory::FilterLayout filterLayout = memory::FilterLayout::KCRS;
   memory::BiasLayout biasLayout = memory::BiasLayout::C;
@@ -691,16 +877,16 @@ void DirectConvShaderCM::implement(
       m_compiler, m_srcPath, m_subgroupSize, C, K, in.format, out.format,
       activationFunction, scalingFactor,
       memory::uvec2(conv->W->shape().r, conv->W->shape().s), conv->padding,
-      conv->stride, conv->B != nullptr, config, //
+      conv->stride, conv->B != nullptr, maxpool220, config, //
       &filterLayout, &biasLayout);
 
-  std::uint32_t tileX = config.cm_n * config.sg_n * config.wg_n;
-  std::uint32_t tileY = config.cm_m;
-  std::uint32_t tileZ = config.sg_m * config.wg_m;
+  std::uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
+  std::uint32_t xtile = config.cm_m;
+  std::uint32_t ytile = config.sg_m * config.wg_m;
 
-  Sym workgroupCountX = symGraph.cdiv(out.channels, tileX, false, false);
-  Sym workgroupCountY = symGraph.cdiv(out.width, tileY, false, false);
-  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ, false, false);
+  Sym workgroupCountX = symGraph.cdiv(out.channels, ctile, false, false);
+  Sym workgroupCountY = symGraph.cdiv(W, xtile, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(H, ytile, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -738,10 +924,8 @@ void DirectConvShaderCM::implement(
     dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
 
-  dispatch.addPushConstant(
-      PushConstant::Dynamic(out.width, memory::Dtype::U32));
-  dispatch.addPushConstant(
-      PushConstant::Dynamic(out.height, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(W, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(H, memory::Dtype::U32));
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.width, in.height), C * size_of(in.type));
@@ -757,52 +941,102 @@ void DirectConvShaderCM::implement(
   dispatch.setMemoryWrites(writes);
 
   Sym flops =
-      symGraph.mul(symGraph.mul(out.width, out.height),
+      symGraph.mul(symGraph.mul(W, H),
                    2ull * C * K * conv->W->shape().r * conv->W->shape().s);
   dispatch.setFlops(flops);
 
   if (scalingFactor == 1) {
     if (activationFunction) {
-      switch (activationFunction->kind()) {
-      case ActivationFunctionKind::ReLU:
-        dispatch.setOperation(fmt::format(
-            "relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
-            "{}),padding=({},{}),dialation=(1,1)))",
-            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
-        break;
-      case ActivationFunctionKind::LeakyReLU:
-        dispatch.setOperation(fmt::format(
-            "leaky_relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
-            "{}),padding=({},{}),dialation=(1,1)),beta={})",
-            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
-            activationFunction->leaky_relu().alpha));
-        break;
-      case ActivationFunctionKind::SiLU:
-        dispatch.setOperation(fmt::format(
-            "silu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
-            "{}),padding=({},{}),dialation=(1,1)))",
-            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
-        break;
-      case ActivationFunctionKind::Swish:
-        dispatch.setOperation(fmt::format(
-            "swish(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
-            "{}),padding=({},{}),dialation=(1,1)),beta={})",
-            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
-            activationFunction->swish().beta));
-        break;
+      if (maxpool220) {
+        switch (activationFunction->kind()) {
+        case ActivationFunctionKind::ReLU:
+          dispatch.setOperation(fmt::format(
+              "maxpool2x2(relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+              "{}),padding=({},{}),dialation=(1,1))))",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x,
+              conv->padding.y));
+          break;
+        case ActivationFunctionKind::LeakyReLU:
+          dispatch.setOperation(fmt::format(
+              "maxpool2x2(leaky_relu(conv2d(x,kernel_size=({},{}),bias={},"
+              "stride=({},"
+              "{}),padding=({},{}),dialation=(1,1)),beta={}))",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+              activationFunction->leaky_relu().alpha));
+          break;
+        case ActivationFunctionKind::SiLU:
+          dispatch.setOperation(fmt::format(
+              "maxpool2x2(silu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+              "{}),padding=({},{}),dialation=(1,1))))",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x,
+              conv->padding.y));
+          break;
+        case ActivationFunctionKind::Swish:
+          dispatch.setOperation(fmt::format(
+              "maxpool2x2(swish(conv2d(x,kernel_size=({},{}),bias={},stride=({}"
+              ","
+              "{}),padding=({},{}),dialation=(1,1)),beta={}))",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+              activationFunction->swish().beta));
+          break;
+        }
+      } else {
+        switch (activationFunction->kind()) {
+        case ActivationFunctionKind::ReLU:
+          dispatch.setOperation(fmt::format(
+              "relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+              "{}),padding=({},{}),dialation=(1,1)))",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x,
+              conv->padding.y));
+          break;
+        case ActivationFunctionKind::LeakyReLU:
+          dispatch.setOperation(fmt::format(
+              "leaky_relu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+              "{}),padding=({},{}),dialation=(1,1)),beta={})",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+              activationFunction->leaky_relu().alpha));
+          break;
+        case ActivationFunctionKind::SiLU:
+          dispatch.setOperation(fmt::format(
+              "silu(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+              "{}),padding=({},{}),dialation=(1,1)))",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x,
+              conv->padding.y));
+          break;
+        case ActivationFunctionKind::Swish:
+          dispatch.setOperation(fmt::format(
+              "swish(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+              "{}),padding=({},{}),dialation=(1,1)),beta={})",
+              conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+              conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y,
+              activationFunction->swish().beta));
+          break;
+        }
       }
     } else {
-      dispatch.setOperation(fmt::format(
-          "conv2d(x,kernel_size=({},{}),bias={},stride=({},"
-          "{}),padding=({},{}),dialation=(1,1))",
-          conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
-          conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      if (maxpool220) {
+        dispatch.setOperation(fmt::format(
+            "maxpool2x2(conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+            "{}),padding=({},{}),dialation=(1,1)))",
+            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      } else {
+        dispatch.setOperation(fmt::format(
+            "conv2d(x,kernel_size=({},{}),bias={},stride=({},"
+            "{}),padding=({},{}),dialation=(1,1))",
+            conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
+            conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
+      }
     }
   } else {
+    assert(!maxpool220);
     if (activationFunction) {
       switch (activationFunction->kind()) {
       case ActivationFunctionKind::ReLU:

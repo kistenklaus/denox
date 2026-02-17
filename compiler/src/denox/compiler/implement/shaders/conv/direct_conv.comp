@@ -126,7 +126,9 @@ void main() {
   //               :        :        :       :
 
   // ((INVOV_N * INVOC_M) div SG_SIZE) div 8  (div is a ceiling division)
-  const uint VECS_PER_INVOC = (INVOC_N * INVOC_M + SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE) - 1) / (SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE));
+  const uint VECS_PER_INVOC = 
+    (INVOC_N * INVOC_M + SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE) - 1) 
+        / (SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE));
   vstype sum[SG_N][SG_M][VECS_PER_INVOC];
 
   #pragma begin_block(load_bias);

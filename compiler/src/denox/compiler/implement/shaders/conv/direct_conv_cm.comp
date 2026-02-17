@@ -1437,6 +1437,90 @@ void main() {
   const uint CM_M8 = CM_M / (VSTYPE_SIZE / ATYPE_SIZE);
   const uint CM_N8 = CM_N / (VSTYPE_SIZE / ATYPE_SIZE);
   const uint OUT_CH8 = OUT_CH / (VSTYPE_SIZE / ATYPE_SIZE);
+  #if defined(MAXPOOL220)
+  for (uint sgm = 0; sgm < SG_M; ++sgm) {
+    const uint QQ = (CM_N8 * CM_M * SG_N);
+    const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgm * QQ;
+    const uint y = wgxy.y + sgmi * SG_M + sgm;
+    if ((y & 1) != 0u) {
+      continue;
+    }
+    if (y + 1u >= pc.IN_H) {
+      continue;
+    }
+    const uint py = y / 2;
+    const uint pooledW = pc.IN_W / 2;
+    const uint gy8p = py * pooledW * OUT_CH8;
+
+    for (uint q = gl_SubgroupInvocationID; q < QQ; q += SG_SIZE) {
+      const uint sgzn = q / (CM_N8 * CM_M);
+      const uint sgij = q % (CM_N8 * CM_M);
+
+      const uint ix = sgij / CM_N8;
+      const uint cx = sgij % CM_N8;
+
+      const uint zx = wgxy.x + ix;
+
+      const uint wgni8 = wgni / (VSTYPE_SIZE / ATYPE_SIZE);
+      const uint zn8 = wgni8 + sgni * (CM_N8 * SG_N) + sgzn * CM_N8 + cx;
+
+      if (zn8 >= OUT_CH8) {
+        continue;
+      }
+
+      if (ix + 1u >= CM_M) continue;
+
+      if ((zx & 1) != 0u) {
+        continue;
+      }
+      if (zx + 1 >= pc.IN_W) {
+        continue;
+      }
+
+      const uint q01 = q + CM_N8;
+      const uint q10 = q + QQ;
+      const uint q11 = q10 + CM_N8;
+
+      if (sgm + 1u >= SG_M) {
+        continue;
+      }
+      const uvec4 v00 = sh_buf[o + q];
+      const uvec4 v01 = sh_buf[o + q01];
+      const uvec4 v10 = sh_buf[o + q10];
+      const uvec4 v11 = sh_buf[o + q11];
+
+      const f16vec2 a00 = unpackFloat2x16(v00.x);
+      const f16vec2 a01 = unpackFloat2x16(v01.x);
+      const f16vec2 a10 = unpackFloat2x16(v10.x);
+      const f16vec2 a11 = unpackFloat2x16(v11.x);
+      const f16vec2 a = max(max(a00, a01), max(a10, a11));
+
+      const f16vec2 b00 = unpackFloat2x16(v00.y);
+      const f16vec2 b01 = unpackFloat2x16(v01.y);
+      const f16vec2 b10 = unpackFloat2x16(v10.y);
+      const f16vec2 b11 = unpackFloat2x16(v11.y);
+      const f16vec2 b = max(max(b00, b01), max(b10, b11));
+
+      const f16vec2 c00 = unpackFloat2x16(v00.z);
+      const f16vec2 c01 = unpackFloat2x16(v01.z);
+      const f16vec2 c10 = unpackFloat2x16(v10.z);
+      const f16vec2 c11 = unpackFloat2x16(v11.z);
+      const f16vec2 c = max(max(c00, c01), max(c10, c11));
+
+      const f16vec2 d00 = unpackFloat2x16(v00.w);
+      const f16vec2 d01 = unpackFloat2x16(v01.w);
+      const f16vec2 d10 = unpackFloat2x16(v10.w);
+      const f16vec2 d11 = unpackFloat2x16(v11.w);
+      const f16vec2 d = max(max(d00, d01), max(d10, d11));
+
+      const uvec4 vmax = uvec4(packFloat2x16(a), packFloat2x16(b), packFloat2x16(c), packFloat2x16(d));
+
+      const uint px = zx / 2;
+      output_tensor_blob[gy8p + px * OUT_CH8 + zn8] = vmax;
+    }
+  }
+
+  #else
   for (uint sgm = 0; sgm < SG_M; ++sgm) {
     const uint QQ = (CM_N8 * CM_M * SG_N);
     const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgm * QQ;
@@ -1464,6 +1548,7 @@ void main() {
       }
     }
   }
+  #endif
 
   #else
   NOT_IMPLEMENTED; // atype != float16_t
@@ -1530,7 +1615,72 @@ void main() {
   const uint CM_N8 = CM_N / (OSTYPE_SIZE / ATYPE_SIZE);
   const uint CM_M8 = CM_M / (OSTYPE_SIZE / ATYPE_SIZE);
   const uint OUT_CH8 = OUT_CH / (OSTYPE_SIZE / ATYPE_SIZE);
+  #if defined(MAXPOOL220)
+  const uint ROW = CM_M * CM_N8;
+  const uint QQ = SG_M * ROW;
+  const uint CM_Mp = CM_M >> 1u;
+  const uint SG_Mp = SG_M >> 1u;
+  const uint ROWP = CM_Mp * CM_N8;
+  const uint QQp = SG_Mp * ROWP;
 
+  const uint POOLED_W = pc.IN_W >> 1u;
+  const uint POOLED_H = pc.IN_H >> 1u;
+  const uint POOLED_HW = POOLED_W * POOLED_H;
+
+  for (uint sgzn = 0; sgzn < SG_N; sgzn++) {
+    const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgzn * QQ;
+
+    const uint wgni8 = wgni / (OSTYPE_SIZE / ATYPE_SIZE);
+    const uint sgn = wgni8 + (CM_N8 * SG_N) * sgni + sgzn * CM_N8;
+
+    for (uint q = gl_SubgroupInvocationID; q < QQp; q += SG_SIZE) {
+      const uint p_row = q / ROWP;
+      const uint rem = q - p_row * ROWP;
+      const uint p_x = rem / CM_N8;
+      const uint zn8 = rem - p_x * CM_N8;
+
+      const uint n8 = sgn + zn8;
+      if (n8 >= OUT_CH8) continue;
+
+      const uint sgzm = p_row << 1u;
+      const uint ix = p_x << 1u;
+
+      const uint x = wgxy.x + ix;
+      const uint y = wgxy.y + sgmi * SG_M + sgzm;
+
+      if (x + 1u >= pc.IN_W) continue;
+      if (y + 1u >= pc.IN_H) continue;
+
+      const uint base = sgzm * ROW + ix * CM_N8 + zn8;
+      const uint q00 = base;
+      const uint q01 = base + CM_N8;
+      const uint q10 = base + ROW;
+      const uint q11 = base + ROW + CM_N8;
+
+      const uvec4 v00 = sh_buf[o + q00];
+      const uvec4 v01 = sh_buf[o + q01];
+      const uvec4 v10 = sh_buf[o + q10];
+      const uvec4 v11 = sh_buf[o + q11];
+
+      const f16vec2 a = max(max(unpackFloat2x16(v00.x), unpackFloat2x16(v01.x)),
+          max(unpackFloat2x16(v10.x), unpackFloat2x16(v11.x)));
+      const f16vec2 b = max(max(unpackFloat2x16(v00.y), unpackFloat2x16(v01.y)),
+          max(unpackFloat2x16(v10.y), unpackFloat2x16(v11.y)));
+      const f16vec2 c = max(max(unpackFloat2x16(v00.z), unpackFloat2x16(v01.z)),
+          max(unpackFloat2x16(v10.z), unpackFloat2x16(v11.z)));
+      const f16vec2 d = max(max(unpackFloat2x16(v00.w), unpackFloat2x16(v01.w)),
+          max(unpackFloat2x16(v10.w), unpackFloat2x16(v11.w)));
+
+      const uvec4 vmax = uvec4(packFloat2x16(a), packFloat2x16(b),
+          packFloat2x16(c), packFloat2x16(d));
+
+      const uint px = x >> 1u;
+      const uint py = y >> 1u;
+
+      output_tensor_blob[n8 * POOLED_HW + py * POOLED_W + px] = vmax;
+    }
+  }
+  #else
   for (uint sgzn = 0; sgzn < SG_N; sgzn++) {
     const uint QQ = CM_N8 * CM_M * SG_M;
     const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgzn * QQ;
@@ -1555,6 +1705,7 @@ void main() {
       }
     }
   }
+  #endif
 
   #else
   NOT_IMPLEMENTED; // atype != float16_t

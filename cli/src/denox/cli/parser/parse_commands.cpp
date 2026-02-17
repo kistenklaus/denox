@@ -197,6 +197,7 @@ Action parse_compile(std::span<const Token> tokens) {
   options.features.enableConvReluFusion = fusion;
   options.features.enableConcatConvFusion = fusion;
   options.features.enableUpsampleConvFusion = fusion;
+  options.features.enableConvMaxPoolFusion = fusion;
 
   if (help) {
     return HelpAction(HelpScope::Compile);

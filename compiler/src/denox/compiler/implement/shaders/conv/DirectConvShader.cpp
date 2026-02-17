@@ -54,6 +54,9 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
           for (uint32_t sg_m = 1; sg_m <= 8; ++sg_m) {
             for (uint32_t sg_k = 1; sg_k <= 8; ++sg_k) {
               for (uint32_t sg_n = 1; sg_n <= 8; ++sg_n) {
+                
+
+
 
                 static constexpr size_t PIPELINE_DEPTH = 2;
                 const uint32_t sh_a_size =
