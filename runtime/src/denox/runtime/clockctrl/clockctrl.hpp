@@ -34,23 +34,9 @@ public:
     return m_impl != nullptr;
   }
 
-  // Clock policies
-  void set_clock_policy(clock_policy policy);
-  clock_policy current_policy() const;
-
   // Clock queries (MHz)
-  uint32_t sm_clock_current() const;
-  uint32_t sm_clock_base() const;
-  uint32_t sm_clock_max() const;
-
-  // Telemetry
-  uint32_t temperature_celsius() const;
-  uint32_t power_milliwatts() const;
-  uint32_t utilization_gpu_percent() const;
-
-  // Identity
-  uint32_t device_index() const;
-  std::string device_name() const;
+  uint32_t gpu_clock() const;
+  uint32_t mem_clock() const;
 
 private:
   void *m_impl;

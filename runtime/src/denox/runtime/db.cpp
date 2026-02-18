@@ -11,6 +11,7 @@
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/vector.hpp"
+#include "denox/runtime/clockctrl/clockctrl.hpp"
 #include "denox/runtime/context.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include "denox/spirv/SpirvTools.hpp"
@@ -43,6 +44,8 @@ struct BenchmarkState {
   std::mt19937 prng;
   std::unique_ptr<spirv::SpirvTools> tools;
   std::unique_ptr<spirv::GlslCompiler> glslCompiler;
+
+  runtime::clockctrl clockctrl;
 };
 
 static uint64_t benchmark_timestamp() {
@@ -66,6 +69,7 @@ create_benchmark_state(const runtime::ContextHandle &ctx) {
       .prng = std::move(prng),
       .tools = std::move(tools),
       .glslCompiler = std::move(glslCompiler),
+      .clockctrl = runtime::clockctrl{ctx},
   };
 }
 
@@ -497,7 +501,8 @@ static void record_batch(VkCommandBuffer cmd, const runtime::ContextHandle &ctx,
 
 static void read_batch(const runtime::ContextHandle &ctx,
                        const EpochStage &stage, const Batch &batch,
-                       memory::span<Timing> timings) {
+                       memory::span<Timing> timings, uint32_t gpu_clock,
+                       uint32_t mem_clock) {
   const size_t N = batch.dispatches.size();
   const uint32_t QUERY_COUNT = static_cast<uint32_t>(N * 2);
 
@@ -555,6 +560,9 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
   uint64_t sampleCount = 0;
   memory::vector<uint64_t> samplesInFlight(epoch.targets.size(), 0);
 
+  uint32_t gpuClock = state.clockctrl.gpu_clock();
+  uint32_t memClock = state.clockctrl.mem_clock();
+
   while (sampleCount < samples) {
     size_t next = (stage + 1) % PIPELINE_STAGES;
     ctx->waitFence(epoch.stages[next].fence);
@@ -562,7 +570,14 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
 
     ctx->resetFence(epoch.stages[next].fence);
     if (!batches[next].dispatches.empty()) {
-      read_batch(ctx, epoch.stages[next], batches[next], timings);
+      const uint32_t currentGpuClock = state.clockctrl.gpu_clock();
+      const uint32_t currentMemClock = state.clockctrl.mem_clock();
+      const uint32_t medianGpuClock = (gpuClock + currentGpuClock) / 2;
+      const uint32_t medianMemClock = (memClock + currentMemClock) / 2;
+      gpuClock = currentGpuClock;
+      memClock = currentMemClock;
+      read_batch(ctx, epoch.stages[next], batches[next], timings,
+                 medianGpuClock, medianMemClock);
     }
 
     batches[next] = create_batch(state, db, epoch, options.minSamples,
@@ -587,13 +602,18 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
     ctx->submit(epoch.stages[next].cmd, epoch.stages[next].fence);
     stage = next;
   }
+  const uint32_t currentGpuClock = state.clockctrl.gpu_clock();
+  const uint32_t currentMemClock = state.clockctrl.mem_clock();
 
   for (size_t i = 0; i < PIPELINE_STAGES; ++i) {
     if (batches[i].live) {
       // fmt::println("final-wait: {}", i);
       ctx->waitFence(epoch.stages[i].fence);
       if (!batches[i].dispatches.empty()) {
-        read_batch(ctx, epoch.stages[i], batches[i], timings);
+        const uint32_t medianGpuClock = (gpuClock + currentGpuClock) / 2;
+        const uint32_t medianMemClock = (memClock + currentMemClock) / 2;
+        read_batch(ctx, epoch.stages[i], batches[i], timings, medianGpuClock,
+                   medianMemClock);
       }
     }
   }

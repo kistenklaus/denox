@@ -92,6 +92,40 @@ clockctrl::~clockctrl() noexcept {
   }
 }
 
-#endif
+uint32_t clockctrl::gpu_clock() const {
+  const NVMLImpl *impl = static_cast<NVMLImpl *>(m_impl);
+  unsigned int clock;
+  nvmlReturn_t r = nvmlDeviceGetClock(impl->device, NVML_CLOCK_SM,
+                                      NVML_CLOCK_ID_CURRENT, &clock);
+  if (r != NVML_SUCCESS) {
+    clock = 0;
+  }
+  return clock;
+}
+
+uint32_t clockctrl::mem_clock() const {
+  const NVMLImpl *impl = static_cast<NVMLImpl *>(m_impl);
+  unsigned int clock;
+  nvmlReturn_t r = nvmlDeviceGetClock(impl->device, NVML_CLOCK_MEM,
+                                      NVML_CLOCK_ID_CURRENT, &clock);
+  if (r != NVML_SUCCESS) {
+    clock = 0;
+  }
+  return clock;
+}
 
 } // namespace denox::runtime
+
+#else
+
+namespace denox::runtime {
+
+clockctrl::clockctrl(const ContextHandle &) : m_impl(nullptr) {}
+clockctrl::~clockctrl() noexcept { assert(m_impl == nullptr); }
+
+uint32_t clockctrl::gpu_clock() const { return 0; }
+uint32_t clockctrl::mem_clock() const { return 0; }
+
+} // namespace denox::runtime
+
+#endif

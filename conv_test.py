@@ -37,7 +37,7 @@ class Net(nn.Module):
         self.conv1 = nn.Conv2d(
             ch_in,
             ch_out,
-            3,
+            5,
             padding="same",
             padding_mode="zeros",
             bias=True,

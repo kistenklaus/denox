@@ -7,6 +7,8 @@ namespace denox {
 struct DbSample {
   uint64_t timestamp;
   uint64_t latency_ns;
+  uint32_t gpuClock; // 0 means unavailable
+  uint32_t memClock; // 0 means unavailable
   uint32_t env;
 };
 
