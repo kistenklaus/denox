@@ -10,15 +10,10 @@
 #include "denox/compiler/implement/SuperGraphEdge.hpp"
 #include "denox/compiler/implement/TensorId.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
-#include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
-#include "denox/memory/tensor/BiasDescriptor.hpp"
-#include "denox/memory/tensor/BiasTensor.hpp"
-#include "denox/memory/tensor/FilterTensor.hpp"
-#include "denox/memory/tensor/FitlerDescriptor.hpp"
 #include "denox/symbolic/Sym.hpp"
-#include "denox/symbolic/SymGraph.hpp"
+
 namespace denox::compiler {
 
 class SuperGraphBuilder;
@@ -29,8 +24,7 @@ public:
   friend class ComputeDispatchBuilder;
 
   TensorId createParameter(size_t elemCount, TensorDataType dtype,
-                           TensorStorage storage,
-                           TensorFormat format,
+                           TensorStorage storage, TensorFormat format,
                            std::function<std::vector<std::byte>()> value,
                            uint16_t alignment = 16);
 
@@ -54,7 +48,8 @@ private:
   memory::small_vector<memory::NodeId, 2> m_inputs;
   memory::NodeId m_output;
 
-  memory::small_vector<ComputeDispatch, SuperGraphEdge::DISPATCH_SVO> m_dispatches;
+  memory::small_vector<ComputeDispatch, SuperGraphEdge::DISPATCH_SVO>
+      m_dispatches;
   memory::vector<MemoryImplicitConcatConstrain> m_memoryConstrains;
   memory::small_vector<Parameter, SuperGraphEdge::PARAM_SVO> m_parameters;
 };

@@ -36,6 +36,7 @@ OpImpl::registerDispatch(spirv::GlslCompilerInstance glsl, Sym wgX, Sym wgY,
       .workgroupCountZ = wgZ,
       .bindings = {},
       .info = {},
+      .requirements = {},
   });
   return ComputeDispatchBuilder(index, this);
 }

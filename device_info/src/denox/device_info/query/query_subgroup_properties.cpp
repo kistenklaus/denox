@@ -1,5 +1,6 @@
 #include "denox/device_info/query/query_subgroup_properties.hpp"
 #include "denox/device_info/SubgroupProperties.hpp"
+#include <vulkan/vulkan_core.h>
 
 namespace denox {
 
@@ -44,7 +45,36 @@ query_subgroup_properties([[maybe_unused]] vk::Instance instance,
                             vk::SubgroupFeatureFlagBits::eShuffleRelative);
     }
   }
+
+#ifdef VK_VERSION_1_3
+  {
+    VkPhysicalDeviceSubgroupSizeControlProperties props;
+    props.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_PROPERTIES;
+    VkPhysicalDeviceProperties2 props2;
+    props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    props2.pNext = &props;
+    vkGetPhysicalDeviceProperties2(physicalDevice, &props2);
+
+    out.controlProperties.maxComputeWorkgroupSubgroups =
+        props.maxComputeWorkgroupSubgroups;
+    for (uint32_t sz = props.minSubgroupSize; sz <= props.maxSubgroupSize;
+         sz *= 2) {
+      out.controlProperties.supportedSubgroupSizes.push_back(sz);
+    }
+
+    out.controlProperties.supported =
+        props.requiredSubgroupSizeStages & VK_SHADER_STAGE_COMPUTE_BIT;
+  }
+#else
+  {
+    out.controlProperties.maxComputeWorkgroupSubgroups = 100000;
+    out.controlProperties.supportedSubgroupSizes = {out.subgroupSize};
+    out.controlProperties.supported = false;
+  }
+#endif
+
   return out;
 }
 
-} // namespace denox::compiler::device_info::query
+} // namespace denox

@@ -84,7 +84,8 @@ private:
   GlslCompilerInstance(GlslCompiler *compiler, memory::vector<std::byte> src,
                        io::Path sourcePath)
       : m_compiler(compiler), m_src(std::move(src)),
-        m_sourcePath(std::move(sourcePath)), m_mutex(std::make_shared<std::mutex>()){}
+        m_sourcePath(std::move(sourcePath)),
+        m_mutex(std::make_shared<std::mutex>()) {}
 
 private:
   GlslCompiler *m_compiler;

@@ -22,6 +22,8 @@ struct DirectConvConfigCM {
   unsigned int sg_k;
   unsigned int sg_n;
   bool async;
+
+  uint32_t subgroupSize;
 };
 
 class DirectConvShaderCM final : public compiler::IShader {
@@ -77,7 +79,6 @@ private:
       "compiler/src/denox/compiler/implement/shaders/conv/direct_conv_cm.comp";
   bool m_enableConvReluFusion;
 
-  unsigned int m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
   uint32_t m_maxComputeSharedMemory;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;

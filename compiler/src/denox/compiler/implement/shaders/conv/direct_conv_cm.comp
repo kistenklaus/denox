@@ -17,14 +17,11 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_shader_16bit_storage                   : require
-#extension GL_EXT_scalar_block_layout : require
 #extension GL_KHR_shader_subgroup_basic                  : enable
 #extension GL_KHR_shader_subgroup_ballot : require
-#extension GL_KHR_shader_subgroup_shuffle_relative : require
-#extension GL_EXT_shader_subgroup_extended_types_int16 : require
+// #extension GL_KHR_shader_subgroup_shuffle_relative : require
+// #extension GL_EXT_shader_subgroup_extended_types_int16 : require
 #extension GL_KHR_cooperative_matrix : require
-
-#pragma use_vulkan_memory_model
 
 // Vectorized memory storage type.
 // NOTE: After loading from global memory we can always vectorize.

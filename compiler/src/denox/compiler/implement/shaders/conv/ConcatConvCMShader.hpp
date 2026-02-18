@@ -25,21 +25,12 @@ struct ConcatConvConfig {
   unsigned int sg_n;
   bool a_async;
   bool b_async;
+  uint32_t subgroupSize;
 };
 
 class ConcatConvCMShader final : public compiler::IShader {
 private:
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
-
-  // static constexpr unsigned int CONCAT_CONV_PATTERN = 0;
-  // static constexpr unsigned int CONCAT_CONV_ACTIVATION_PATTERN = 1;
-  //
-  // static constexpr unsigned int A_UPSAMPLE_CONCAT_CONV_PATTERN = 2;
-  // static constexpr unsigned int B_UPSAMPLE_CONCAT_CONV_PATTERN = 3;
-  //
-  // static constexpr unsigned int A_UPSAMPLE_CONCAT_CONV_ACTIVATION_PATTERN =
-  // 4; static constexpr unsigned int B_UPSAMPLE_CONCAT_CONV_ACTIVATION_PATTERN
-  // = 5;
 
 public:
   ConcatConvCMShader(spirv::GlslCompiler *compiler,
@@ -91,7 +82,6 @@ private:
       "compiler/src/denox/compiler/implement/shaders/conv/concat_conv_cm.comp";
   bool m_enableConvReluFusion;
 
-  unsigned int m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   std::span<const CoopmatShape> m_supportedCoopmatShapes;

@@ -35,6 +35,10 @@ public:
 
   void setFlops(Sym flops) { self().info.flops = flops; }
 
+  void setFixedSubgroupSize(uint32_t subgroupSize) {
+    self().requirements.fixedSubgroupSize = subgroupSize;
+  }
+
   ~ComputeDispatchBuilder();
 
 private:
@@ -60,7 +64,7 @@ private:
     Access access;
     BindingType type;
     int32_t edgeSrc; // -1 means not a source
-    bool edgeDst;     // -1 means not a dst
+    bool edgeDst;    // -1 means not a dst
     memory::string set_macro;
     memory::string binding_macro;
     TensorId tensor;

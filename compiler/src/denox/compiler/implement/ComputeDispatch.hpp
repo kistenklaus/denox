@@ -26,6 +26,10 @@ struct ComputeDispatchInfo {
   memory::optional<memory::small_vector<uint32_t, 2>> output_bindings;
 };
 
+struct ComputeDispatchRequirements {
+  memory::optional<uint32_t> fixedSubgroupSize;
+};
+
 struct ComputeDispatch {
   static constexpr size_t PC_SVO = 4;
   static constexpr size_t BINDING_SVO = 4;
@@ -35,8 +39,8 @@ struct ComputeDispatch {
   Sym workgroupCountY;
   Sym workgroupCountZ;
   memory::small_vector<TensorBinding, BINDING_SVO> bindings;
-
   ComputeDispatchInfo info;
+  ComputeDispatchRequirements requirements;
 };
 
 } // namespace denox::compiler
