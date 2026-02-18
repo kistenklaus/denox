@@ -849,7 +849,9 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
               // fmt::println("[writeback] START THROTTLING WRITEBACK!!!!");
               throttle_writeback = true;
             }
-            // fmt::println("[writeback] took {}ms", dur);
+            fmt::println("[writeback] took {}ms", dur);
+            fmt::println("[writeback] took {}ms", dur);
+            fmt::println("[writeback] took {}ms", dur);
           }
           // fmt::println("[writeback] release");
           emptyResults.release();
@@ -885,15 +887,20 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
     // }
     // }
 
-    // auto before_acquire = std::chrono::high_resolution_clock::now();
+    auto before_acquire = std::chrono::high_resolution_clock::now();
     //
     // fmt::println("[main] waiting on writeback");
     emptyResults.acquire();
 
-    // auto acquire_took =
-    //     std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-    //         std::chrono::high_resolution_clock::now() - before_acquire);
-    // fmt::println("[main] writeback-acquire took: {}", acquire_took);
+    auto acquire_took =
+        std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+            std::chrono::high_resolution_clock::now() - before_acquire);
+    fmt::println("[main] writeback-acquire took: {}", acquire_took);
+    fmt::println("[main] writeback-acquire took: {}", acquire_took);
+    fmt::println("[main] writeback-acquire took: {}", acquire_took);
+
+
+
 
     if (!epoch_is_live[stage].load()) {
       result_is_live[stage] = false;
