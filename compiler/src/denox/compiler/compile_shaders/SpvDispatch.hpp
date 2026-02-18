@@ -1,7 +1,7 @@
 #pragma once
 
-#include "denox/compiler/implement/ComputeDispatch.hpp"
 #include "denox/common/PushConstant.hpp"
+#include "denox/compiler/implement/ComputeDispatch.hpp"
 #include "denox/compiler/implement/TensorBinding.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include <cstdint>
@@ -19,6 +19,7 @@ struct SpvDispatch {
   Sym workgroupCountZ;
   memory::small_vector<TensorBinding, BINDING_SVO> bindings;
   ComputeDispatchInfo info;
+  ComputeDispatchRequirements requirements;
 };
 
 } // namespace denox::compiler

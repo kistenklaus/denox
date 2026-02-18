@@ -18,7 +18,11 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
-          options.deviceInfo.limits.maxComputeWorkGroupSize) {
+          options.deviceInfo.limits.maxComputeWorkGroupSize),
+      m_subgroupControl(
+          options.deviceInfo.subgroup.controlProperties.supported &&
+          options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
+                  .size() > 1) {
 
   if (options.deviceInfo.subgroup.subgroupSize == 0) {
     return;
@@ -337,6 +341,7 @@ direct_conv_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
                     memory::optional<ActivationFunction> activationFunction,
                     memory::uvec2 kernelSize, memory::uvec2 padding,
                     memory::uvec2 stride, bool bias,
+                    bool subgroupControl,
                     const DirectConvConfig &config,
                     memory::FilterLayout *out_filterLayout,
                     memory::BiasLayout *out_biasLayout) {
@@ -457,6 +462,13 @@ direct_conv_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   } else {
     shader.define("NUSE_BIAS");
   }
+
+  if (subgroupControl) {
+    shader.define("SG_CONTROL");
+  } else {
+    shader.define("NSG_CONTROL");
+  }
+
   return shader;
 }
 
@@ -497,7 +509,7 @@ void DirectConvShader::implement(
   auto shader = direct_conv_compile(
       m_compiler, m_srcPath, config.subgroupSize, C, K, in.format, out.format,
       activationFunction, memory::uvec2(conv->W->shape().r, conv->W->shape().s),
-      conv->padding, conv->stride, conv->B != nullptr, config, &filterLayout,
+      conv->padding, conv->stride, conv->B != nullptr, m_subgroupControl, config, &filterLayout,
       &biasLayout);
   // fmt::println("PREAMBLE:\n{}", shader.getPreamble());
 
@@ -511,6 +523,9 @@ void DirectConvShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
+  if (m_subgroupControl) {
+    dispatch.setFixedSubgroupSize(config.subgroupSize);
+  }
 
   TensorId weightTensorId = impl.createParameter(
       filterLayout.size(conv->W->shape()) * memory::Dtype::F16.size(),

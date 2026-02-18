@@ -85,7 +85,10 @@ private:
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   std::span<const CoopmatShape> m_supportedCoopmatShapes;
+
+  bool m_subgroupControl;
   memory::vector<ConcatConvConfig> m_configs;
+
 
   unsigned int m_concat_conv_pattern = std::numeric_limits<unsigned int>::max();
   unsigned int m_concat_conv_activation_pattern =

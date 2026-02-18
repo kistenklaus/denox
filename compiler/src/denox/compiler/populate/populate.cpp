@@ -200,7 +200,7 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
       bool new_dispatch = db.insert_dispatch(
           hash, pcbuf, wgX, wgY, wgZ, bindings, binary, operation, shader_name,
           config, memory_reads, memory_writes, flops, coopmat, input_bindings,
-          output_bindings);
+          output_bindings, dispatch.requirements.fixedSubgroupSize);
       if (new_dispatch) {
         new_dispatch_count++;
       }

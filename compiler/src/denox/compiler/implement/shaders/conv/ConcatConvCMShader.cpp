@@ -22,15 +22,19 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize),
-      m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes) {
+      m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes),
+      m_subgroupControl(
+          options.deviceInfo.subgroup.controlProperties.supported &&
+          options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
+                  .size() > 1) {
 
   if (options.deviceInfo.subgroup.subgroupSize == 0) {
     return;
   }
-  if (options.deviceInfo.subgroup.supportsBasicOps) {
+  if (!options.deviceInfo.subgroup.supportsBasicOps) {
     return;
   }
-  if (options.deviceInfo.subgroup.supportsBallotOps) {
+  if (!options.deviceInfo.subgroup.supportsBallotOps) {
     return;
   }
 
@@ -239,52 +243,58 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                         continue;
                       }
 
-                      m_configs.push_back(ConcatConvConfig{
-                          .cm_m = cm_m,
-                          .a_cm_k = a_cm_k,
-                          .b_cm_k = b_cm_k,
-                          .cm_n = cm_n,
-                          .wg_m = wg_m,
-                          .wg_n = wg_n,
-                          .sg_m = sg_m,
-                          .a_sg_k = a_sg_k,
-                          .b_sg_k = b_sg_k,
-                          .sg_n = sg_n,
-                          .a_async = false,
-                          .b_async = false,
-                          .subgroupSize = subgroupSize,
-                      });
+                      if (options.optimizationLevel > 2) {
+                        m_configs.push_back(ConcatConvConfig{
+                            .cm_m = cm_m,
+                            .a_cm_k = a_cm_k,
+                            .b_cm_k = b_cm_k,
+                            .cm_n = cm_n,
+                            .wg_m = wg_m,
+                            .wg_n = wg_n,
+                            .sg_m = sg_m,
+                            .a_sg_k = a_sg_k,
+                            .b_sg_k = b_sg_k,
+                            .sg_n = sg_n,
+                            .a_async = false,
+                            .b_async = false,
+                            .subgroupSize = subgroupSize,
+                        });
+                      }
 
-                      m_configs.push_back(ConcatConvConfig{
-                          .cm_m = cm_m,
-                          .a_cm_k = a_cm_k,
-                          .b_cm_k = b_cm_k,
-                          .cm_n = cm_n,
-                          .wg_m = wg_m,
-                          .wg_n = wg_n,
-                          .sg_m = sg_m,
-                          .a_sg_k = a_sg_k,
-                          .b_sg_k = b_sg_k,
-                          .sg_n = sg_n,
-                          .a_async = true,
-                          .b_async = false,
-                          .subgroupSize = subgroupSize,
-                      });
-                      m_configs.push_back(ConcatConvConfig{
-                          .cm_m = cm_m,
-                          .a_cm_k = a_cm_k,
-                          .b_cm_k = b_cm_k,
-                          .cm_n = cm_n,
-                          .wg_m = wg_m,
-                          .wg_n = wg_n,
-                          .sg_m = sg_m,
-                          .a_sg_k = a_sg_k,
-                          .b_sg_k = b_sg_k,
-                          .sg_n = sg_n,
-                          .a_async = false,
-                          .b_async = true,
-                          .subgroupSize = subgroupSize,
-                      });
+                      if (options.optimizationLevel > 3) {
+
+                        m_configs.push_back(ConcatConvConfig{
+                            .cm_m = cm_m,
+                            .a_cm_k = a_cm_k,
+                            .b_cm_k = b_cm_k,
+                            .cm_n = cm_n,
+                            .wg_m = wg_m,
+                            .wg_n = wg_n,
+                            .sg_m = sg_m,
+                            .a_sg_k = a_sg_k,
+                            .b_sg_k = b_sg_k,
+                            .sg_n = sg_n,
+                            .a_async = true,
+                            .b_async = false,
+                            .subgroupSize = subgroupSize,
+                        });
+                        m_configs.push_back(ConcatConvConfig{
+                            .cm_m = cm_m,
+                            .a_cm_k = a_cm_k,
+                            .b_cm_k = b_cm_k,
+                            .cm_n = cm_n,
+                            .wg_m = wg_m,
+                            .wg_n = wg_n,
+                            .sg_m = sg_m,
+                            .a_sg_k = a_sg_k,
+                            .b_sg_k = b_sg_k,
+                            .sg_n = sg_n,
+                            .a_async = false,
+                            .b_async = true,
+                            .subgroupSize = subgroupSize,
+                        });
+                      }
+
                       m_configs.push_back(ConcatConvConfig{
                           .cm_m = cm_m,
                           .a_cm_k = a_cm_k,
@@ -791,7 +801,7 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
     memory::optional<ActivationFunction> activationFunction,
     memory::uvec2 kernelSize, memory::uvec2 padding, memory::uvec2 stride,
     bool bias, const ConcatConvConfig &config, uint32_t A_scalingFactor,
-    uint32_t B_scalingFactor,
+    uint32_t B_scalingFactor, bool subgroupControl,
     //
     memory::FilterLayout *out_A_filterLayout,
     memory::FilterLayout *out_B_filterLayout,
@@ -1018,6 +1028,13 @@ static spirv::GlslCompilerInstance direct_conv_cm_compile(
   } else {
     shader.define("NUSE_BIAS");
   }
+
+  if (subgroupControl) {
+    shader.define("SG_CONTROL");
+  } else {
+    shader.define("NSG_CONTROL");
+  }
+
   return shader;
 }
 
@@ -1094,7 +1111,7 @@ void ConcatConvCMShader::implement(
       activationFunction,                                      //
       memory::uvec2(conv->W->shape().r, conv->W->shape().s),   //
       conv->padding, conv->stride, conv->B != nullptr, config, //
-      A_scalingFactor, B_scalingFactor,                        //
+      A_scalingFactor, B_scalingFactor, m_subgroupControl,     //
       &A_filterLayout, &B_filterLayout, &biasLayout);
 
   std::uint32_t tileX = config.cm_n * config.sg_n * config.wg_n;
@@ -1107,6 +1124,9 @@ void ConcatConvCMShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
+  if (m_subgroupControl) {
+    dispatch.setFixedSubgroupSize(config.subgroupSize);
+  }
 
   assert(A_C + B_C == conv->W->shape().c);
 

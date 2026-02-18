@@ -438,12 +438,31 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &features13;
     vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+
+    m_subgroupControlEnabled = features13.subgroupSizeControl;
     std::memset(&features13, 0, sizeof(VkPhysicalDeviceVulkan13Features));
     features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     features13.pNext = pNextDevice;
+    features13.subgroupSizeControl = m_subgroupControlEnabled;
     pNextDevice = &features13;
   }
+#elif defined(VK_EXT_subgroup_size_contro)
+  VkPhysicalDeviceSubgroupSizeControlFeaturesEXT subgroupSizeControlFeatures{};
+  {
+    subgroupSizeControlFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_FEATURES;
+    VkPhysicalDeviceFeatures2 features2;
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &subgroupSizeControlFeatures;
+    vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+    if (subgroupSizeControlFeatures.subgroupSizeControl) {
+      extentions.push_back("VK_EXT_subgroup_size_control");
+      subgroupSizeControlFeatures.pNext = pNextDevice;
+      pNextDevice = &subgroupSizeControlFeatures;
+    }
+  }
 #endif
+
 #ifdef VK_API_VERSION_1_4
   VkPhysicalDeviceVulkan14Features features14;
   {
@@ -482,6 +501,7 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     pNextDevice = &features14;
   }
 #endif
+  m_subgroupControlEnabled = false;
 #ifdef VK_KHR_cooperative_matrix
   VkPhysicalDeviceCooperativeMatrixFeaturesKHR coopmatFeatures;
   {
@@ -497,6 +517,7 @@ Context::Context(const char *deviceName, ApiVersion target_env,
       extentions.push_back("VK_KHR_cooperative_matrix");
       coopmatFeatures.pNext = pNextDevice;
       pNextDevice = &coopmatFeatures;
+      m_subgroupControlEnabled = true;
     }
   }
 #endif
@@ -717,9 +738,9 @@ void Context::destroyPipelineLayout(VkPipelineLayout layout) {
   assert(layout != VK_NULL_HANDLE);
   vkDestroyPipelineLayout(m_device, layout, nullptr);
 }
-VkPipeline Context::createComputePipeline(VkPipelineLayout layout,
-                                          memory::span<const uint32_t> binary,
-                                          const char *entry) {
+VkPipeline Context::createComputePipeline(
+    VkPipelineLayout layout, memory::span<const uint32_t> binary,
+    const char *entry, std::optional<uint32_t> subgroupSize) {
   assert(layout != nullptr);
   assert(!binary.empty());
   assert(entry != nullptr);
@@ -746,8 +767,25 @@ VkPipeline Context::createComputePipeline(VkPipelineLayout layout,
   pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
   pipelineInfo.stage.module = module;
   pipelineInfo.stage.pName = entry;
-
   pipelineInfo.layout = layout;
+
+#ifdef VK_EXT_subgroup_size_control
+  if (m_subgroupControlEnabled) {
+    VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT subgroupSizeInfo{};
+    if (subgroupSize.has_value()) {
+      subgroupSizeInfo.sType =
+          VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO_EXT;
+      subgroupSizeInfo.requiredSubgroupSize = *subgroupSize;
+      pipelineInfo.stage.pNext = &subgroupSizeInfo;
+    }
+  }
+#else
+  assert(!m_subgroupControlEnabled);
+#endif
+  if (!m_subgroupControlEnabled && subgroupSize.has_value()) {
+    throw std::runtime_error(
+        fmt::format("Requesting fixed subgroup size, but not supported!"));
+  }
 
   VkPipeline pipeline;
   {

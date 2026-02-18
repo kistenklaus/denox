@@ -427,7 +427,6 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
     memory_reads = ptr;
   }
 
-
   if (info.memoryWrites) {
     auto [type, ptr] =
         serialize_scalar(fbb, *info.memoryWrites, memory::Dtype::U64);
@@ -441,10 +440,21 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
     flops = ptr;
   }
 
-  return dnx::CreateDispatchInfo(fbb, name, debug_info, src_path,
-                                 memory_reads_type, memory_reads,
-                                 memory_writes_type, memory_writes,
-                                 flops_type, flops);
+  return dnx::CreateDispatchInfo(
+      fbb, name, debug_info, src_path, memory_reads_type, memory_reads,
+      memory_writes_type, memory_writes, flops_type, flops);
+}
+
+static flatbuffers::Offset<denox::dnx::ComputeDispatchRequirements>
+serialize_dispatch_requirements(
+    flatbuffers::FlatBufferBuilder &fbb,
+    const ComputeDispatchRequirements &requirements) {
+  if (requirements.fixedSubgroupSize.has_value()) {
+    return dnx::CreateComputeDispatchRequirements(
+        fbb, *requirements.fixedSubgroupSize);
+  } else {
+    return {};
+  }
 }
 
 static flatbuffers::Offset<denox::dnx::ComputeDispatch>
@@ -460,10 +470,12 @@ serialize_dispatch(flatbuffers::FlatBufferBuilder &fbb,
   auto bindings = serialize_descriptor_set_bindings(fbb, dispatch.bindings);
   auto pc = serialize_push_constant(fbb, dispatch.pushConstants);
   auto info = serialize_dispatch_info(fbb, dispatch.info);
+  auto requirements =
+      serialize_dispatch_requirements(fbb, dispatch.requirements);
   return dnx::CreateComputeDispatch(
       fbb, dispatch.binaryId, workgroupCountX_type, workgroupCountX,
       workgroupCountY_type, workgroupCountY, workgroupCountZ_type,
-      workgroupCountZ, entry_point, bindings, pc, info);
+      workgroupCountZ, entry_point, bindings, pc, info, requirements);
 }
 
 static flatbuffers::Offset<

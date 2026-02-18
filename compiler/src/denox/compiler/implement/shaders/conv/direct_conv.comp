@@ -10,7 +10,9 @@
 #extension GL_KHR_shader_subgroup_ballot : require
 #extension GL_EXT_shader_subgroup_extended_types_int16 : require
 
-#pragma use_vulkan_memory_model
+#if SG_CONTROL
+#extension GL_EXT_subgroup_size_control : require
+#endif
 
 // basically how we plan to map this.
 
@@ -76,7 +78,11 @@ shared vstype sh_b[PIPELINE_DEPTH][SH_B_SIZE];
 // x : channel output tile.
 // y : x output / input tile.
 // z : y output / input tile.
+#if SG_CONTROL
+layout(local_size_x = SG_SIZE, local_size_y = SG_COUNT, local_size_z = 1, subgroup_size = SG_SIZE) in;
+#else
 layout(local_size_x = SG_SIZE, local_size_y = SG_COUNT, local_size_z = 1) in;
+#endif
 void main() {
   const uvec3 wgi = gl_WorkGroupID.xyz;
   const uint sgi = gl_SubgroupID;

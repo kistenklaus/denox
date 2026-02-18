@@ -83,6 +83,7 @@ private:
   uint32_t m_maxComputeSharedMemory;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   std::span<const CoopmatShape> m_supportedCoopmatShapes;
+  bool m_subgroupControl;
 
   std::vector<DirectConvConfigCM> m_configs;
 

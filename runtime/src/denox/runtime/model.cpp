@@ -81,6 +81,14 @@ static ModelDispatch
 create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
                       const dnx::ComputeDispatch *dispatch) {
 
+  memory::optional<uint32_t> fixedSubgroupSize;
+  if (dispatch->requirements()) {
+    const auto *req = dispatch->requirements();
+    if (req->fixed_subgroup_size()) {
+      fixedSubgroupSize = req->fixed_subgroup_size();
+    }
+  }
+
   std::size_t descriptorSetCount = dispatch->bindings()->size();
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts(descriptorSetCount);
   std::vector<runtime::ModelDescriptorSet> descriptorSets(descriptorSetCount);
@@ -143,8 +151,9 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
 
   std::span<const std::uint32_t> spirv(binary->spirv()->data(),
                                        binary->spirv()->size());
+
   VkPipeline pipeline = ctx->createComputePipeline(
-      pipelineLayout, spirv, dispatch->entry_point()->c_str());
+      pipelineLayout, spirv, dispatch->entry_point()->c_str(), fixedSubgroupSize);
 
   Sym workgroupCountX = parse_sym(dispatch->workgroup_count_x_type(),
                                   dispatch->workgroup_count_x());
@@ -235,6 +244,7 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
       .memoryReads = memoryReads,
       .memoryWrites = memoryWrites,
       .flops = flops,
+      .fixedSubgroupSize = fixedSubgroupSize,
   };
 }
 

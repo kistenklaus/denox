@@ -59,6 +59,7 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
         .workgroupCountZ = dispatch.workgroupCountZ,
         .bindings = bindings,
         .info = dispatch.info,
+        .requirements = dispatch.requirements,
     });
   }
   SymGraphEval eval =

@@ -65,6 +65,10 @@ table DispatchInfo {
   flops:ScalarSource;
 }
 
+table ComputeDispatchRequirements {
+  fixed_subgroup_size:uint32; // <- 0 indicates none
+}
+
 table ComputeDispatch {
   binary_id:uint32;
   workgroup_count_x:ScalarSource;
@@ -75,9 +79,8 @@ table ComputeDispatch {
   push_constant: PushConstant; 
 
   info:DispatchInfo;
+  requirements:ComputeDispatchRequirements;
 }
-
-
 
 table Buffer {
   size:ScalarSource;

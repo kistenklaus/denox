@@ -290,7 +290,8 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
             setLayouts, static_cast<uint32_t>(dbdispatch.pushConstant.size()));
 
         VkPipeline pipeline = ctx->createComputePipeline(
-            layout, dbbinaries[binaryId].spvBinary.spv, "main");
+            layout, dbbinaries[binaryId].spvBinary.spv, "main",
+            dbdispatch.fixed_subgroup_size);
 
         dispatches[i] = EpochDispatch{
             .pipeline = pipeline,

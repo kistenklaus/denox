@@ -71,7 +71,7 @@ struct CompileOptions {
   diag::LogLevel loglevel;
   OptimizationAssumptions assumptions;
   DebugInfo debugInfo;
-  uint32_t optimizationLevel = 2;
+  uint32_t optimizationLevel = 1;
 
   runtime::DbBenchOptions benchOptions;
 };

@@ -79,6 +79,8 @@ private:
 
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
+  bool m_subgroupControl;
+
   memory::vector<DirectConvConfig> m_configs;
 };
 

@@ -26,7 +26,11 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
           options.deviceInfo.limits.maxComputeSharedMemory),
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize),
-      m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes) {
+      m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes),
+      m_subgroupControl(
+          options.deviceInfo.subgroup.controlProperties.supported &&
+          options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
+                  .size() > 1) {
 
   if (options.deviceInfo.subgroup.subgroupSize == 0) {
     return;
@@ -190,18 +194,21 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                       .async = true,
                       .subgroupSize = subgroupSize,
                   });
-                  m_configs.push_back(DirectConvConfigCM{
-                      .cm_m = cm_m,
-                      .cm_k = cm_k,
-                      .cm_n = cm_n,
-                      .wg_m = wg_m,
-                      .wg_n = wg_n,
-                      .sg_m = sg_m,
-                      .sg_k = sg_k,
-                      .sg_n = sg_n,
-                      .async = false,
-                      .subgroupSize = subgroupSize,
-                  });
+
+                  if (options.optimizationLevel > 2) {
+                    m_configs.push_back(DirectConvConfigCM{
+                        .cm_m = cm_m,
+                        .cm_k = cm_k,
+                        .cm_n = cm_n,
+                        .wg_m = wg_m,
+                        .wg_n = wg_n,
+                        .sg_m = sg_m,
+                        .sg_k = sg_k,
+                        .sg_n = sg_n,
+                        .async = false,
+                        .subgroupSize = subgroupSize,
+                    });
+                  }
                 }
               }
             }
@@ -673,18 +680,17 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
   return promissing;
 }
 
-static spirv::GlslCompilerInstance
-direct_conv_cm_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-                       unsigned int subgroupSize, unsigned int C,
-                       unsigned int K, TensorFormat inputFormat,
-                       TensorFormat outputFormat,
-                       memory::optional<ActivationFunction> activationFunction,
-                       uint32_t scalingFactor, memory::uvec2 kernelSize,
-                       memory::uvec2 padding, memory::uvec2 stride, bool bias,
-                       bool maxpool220, const DirectConvConfigCM &config,
-                       //
-                       memory::FilterLayout *out_filterLayout,
-                       memory::BiasLayout *out_biasLayout) {
+static spirv::GlslCompilerInstance direct_conv_cm_compile(
+    spirv::GlslCompiler *compiler, const io::Path &srcPath,
+    unsigned int subgroupSize, unsigned int C, unsigned int K,
+    TensorFormat inputFormat, TensorFormat outputFormat,
+    memory::optional<ActivationFunction> activationFunction,
+    uint32_t scalingFactor, memory::uvec2 kernelSize, memory::uvec2 padding,
+    memory::uvec2 stride, bool bias, bool maxpool220, bool subgroupControl,
+    const DirectConvConfigCM &config,
+    //
+    memory::FilterLayout *out_filterLayout,
+    memory::BiasLayout *out_biasLayout) {
   auto shader = compiler->read(srcPath);
   if (C % 8 == 0) {
     shader.define("istype", "uvec4");
@@ -834,6 +840,13 @@ direct_conv_cm_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   } else {
     shader.define("NUSE_BIAS");
   }
+
+  if (subgroupControl) {
+    shader.define("SG_CONTROL");
+  } else {
+    shader.define("NSG_CONTROL");
+  }
+
   return shader;
 }
 
@@ -907,7 +920,8 @@ void DirectConvShaderCM::implement(
       m_compiler, m_srcPath, config.subgroupSize, C, K, in.format, out.format,
       activationFunction, scalingFactor,
       memory::uvec2(conv->W->shape().r, conv->W->shape().s), conv->padding,
-      conv->stride, conv->B != nullptr, maxpool220, config, //
+      conv->stride, conv->B != nullptr, maxpool220, m_subgroupControl,
+      config, //
       &filterLayout, &biasLayout);
 
   std::uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
@@ -920,7 +934,9 @@ void DirectConvShaderCM::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  dispatch.setFixedSubgroupSize(config.subgroupSize);
+  if (m_subgroupControl) {
+    dispatch.setFixedSubgroupSize(config.subgroupSize);
+  }
 
   TensorId weightTensorId = impl.createParameter(
       filterLayout.size(conv->W->shape()) * memory::Dtype::F16.size(),

@@ -49,6 +49,8 @@ struct ModelDispatch {
   memory::optional<Sym> memoryReads;
   memory::optional<Sym> memoryWrites;
   memory::optional<Sym> flops;
+
+  memory::optional<uint32_t> fixedSubgroupSize;
 };
 
 struct ModelBufferBarrier {

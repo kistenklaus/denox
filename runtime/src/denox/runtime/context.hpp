@@ -10,6 +10,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -49,7 +50,7 @@ public:
 
   VkPipeline createComputePipeline(VkPipelineLayout layout,
                                    memory::span<const uint32_t> binary,
-                                   const char *entry);
+                                   const char *entry, std::optional<uint32_t> subgroupSize = std::nullopt);
   void destroyPipeline(VkPipeline pipeline);
 
   VkDescriptorPool
@@ -256,6 +257,7 @@ private:
   VmaAllocator m_vma;
   float m_timestampPeriod;
   bool m_extPCIbufInfoAvailable;
+  bool m_subgroupControlEnabled;
 };
 
 using ContextHandle = std::shared_ptr<Context>;

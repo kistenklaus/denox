@@ -39,7 +39,9 @@ public:
       memory::optional<uint64_t> flops = memory::nullopt,
       memory::optional<bool> coopmat = memory::nullopt,
       memory::optional<std::span<const uint32_t>> input_bindings = memory::nullopt,
-      memory::optional<std::span<const uint32_t>> output_bindings = memory::nullopt);
+      memory::optional<std::span<const uint32_t>> output_bindings = memory::nullopt,
+      memory::optional<uint32_t> subgroupSize = memory::nullopt
+      );
 
   bool insert_binary(const SHA256 &srcHash, const SpirvBinary &binary);
 

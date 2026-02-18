@@ -29,5 +29,7 @@ struct DbComputeDispatch {
   memory::optional<bool> coopmat;
   memory::optional<std::vector<uint32_t>> input_bindings;
   memory::optional<std::vector<uint32_t>> output_bindings;
+
+  memory::optional<uint32_t> fixed_subgroup_size;
 };
 } // namespace denox
