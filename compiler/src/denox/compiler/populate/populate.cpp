@@ -32,7 +32,7 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
     }
   }
 
-  uint32_t jj = std::thread::hardware_concurrency();
+  uint32_t jj = options.jobs;
 
   memory::vector<std::thread> threads(jj);
   uint32_t thread_count = static_cast<uint32_t>(threads.size());

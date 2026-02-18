@@ -85,3 +85,5 @@ uint32_t parse_input(std::span<const Token> tokens,
 
 uint32_t parse_optimizationLevel(std::span<const Token> tokens,
                                 uint32_t *optimizationLevel);
+
+uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs);

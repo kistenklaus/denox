@@ -73,6 +73,8 @@ struct CompileOptions {
   DebugInfo debugInfo;
   uint32_t optimizationLevel = 1;
 
+  uint32_t jobs = 0;
+
   runtime::DbBenchOptions benchOptions;
 };
 

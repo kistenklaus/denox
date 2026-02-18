@@ -33,6 +33,7 @@ enum class OptionToken {
   Database, //
 
   OptimizationLevel,
+  Jobs,
 };
 
 std::optional<OptionToken> parse_option(std::string_view str);
@@ -119,6 +120,9 @@ struct fmt::formatter<OptionToken> : fmt::formatter<std::string_view> {
       break;
     case OptionToken::OptimizationLevel:
       name = "optimization-level";
+      break;
+    case OptionToken::Jobs:
+      name = "jobs";
       break;
     }
 

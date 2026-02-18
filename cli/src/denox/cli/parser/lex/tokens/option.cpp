@@ -95,5 +95,9 @@ std::optional<OptionToken> parse_option(std::string_view str) {
     return OptionToken::OptimizationLevel;
   }
 
+  if (str == "j" || str == "jobs") {
+    return OptionToken::Jobs;
+  }
+
   return std::nullopt;
 }

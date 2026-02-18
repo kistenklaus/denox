@@ -17,6 +17,7 @@
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 // #include "denox/cli/parser/parse_options.hpp"
 #include <absl/strings/str_format.h>
+#include <exception>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
@@ -71,6 +72,9 @@ Action parse_compile(std::span<const Token> tokens) {
   options.benchOptions.maxRelativeError = 0.5f;
   options.benchOptions.saveProgress = true;
 
+  options.jobs = std::max(std::thread::hardware_concurrency() - 2,
+                          std::thread::hardware_concurrency());
+
   // parse remaining arguments
   uint32_t i = 1;
   while (i < tokens.size()) {
@@ -85,7 +89,12 @@ Action parse_compile(std::span<const Token> tokens) {
                                    describe_token(tokens[i])));
     }
 
-    if ((jump = parse_help(tokens, &help))) {
+    if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_jobs(tail, &options.jobs))) {
       i += jump;
       continue;
     }
@@ -467,6 +476,8 @@ Action parse_bench(std::span<const Token> tokens) {
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   denox::runtime::DbBenchOptions dbBenchOptions;
+  dbBenchOptions.jobs = std::max(std::thread::hardware_concurrency() - 2,
+                                 std::thread::hardware_concurrency());
 
   bool spirv_nonSemanticDebugInfo = false;
   bool spirv_debugInfo = false;
@@ -496,6 +507,11 @@ Action parse_bench(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_help(tokens, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_jobs(tokens, &dbBenchOptions.jobs))) {
       i += jump;
       continue;
     }
@@ -607,6 +623,8 @@ Action parse_bench(std::span<const Token> tokens) {
     return HelpAction(HelpScope::Bench);
   }
 
+  options.jobs = dbBenchOptions.jobs;
+
   options.features.enableConvReluFusion = fusion;
   options.features.enableConcatConvFusion = fusion;
 
@@ -668,7 +686,8 @@ Action parse_infer(std::span<const Token> tokens) {
       denox::diag::invalid_argument();
     case ArtefactParseError::PathDoesNotExist:
       throw ParseError(fmt::format("Path does not exist"));
-    case ArtefactParseError::UnrecognizedFormat: // <- assume that it's a database (kind of hacky)
+    case ArtefactParseError::UnrecognizedFormat: // <- assume that it's a
+                                                 // database (kind of hacky)
       throw ParseError(fmt::format("Unregonized format"));
     case ArtefactParseError::DatabasePiped:
       throw ParseError(fmt::format("Databases cannot be piped"));

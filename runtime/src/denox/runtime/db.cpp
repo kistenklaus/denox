@@ -220,23 +220,21 @@ struct EpochBenchResults {
 static Epoch create_epoch(const runtime::ContextHandle &ctx,
                           const denox::Db &db, memory::span<uint32_t> targets,
                           uint32_t env, uint32_t batchSize,
-                          uint32_t sampleCount) {
+                          uint32_t sampleCount, uint32_t jobs) {
 
   const auto dbdispatches = db.dispatches();
   const auto dbbinaries = db.binaries();
-
-  static size_t jj = std::thread::hardware_concurrency();
   // static size_t jj = 1;
 
-  memory::vector<uint32_t> localMaxSets(jj);
-  memory::vector<uint32_t> localStorageBufferDescriptorCount(jj);
-  memory::vector<size_t> localPeakBufferSize(jj);
+  memory::vector<uint32_t> localMaxSets(jobs);
+  memory::vector<uint32_t> localStorageBufferDescriptorCount(jobs);
+  memory::vector<size_t> localPeakBufferSize(jobs);
 
   memory::vector<EpochDispatch> dispatches(targets.size(), EpochDispatch{});
 
   // auto start = std::chrono::high_resolution_clock::now();
 
-  std::vector<std::thread> threads(jj);
+  std::vector<std::thread> threads(jobs);
   for (size_t tid = 0; tid < threads.size(); ++tid) {
     threads[tid] = std::thread([&, tid]() {
       localMaxSets[tid] = 0;
@@ -773,7 +771,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           epoch_is_live[stage].store(true);
           // fmt::println("[comp] creating epoch");
           epochs[stage] = create_epoch(m_context, m_db, selected_targets, env,
-                                       batchSize, sample_count);
+                                       batchSize, sample_count, options.jobs);
           assert(!epochs[stage].targets.empty());
 
           // fmt::println("[comp] produced epoch");

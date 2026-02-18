@@ -795,3 +795,46 @@ uint32_t parse_optimizationLevel(std::span<const Token> tokens,
 
   return 2;
 }
+
+uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs) {
+
+  if (tokens.empty()) {
+    return 0;
+  }
+  const auto &head = tokens.front();
+  if (head.kind() != TokenKind::Option) {
+    return 0;
+  }
+
+  if (head.option() != OptionToken::Jobs) {
+    return 0;
+  }
+  if (tokens.size() == 1) {
+    if (jobs) {
+      *jobs = std::thread::hardware_concurrency();
+    }
+    return 1;
+  }
+  assert(tokens.size() >= 2);
+  auto jtoken = tokens[1];
+  if (jtoken.kind() == TokenKind::Option) {
+    return 1;
+  }
+  if (jtoken.kind() != TokenKind::Literal) {
+    throw std::runtime_error(
+        "--j expects either the the number of concurrent jobs or nothing");
+  }
+  const auto &jlit = jtoken.literal();
+  if (!jlit.is_unsigned_int()) {
+    throw std::runtime_error(
+        "--j expects either the the number of concurrent jobs or nothing");
+  }
+
+  uint64_t j = jlit.as_unsigned_int();
+  if (jobs) {
+    *jobs =
+        std::min(static_cast<uint32_t>(j), std::thread::hardware_concurrency());
+  }
+
+  return 2;
+}

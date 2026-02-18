@@ -11,6 +11,8 @@ struct DbBenchOptions {
   uint32_t minSamples = 10;
   float maxRelativeError = 0.05f;
   bool saveProgress = true;
+
+  uint32_t jobs;
 };
 
 class Db {
