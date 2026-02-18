@@ -58,8 +58,9 @@ CompilationResult GlslCompilerInstance::compile() {
   shader.setPreamble(preambleCStr);
 
   GlslPreprocessor preprocessor;
+  memory::span<const std::byte> src = m_srcHandle.bytes();
   memory::string preprocessed = preprocessor.preprocess(memory::string_view{
-      reinterpret_cast<const char *>(m_src.data()), m_src.size()});
+      reinterpret_cast<const char *>(src.data()), src.size()});
   // DENOX_WARN("FINAL GLSL: {}\n{}{}", m_sourcePath, m_preamble, preprocessed);
 
   const char *srcPtr = preprocessed.c_str();
@@ -177,7 +178,8 @@ CompilationResult GlslCompilerInstance::compile() {
 }
 
 SHA256 GlslCompilerInstance::fast_sha256() const {
-  SHA256Builder hasher = m_compiler->m_shaCache.cachedSHA(m_sourcePath, m_src);
+  memory::span<const std::byte> src = m_srcHandle.bytes();
+  SHA256Builder hasher = m_compiler->m_shaCache.cachedSHA(m_sourcePath, src);
   hasher.update(std::span{reinterpret_cast<const uint8_t *>(m_preamble.data()),
                           m_preamble.size()});
   return hasher.finalize();

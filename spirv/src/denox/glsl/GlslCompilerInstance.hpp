@@ -2,6 +2,7 @@
 
 #include "denox/algorithm/hash_combine.hpp"
 #include "denox/common/SHA256.hpp"
+#include "denox/io/fs/FileCache.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/spirv/CompilationResult.hpp"
@@ -64,15 +65,16 @@ public:
 
   uint64_t hashSrc() const {
     uint64_t hash = hashPreamble();
-    for (std::byte b : m_src) {
+    for (std::byte b : m_srcHandle.bytes()) {
       hash = algorithm::hash_combine(hash, std::hash<std::byte>{}(b));
     }
     return hash;
   }
 
   void sha256(SHA256Builder &hash) const {
-    hash.update(std::span{reinterpret_cast<const uint8_t *>(m_src.data()),
-                          m_src.size()});
+    memory::span<const std::byte> src = m_srcHandle.bytes();
+    hash.update(std::span{reinterpret_cast<const uint8_t *>(src.data()),
+                          src.size()});
 
     hash.update(std::span{reinterpret_cast<const uint8_t *>(m_preamble.data()),
                           m_preamble.size()});
@@ -81,15 +83,15 @@ public:
   SHA256 fast_sha256() const;
 
 private:
-  GlslCompilerInstance(GlslCompiler *compiler, memory::vector<std::byte> src,
+  GlslCompilerInstance(GlslCompiler *compiler, io::CachedFileHandle src,
                        io::Path sourcePath)
-      : m_compiler(compiler), m_src(std::move(src)),
+      : m_compiler(compiler), m_srcHandle(std::move(src)),
         m_sourcePath(std::move(sourcePath)),
         m_mutex(std::make_shared<std::mutex>()) {}
 
 private:
   GlslCompiler *m_compiler;
-  memory::vector<std::byte> m_src;
+  io::CachedFileHandle m_srcHandle;
   io::Path m_sourcePath;
   memory::string m_preamble;
   bool m_denoxPreprocessor = true;

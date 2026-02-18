@@ -46,7 +46,8 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   }();
 
   spirv::SpirvTools spirvTools(options.deviceInfo);
-  spirv::GlslCompiler glslCompiler(&spirvTools, options.deviceInfo,
+  io::FileCache fileCache;
+  spirv::GlslCompiler glslCompiler(&spirvTools, &fileCache, options.deviceInfo,
                                    options.spirv.debugInfo);
 
   compiler::Model model = compiler::frontend(onnx, options);

@@ -1,6 +1,4 @@
 #include "denox/compiler/populate.hpp"
-#include "denox/algorithm/align_up.hpp"
-#include "denox/common/PushConstant.hpp"
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/dce/dce.hpp"
@@ -15,10 +13,8 @@
 #include "denox/diag/progress.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
-#include "denox/runtime/context.hpp"
 #include "denox/spirv/SpirvTools.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
-#include <cmath>
 #include <fmt/format.h>
 
 void denox::populate(Db db, memory::span<const std::byte> onnx,
@@ -28,7 +24,8 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
   diag::Progress progress;
 
   spirv::SpirvTools spirvTools(options.deviceInfo);
-  spirv::GlslCompiler glslCompiler(&spirvTools, options.deviceInfo,
+  io::FileCache fileCache;
+  spirv::GlslCompiler glslCompiler(&spirvTools, &fileCache, options.deviceInfo,
                                    options.spirv.debugInfo);
 
   compiler::Model model = compiler::frontend(onnx, options);
@@ -41,8 +38,8 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
                           progress.sub_progress(0, 0.1f));
 
   // compiler::prune_dead_supergraph(supergraph);
-  compiler::prune_topological(supergraph, cmodel, progress.sub_progress(0, 0.12f),
-                              logger);
+  compiler::prune_topological(supergraph, cmodel,
+                              progress.sub_progress(0, 0.12f), logger);
 
   // Evaluate symbols to their assumed values!
   SymGraphEval symeval = compiler::assumed_symeval(supergraph.symGraph,

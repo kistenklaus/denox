@@ -43,6 +43,7 @@ using namespace denox;
 struct BenchmarkState {
   std::mt19937 prng;
   std::unique_ptr<spirv::SpirvTools> tools;
+  std::unique_ptr<io::FileCache> fileCache;
   std::unique_ptr<spirv::GlslCompiler> glslCompiler;
 
   runtime::clockctrl clockctrl;
@@ -62,12 +63,14 @@ create_benchmark_state(const runtime::ContextHandle &ctx) {
   auto device_info = denox::query_driver_device_info(
       ctx->vkInstance(), ctx->vkPhysicalDevice(), ApiVersion::VULKAN_1_4);
   auto tools = std::make_unique<spirv::SpirvTools>(device_info);
-  auto glslCompiler =
-      std::make_unique<spirv::GlslCompiler>(tools.get(), device_info);
+  auto fileCache = std::make_unique<io::FileCache>();
+  auto glslCompiler = std::make_unique<spirv::GlslCompiler>(
+      tools.get(), fileCache.get(), device_info);
 
   return BenchmarkState{
       .prng = std::move(prng),
       .tools = std::move(tools),
+      .fileCache = std::move(fileCache),
       .glslCompiler = std::move(glslCompiler),
       .clockctrl = runtime::clockctrl{ctx},
   };

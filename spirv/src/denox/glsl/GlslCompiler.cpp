@@ -8,11 +8,14 @@
 
 namespace denox::spirv {
 
-GlslCompiler::GlslCompiler(SpirvTools* tools, const DeviceInfo &deviceInfo,
+GlslCompiler::GlslCompiler(SpirvTools *tools, io::FileCache *fileCache,
+                           const DeviceInfo &deviceInfo,
                            SpirvDebugInfoLevel debugInfo, bool opt)
-    : m_tools(tools), m_deviceInfo(deviceInfo),
+    : m_tools(tools), m_fileCache(fileCache), m_deviceInfo(deviceInfo),
       m_buildInResource(malloc(sizeof(TBuiltInResource))),
       m_debugInfo(debugInfo), m_optimize(opt) {
+
+  assert(m_fileCache != nullptr);
 
   denox::glslang::ensure_initialized();
 
@@ -133,11 +136,9 @@ GlslCompiler::~GlslCompiler() {
 }
 
 GlslCompilerInstance GlslCompiler::read(io::Path sourcePath) {
-  io::File file = io::File::open(sourcePath, io::File::OpenMode::Read);
-  memory::vector<std::byte> glslSource(file.size());
-  file.read_exact(glslSource);
-
-  return GlslCompilerInstance(this, std::move(glslSource), std::move(sourcePath));
+  io::CachedFileHandle src = m_fileCache->read(sourcePath);
+  return GlslCompilerInstance(this, std::move(src),
+                              std::move(sourcePath));
 }
 
 } // namespace denox::spirv

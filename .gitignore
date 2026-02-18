@@ -64,3 +64,4 @@ cmake-debug-build
 /data
 *.log
 *.plan
+*.tmp

@@ -7,6 +7,7 @@ add_library(denox_common EXCLUDE_FROM_ALL
   src/denox/memory/tensor/FilterTensor.cpp
   src/denox/io/read_file.cpp
   src/denox/io/fs/File.cpp
+  src/denox/io/fs/FileCache.cpp
   src/denox/io/fs/Path.cpp
 
   src/denox/common/SHA256.cpp
