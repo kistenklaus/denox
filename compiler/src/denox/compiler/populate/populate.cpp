@@ -209,12 +209,14 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
 
   db.atomic_writeback();
   if (new_dispatch_count == 0) {
-    progressbar.step(logger, 1.0f, "All required dispatch configurations already present in database");
+    progressbar.step(
+        logger, 1.0f,
+        "All required dispatch configurations already present in database");
   } else {
 
-    progressbar.step_inplace(logger, 1.0f, false,
-                     "{}Database populated. Added {} new dispatches{}",
-                     logger.green(), new_dispatch_count, logger.reset());
+    progressbar.step_inplace(
+        logger, 1.0f, false, "{}Database populated. Added {} new dispatches{}",
+        logger.green(), new_dispatch_count, logger.reset());
   }
 }
 

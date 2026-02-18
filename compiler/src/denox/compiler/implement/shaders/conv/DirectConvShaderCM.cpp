@@ -97,8 +97,10 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       std::ranges::sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
         return lhs.first < rhs.first;
       });
+
       coopmatShapes.resize(
           std::min<size_t>(coopmatShapes.size(), COOPMAT_SHAPE_SPACE));
+
       for (const auto &[_, coopmat_shape] : coopmatShapes) {
         const uint32_t cm_m = coopmat_shape.M;
         const uint32_t cm_k = coopmat_shape.K;
@@ -155,7 +157,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                       coopmats_register_estimate +
                       prefetch_A_register_estimate +
                       prefetch_B_register_estimate;
-                  if (register_estimate > 160) {
+                  if (register_estimate > 200) {
                     continue; // to many registers (conservative limit, because
                               // optimizers might reduce this drastically)
                   }
@@ -249,10 +251,11 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Conv) {
         return false;
       }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+      return true;
+      // const auto &conv = op.conv();
+      // return conv->stride.x == 1 && conv->stride.y == 1 &&
+      //        conv->padding.x == 1 && conv->padding.y == 1 &&
+      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     auto out = conv->matchDst();
 
@@ -278,10 +281,11 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Conv) {
         return false;
       }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+      return true;
+      // const auto &conv = op.conv();
+      // return conv->stride.x == 1 && conv->stride.y == 1 &&
+      //        conv->padding.x == 1 && conv->padding.y == 1 &&
+      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     relu->matchRank(1);
     relu->matchValue([](const ComputeOp &op) {
@@ -323,10 +327,11 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Conv) {
         return false;
       }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+      return true;
+      // const auto &conv = op.conv();
+      // return conv->stride.x == 1 && conv->stride.y == 1 &&
+      //        conv->padding.x == 1 && conv->padding.y == 1 &&
+      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
 
     in->matchValue(tensorSupported);
@@ -362,10 +367,11 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Conv) {
         return false;
       }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+      return true;
+      // const auto &conv = op.conv();
+      // return conv->stride.x == 1 && conv->stride.y == 1 &&
+      //        conv->padding.x == 1 && conv->padding.y == 1 &&
+      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
 
     acti->matchRank(1);
@@ -415,10 +421,11 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Conv) {
         return false;
       }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+      return true;
+      // const auto &conv = op.conv();
+      // return conv->stride.x == 1 && conv->stride.y == 1 &&
+      //        conv->padding.x == 1 && conv->padding.y == 1 &&
+      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
 
     in->matchValue(tensorSupported);
@@ -430,7 +437,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
         return false;
       }
       if (tensor.channels.constant() % 8 != 0) {
-        return false; // <- possible remove me later!
+        return false;
       }
       if (tensor.storage != TensorStorage::StorageBuffer) {
         return false;
@@ -464,10 +471,11 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Conv) {
         return false;
       }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
+      return true;
+      // const auto &conv = op.conv();
+      // return conv->stride.x == 1 && conv->stride.y == 1 &&
+      //        conv->padding.x == 1 && conv->padding.y == 1 &&
+      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
     });
     relu->matchRank(1);
     relu->matchValue([](const ComputeOp &op) {
@@ -502,7 +510,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
         return false;
       }
       if (tensor.channels.constant() % 8 != 0) {
-        return false; // <- possible remove me later!
+        return false;
       }
       if (tensor.storage != TensorStorage::StorageBuffer) {
         return false;
