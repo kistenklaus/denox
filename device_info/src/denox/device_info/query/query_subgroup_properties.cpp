@@ -48,7 +48,7 @@ query_subgroup_properties([[maybe_unused]] vk::Instance instance,
 
 #ifdef VK_VERSION_1_3
   {
-    VkPhysicalDeviceSubgroupSizeControlProperties props;
+    VkPhysicalDeviceSubgroupSizeControlProperties props{};
     props.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_PROPERTIES;
     VkPhysicalDeviceProperties2 props2;

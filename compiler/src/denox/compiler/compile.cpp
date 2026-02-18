@@ -21,7 +21,6 @@
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/runtime/db.hpp"
 #include "denox/spirv/SpirvTools.hpp"
-#include <cmath>
 
 denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
@@ -60,9 +59,12 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
       compiler::implement(cmodel, cano.symGraph, &glslCompiler, options, logger,
                           progress.sub_progress(0.0f, 0.2f));
 
-  // compiler::prune_dead_supergraph(supergraph);
-  compiler::prune_topological(supergraph, cmodel,
-                              progress.sub_progress(0.21f, 0.28f), logger);
+  if (options.optimizationLevel >= 5) {
+    compiler::prune_dead_supergraph(supergraph, cmodel);
+  } else {
+    compiler::prune_topological(supergraph, cmodel,
+                                progress.sub_progress(0.21f, 0.28f), logger);
+  }
 
   SymGraphEval symeval = compiler::assumed_symeval(supergraph.symGraph,
                                                    model.valueNames(), options);

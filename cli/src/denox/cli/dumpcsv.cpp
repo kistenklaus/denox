@@ -44,6 +44,8 @@ void dumpcsv(DumpCsvAction &action) {
       // Timing
       "latency_ms", //
       "sample_timestamp",
+      "gpu_clock",
+      "mem_clock",
   };
 
   std::string csv;
@@ -178,11 +180,12 @@ void dumpcsv(DumpCsvAction &action) {
       }
 
       csv += fmt::format(
-          "{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n", line_header, env.device, env.os,
+          "{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n", line_header, env.device, env.os,
           env.driver_version, env.start_timestamp, clock_mode,
           env.l2_warmup_iterations, env.jit_warmup_iterations,
           env.measurement_iterations,
-          static_cast<float>(sample.latency_ns) * 1e-6f, sample.timestamp);
+          static_cast<float>(sample.latency_ns) * 1e-6f, sample.timestamp,
+          sample.gpuClock, sample.memClock);
     }
   }
 

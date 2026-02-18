@@ -69,7 +69,14 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
 
       memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
           coopmatShapes;
-      static constexpr size_t COOPMAT_SHAPE_SPACE = 1;
+
+      size_t coopmat_shape_space;
+      if (options.optimizationLevel >= 5) {
+        coopmat_shape_space = 3;
+      } else {
+        coopmat_shape_space = 1;
+      }
+
       for (const denox::CoopmatShape &shape :
            options.deviceInfo.coopmat.shapes) {
         if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
@@ -95,7 +102,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
         return lhs.first >= rhs.first;
       });
       coopmatShapes.resize(
-          std::min<size_t>(coopmatShapes.size(), COOPMAT_SHAPE_SPACE));
+          std::min<size_t>(coopmatShapes.size(), coopmat_shape_space));
       for (const auto &[_, cm_a] : coopmatShapes) {
         const uint32_t cm_m = cm_a.M;
         const uint32_t a_cm_k = cm_a.K;

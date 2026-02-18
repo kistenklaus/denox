@@ -72,7 +72,12 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       // special config:
       memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
           coopmatShapes;
-      static constexpr size_t COOPMAT_SHAPE_SPACE = 1;
+      size_t coopmat_shape_space;
+      if (options.optimizationLevel >= 5) {
+        coopmat_shape_space = 3;
+      } else {
+        coopmat_shape_space = 1;
+      }
       for (const denox::CoopmatShape &shape :
            options.deviceInfo.coopmat.shapes) {
         if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
@@ -99,7 +104,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       });
 
       coopmatShapes.resize(
-          std::min<size_t>(coopmatShapes.size(), COOPMAT_SHAPE_SPACE));
+          std::min<size_t>(coopmatShapes.size(), coopmat_shape_space));
 
       for (const auto &[_, coopmat_shape] : coopmatShapes) {
         const uint32_t cm_m = coopmat_shape.M;

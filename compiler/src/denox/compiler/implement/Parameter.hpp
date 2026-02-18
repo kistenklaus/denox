@@ -1,11 +1,9 @@
 #pragma once
 
 #include "denox/compiler/implement/TensorId.hpp"
-#include "denox/memory/container/vector.hpp"
 #include <cstddef>
 #include <fmt/format.h>
 #include <functional>
-#include <memory>
 
 namespace denox::compiler {
 

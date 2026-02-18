@@ -429,7 +429,8 @@ denox::Db denox::Db::open(const io::Path &path) {
     }
     // ---- timing_samples ----
     {
-      Stmt st(db, "SELECT dispatch_id, idx, timestamp, latency_ns, env "
+      Stmt st(db, "SELECT dispatch_id, idx, timestamp, latency_ns, env, "
+                  "gpu_clock, mem_clock "
                   "FROM timing_samples ORDER BY dispatch_id, idx;");
 
       while (true) {
@@ -469,6 +470,12 @@ denox::Db denox::Db::open(const io::Path &path) {
         s.latency_ns =
             static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 3));
         s.env = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 4));
+        if (!col_is_null(st.s, 5)) {
+          s.gpuClock = static_cast<uint32_t>(sqlite3_column_int64(st.s, 5));
+        }
+        if (!col_is_null(st.s, 6)) {
+          s.memClock = static_cast<uint32_t>(sqlite3_column_int64(st.s, 6));
+        }
         d.time->samples.push_back(std::move(s));
       }
     }
@@ -605,6 +612,8 @@ bool denox::Db::atomic_writeback() const {
                     "  timestamp INTEGER NOT NULL,"
                     "  latency_ns INTEGER NOT NULL,"
                     "  env INTEGER NOT NULL,"
+                    "  gpu_clock INTEGER,"
+                    "  mem_clock INTEGER,"
                     "  PRIMARY KEY(dispatch_id, idx)"
                     ");");
 
@@ -641,7 +650,8 @@ bool denox::Db::atomic_writeback() const {
                            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?);");
 
       Stmt ins_sample(db, "INSERT INTO timing_samples(dispatch_id, idx, "
-                          "timestamp, latency_ns, env) VALUES (?,?,?,?,?);");
+                          "timestamp, latency_ns, env, gpu_clock, mem_clock) "
+                          "VALUES (?,?,?,?,?,?,?);");
 
       for (size_t i = 0; i < m_db->environments.size(); ++i) {
         const auto &e = m_db->environments[i];
@@ -963,9 +973,18 @@ bool denox::Db::atomic_writeback() const {
                 sqlite3_bind_int64(ins_sample.s, 4,
                                    static_cast<sqlite3_int64>(s.latency_ns)),
                 db, "bind sample latency_ns");
+
             sqlite_check(
                 sqlite3_bind_int(ins_sample.s, 5, static_cast<int>(s.env)), db,
                 "bind sample env");
+
+            sqlite_check(
+                sqlite3_bind_int(ins_sample.s, 6, static_cast<int>(s.gpuClock)),
+                db, "bind sample gpu_clock");
+
+            sqlite_check(
+                sqlite3_bind_int(ins_sample.s, 7, static_cast<int>(s.memClock)),
+                db, "bind sample mem_clock");
 
             sqlite_check(sqlite3_step(ins_sample.s), db, "step insert sample");
           }

@@ -539,6 +539,8 @@ static void read_batch(const runtime::ContextHandle &ctx,
     timing.samples.push_back(DbSample{
         .timestamp = benchmark_timestamp(),
         .latency_ns = latency_ns,
+        .gpuClock = gpu_clock,
+        .memClock = mem_clock,
         .env = stage.env,
     });
   }

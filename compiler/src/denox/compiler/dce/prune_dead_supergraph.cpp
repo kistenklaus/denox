@@ -1,4 +1,5 @@
 #include "denox/compiler/dce/prune_dead_supergraph.hpp"
+#include "denox/compiler/dce/failed_to_implement.hpp"
 #include "denox/compiler/implement/TensorId.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
@@ -9,7 +10,7 @@
 #include <stdexcept>
 #include <utility>
 
-void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
+void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph, const ConstModel& model) {
 
   auto &graph = supergraph.graph;
   const size_t N = graph.nodeCount();
@@ -144,7 +145,7 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph) {
     assert(nid != memory::NodeId{});
     nid = nodeRemap[*nid];
     if (!nid) {
-      throw std::runtime_error("Failed to implement model");
+      failed_to_implement(supergraph, model);
     }
   }
   for (auto &nid : supergraph.outputs) {
