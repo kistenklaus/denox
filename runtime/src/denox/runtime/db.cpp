@@ -245,10 +245,12 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
   memory::vector<EpochDispatch> dispatches(targets.size(), EpochDispatch{});
 
   // auto start = std::chrono::high_resolution_clock::now();
+  memory::vector<float> latencies(jobs);
 
   std::vector<std::thread> threads(jobs);
   for (size_t tid = 0; tid < threads.size(); ++tid) {
     threads[tid] = std::thread([&, tid]() {
+      auto s = std::chrono::high_resolution_clock::now();
       localMaxSets[tid] = 0;
       localStorageBufferDescriptorCount[tid] = 0;
       localPeakBufferSize[tid] = 0;
@@ -315,11 +317,28 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
             .workgroupCountZ = dbdispatch.workgroupCountZ,
         };
       }
+      auto dur = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+          std::chrono::high_resolution_clock::now() - s);
+      latencies[tid] = dur.count();
     });
   }
   for (uint32_t i = 0; i < threads.size(); ++i) {
     threads[i].join();
   }
+
+  float minLatency = std::numeric_limits<float>::max();
+  float maxLatency = 0;
+  for (const auto& latency : latencies) {
+    minLatency = std::min(latency, minLatency);
+    maxLatency = std::max(latency, maxLatency);
+  }
+  float delta = std::abs(maxLatency - minLatency);
+  if (delta > 1000) {
+    fmt::println("load inplace during pipeline compilation: {}ms", delta);
+    fmt::println("load inplace during pipeline compilation: {}ms", delta);
+  }
+
+  
 
   memory::vector<VkPipeline> pipelines;
   memory::vector<VkPipelineLayout> pipelineLayouts;
@@ -841,11 +860,14 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
                   std::max(0.0, sumsq / static_cast<double>(n) - mean * mean);
               const double stddev = std::sqrt(variance);
 
-              std::atomic_ref<uint64_t>(info.sample_count).store(n, std::memory_order_release);
-              std::atomic_ref<uint64_t>(info.mean_latency_ns).store(static_cast<uint64_t>(mean),
-                  std::memory_order_release);
-              std::atomic_ref<uint64_t>(info.std_derivation_ns).store(static_cast<uint64_t>(stddev),
-                  std::memory_order_release);
+              std::atomic_ref<uint64_t>(info.sample_count)
+                  .store(n, std::memory_order_release);
+              std::atomic_ref<uint64_t>(info.mean_latency_ns)
+                  .store(static_cast<uint64_t>(mean),
+                         std::memory_order_release);
+              std::atomic_ref<uint64_t>(info.std_derivation_ns)
+                  .store(static_cast<uint64_t>(stddev),
+                         std::memory_order_release);
             }
 
             m_db.add_dispatch_benchmark_result(info.dispatch_id,
