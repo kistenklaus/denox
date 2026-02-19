@@ -46,6 +46,6 @@ void compile(CompileAction &action) {
   }
 
   if (db.has_value()) {
-    db->atomic_writeback();
+    db->checkpoint();
   }
 }

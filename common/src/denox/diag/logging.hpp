@@ -1,5 +1,6 @@
 #pragma once
 
+#include "denox/io/is_tty.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/container/string_view.hpp"
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -80,6 +81,10 @@ public:
       : m_codes(std::make_shared<AniCodes>()),
         m_sink(std::make_shared<spdlog::sinks::stderr_sink_st>()),
         m_logger(std::make_shared<spdlog::logger>(name, m_sink)) {
+
+    if (!denox::io::stderr_is_tty()) {
+      colors = false;
+    }
     if (colors) {
       m_codes->red = "\x1B[31m";
       m_codes->green = "\x1B[32m";

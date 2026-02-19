@@ -15,7 +15,6 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
 
   std::unordered_set<SHA256> sourceExists;
 
-  std::unordered_set<std::string> tmp;
   memory::vector<GlslCompilationUnit> units;
   for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
     memory::EdgeId eid{e};
@@ -23,17 +22,13 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
     for (const compiler::ComputeDispatch &dispatch : edge.dispatches) {
       SHA256 hash = dispatch.glsl.fast_sha256();
       auto cached = db.query_shader_binary(hash);
-      if (!cached && !sourceExists.contains(hash) &&
-          !tmp.contains(dispatch.glsl.key())) {
+      if (!cached && !sourceExists.contains(hash)) {
         units.emplace_back(dispatch.glsl, hash);
         sourceExists.insert(hash);
-        tmp.insert(dispatch.glsl.key());
       }
     }
   }
-
   uint32_t jj = options.jobs;
-
   memory::vector<std::thread> threads(jj);
   uint32_t thread_count = static_cast<uint32_t>(threads.size());
   std::atomic<uint32_t> progess = 0;
@@ -45,6 +40,7 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
         SpirvBinary binary = *units[i].glsl.compile();
 
         std::lock_guard lck{mutex};
+
         uint32_t idx = progess.fetch_add(1);
         float prog = static_cast<float>(idx + 1) /
                      (static_cast<float>(units.size() + 1));
@@ -67,7 +63,6 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
     for (const compiler::ComputeDispatch &dispatch : edge.dispatches) {
       SHA256 hash = dispatch.glsl.fast_sha256();
       SpirvBinary binary = *db.query_shader_binary(hash);
-
       uint32_t wgX = static_cast<uint32_t>(*symeval[dispatch.workgroupCountX]);
       uint32_t wgY = static_cast<uint32_t>(*symeval[dispatch.workgroupCountY]);
       uint32_t wgZ = static_cast<uint32_t>(*symeval[dispatch.workgroupCountZ]);
@@ -207,7 +202,6 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
     }
   }
 
-  db.atomic_writeback();
   if (new_dispatch_count == 0) {
     progressbar.step(
         logger, 1.0f,

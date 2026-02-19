@@ -299,6 +299,9 @@ Action parse_populate(std::span<const Token> tokens) {
   denox::memory::optional<denox::memory::string> deviceName;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
+  options.jobs = std::max(std::thread::hardware_concurrency() - 2,
+                          std::thread::hardware_concurrency());
+
   bool spirv_nonSemanticDebugInfo = false;
   bool spirv_debugInfo = false;
 
@@ -325,6 +328,11 @@ Action parse_populate(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_jobs(tail, &options.jobs))) {
       i += jump;
       continue;
     }
@@ -506,12 +514,12 @@ Action parse_bench(std::span<const Token> tokens) {
                                    describe_token(tokens[i])));
     }
 
-    if ((jump = parse_help(tokens, &help))) {
+    if ((jump = parse_help(tail, &help))) {
       i += jump;
       continue;
     }
 
-    if ((jump = parse_jobs(tokens, &dbBenchOptions.jobs))) {
+    if ((jump = parse_jobs(tail, &dbBenchOptions.jobs))) {
       i += jump;
       continue;
     }

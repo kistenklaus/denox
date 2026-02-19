@@ -33,7 +33,7 @@ public:
     Append = 1u << 2,   // append at end
     Truncate = 1u << 3, // truncate on open
     Create = 1u << 4,   // create if not exist
-    Readwrite = Read | Write
+    Readwrite = Read | Write,
   };
 
   enum class SeekWhence : int { Set = 0, Cur = 1, End = 2 };

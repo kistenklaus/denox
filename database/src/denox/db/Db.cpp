@@ -1,1065 +1,170 @@
 #include "denox/db/Db.hpp"
-#include "denox/algorithm/hash_combine.hpp"
-#include "denox/common/SHA256.hpp"
-#include "denox/db/DbEnv.hpp"
-#include "denox/db/DbIndex.hpp"
-#include "denox/db/DbMapped.hpp"
-#include "denox/db/DbShaderBinary.hpp"
-#include "denox/diag/invalid_argument.hpp"
-#include "denox/diag/invalid_state.hpp"
-#include "denox/diag/logging.hpp"
-#include <algorithm>
-#include <cassert>
-#include <chrono>
-#include <cstring>
-#include <db.h>
-#include <filesystem>
-#include <fmt/format.h>
-#include <mutex>
-#include <ratio>
-#include <sqlite3.h>
-#include <stdexcept>
 
-namespace {
+namespace denox {
 
-static inline void sqlite_check(int rc, sqlite3 *db, const char *what) {
-  if (rc == SQLITE_OK || rc == SQLITE_DONE || rc == SQLITE_ROW) {
-    return;
+static constexpr int DB_VERSION = 1;
+
+Db Db::open(const io::Path &path) {
+  sqlite::Db db = sqlite::Db::open(path);
+  int version = 1;
+  {
+    auto stmt = db.prepare("PRAGMA user_version;");
+    if (!stmt.next()) {
+      throw std::runtime_error("Failed to read user_version");
+    }
+    version = stmt.as_int(0);
   }
-  const char *msg = db ? sqlite3_errmsg(db) : "no sqlite db";
-  throw std::runtime_error(
-      fmt::format("SQLite error in {}: rc={}, msg={}", what, rc, msg));
-}
-
-static inline void sqlite_exec(sqlite3 *db, const char *sql) {
-  char *err = nullptr;
-  int rc = sqlite3_exec(db, sql, nullptr, nullptr, &err);
-  if (rc != SQLITE_OK) {
-    const char *msg = err ? err : sqlite3_errmsg(db);
-    if (err)
-      sqlite3_free(err);
-    throw std::runtime_error(
-        fmt::format("SQLite exec failed: rc={}, msg={}, sql={}", rc, msg, sql));
+  if (version != DB_VERSION) {
+    db.with_transaction([&] {
+      // ---- drop tables ----
+      db.exec("DROP TABLE IF EXISTS timing_samples;");
+      db.exec("DROP TABLE IF EXISTS dispatch_bindings;");
+      db.exec("DROP TABLE IF EXISTS dispatches;");
+      db.exec("DROP TABLE IF EXISTS shader_binaries;");
+      db.exec("DROP TABLE IF EXISTS envs;");
+      db.exec("CREATE TABLE envs ("
+              "  id INTEGER PRIMARY KEY,"
+              "  device TEXT NOT NULL,"
+              "  os TEXT NOT NULL,"
+              "  driver_version TEXT NOT NULL,"
+              "  denox_version TEXT NOT NULL,"
+              "  denox_commit_hash TEXT NOT NULL,"
+              "  start_timestamp INTEGER NOT NULL,"
+              "  clock_mode INTEGER NOT NULL,"
+              "  l2_warmup_iterations INTEGER NOT NULL,"
+              "  jit_warmup_iterations INTEGER NOT NULL,"
+              "  measurement_iterations INTEGER NOT NULL"
+              ");");
+      db.exec("CREATE TABLE shader_binaries ("
+              "  id INTEGER PRIMARY KEY,"
+              "  src_sha256 BLOB NOT NULL,"
+              "  spirv BLOB NOT NULL"
+              ");");
+      db.exec("CREATE UNIQUE INDEX shader_binaries_sha_idx "
+              "ON shader_binaries(src_sha256);");
+      db.exec("CREATE TABLE dispatches ("
+              "  id INTEGER PRIMARY KEY,"
+              "  binary_id INTEGER NOT NULL,"
+              "  wg_x INTEGER NOT NULL,"
+              "  wg_y INTEGER NOT NULL,"
+              "  wg_z INTEGER NOT NULL,"
+              "  push_constant BLOB NOT NULL,"
+              "  hash INTEGER NOT NULL,"
+              "  operation TEXT,"
+              "  shader_name TEXT,"
+              "  config TEXT,"
+              "  memory_reads INTEGER,"
+              "  memory_writes INTEGER,"
+              "  flops INTEGER,"
+              "  coopmat INTEGER,"
+              "  fixed_subgroup_size INTEGER,"
+              "  input_bindings BLOB,"
+              "  output_bindings BLOB,"
+              "  mean_latency_ns INTEGER,"
+              "  std_derivation_ns INTEGER,"
+              ""
+              "  FOREIGN KEY(binary_id)"
+              "    REFERENCES shader_binaries(id)"
+              "    ON DELETE CASCADE"
+              ");");
+      db.exec("CREATE INDEX dispatches_hash_idx "
+              "ON dispatches(hash);");
+      db.exec("CREATE TABLE dispatch_bindings ("
+              "  dispatch_id INTEGER NOT NULL,"
+              "  idx INTEGER NOT NULL,"
+              "  set_ INTEGER NOT NULL,"
+              "  binding INTEGER NOT NULL,"
+              "  access INTEGER NOT NULL,"
+              "  format INTEGER NOT NULL,"
+              "  storage INTEGER NOT NULL,"
+              "  byte_size INTEGER NOT NULL,"
+              "  alignment INTEGER NOT NULL,"
+              "  width INTEGER,"
+              "  height INTEGER,"
+              "  channels INTEGER,"
+              "  dtype INTEGER,"
+              "  is_param INTEGER NOT NULL,"
+              ""
+              "  PRIMARY KEY(dispatch_id, idx),"
+              ""
+              "  FOREIGN KEY(dispatch_id)"
+              "    REFERENCES dispatches(id)"
+              "    ON DELETE CASCADE"
+              ");");
+      db.exec("CREATE TABLE timing_samples ("
+              "  dispatch_id INTEGER NOT NULL,"
+              "  idx INTEGER NOT NULL,"
+              "  timestamp INTEGER NOT NULL,"
+              "  latency_ns INTEGER NOT NULL,"
+              "  env INTEGER NOT NULL,"
+              "  gpu_clock INTEGER,"
+              "  mem_clock INTEGER,"
+              ""
+              "  PRIMARY KEY(dispatch_id, idx),"
+              ""
+              "  FOREIGN KEY(dispatch_id)"
+              "    REFERENCES dispatches(id)"
+              "    ON DELETE CASCADE,"
+              ""
+              "  FOREIGN KEY(env)"
+              "    REFERENCES envs(id)"
+              "    ON DELETE RESTRICT"
+              ");");
+      // ---- set version ----
+      db.exec(fmt::format("PRAGMA user_version = {};", DB_VERSION));
+    });
   }
-}
+  Inner *inner = new Inner{
+      .db = std::move(db),
+      .mutex = {},
+      .query_binary_by_hash = {},
+      .query_dispatch_latency = {},
+      .query_binary_existence = {},
+      .insert_binary = {},
+      .insert_dispatch_query_dispatch_existance = {},
+      .insert_dispatch_insert_dispatch = {},
+      .insert_dispatch_insert_bindings = {},
+  };
 
-struct Stmt {
-  sqlite3_stmt *s = nullptr;
-  Stmt() = default;
-  Stmt(sqlite3 *db, const char *sql) {
-    sqlite_check(sqlite3_prepare_v2(db, sql, -1, &s, nullptr), db, "prepare");
-  }
-  ~Stmt() {
-    if (s)
-      sqlite3_finalize(s);
-  }
-  Stmt(const Stmt &) = delete;
-  Stmt &operator=(const Stmt &) = delete;
-};
-
-template <class S> static std::string_view as_sv(const S &s) {
-  if constexpr (std::is_convertible_v<const S &, std::string_view>) {
-    return std::string_view(s);
-  } else {
-    return std::string_view(s.data(), s.size());
-  }
-}
-
-template <class Opt> static bool has_value_like(const Opt &o) {
-  return o.has_value();
-}
-
-static bool col_is_null(sqlite3_stmt *s, int col) {
-  return sqlite3_column_type(s, col) == SQLITE_NULL;
-}
-
-inline std::string col_text(sqlite3_stmt *s, int col) {
-  const unsigned char *p = sqlite3_column_text(s, col);
-  int n = sqlite3_column_bytes(s, col);
-  if (!p || n <= 0)
-    return {};
-  return std::string(reinterpret_cast<const char *>(p),
-                     reinterpret_cast<const char *>(p) + n);
-}
-
-inline std::vector<std::uint8_t> col_blob_u8(sqlite3_stmt *s, int col) {
-  const void *p = sqlite3_column_blob(s, col);
-  int n = sqlite3_column_bytes(s, col);
-  if (!p || n <= 0)
-    return {};
-  const auto *b = reinterpret_cast<const std::uint8_t *>(p);
-  return std::vector<std::uint8_t>(b, b + n);
-}
-
-inline void col_blob_exact(sqlite3_stmt *s, int col, void *dst,
-                           int expected_bytes, const char *what) {
-  const void *p = sqlite3_column_blob(s, col);
-  int n = sqlite3_column_bytes(s, col);
-  if (!p || n != expected_bytes) {
-    throw std::runtime_error(
-        fmt::format("SQLite: invalid blob size for {}: expected {}, got {}",
-                    what, expected_bytes, n));
-  }
-  std::memcpy(dst, p, static_cast<size_t>(expected_bytes));
-}
-
-inline std::vector<std::uint32_t> col_blob_u32(sqlite3_stmt *s, int col,
-                                               const char *what) {
-  const void *p = sqlite3_column_blob(s, col);
-  int n = sqlite3_column_bytes(s, col);
-  if (!p || n <= 0)
-    return {};
-  if ((n % int(sizeof(std::uint32_t))) != 0) {
-    throw std::runtime_error(fmt::format(
-        "SQLite: blob for {} not multiple of 4 bytes (n={})", what, n));
-  }
-  size_t count = size_t(n) / sizeof(std::uint32_t);
-  std::vector<std::uint32_t> out(count);
-  std::memcpy(out.data(), p, size_t(n));
+  auto out = Db(std::shared_ptr<Inner>(inner));
+  out.create_cached_stmts();
   return out;
 }
 
-inline std::uint64_t col_u64(sqlite3_stmt *s, int col) {
-  // SQLite INTEGER is signed 64-bit.
-  sqlite3_int64 v = sqlite3_column_int64(s, col);
-  return static_cast<std::uint64_t>(v);
+void Db::checkpoint() {
+  std::lock_guard lck{m_inner->mutex};
+  finalize_stmts();
+  m_inner->db.checkpoint();
+  create_cached_stmts();
 }
 
-} // namespace
-
-denox::Db denox::Db::open(const io::Path &path) {
-  auto out = std::make_shared<DbMapped>();
-  out->m_path = path;
-  auto index = std::make_shared<DbIndex>();
-  if (!path.exists()) {
-    return Db{std::move(out), std::move(index)};
-  }
-  if (path.is_dir()) {
-    DENOX_ERROR("invalid database path: {} is a directory", path);
-    diag::invalid_argument();
-  }
-  out->m_path = path;
-
-  sqlite3 *db = nullptr;
-  {
-    int rc = sqlite3_open_v2(path.cstr(), &db, SQLITE_OPEN_READONLY, nullptr);
-    if (rc != SQLITE_OK) {
-      const char *msg = db ? sqlite3_errmsg(db) : "no sqlite db";
-      if (db) {
-        sqlite3_close(db);
-      }
-
-      throw std::runtime_error(fmt::format(
-          "Failed to open database: {}: rc={}, msg={}", path, rc, msg));
-    }
-  }
-  try {
-    int user_version = 0;
-    {
-      Stmt st(db, "PRAGMA user_version;");
-      int rc = sqlite3_step(st.s);
-      if (rc != SQLITE_ROW) {
-        // Common failure for "file is not a database"
-        sqlite_check(rc, db, "step PRAGMA user_version");
-      }
-      user_version = sqlite3_column_int(st.s, 0);
-    }
-    if (user_version != 1) {
-      throw std::runtime_error(fmt::format(
-          "Unsupported sqlite db schema version {} (expected 1) in {}",
-          user_version, path));
-    }
-
-    {
-      Stmt st(db, "SELECT id, device, os, driver_version, denox_version, "
-                  "denox_commit_hash, "
-                  "start_timestamp, clock_mode, l2_warmup_iterations, "
-                  "jit_warmup_iterations, measurement_iterations "
-                  "FROM envs ORDER BY id;");
-
-      std::vector<DbEnv> envs;
-      while (true) {
-        int rc = sqlite3_step(st.s);
-        if (rc == SQLITE_DONE)
-          break;
-        sqlite_check(rc, db, "step envs");
-
-        const int id = sqlite3_column_int(st.s, 0);
-        if (id < 0) {
-          throw std::runtime_error(
-              fmt::format("SQLite: negative env id {}", id));
-        }
-        if (size_t(id) != envs.size()) {
-          throw std::runtime_error(
-              fmt::format("SQLite: env id {} not contigous (expected {})", id,
-                          envs.size()));
-        }
-
-        DbEnv e{};
-        e.device = col_text(st.s, 1);
-        e.os = col_text(st.s, 2);
-        e.driver_version = col_text(st.s, 3);
-        e.denox_version = col_text(st.s, 4);
-        e.denox_commit_hash = col_text(st.s, 5);
-        e.start_timestamp =
-            static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 6));
-        e.clock_mode = static_cast<DbClockMode>(sqlite3_column_int(st.s, 7));
-        e.l2_warmup_iterations =
-            static_cast<std::uint16_t>(sqlite3_column_int(st.s, 8));
-        e.jit_warmup_iterations =
-            static_cast<std::uint16_t>(sqlite3_column_int(st.s, 9));
-        e.measurement_iterations =
-            static_cast<std::uint16_t>(sqlite3_column_int(st.s, 10));
-
-        envs.push_back(std::move(e));
-      }
-      out->environments = std::move(envs);
-    }
-
-    {
-      Stmt st(db,
-              "SELECT id, src_sha256, spirv FROM shader_binaries ORDER BY id;");
-
-      while (true) {
-        int rc = sqlite3_step(st.s);
-        if (rc == SQLITE_DONE)
-          break;
-        sqlite_check(rc, db, "step shader_binaries");
-
-        const int id = sqlite3_column_int(st.s, 0);
-        if (id < 0) {
-          throw std::runtime_error(
-              fmt::format("SQLite: negative shader_binaries id {}", id));
-        }
-        if (size_t(id) != out->binaries.size()) {
-          throw std::runtime_error(fmt::format(
-              "SQLite: shader_binaries id {} not contigous (expected {})", id,
-              out->binaries.size()));
-        }
-
-        DbShaderBinary bin{};
-        col_blob_exact(st.s, 1, bin.hash.h, int(sizeof(std::uint32_t) * 8),
-                       "src_sha256");
-
-        // spirv as blob of uint32 words
-        {
-          const void *p = sqlite3_column_blob(st.s, 2);
-          int n = sqlite3_column_bytes(st.s, 2);
-          if (!p || n <= 0 || (n % int(sizeof(std::uint32_t))) != 0) {
-            throw std::runtime_error(fmt::format(
-                "SQLite: invalid spirv blob (bytes={}) for binary {}", n, id));
-          }
-          const size_t words = size_t(n) / sizeof(std::uint32_t);
-          bin.spvBinary.spv.resize(words);
-          std::memcpy(bin.spvBinary.spv.data(), p, size_t(n));
-        }
-
-        // build index (same as your flatbuffer path)
-        if (index->binary_index.contains(bin.hash)) {
-          throw std::runtime_error(
-              "SHA256 collision (binary_index). Database may be corrupted?");
-        }
-        index->binary_index[bin.hash] = out->binaries.size();
-
-        out->binaries.push_back(std::move(bin));
-      }
-    }
-    {
-      Stmt st(db,
-              "SELECT id, binary_id, wg_x, wg_y, wg_z, push_constant, hash, "
-              "operation, shader_name, config, memory_reads, memory_writes, "
-              "flops, "
-              "coopmat, "
-              "fixed_subgroup_size, "
-              "input_bindings, output_bindings, mean_latency_ns, "
-              "std_derivation_ns "
-              "FROM dispatches ORDER BY id;");
-
-      while (true) {
-        int rc = sqlite3_step(st.s);
-        if (rc == SQLITE_DONE)
-          break;
-        sqlite_check(rc, db, "step dispatches");
-
-        const int id = sqlite3_column_int(st.s, 0);
-        if (id < 0) {
-          throw std::runtime_error(
-              fmt::format("SQLite: negative disaptch id {}", id));
-        }
-        if (size_t(id) != out->dispatches.size()) {
-          throw std::runtime_error(
-              fmt::format("SQLite: dispatch id {} not contigous (expected {})",
-                          id, out->dispatches.size()));
-        }
-
-        DbComputeDispatch d{};
-        d.binaryId = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 1));
-        d.workgroupCountX =
-            static_cast<std::uint32_t>(sqlite3_column_int(st.s, 2));
-        d.workgroupCountY =
-            static_cast<std::uint32_t>(sqlite3_column_int(st.s, 3));
-        d.workgroupCountZ =
-            static_cast<std::uint32_t>(sqlite3_column_int(st.s, 4));
-        d.pushConstant = col_blob_u8(st.s, 5);
-        d.hash = col_u64(st.s, 6);
-
-        if (!col_is_null(st.s, 7))
-          d.operation = col_text(st.s, 7);
-        if (!col_is_null(st.s, 8))
-          d.shader_name = col_text(st.s, 8);
-        if (!col_is_null(st.s, 9))
-          d.config = col_text(st.s, 9);
-
-        if (!col_is_null(st.s, 10))
-          d.memory_reads =
-              static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 10));
-        if (!col_is_null(st.s, 11))
-          d.memory_writes =
-              static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 11));
-        if (!col_is_null(st.s, 12))
-          d.flops = static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 12));
-        if (!col_is_null(st.s, 13))
-          d.coopmat = (sqlite3_column_int(st.s, 13) != 0);
-
-        if (!col_is_null(st.s, 14))
-          d.fixed_subgroup_size =
-              static_cast<uint32_t>(sqlite3_column_int(st.s, 14));
-
-        if (!col_is_null(st.s, 15)) {
-          auto v = col_blob_u32(st.s, 15, "input_bindings");
-          d.input_bindings.emplace(v.begin(), v.end());
-        }
-        if (!col_is_null(st.s, 16)) {
-          auto v = col_blob_u32(st.s, 16, "output_bindings");
-          d.output_bindings.emplace(v.begin(), v.end());
-        }
-
-        // timing summary: if present, create time struct; samples loaded
-        // later
-        if (!col_is_null(st.s, 17) || !col_is_null(st.s, 18)) {
-          d.time.emplace();
-          d.time->mean_latency_ns =
-              !col_is_null(st.s, 17)
-                  ? static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 17))
-                  : 0;
-          d.time->std_derivation_ns =
-              !col_is_null(st.s, 18)
-                  ? static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 18))
-                  : 0;
-          // samples filled later
-        } else {
-          d.time = std::nullopt;
-        }
-
-        // (bindings filled later)
-        out->dispatches.push_back(std::move(d));
-
-        // build bucket index
-        index->dispatch_buckets[out->dispatches.back().hash].push_back(
-            out->dispatches.size() - 1);
-      }
-    }
-
-    // Validate binary_id range early (optional but useful)
-    for (size_t i = 0; i < out->dispatches.size(); ++i) {
-      if (out->dispatches[i].binaryId >= out->binaries.size()) {
-        throw std::runtime_error(
-            fmt::format("SQLite: dispatch {} references invalid binary_id {} "
-                        "(binaries={})",
-                        i, out->dispatches[i].binaryId, out->binaries.size()));
-      }
-    }
-
-    // ---- dispatch_bindings ----
-    {
-      Stmt st(db, "SELECT dispatch_id, idx, set_, binding, access, format, "
-                  "storage, byte_size, alignment, "
-                  "width, height, channels, dtype, is_param "
-                  "FROM dispatch_bindings ORDER BY dispatch_id, idx;");
-
-      while (true) {
-        int rc = sqlite3_step(st.s);
-        if (rc == SQLITE_DONE)
-          break;
-        sqlite_check(rc, db, "step dispatch_bindings");
-
-        const int dispatch_id = sqlite3_column_int(st.s, 0);
-        const int idx_in_disp = sqlite3_column_int(st.s, 1);
-        if (dispatch_id < 0 || size_t(dispatch_id) >= out->dispatches.size() ||
-            idx_in_disp < 0) {
-          throw std::runtime_error(
-              fmt::format("SQLite: invalid dispatch_bindings row "
-                          "(dispatch_id={}, idx={})",
-                          dispatch_id, idx_in_disp));
-        }
-
-        auto &d = out->dispatches[size_t(dispatch_id)];
-        const size_t bi = size_t(idx_in_disp);
-        if (d.bindings.size() <= bi)
-          d.bindings.resize(bi + 1);
-
-        DbTensorBinding b{};
-        b.set = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 2));
-        b.binding = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 3));
-        b.access = static_cast<Access>(sqlite3_column_int(st.s, 4));
-        b.format = static_cast<TensorFormat>(sqlite3_column_int(st.s, 5));
-        b.storage = static_cast<TensorStorage>(sqlite3_column_int(st.s, 6));
-        b.byteSize = static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 7));
-        b.alignment = static_cast<std::uint16_t>(sqlite3_column_int(st.s, 8));
-
-        if (!col_is_null(st.s, 9))
-          b.width = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 9));
-        if (!col_is_null(st.s, 10))
-          b.height = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 10));
-        if (!col_is_null(st.s, 11))
-          b.channels = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 11));
-        if (!col_is_null(st.s, 12))
-          b.type = static_cast<TensorDataType>(sqlite3_column_int(st.s, 12));
-        b.is_param = (sqlite3_column_int(st.s, 13) != 0);
-
-        if (b.storage == TensorStorage::Optimal) {
-          throw std::runtime_error(
-              fmt::format("SQLite: invalid storage=Optimal, in "
-                          "dispatch_bindings (dispatch_id={}, idx={})",
-                          dispatch_id, idx_in_disp));
-        }
-
-        d.bindings[bi] = std::move(b);
-      }
-    }
-    // ---- timing_samples ----
-    {
-      Stmt st(db, "SELECT dispatch_id, idx, timestamp, latency_ns, env, "
-                  "gpu_clock, mem_clock "
-                  "FROM timing_samples ORDER BY dispatch_id, idx;");
-
-      while (true) {
-        int rc = sqlite3_step(st.s);
-        if (rc == SQLITE_DONE)
-          break;
-        sqlite_check(rc, db, "step timing_samples");
-
-        const int dispatch_id = sqlite3_column_int(st.s, 0);
-        const int idx = sqlite3_column_int(st.s, 1);
-        if (dispatch_id < 0 || size_t(dispatch_id) >= out->dispatches.size() ||
-            idx < 0) {
-          throw std::runtime_error(fmt::format(
-              "SQLite: invalid timing_samples row (dispatch_id={}, idx={})",
-              dispatch_id, idx));
-        }
-
-        auto &d = out->dispatches[size_t(dispatch_id)];
-        if (!d.time.has_value()) {
-          // Should not happen if you only write samples when time exists, but
-          // tolerate it.
-          d.time.emplace();
-          d.time->mean_latency_ns = 0;
-          d.time->std_derivation_ns = 0;
-        }
-
-        if (d.time->samples.size() != size_t(idx)) {
-          // keep strict: rows must be contiguous, ordered
-          throw std::runtime_error(
-              fmt::format("SQLite: sample idx {} not contiguous (expected {}) "
-                          "for dispatch {}",
-                          idx, d.time->samples.size(), dispatch_id));
-        }
-
-        DbSample s{};
-        s.timestamp = static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 2));
-        s.latency_ns =
-            static_cast<std::uint64_t>(sqlite3_column_int64(st.s, 3));
-        s.env = static_cast<std::uint32_t>(sqlite3_column_int(st.s, 4));
-        if (!col_is_null(st.s, 5)) {
-          s.gpuClock = static_cast<uint32_t>(sqlite3_column_int64(st.s, 5));
-        }
-        if (!col_is_null(st.s, 6)) {
-          s.memClock = static_cast<uint32_t>(sqlite3_column_int64(st.s, 6));
-        }
-        d.time->samples.push_back(std::move(s));
-      }
-    }
-  } catch (const std::runtime_error &e) {
-    if (db) {
-      int rc = sqlite3_close(db);
-      if (rc != SQLITE_OK) {
-        DENOX_ERROR("SQLite close failed during error rewind: rc={}");
-      }
-      db = nullptr;
-      throw; // <- rethrow
-    }
-  }
-  if (db) {
-    int rc = sqlite3_close(db);
-    if (rc != SQLITE_OK) {
-      throw std::runtime_error(fmt::format("SQLite failed to close: rc={}, "
-                                           "msg={}",
-                                           rc, sqlite3_errmsg(db)));
-    }
-    db = nullptr;
-  }
-
-  return Db(std::move(out), std::move(index));
-}
-
-bool denox::Db::atomic_writeback() const {
-  if (m_db->m_path.empty()) {
-    return false;
-  }
-
-  // fmt::println("env-count: {}", m_db->environments.size());
-  // fmt::println("binaries: {}", m_db->binaries.size());
-  // fmt::println("dispatches: {}", m_db->dispatches.size());
-
-  static std::mutex write_back_lock;
-  std::lock_guard lck{write_back_lock};
-  io::Path tmpPath = m_db->m_path.with_extension("sqlite.tmp");
-  {
-    std::error_code ec;
-    std::filesystem::remove(tmpPath.str(), ec); // remove old tmp file.
-  }
-
-  sqlite3 *db = nullptr;
-  {
-    int rc =
-        sqlite3_open_v2(tmpPath.cstr(), &db,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
-    if (rc != SQLITE_OK) {
-      const char *msg = db ? sqlite3_errmsg(db) : "no sqlite db";
-      if (db)
-        sqlite3_close(db);
-      throw std::runtime_error(
-          fmt::format("Failed to open database: rc={}, msg= {}", rc, msg));
-    }
-  }
-  try {
-
-    // settings
-    sqlite_exec(db, "PRAGMA journal_mode=OFF;");
-    sqlite_exec(db, "PRAGMA synchronous=OFF;");
-    sqlite_exec(db, "PRAGMA temp_store=MEMORY;");
-    sqlite_exec(db, "PRAGMA locking_mode=EXCLUSIVE;");
-
-    // versioning.
-    sqlite_exec(db, "PRAGMA user_version=1;");
-
-    sqlite_exec(db, "CREATE TABLE envs ("
-                    "  id INTEGER PRIMARY KEY,"
-                    "  device TEXT NOT NULL,"
-                    "  os TEXT NOT NULL,"
-                    "  driver_version TEXT NOT NULL,"
-                    "  denox_version TEXT NOT NULL,"
-                    "  denox_commit_hash TEXT NOT NULL,"
-                    "  start_timestamp INTEGER NOT NULL,"
-                    "  clock_mode INTEGER NOT NULL,"
-                    "  l2_warmup_iterations INTEGER NOT NULL,"
-                    "  jit_warmup_iterations INTEGER NOT NULL,"
-                    "  measurement_iterations INTEGER NOT NULL"
-                    ");");
-
-    sqlite_exec(db, "CREATE TABLE shader_binaries ("
-                    "  id INTEGER PRIMARY KEY,"
-                    "  src_sha256 BLOB NOT NULL,"
-                    "  spirv BLOB NOT NULL"
-                    ");");
-    sqlite_exec(db, "CREATE UNIQUE INDEX shader_binaries_sha_idx ON "
-                    "shader_binaries(src_sha256);");
-
-    sqlite_exec(db, "CREATE TABLE dispatches ("
-                    "  id INTEGER PRIMARY KEY,"
-                    "  binary_id INTEGER NOT NULL,"
-                    "  wg_x INTEGER NOT NULL,"
-                    "  wg_y INTEGER NOT NULL,"
-                    "  wg_z INTEGER NOT NULL,"
-                    "  push_constant BLOB NOT NULL,"
-                    "  hash INTEGER NOT NULL,"
-                    "  operation TEXT,"
-                    "  shader_name TEXT,"
-                    "  config TEXT,"
-                    "  memory_reads INTEGER,"
-                    "  memory_writes INTEGER,"
-                    "  flops INTEGER,"
-                    "  coopmat INTEGER,"
-                    "  fixed_subgroup_size INTEGER,"
-                    "  input_bindings BLOB,"
-                    "  output_bindings BLOB,"
-                    "  mean_latency_ns INTEGER,"
-                    "  std_derivation_ns INTEGER"
-                    ");");
-    sqlite_exec(db, "CREATE INDEX dispatches_hash_idx ON dispatches(hash);");
-
-    sqlite_exec(db, "CREATE TABLE dispatch_bindings ("
-                    "  dispatch_id INTEGER NOT NULL,"
-                    "  idx INTEGER NOT NULL,"
-                    "  set_ INTEGER NOT NULL,"
-                    "  binding INTEGER NOT NULL,"
-                    "  access INTEGER NOT NULL,"
-                    "  format INTEGER NOT NULL,"
-                    "  storage INTEGER NOT NULL,"
-                    "  byte_size INTEGER NOT NULL,"
-                    "  alignment INTEGER NOT NULL,"
-                    "  width INTEGER,"
-                    "  height INTEGER,"
-                    "  channels INTEGER,"
-                    "  dtype INTEGER,"
-                    "  is_param INTEGER NOT NULL,"
-                    "  PRIMARY KEY(dispatch_id, idx)"
-                    ");");
-
-    sqlite_exec(db, "CREATE TABLE timing_samples ("
-                    "  dispatch_id INTEGER NOT NULL,"
-                    "  idx INTEGER NOT NULL,"
-                    "  timestamp INTEGER NOT NULL,"
-                    "  latency_ns INTEGER NOT NULL,"
-                    "  env INTEGER NOT NULL,"
-                    "  gpu_clock INTEGER,"
-                    "  mem_clock INTEGER,"
-                    "  PRIMARY KEY(dispatch_id, idx)"
-                    ");");
-
-    sqlite_exec(db, "BEGIN IMMEDIATE;");
-
-    {
-      Stmt ins_env(
-          db,
-          "INSERT INTO envs("
-          "id, device, os, driver_version, denox_version, denox_commit_hash, "
-          "start_timestamp, clock_mode,"
-          "l2_warmup_iterations, jit_warmup_iterations, "
-          "measurement_iterations"
-          ") VALUES (?,?,?,?,?,?,?,?,?,?,?);");
-
-      Stmt ins_bin(db, "INSERT INTO shader_binaries(id, src_sha256, spirv) "
-                       "VALUES (?,?,?);");
-
-      Stmt ins_dispatch(
-          db, "INSERT INTO dispatches("
-              "id, binary_id, wg_x, wg_y, wg_z, push_constant, hash,"
-              "operation, shader_name, config, memory_reads, memory_writes, "
-              "flops, "
-              "coopmat, "
-              "fixed_subgroup_size, "
-              "input_bindings, output_bindings, mean_latency_ns, "
-              "std_derivation_ns"
-              ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);");
-
-      Stmt ins_binding(db, "INSERT INTO dispatch_bindings("
-                           "dispatch_id, idx, set_, binding, access, format, "
-                           "storage, byte_size, alignment,"
-                           "width, height, channels, dtype, is_param"
-                           ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?);");
-
-      Stmt ins_sample(db, "INSERT INTO timing_samples(dispatch_id, idx, "
-                          "timestamp, latency_ns, env, gpu_clock, mem_clock) "
-                          "VALUES (?,?,?,?,?,?,?);");
-
-      for (size_t i = 0; i < m_db->environments.size(); ++i) {
-        const auto &e = m_db->environments[i];
-        sqlite3_reset(ins_env.s);
-        sqlite3_clear_bindings(ins_env.s);
-
-        sqlite_check(
-            sqlite3_bind_int64(ins_env.s, 1, static_cast<sqlite3_int64>(i)), db,
-            "bind env id");
-        sqlite_check(sqlite3_bind_text(ins_env.s, 2, e.device.c_str(), -1,
-                                       SQLITE_TRANSIENT),
-                     db, "bind env device");
-        sqlite_check(
-            sqlite3_bind_text(ins_env.s, 3, e.os.c_str(), -1, SQLITE_TRANSIENT),
-            db, "bind env os");
-        sqlite_check(sqlite3_bind_text(ins_env.s, 4, e.driver_version.c_str(),
-                                       -1, SQLITE_TRANSIENT),
-                     db, "bind env driver_version");
-        sqlite_check(sqlite3_bind_text(ins_env.s, 5, e.denox_version.c_str(),
-                                       -1, SQLITE_TRANSIENT),
-                     db, "bind env denox_version");
-        sqlite_check(sqlite3_bind_text(ins_env.s, 6,
-                                       e.denox_commit_hash.c_str(), -1,
-                                       SQLITE_TRANSIENT),
-                     db, "bind env denox_commit_hash");
-        sqlite_check(
-            sqlite3_bind_int64(ins_env.s, 7,
-                               static_cast<sqlite3_int64>(e.start_timestamp)),
-            db, "bind env start_timestamp");
-        sqlite_check(
-            sqlite3_bind_int(ins_env.s, 8, static_cast<int>(e.clock_mode)), db,
-            "bind env clock_mode");
-        sqlite_check(sqlite3_bind_int(ins_env.s, 9,
-                                      static_cast<int>(e.l2_warmup_iterations)),
-                     db, "bind env l2");
-        sqlite_check(
-            sqlite3_bind_int(ins_env.s, 10,
-                             static_cast<int>(e.jit_warmup_iterations)),
-            db, "bind env jit");
-        sqlite_check(
-            sqlite3_bind_int(ins_env.s, 11,
-                             static_cast<int>(e.measurement_iterations)),
-            db, "bind env meas");
-
-        sqlite_check(sqlite3_step(ins_env.s), db, "step insert env");
-      }
-      // --- shader binaries ---
-      for (size_t i = 0; i < m_db->binaries.size(); ++i) {
-        const auto &b = m_db->binaries[i];
-
-        sqlite3_reset(ins_bin.s);
-        sqlite3_clear_bindings(ins_bin.s);
-
-        sqlite_check(
-            sqlite3_bind_int64(ins_bin.s, 1, static_cast<sqlite3_int64>(i)), db,
-            "bind bin id");
-
-        // SHA256: 8*u32 = 32 bytes
-        sqlite_check(sqlite3_bind_blob(ins_bin.s, 2, b.hash.h,
-                                       static_cast<int>(sizeof(uint32_t) * 8),
-                                       SQLITE_TRANSIENT),
-                     db, "bind bin sha");
-
-        // SPIR-V: vector<uint32_t> -> raw bytes
-        const void *spv_ptr =
-            b.spvBinary.spv.empty() ? nullptr : b.spvBinary.spv.data();
-        const int spv_len =
-            static_cast<int>(b.spvBinary.spv.size() * sizeof(uint32_t));
-        sqlite_check(
-            sqlite3_bind_blob(ins_bin.s, 3, spv_ptr, spv_len, SQLITE_TRANSIENT),
-            db, "bind bin spirv");
-
-        sqlite_check(sqlite3_step(ins_bin.s), db, "step insert bin");
-      }
-
-      // --- dispatches + bindings + samples ---
-      for (size_t di = 0; di < m_db->dispatches.size(); ++di) {
-        const auto &d = m_db->dispatches[di];
-
-        sqlite3_reset(ins_dispatch.s);
-        sqlite3_clear_bindings(ins_dispatch.s);
-
-        sqlite_check(sqlite3_bind_int64(ins_dispatch.s, 1,
-                                        static_cast<sqlite3_int64>(di)),
-                     db, "bind dispatch id");
-        sqlite_check(
-            sqlite3_bind_int(ins_dispatch.s, 2, static_cast<int>(d.binaryId)),
-            db, "bind dispatch binary_id");
-        sqlite_check(sqlite3_bind_int(ins_dispatch.s, 3,
-                                      static_cast<int>(d.workgroupCountX)),
-                     db, "bind wg_x");
-        sqlite_check(sqlite3_bind_int(ins_dispatch.s, 4,
-                                      static_cast<int>(d.workgroupCountY)),
-                     db, "bind wg_y");
-        sqlite_check(sqlite3_bind_int(ins_dispatch.s, 5,
-                                      static_cast<int>(d.workgroupCountZ)),
-                     db, "bind wg_z");
-
-        const void *pc_ptr =
-            d.pushConstant.empty() ? nullptr : d.pushConstant.data();
-        const int pc_len = static_cast<int>(d.pushConstant.size());
-        sqlite_check(sqlite3_bind_blob(ins_dispatch.s, 6, pc_ptr, pc_len,
-                                       SQLITE_TRANSIENT),
-                     db, "bind push_constant");
-
-        sqlite_check(sqlite3_bind_int64(ins_dispatch.s, 7,
-                                        static_cast<sqlite3_int64>(d.hash)),
-                     db, "bind hash");
-
-        // Optional text/info
-        if (d.operation.has_value()) {
-          auto sv = as_sv(*d.operation);
-          sqlite_check(sqlite3_bind_text(ins_dispatch.s, 8, sv.data(),
-                                         static_cast<int>(sv.size()),
-                                         SQLITE_TRANSIENT),
-                       db, "bind operation");
-        } else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 8), db,
-                       "bind operation null");
-
-        if (d.shader_name.has_value()) {
-          auto sv = as_sv(*d.shader_name);
-          sqlite_check(sqlite3_bind_text(ins_dispatch.s, 9, sv.data(),
-                                         static_cast<int>(sv.size()),
-                                         SQLITE_TRANSIENT),
-                       db, "bind shader_name");
-        } else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 9), db,
-                       "bind shader_name null");
-
-        if (d.config.has_value()) {
-          auto sv = as_sv(*d.config);
-          sqlite_check(sqlite3_bind_text(ins_dispatch.s, 10, sv.data(),
-                                         static_cast<int>(sv.size()),
-                                         SQLITE_TRANSIENT),
-                       db, "bind config");
-        } else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 10), db,
-                       "bind config null");
-
-        if (d.memory_reads.has_value())
-          sqlite_check(
-              sqlite3_bind_int64(ins_dispatch.s, 11,
-                                 static_cast<sqlite3_int64>(*d.memory_reads)),
-              db, "bind memory_reads");
-        else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 11), db,
-                       "bind memory_reads null");
-
-        if (d.memory_writes.has_value())
-          sqlite_check(
-              sqlite3_bind_int64(ins_dispatch.s, 12,
-                                 static_cast<sqlite3_int64>(*d.memory_writes)),
-              db, "bind memory_writes");
-        else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 12), db,
-                       "bind memory_writes null");
-
-        if (d.flops.has_value())
-          sqlite_check(sqlite3_bind_int64(ins_dispatch.s, 13,
-                                          static_cast<sqlite3_int64>(*d.flops)),
-                       db, "bind flops");
-        else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 13), db,
-                       "bind flops null");
-
-        if (d.coopmat.has_value())
-          sqlite_check(sqlite3_bind_int(ins_dispatch.s, 14, *d.coopmat ? 1 : 0),
-                       db, "bind coopmat");
-        else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 14), db,
-                       "bind coopmat null");
-
-        if (d.fixed_subgroup_size.has_value())
-          sqlite_check(
-              sqlite3_bind_int(ins_dispatch.s, 15,
-                               static_cast<int>(*d.fixed_subgroup_size)),
-              db, "bind fixed_subgroup_size");
-        else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 15), db,
-                       "bind fixed_subgroup_size null");
-
-        // input/output bindings as packed uint32 blob
-        if (d.input_bindings.has_value()) {
-          const auto &v = *d.input_bindings;
-          const void *p = v.empty() ? nullptr : v.data();
-          const int n = static_cast<int>(v.size() * sizeof(uint32_t));
-          sqlite_check(
-              sqlite3_bind_blob(ins_dispatch.s, 16, p, n, SQLITE_TRANSIENT), db,
-              "bind input_bindings");
-        } else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 16), db,
-                       "bind input_bindings null");
-
-        if (d.output_bindings.has_value()) {
-          const auto &v = *d.output_bindings;
-          const void *p = v.empty() ? nullptr : v.data();
-          const int n = static_cast<int>(v.size() * sizeof(uint32_t));
-          sqlite_check(
-              sqlite3_bind_blob(ins_dispatch.s, 17, p, n, SQLITE_TRANSIENT), db,
-              "bind output_bindings");
-        } else
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 17), db,
-                       "bind output_bindings null");
-
-        // timing summary
-        if (d.time.has_value()) {
-          sqlite_check(sqlite3_bind_int64(
-                           ins_dispatch.s, 18,
-                           static_cast<sqlite3_int64>(d.time->mean_latency_ns)),
-                       db, "bind mean_latency_ns");
-          sqlite_check(sqlite3_bind_int64(ins_dispatch.s, 19,
-                                          static_cast<sqlite3_int64>(
-                                              d.time->std_derivation_ns)),
-                       db, "bind std_derivation_ns");
-        } else {
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 18), db,
-                       "bind mean_latency_ns null");
-          sqlite_check(sqlite3_bind_null(ins_dispatch.s, 19), db,
-                       "bind std_derivation_ns null");
-        }
-
-        sqlite_check(sqlite3_step(ins_dispatch.s), db, "step insert dispatch");
-
-        // bindings rows
-        for (size_t bi = 0; bi < d.bindings.size(); ++bi) {
-          const auto &b = d.bindings[bi];
-          if (b.storage == TensorStorage::Optimal) {
-            DENOX_ERROR("Trying to serialize TensorStorage::Optimal");
-            diag::invalid_state();
-          }
-
-          sqlite3_reset(ins_binding.s);
-          sqlite3_clear_bindings(ins_binding.s);
-
-          sqlite_check(sqlite3_bind_int64(ins_binding.s, 1,
-                                          static_cast<sqlite3_int64>(di)),
-                       db, "bind binding dispatch_id");
-          sqlite_check(sqlite3_bind_int(ins_binding.s, 2, static_cast<int>(bi)),
-                       db, "bind binding idx");
-          sqlite_check(
-              sqlite3_bind_int(ins_binding.s, 3, static_cast<int>(b.set)), db,
-              "bind binding set_");
-          sqlite_check(
-              sqlite3_bind_int(ins_binding.s, 4, static_cast<int>(b.binding)),
-              db, "bind binding binding");
-          sqlite_check(
-              sqlite3_bind_int(ins_binding.s, 5, static_cast<int>(b.access)),
-              db, "bind binding access");
-          sqlite_check(
-              sqlite3_bind_int(ins_binding.s, 6, static_cast<int>(b.format)),
-              db, "bind binding format");
-          sqlite_check(
-              sqlite3_bind_int(ins_binding.s, 7, static_cast<int>(b.storage)),
-              db, "bind binding storage");
-          sqlite_check(
-              sqlite3_bind_int64(ins_binding.s, 8,
-                                 static_cast<sqlite3_int64>(b.byteSize)),
-              db, "bind binding byte_size");
-          sqlite_check(
-              sqlite3_bind_int(ins_binding.s, 9, static_cast<int>(b.alignment)),
-              db, "bind binding alignment");
-
-          if (b.width.has_value())
-            sqlite_check(
-                sqlite3_bind_int(ins_binding.s, 10, static_cast<int>(*b.width)),
-                db, "bind width");
-          else
-            sqlite_check(sqlite3_bind_null(ins_binding.s, 10), db,
-                         "bind width null");
-          if (b.height.has_value())
-            sqlite_check(sqlite3_bind_int(ins_binding.s, 11,
-                                          static_cast<int>(*b.height)),
-                         db, "bind height");
-          else
-            sqlite_check(sqlite3_bind_null(ins_binding.s, 11), db,
-                         "bind height null");
-          if (b.channels.has_value())
-            sqlite_check(sqlite3_bind_int(ins_binding.s, 12,
-                                          static_cast<int>(*b.channels)),
-                         db, "bind channels");
-          else
-            sqlite_check(sqlite3_bind_null(ins_binding.s, 12), db,
-                         "bind channels null");
-          if (b.type.has_value())
-            sqlite_check(
-                sqlite3_bind_int(ins_binding.s, 13, static_cast<int>(*b.type)),
-                db, "bind dtype");
-          else
-            sqlite_check(sqlite3_bind_null(ins_binding.s, 13), db,
-                         "bind dtype null");
-
-          sqlite_check(sqlite3_bind_int(ins_binding.s, 14, b.is_param ? 1 : 0),
-                       db, "bind is_param");
-
-          sqlite_check(sqlite3_step(ins_binding.s), db, "step insert binding");
-        }
-
-        // timing samples rows (if any)
-        if (d.time.has_value()) {
-          const auto &t = *d.time;
-          for (size_t si = 0; si < t.samples.size(); ++si) {
-            const auto &s = t.samples[si];
-
-            sqlite3_reset(ins_sample.s);
-            sqlite3_clear_bindings(ins_sample.s);
-
-            sqlite_check(sqlite3_bind_int64(ins_sample.s, 1,
-                                            static_cast<sqlite3_int64>(di)),
-                         db, "bind sample dispatch_id");
-            sqlite_check(
-                sqlite3_bind_int(ins_sample.s, 2, static_cast<int>(si)), db,
-                "bind sample idx");
-            sqlite_check(
-                sqlite3_bind_int64(ins_sample.s, 3,
-                                   static_cast<sqlite3_int64>(s.timestamp)),
-                db, "bind sample timestamp");
-            sqlite_check(
-                sqlite3_bind_int64(ins_sample.s, 4,
-                                   static_cast<sqlite3_int64>(s.latency_ns)),
-                db, "bind sample latency_ns");
-
-            sqlite_check(
-                sqlite3_bind_int(ins_sample.s, 5, static_cast<int>(s.env)), db,
-                "bind sample env");
-
-            sqlite_check(
-                sqlite3_bind_int(ins_sample.s, 6, static_cast<int>(s.gpuClock)),
-                db, "bind sample gpu_clock");
-
-            sqlite_check(
-                sqlite3_bind_int(ins_sample.s, 7, static_cast<int>(s.memClock)),
-                db, "bind sample mem_clock");
-
-            sqlite_check(sqlite3_step(ins_sample.s), db, "step insert sample");
-          }
-        }
-      }
-
-      sqlite_exec(db, "COMMIT;");
-    }
-  } catch (const std::exception &e) {
-    if (db) {
-      int rc = sqlite3_close(db);
-      if (rc != SQLITE_OK) {
-        DENOX_ERROR("SQLite close failed during error rewind: rc={}");
-      }
-      db = nullptr;
-      throw;
-    }
-  }
-  if (db) {
-    int rc = sqlite3_close(db);
-    if (rc != SQLITE_OK) {
-      throw std::runtime_error(fmt::format("SQLite failed to close: rc={}, "
-                                           "msg={}",
-                                           rc, sqlite3_errmsg(db)));
-    }
-    db = nullptr;
-  }
-
-  std::error_code ec;
-  std::filesystem::remove(m_db->m_path.str(), ec);
-
-  std::filesystem::rename(tmpPath.str(), m_db->m_path.str());
-  return true;
-}
-
-denox::Db::Db(std::shared_ptr<DbMapped> db, std::shared_ptr<DbIndex> index)
-    : m_db(std::move(db)), m_index(std::move(index)) {}
-
-std::optional<denox::SpirvBinary>
-denox::Db::query_shader_binary(const SHA256 &srcHash) const {
-  auto it = m_index->binary_index.find(srcHash);
-  if (it == m_index->binary_index.end()) {
+std::optional<SpirvBinary>
+Db::query_shader_binary(const SHA256 &srcHash) const {
+  std::lock_guard lck{m_inner->mutex};
+  auto &stmt = m_inner->query_binary_by_hash;
+  stmt.reset();
+  stmt.clear_bindings();
+  stmt.bind_blob(1, srcHash.h, static_cast<int>(sizeof(uint32_t) * 8));
+  if (!stmt.next()) {
     return std::nullopt;
-  } else {
-    uint32_t binaryId = static_cast<uint32_t>(it->second);
-    return m_db->binaries[binaryId].spvBinary;
   }
-}
-
-bool denox::Db::insert_binary(const SHA256 &srcHash,
-                              const SpirvBinary &binary) {
-  auto cached = query_shader_binary(srcHash);
-  if (cached) {
-    if (!std::ranges::equal(binary.spv, cached->spv)) {
-      DENOX_ERROR("Failed to insert binary into database: SHA256 collision in "
-                  "database.");
-      diag::invalid_state();
-    }
-    return false;
+  auto blob = stmt.as_blob_view(0);
+  if (blob.size() % sizeof(uint32_t) != 0) {
+    throw std::runtime_error("Invalid SPIR-V blob size in database");
   }
-  uint32_t binaryId = static_cast<uint32_t>(m_db->binaries.size());
-  m_index->binary_index.emplace(srcHash, binaryId);
-  m_db->binaries.emplace_back(DbShaderBinary{
-      .hash = srcHash,
-      .spvBinary = binary,
-  });
-  return true;
+  size_t word_count = blob.size() / sizeof(uint32_t);
+  SpirvBinary out;
+  out.spv.resize(word_count);
+  std::memcpy(out.spv.data(), blob.data(), blob.size());
+  return out;
 }
 
 std::optional<std::chrono::duration<float, std::milli>>
-denox::Db::query_dispatch_latency(const SHA256 &srcHash,
-                                  std::span<const uint8_t> pushConstant,
-                                  uint32_t workgroupCountX,
-                                  uint32_t workgroupCountY,
-                                  uint32_t workgroupCountZ) const {
+Db::query_dispatch_latency(const SHA256 &srcHash,
+                           std::span<const uint8_t> pushConstant,
+                           uint32_t workgroupCountX, uint32_t workgroupCountY,
+                           uint32_t workgroupCountZ) const {
+  std::lock_guard lck{m_inner->mutex};
   uint64_t hash = std::hash<SHA256>{}(srcHash);
   for (uint8_t b : pushConstant) {
     hash = algorithm::hash_combine(hash, b);
@@ -1067,52 +172,25 @@ denox::Db::query_dispatch_latency(const SHA256 &srcHash,
   hash = algorithm::hash_combine(hash, workgroupCountX);
   hash = algorithm::hash_combine(hash, workgroupCountY);
   hash = algorithm::hash_combine(hash, workgroupCountZ);
-
-  auto it = m_index->dispatch_buckets.find(hash);
-  if (it == m_index->dispatch_buckets.end()) {
+  auto &stmt = m_inner->query_dispatch_latency;
+  stmt.reset();
+  stmt.clear_bindings();
+  stmt.bind_int64(1, static_cast<int64_t>(hash));
+  stmt.bind_int(2, static_cast<int>(workgroupCountX));
+  stmt.bind_int(3, static_cast<int>(workgroupCountY));
+  stmt.bind_int(4, static_cast<int>(workgroupCountZ));
+  stmt.bind_blob(5, pushConstant.data(), static_cast<int>(pushConstant.size()));
+  stmt.bind_blob(6, srcHash.h, static_cast<int>(sizeof(uint32_t) * 8));
+  if (!stmt.next()) {
     return std::nullopt;
   }
-
-  const auto &bucket = it->second;
-
-  // linear search
-  for (size_t dispatch_index : bucket) {
-    const auto &dispatch = m_db->dispatches[dispatch_index];
-    if (dispatch.workgroupCountX != workgroupCountX) {
-      continue;
-    }
-    if (dispatch.workgroupCountY != workgroupCountY) {
-      continue;
-    }
-    if (dispatch.workgroupCountZ != workgroupCountZ) {
-      continue;
-    }
-    if (dispatch.pushConstant.size() != pushConstant.size()) {
-      continue;
-    }
-    if (std::memcmp(dispatch.pushConstant.data(), pushConstant.data(),
-                    dispatch.pushConstant.size()) != 0) {
-      continue;
-    }
-    const auto &binary = m_db->binaries[dispatch.binaryId];
-    if (binary.hash != srcHash) {
-      continue;
-    }
-    if (!dispatch.time.has_value()) {
-      return std::nullopt;
-    }
-    if (dispatch.time->samples.size() == 0) {
-      return std::nullopt;
-    }
-    std::chrono::duration<uint64_t, std::nano> ns(
-        dispatch.time->mean_latency_ns);
-    return std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-        ns);
-  }
-  return std::nullopt;
+  uint64_t mean_ns = static_cast<uint64_t>(stmt.as_int64(0));
+  std::chrono::duration<uint64_t, std::nano> ns(mean_ns);
+  return std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
+      ns);
 }
 
-bool denox::Db::insert_dispatch(
+bool Db::insert_dispatch(
     const SHA256 &srcHash, std::span<const uint8_t> pushConstant,
     uint32_t workgroupCountX, uint32_t workgroupCountY,
     uint32_t workgroupCountZ, std::span<const DbTensorBinding> bindings,
@@ -1125,153 +203,376 @@ bool denox::Db::insert_dispatch(
     memory::optional<std::span<const uint32_t>> input_bindings,
     memory::optional<std::span<const uint32_t>> output_bindings,
     memory::optional<uint32_t> subgroupSize) {
-  uint32_t binaryId;
-  {
-    auto it = m_index->binary_index.find(srcHash);
-    if (it == m_index->binary_index.end()) {
-      DbShaderBinary binary;
-      binary.hash = srcHash;
-      binary.spvBinary = spvBinary;
-      binaryId = static_cast<uint32_t>(m_db->binaries.size());
-      m_db->binaries.push_back(binary);
-      m_index->binary_index[srcHash] = binaryId;
-    } else {
-      binaryId = static_cast<uint32_t>(it->second);
-      const auto &existing = m_db->binaries[binaryId].spvBinary;
-
-      if (existing.spv.size() != spvBinary.spv.size()) {
-        DENOX_ERROR("SPIR-V mismatch for identical shader hash! (different "
-                    "binary-size)");
-        diag::invalid_state();
-      }
-      if (std::memcmp(existing.spv.data(), spvBinary.spv.data(),
-                      sizeof(uint32_t) * spvBinary.spv.size()) != 0) {
-        DENOX_ERROR("SPIR-V mismatch for identical shader hash!");
-        diag::invalid_state();
+  std::lock_guard lck{m_inner->mutex};
+  return m_inner->db.with_transaction([&]() -> bool {
+    uint64_t binaryId = 0;
+    {
+      auto &stmt = m_inner->query_binary_existence;
+      stmt.reset();
+      stmt.clear_bindings();
+      stmt.bind_blob(1, srcHash.h, sizeof(uint32_t) * 8);
+      if (stmt.next()) {
+        binaryId = static_cast<uint64_t>(stmt.as_int64(0));
+        auto blob = stmt.as_blob_view(1);
+        if (blob.size() != spvBinary.spv.size() * sizeof(uint32_t) ||
+            std::memcmp(blob.data(), spvBinary.spv.data(), blob.size()) != 0) {
+          throw std::runtime_error("SPIR-V mismatch for identical shader hash");
+        }
+      } else {
+        auto &ins = m_inner->insert_binary;
+        ins.reset();
+        ins.clear_bindings();
+        ins.bind_blob(1, srcHash.h, sizeof(uint32_t) * 8);
+        ins.bind_blob(
+            2, spvBinary.spv.data(),
+            static_cast<int>(spvBinary.spv.size() * sizeof(uint32_t)));
+        ins.next();
+        binaryId = static_cast<uint64_t>(m_inner->db.last_insert_rowid());
       }
     }
-  }
+    uint64_t hash = std::hash<SHA256>{}(srcHash);
+    for (uint8_t b : pushConstant) {
+      hash = algorithm::hash_combine(hash, b);
+    }
+    hash = algorithm::hash_combine(hash, workgroupCountX);
+    hash = algorithm::hash_combine(hash, workgroupCountY);
+    hash = algorithm::hash_combine(hash, workgroupCountZ);
+    {
+      auto &stmt = m_inner->insert_dispatch_query_dispatch_existance;
+      stmt.reset();
+      stmt.clear_bindings();
+      stmt.bind_int64(1, static_cast<int64_t>(hash));
+      stmt.bind_int64(2, static_cast<int64_t>(binaryId));
+      stmt.bind_int64(3, workgroupCountX);
+      stmt.bind_int64(4, workgroupCountY);
+      stmt.bind_int64(5, workgroupCountZ);
+      stmt.bind_blob(6, pushConstant.data(),
+                     static_cast<int>(pushConstant.size()));
+      if (input_bindings) {
+        stmt.bind_blob(
+            7, input_bindings->data(),
+            static_cast<int>(input_bindings->size() * sizeof(uint32_t)));
+      } else {
+        stmt.bind_null(7);
+      }
+      if (output_bindings) {
+        stmt.bind_blob(
+            8, output_bindings->data(),
+            static_cast<int>(output_bindings->size() * sizeof(uint32_t)));
+      } else {
+        stmt.bind_null(8);
+      }
+      if (stmt.next()) {
+        return false;
+      }
+    }
+    uint64_t dispatchId = 0;
+    {
+      auto &ins = m_inner->insert_dispatch_insert_dispatch;
+      ins.reset();
+      ins.clear_bindings();
+      ins.bind_int64(1, static_cast<int64_t>(binaryId));
+      ins.bind_int64(2, workgroupCountX);
+      ins.bind_int64(3, workgroupCountY);
+      ins.bind_int64(4, workgroupCountZ);
+      ins.bind_blob(5, pushConstant.data(),
+                    static_cast<int>(pushConstant.size()));
+      ins.bind_int64(6, static_cast<int64_t>(hash));
+      operation ? ins.bind_sv(7, *operation) : ins.bind_null(7);
+      shader_name ? ins.bind_sv(8, *shader_name) : ins.bind_null(8);
+      config ? ins.bind_sv(9, *config) : ins.bind_null(9);
+      memory_reads ? ins.bind_int64(10, static_cast<int64_t>(*memory_reads))
+                   : ins.bind_null(10);
+      memory_writes ? ins.bind_int64(11, static_cast<int64_t>(*memory_writes))
+                    : ins.bind_null(11);
+      flops ? ins.bind_int64(12, static_cast<int64_t>(*flops))
+            : ins.bind_null(12);
+      coopmat ? ins.bind_int(13, *coopmat ? 1 : 0) : ins.bind_null(13);
+      subgroupSize ? ins.bind_int64(14, static_cast<int64_t>(*subgroupSize))
+                   : ins.bind_null(14);
+      // ---- input_bindings ----
+      if (input_bindings) {
+        ins.bind_blob(
+            15, input_bindings->data(),
+            static_cast<int>(input_bindings->size() * sizeof(uint32_t)));
+      } else {
+        ins.bind_null(15);
+      }
+      // ---- output_bindings ----
+      if (output_bindings) {
+        ins.bind_blob(
+            16, output_bindings->data(),
+            static_cast<int>(output_bindings->size() * sizeof(uint32_t)));
+      } else {
+        ins.bind_null(16);
+      }
+      ins.next();
+      dispatchId = static_cast<uint64_t>(m_inner->db.last_insert_rowid());
+    }
+    for (size_t i = 0; i < bindings.size(); ++i) {
+      const auto &b = bindings[i];
+      auto &ins = m_inner->insert_dispatch_insert_bindings;
+      ins.reset();
+      ins.clear_bindings();
+      ins.bind_int64(1, static_cast<int64_t>(dispatchId));
+      ins.bind_int64(2, static_cast<int64_t>(i));
+      ins.bind_int64(3, b.set);
+      ins.bind_int64(4, b.binding);
+      ins.bind_int64(5, static_cast<int>(b.access));
+      ins.bind_int64(6, static_cast<int>(b.format));
+      ins.bind_int64(7, static_cast<int>(b.storage));
+      ins.bind_int64(8, static_cast<int64_t>(b.byteSize));
+      ins.bind_int(9, b.alignment);
+      b.width ? ins.bind_int64(10, *b.width) : ins.bind_null(10);
+      b.height ? ins.bind_int64(11, *b.height) : ins.bind_null(11);
+      b.channels ? ins.bind_int64(12, *b.channels) : ins.bind_null(12);
+      b.type ? ins.bind_int64(13, static_cast<int>(*b.type))
+             : ins.bind_null(13);
+      ins.bind_int(14, b.is_param ? 1 : 0);
+      ins.next();
+    }
+    return true;
+  });
+}
 
-  const auto &binary = m_db->binaries[binaryId];
-
-  uint64_t hash = std::hash<SHA256>{}(binary.hash);
-  for (uint8_t b : pushConstant) {
-    hash = algorithm::hash_combine(hash, b);
-  }
-  hash = algorithm::hash_combine(hash, workgroupCountX);
-  hash = algorithm::hash_combine(hash, workgroupCountY);
-  hash = algorithm::hash_combine(hash, workgroupCountZ);
-
-  auto it = m_index->dispatch_buckets.find(hash);
-  if (it != m_index->dispatch_buckets.end()) {
-    const auto &bucket = it->second;
-    // linear search
-    for (size_t dispatch_index : bucket) {
-      const auto &dispatch = m_db->dispatches[dispatch_index];
-      if (dispatch.workgroupCountX != workgroupCountX) {
-        continue;
-      }
-      if (dispatch.workgroupCountY != workgroupCountY) {
-        continue;
-      }
-      if (dispatch.workgroupCountZ != workgroupCountZ) {
-        continue;
-      }
-      if (dispatch.pushConstant.size() != pushConstant.size()) {
-        continue;
-      }
-      if (std::memcmp(dispatch.pushConstant.data(), pushConstant.data(),
-                      dispatch.pushConstant.size()) != 0) {
-        continue;
-      }
-      if (dispatch.fixed_subgroup_size != subgroupSize) {
-        continue;
-      }
-      const auto &binary = m_db->binaries[dispatch.binaryId];
-      if (binary.hash != srcHash) {
-        continue;
+bool denox::Db::insert_binary(const SHA256 &srcHash,
+                              const SpirvBinary &binary) {
+  std::lock_guard lck{m_inner->mutex};
+  return m_inner->db.with_transaction([&]() -> bool {
+    auto &stmt = m_inner->query_binary_existence;
+    stmt.reset();
+    stmt.clear_bindings();
+    stmt.bind_blob(1, srcHash.h, sizeof(uint32_t) * 8);
+    if (stmt.next()) {
+      auto blob = stmt.as_blob_view(1);
+      if (blob.size() != binary.spv.size() * sizeof(uint32_t) ||
+          std::memcmp(blob.data(), binary.spv.data(), blob.size()) != 0) {
+        throw std::runtime_error(
+            "Failed to insert binary into database: SHA256 collision.");
       }
       return false;
     }
-  }
-  DbComputeDispatch dispatch;
-  dispatch.binaryId = binaryId;
-  dispatch.workgroupCountX = workgroupCountX;
-  dispatch.workgroupCountY = workgroupCountY;
-  dispatch.workgroupCountZ = workgroupCountZ;
-  dispatch.pushConstant.assign(pushConstant.begin(), pushConstant.end());
-  dispatch.hash = hash;
-  dispatch.bindings.assign(bindings.begin(), bindings.end());
-  dispatch.time = std::nullopt;
-  dispatch.operation = operation;
-  dispatch.shader_name = shader_name;
-  dispatch.config = config;
-  dispatch.memory_reads = memory_reads;
-  dispatch.memory_writes = memory_writes;
-  dispatch.flops = flops;
-  dispatch.coopmat = coopmat.value_or(false);
-  dispatch.fixed_subgroup_size = subgroupSize;
-  if (input_bindings) {
-    dispatch.input_bindings.emplace(input_bindings->begin(),
-                                    input_bindings->end());
-  }
-  if (output_bindings) {
-    dispatch.output_bindings.emplace(output_bindings->begin(),
-                                     output_bindings->end());
-  }
-  uint32_t dispatchIndex = static_cast<uint32_t>(m_db->dispatches.size());
-  m_db->dispatches.push_back(std::move(dispatch));
-  m_index->dispatch_buckets[hash].emplace_back(dispatchIndex);
-  return true;
+    auto &ins = m_inner->insert_binary;
+    ins.reset();
+    ins.clear_bindings();
+    ins.bind_blob(1, srcHash.h, sizeof(uint32_t) * 8);
+    ins.bind_blob(2, binary.spv.data(),
+                  static_cast<int>(binary.spv.size() * sizeof(uint32_t)));
+    ins.next();
+    return true;
+  });
 }
 
-std::span<const denox::DbShaderBinary> denox::Db::binaries() const {
-  return m_db->binaries;
+DbShaderBinary Db::queryShaderBinaryById(uint32_t id) const {
+  std::lock_guard lck{m_inner->mutex};
+  auto stmt = m_inner->db.prepare("SELECT src_sha256, spirv "
+                                  "FROM shader_binaries "
+                                  "WHERE id = ?1;");
+  stmt.bind_int64(1, static_cast<int64_t>(id));
+  if (!stmt.next()) {
+    throw std::runtime_error("Shader binary not found");
+  }
+  DbShaderBinary out;
+  auto hash_blob = stmt.as_blob_view(0);
+  if (hash_blob.size() != sizeof(uint32_t) * 8) {
+    throw std::runtime_error("Invalid SHA256 size in DB");
+  }
+  std::memcpy(out.hash.h, hash_blob.data(), hash_blob.size());
+  auto spv_blob = stmt.as_blob_view(1);
+  if (spv_blob.size() % sizeof(uint32_t) != 0) {
+    throw std::runtime_error("Invalid SPIR-V blob size");
+  }
+  size_t word_count = spv_blob.size() / sizeof(uint32_t);
+  out.spvBinary.spv.resize(word_count);
+  std::memcpy(out.spvBinary.spv.data(), spv_blob.data(), spv_blob.size());
+  return out;
 }
 
-std::span<const denox::DbComputeDispatch> denox::Db::dispatches() const {
-  return m_db->dispatches;
+DbComputeDispatch Db::queryComputeDispatchById(uint32_t id) const {
+  std::lock_guard lck{m_inner->mutex};
+  auto stmt = m_inner->db.prepare("SELECT binary_id, wg_x, wg_y, wg_z, "
+                                  "push_constant, hash, "
+                                  "operation, shader_name, config, "
+                                  "memory_reads, memory_writes, flops, "
+                                  "coopmat, fixed_subgroup_size, "
+                                  "input_bindings, output_bindings, "
+                                  "mean_latency_ns, std_derivation_ns "
+                                  "FROM dispatches "
+                                  "WHERE id = ?1;");
+  stmt.bind_int64(1, static_cast<int64_t>(id));
+  if (!stmt.next()) {
+    throw std::runtime_error("Dispatch not found");
+  }
+  DbComputeDispatch out{};
+  out.binaryId = static_cast<uint32_t>(stmt.as_int64(0));
+  out.workgroupCountX = static_cast<uint32_t>(stmt.as_int64(1));
+  out.workgroupCountY = static_cast<uint32_t>(stmt.as_int64(2));
+  out.workgroupCountZ = static_cast<uint32_t>(stmt.as_int64(3));
+  {
+    auto blob = stmt.as_blob_view(4);
+    out.pushConstant.resize(blob.size());
+    std::memcpy(out.pushConstant.data(), blob.data(), blob.size());
+  }
+  out.hash = static_cast<uint64_t>(stmt.as_int64(5));
+  out.operation = stmt.as_optional_string(6);
+  out.shader_name = stmt.as_optional_string(7);
+  out.config = stmt.as_optional_string(8);
+  out.memory_reads = stmt.as_optional_int64(9);
+  out.memory_writes = stmt.as_optional_int64(10);
+  out.flops = stmt.as_optional_int64(11);
+  out.coopmat = stmt.as_optional_int(12).value_or(0) != 0;
+  out.fixed_subgroup_size = stmt.as_optional_int64(13);
+  if (!stmt.is_null(14)) {
+    auto blob = stmt.as_blob_view(14);
+    size_t count = blob.size() / sizeof(uint32_t);
+    out.input_bindings.emplace(count);
+    std::memcpy(out.input_bindings->data(), blob.data(), blob.size());
+  }
+  if (!stmt.is_null(15)) {
+    auto blob = stmt.as_blob_view(15);
+    size_t count = blob.size() / sizeof(uint32_t);
+    out.output_bindings.emplace(count);
+    std::memcpy(out.output_bindings->data(), blob.data(), blob.size());
+  }
+  if (!stmt.is_null(16)) { // mean_latency_ns not NULL
+    DbDispatchTiming t{};
+    t.mean_latency_ns = static_cast<uint64_t>(stmt.as_int64(16));
+    t.std_derivation_ns = static_cast<uint64_t>(stmt.as_int64(17));
+    auto count_stmt = m_inner->db.prepare(
+        "SELECT COUNT(*) FROM timing_samples WHERE dispatch_id = ?1;");
+    count_stmt.bind_int64(1, static_cast<int64_t>(id));
+    if (count_stmt.next()) {
+      uint64_t n = static_cast<uint64_t>(count_stmt.as_int64(0));
+      t.samples.resize(n); // only size matters for convergence logic
+    }
+    out.time = std::move(t);
+  }
+  {
+    auto bstmt = m_inner->db.prepare(
+        "SELECT idx, set_, binding, access, format, storage, "
+        "byte_size, alignment, width, height, channels, dtype, is_param "
+        "FROM dispatch_bindings "
+        "WHERE dispatch_id = ?1 "
+        "ORDER BY idx ASC;");
+    bstmt.bind_int64(1, static_cast<int64_t>(id));
+    while (bstmt.next()) {
+      DbTensorBinding b{};
+      b.set = static_cast<uint32_t>(bstmt.as_int64(1));
+      b.binding = static_cast<uint32_t>(bstmt.as_int64(2));
+      b.access = static_cast<Access>(bstmt.as_int64(3));
+      b.format = static_cast<TensorFormat>(bstmt.as_int64(4));
+      b.storage = static_cast<TensorStorage>(bstmt.as_int64(5));
+      b.byteSize = static_cast<uint64_t>(bstmt.as_int64(6));
+      b.alignment = static_cast<uint16_t>(bstmt.as_int(7));
+      b.width = bstmt.as_optional_int64(8);
+      b.height = bstmt.as_optional_int64(9);
+      b.channels = bstmt.as_optional_int64(10);
+      if (!bstmt.is_null(11))
+        b.type = static_cast<TensorDataType>(bstmt.as_int64(11));
+      b.is_param = bstmt.as_int(12) != 0;
+      out.bindings.push_back(std::move(b));
+    }
+  }
+  return out;
 }
 
-void denox::Db::add_dispatch_benchmark_result(uint32_t dispatch_index,
-                                              std::vector<DbSample> samples) {
+DbEnv Db::queryEnvById(uint32_t id) const {
+  std::lock_guard lck{m_inner->mutex};
+  auto stmt =
+      m_inner->db.prepare("SELECT device, os, driver_version, "
+                          "denox_version, denox_commit_hash, "
+                          "start_timestamp, clock_mode, "
+                          "l2_warmup_iterations, jit_warmup_iterations, "
+                          "measurement_iterations "
+                          "FROM envs WHERE id = ?1;");
+  stmt.bind_int64(1, static_cast<int64_t>(id));
+  if (!stmt.next()) {
+    throw std::runtime_error("Env not found");
+  }
+  DbEnv out{};
+  out.device = stmt.as_string(0);
+  out.os = stmt.as_string(1);
+  out.driver_version = stmt.as_string(2);
+  out.denox_version = stmt.as_string(3);
+  out.denox_commit_hash = stmt.as_string(4);
+  out.start_timestamp = static_cast<uint64_t>(stmt.as_int64(5));
+  out.clock_mode = static_cast<DbClockMode>(stmt.as_int(6));
+  out.l2_warmup_iterations = static_cast<uint16_t>(stmt.as_int(7));
+  out.jit_warmup_iterations = static_cast<uint16_t>(stmt.as_int(8));
+  out.measurement_iterations = static_cast<uint16_t>(stmt.as_int(9));
+  return out;
+}
+
+uint32_t Db::queryComputeDispatchCount() const {
+  std::lock_guard lck{m_inner->mutex};
+  auto stmt = m_inner->db.prepare("SELECT COUNT(*) FROM dispatches;");
+  if (!stmt.next()) {
+    throw std::runtime_error("Failed to count dispatches");
+  }
+  return static_cast<uint32_t>(stmt.as_int64(0));
+}
+
+void Db::add_dispatch_benchmark_result(uint32_t dispatch_id,
+                                       std::vector<DbSample> samples) {
+  std::lock_guard lck{m_inner->mutex};
   if (samples.empty()) {
     return;
   }
-
-  assert(dispatch_index < m_db->dispatches.size());
-  auto &dispatch = m_db->dispatches[dispatch_index];
-  for (const DbSample &sample : samples) {
-    if (!dispatch.time.has_value()) {
-      dispatch.time.emplace();
-      dispatch.time->samples.push_back(sample);
-      dispatch.time->mean_latency_ns = sample.latency_ns;
-      dispatch.time->std_derivation_ns = 0;
-      continue;
+  m_inner->db.with_transaction([&] {
+    auto insert_sample = m_inner->db.prepare(
+        "INSERT INTO timing_samples("
+        "dispatch_id, idx, timestamp, latency_ns, env, gpu_clock, mem_clock"
+        ") VALUES(?1,?2,?3,?4,?5,?6,?7);");
+    uint64_t base_index = 0;
+    {
+      auto count_stmt =
+          m_inner->db.prepare("SELECT COUNT(*) FROM timing_samples "
+                              "WHERE dispatch_id = ?1;");
+      count_stmt.bind_int64(1, dispatch_id);
+      if (count_stmt.next())
+        base_index = static_cast<uint64_t>(count_stmt.as_int64(0));
     }
-    const double prev_n = static_cast<double>(dispatch.time->samples.size());
-    const double prev_mean_ns =
-        static_cast<double>(dispatch.time->mean_latency_ns);
-    const double prev_std_ns =
-        static_cast<double>(dispatch.time->std_derivation_ns);
-
-    const double latency_ns = static_cast<double>(sample.latency_ns);
-
-    const double new_n = static_cast<double>(dispatch.time->samples.size() + 1);
-    const double new_mean_ns = (prev_n * prev_mean_ns + 1 * latency_ns) / new_n;
-    const double new_var_ns =
-        std::max(0.0, (prev_n * (std::pow(prev_std_ns, 2) +
-                                 std::pow(prev_mean_ns - new_mean_ns, 2)) +
-                       std::pow(latency_ns - new_mean_ns, 2)) /
-                          new_n);
-    const double new_std_ns = std::sqrt(new_var_ns);
-
-    dispatch.time->samples.push_back(sample);
-    dispatch.time->mean_latency_ns = static_cast<uint64_t>(new_mean_ns);
-    dispatch.time->std_derivation_ns = static_cast<uint64_t>(new_std_ns);
-  }
+    for (size_t i = 0; i < samples.size(); ++i) {
+      const auto &s = samples[i];
+      insert_sample.reset();
+      insert_sample.clear_bindings();
+      insert_sample.bind_int64(1, dispatch_id);
+      insert_sample.bind_int64(2, static_cast<int64_t>(base_index + i));
+      insert_sample.bind_int64(3, static_cast<int64_t>(s.timestamp));
+      insert_sample.bind_int64(4, static_cast<int64_t>(s.latency_ns));
+      insert_sample.bind_int64(5, s.env);
+      s.gpuClock ? insert_sample.bind_int64(6, s.gpuClock)
+                 : insert_sample.bind_null(6);
+      s.memClock ? insert_sample.bind_int64(7, s.memClock)
+                 : insert_sample.bind_null(7);
+      insert_sample.next();
+    }
+    auto stats_stmt = m_inner->db.prepare("SELECT COUNT(*), AVG(latency_ns), "
+                                          "AVG(latency_ns * latency_ns) "
+                                          "FROM timing_samples "
+                                          "WHERE dispatch_id = ?1;");
+    stats_stmt.bind_int64(1, dispatch_id);
+    if (!stats_stmt.next()) {
+      throw std::runtime_error("Failed to compute timing stats");
+    }
+    const double n = static_cast<double>(stats_stmt.as_int64(0));
+    const double mean = stats_stmt.as_double(1);
+    const double mean_sq = stats_stmt.as_double(2);
+    if (n <= 0.0) {
+      return;
+    }
+    const double variance = std::max(0.0, mean_sq - mean * mean);
+    const double stddev = std::sqrt(variance);
+    auto update_stmt = m_inner->db.prepare("UPDATE dispatches "
+                                           "SET mean_latency_ns = ?1, "
+                                           "    std_derivation_ns = ?2 "
+                                           "WHERE id = ?3;");
+    update_stmt.bind_int64(1, static_cast<int64_t>(mean));
+    update_stmt.bind_int64(2, static_cast<int64_t>(stddev));
+    update_stmt.bind_int64(3, dispatch_id);
+    update_stmt.next();
+  });
 }
-const denox::io::Path &denox::Db::path() const { return m_db->m_path; }
 
 uint32_t denox::Db::create_bench_environment(
     std::string device, std::string os, std::string driver_version,
@@ -1279,40 +580,130 @@ uint32_t denox::Db::create_bench_environment(
     uint64_t start_timestamp, DbClockMode clockMode,
     uint16_t l2_warmup_iterations, uint16_t jit_warmup_iterations,
     uint16_t measurement_iterations) {
-  uint32_t id = static_cast<uint32_t>(m_db->environments.size());
-  m_db->environments.push_back(DbEnv{
-      .device = device,
-      .os = os,
-      .driver_version = driver_version,
-      .denox_version = denox_version,
-      .denox_commit_hash = denox_commit_hash,
-      .start_timestamp = start_timestamp,
-      .clock_mode = clockMode,
-      .l2_warmup_iterations = l2_warmup_iterations,
-      .jit_warmup_iterations = jit_warmup_iterations,
-      .measurement_iterations = measurement_iterations,
-  });
-  return id;
+  std::lock_guard lck{m_inner->mutex};
+  auto &db = m_inner->db;
+  auto stmt = db.prepare(
+      "INSERT INTO envs("
+      "device, os, driver_version, denox_version, "
+      "denox_commit_hash, start_timestamp, clock_mode, "
+      "l2_warmup_iterations, jit_warmup_iterations, measurement_iterations"
+      ") VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10);");
+  stmt.bind_sv(1, device);
+  stmt.bind_sv(2, os);
+  stmt.bind_sv(3, driver_version);
+  stmt.bind_sv(4, denox_version);
+  stmt.bind_sv(5, denox_commit_hash);
+  stmt.bind_int64(6, static_cast<int64_t>(start_timestamp));
+  stmt.bind_int(7, static_cast<int>(clockMode));
+  stmt.bind_int(8, static_cast<int>(l2_warmup_iterations));
+  stmt.bind_int(9, static_cast<int>(jit_warmup_iterations));
+  stmt.bind_int(10, static_cast<int>(measurement_iterations));
+  stmt.next();
+  return static_cast<uint32_t>(db.last_insert_rowid());
 }
 
-std::span<const denox::DbEnv> denox::Db::envs() const {
-  return m_db->environments;
-}
-denox::DbShaderBinary denox::Db::queryShaderBinaryById(uint32_t id) const {
-  return m_db->binaries[id];
-};
-
-denox::DbComputeDispatch
-denox::Db::queryComputeDispatchById(uint32_t id) const {
-  assert(id < m_db->dispatches.size());
-  return m_db->dispatches[id];
+void Db::finalize_stmts() {
+  m_inner->query_binary_by_hash.finalize();
+  m_inner->query_dispatch_latency.finalize();
+  m_inner->query_binary_existence.finalize();
+  m_inner->insert_binary.finalize();
+  m_inner->insert_dispatch_query_dispatch_existance.finalize();
+  m_inner->insert_dispatch_insert_dispatch.finalize();
+  m_inner->insert_dispatch_insert_bindings.finalize();
 }
 
-denox::DbEnv denox::Db::queryEnvById(uint32_t id) const {
-  return m_db->environments[id];
+void Db::create_cached_stmts() {
+  m_inner->query_binary_by_hash = m_inner->db.prepare(
+      "SELECT spirv FROM shader_binaries WHERE src_sha256 = ?1;");
+  m_inner->query_dispatch_latency =
+      m_inner->db.prepare("SELECT d.mean_latency_ns "
+                          "FROM dispatches d "
+                          "JOIN shader_binaries b ON b.id = d.binary_id "
+                          "WHERE d.hash = ?1 "
+                          "AND d.wg_x = ?2 "
+                          "AND d.wg_y = ?3 "
+                          "AND d.wg_z = ?4 "
+                          "AND d.push_constant = ?5 "
+                          "AND b.src_sha256 = ?6 "
+                          "AND d.mean_latency_ns IS NOT NULL "
+                          "LIMIT 1;");
+  m_inner->query_binary_existence = m_inner->db.prepare(
+      "SELECT id, spirv FROM shader_binaries WHERE src_sha256 = ?1;");
+  m_inner->insert_binary = m_inner->db.prepare(
+      "INSERT INTO shader_binaries(src_sha256, spirv) VALUES(?1, ?2);");
+  m_inner->insert_dispatch_query_dispatch_existance =
+      m_inner->db.prepare("SELECT id FROM dispatches "
+                          "WHERE hash = ?1 "
+                          "AND binary_id = ?2 "
+                          "AND wg_x = ?3 "
+                          "AND wg_y = ?4 "
+                          "AND wg_z = ?5 "
+                          "AND push_constant = ?6 "
+                          "AND ( (input_bindings IS NULL AND ?7 IS NULL) "
+                          "      OR input_bindings = ?7 ) "
+                          "AND ( (output_bindings IS NULL AND ?8 IS NULL) "
+                          "      OR output_bindings = ?8 ) "
+                          "LIMIT 1;");
+  m_inner->insert_dispatch_insert_dispatch = m_inner->db.prepare(
+      "INSERT INTO dispatches("
+      "binary_id, wg_x, wg_y, wg_z, push_constant, hash, "
+      "operation, shader_name, config, memory_reads, memory_writes, flops, "
+      "coopmat, fixed_subgroup_size, "
+      "input_bindings, output_bindings"
+      ") VALUES("
+      "?1,?2,?3,?4,?5,?6,"
+      "?7,?8,?9,?10,?11,?12,"
+      "?13,?14,?15,?16"
+      ");");
+  m_inner->insert_dispatch_insert_bindings = m_inner->db.prepare(
+      "INSERT INTO dispatch_bindings("
+      "dispatch_id, idx, set_, binding, access, format, storage, "
+      "byte_size, alignment, width, height, channels, dtype, is_param"
+      ") VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14);");
 }
 
-uint32_t denox::Db::queryComputeDispatchCount() const {
-  return static_cast<uint32_t>(m_db->dispatches.size());
+memory::vector<uint32_t> Db::queryAllComputeDispatchIds() const {
+  std::lock_guard lck{m_inner->mutex};
+  auto stmt = m_inner->db.prepare("SELECT id FROM dispatches ORDER BY id ASC;");
+  memory::vector<uint32_t> ids;
+  while (stmt.next()) {
+    ids.push_back(static_cast<uint32_t>(stmt.as_int64(0)));
+  }
+  return ids;
 }
 
+memory::vector<DbDispatchTimingInfo> Db::queryAllDispatchTimingInfos() const {
+  std::lock_guard lck{m_inner->mutex};
+
+  auto stmt =
+      m_inner->db.prepare("SELECT d.id, "
+                          "       COUNT(t.dispatch_id) AS sample_count, "
+                          "       d.mean_latency_ns, "
+                          "       d.std_derivation_ns "
+                          "FROM dispatches d "
+                          "LEFT JOIN timing_samples t "
+                          "  ON t.dispatch_id = d.id "
+                          "GROUP BY d.id "
+                          "ORDER BY d.id ASC;");
+
+  memory::vector<DbDispatchTimingInfo> out;
+
+  while (stmt.next()) {
+    DbDispatchTimingInfo info{};
+    info.dispatch_id = static_cast<uint32_t>(stmt.as_int64(0));
+
+    info.sample_count = static_cast<uint64_t>(stmt.as_int64(1));
+
+    info.mean_latency_ns =
+        stmt.is_null(2) ? 0 : static_cast<uint64_t>(stmt.as_int64(2));
+
+    info.std_derivation_ns =
+        stmt.is_null(3) ? 0 : static_cast<uint64_t>(stmt.as_int64(3));
+
+    out.push_back(info);
+  }
+
+  return out;
+}
+
+} // namespace denox

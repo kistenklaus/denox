@@ -4,6 +4,7 @@
 #include "denox/db/DbEnv.hpp"
 #include "denox/db/DbShaderBinary.hpp"
 #include "denox/db/DbTensorBinding.hpp"
+#include "denox/db/sqlite/sqlite.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
@@ -16,7 +17,7 @@ class Db {
 public:
   static Db open(const io::Path &path);
 
-  bool atomic_writeback() const;
+  void checkpoint();
 
   std::optional<SpirvBinary> query_shader_binary(const SHA256 &srcHash) const;
 
@@ -38,10 +39,11 @@ public:
       memory::optional<uint64_t> memory_writes = memory::nullopt,
       memory::optional<uint64_t> flops = memory::nullopt,
       memory::optional<bool> coopmat = memory::nullopt,
-      memory::optional<std::span<const uint32_t>> input_bindings = memory::nullopt,
-      memory::optional<std::span<const uint32_t>> output_bindings = memory::nullopt,
-      memory::optional<uint32_t> subgroupSize = memory::nullopt
-      );
+      memory::optional<std::span<const uint32_t>> input_bindings =
+          memory::nullopt,
+      memory::optional<std::span<const uint32_t>> output_bindings =
+          memory::nullopt,
+      memory::optional<uint32_t> subgroupSize = memory::nullopt);
 
   bool insert_binary(const SHA256 &srcHash, const SpirvBinary &binary);
 
@@ -53,36 +55,41 @@ public:
 
   uint32_t queryComputeDispatchCount() const;
 
-  // insert_dispatch, invalidates the span!
-  [[deprecated]]
-  std::span<const DbShaderBinary> binaries() const;
-
-  // insert_dispatch, invalidates the span!
-  [[deprecated]]
-  std::span<const DbComputeDispatch> dispatches() const;
-
-  [[deprecated]]
-  std::span<const DbEnv> envs() const;
-
-  // Accumulates benchmark results into existing timing statistics.
-  // Timing is stored as population mean and standard deviation.
   void add_dispatch_benchmark_result(uint32_t dispatch_index,
                                      std::vector<DbSample> samples);
 
   uint32_t create_bench_environment(
       std::string device, std::string os, std::string driver_version,
-      std::string denox_version, std::string denox_commit_hash, uint64_t start_timestamp,
-      DbClockMode clockMode, uint16_t l2_warmup_iterations,
-      uint16_t jit_warmup_iterations, uint16_t measurement_iterations);
+      std::string denox_version, std::string denox_commit_hash,
+      uint64_t start_timestamp, DbClockMode clockMode,
+      uint16_t l2_warmup_iterations, uint16_t jit_warmup_iterations,
+      uint16_t measurement_iterations);
 
-  const io::Path &path() const;
+  memory::vector<uint32_t> queryAllComputeDispatchIds() const;
+
+  memory::vector<DbDispatchTimingInfo> queryAllDispatchTimingInfos() const;
 
 private:
-  Db(std::shared_ptr<struct DbMapped> db,
-     std::shared_ptr<struct DbIndex> index);
+  void finalize_stmts();
+  void create_cached_stmts();
 
-  std::shared_ptr<struct DbMapped> m_db;
-  std::shared_ptr<struct DbIndex> m_index;
+  struct Inner {
+    sqlite::Db db;
+    std::mutex mutex;
+
+    sqlite::Stmt query_binary_by_hash;
+    sqlite::Stmt query_dispatch_latency;
+
+    sqlite::Stmt query_binary_existence;
+    sqlite::Stmt insert_binary;
+
+    sqlite::Stmt insert_dispatch_query_dispatch_existance;
+    sqlite::Stmt insert_dispatch_insert_dispatch;
+    sqlite::Stmt insert_dispatch_insert_bindings;
+  };
+  explicit Db(std::shared_ptr<Inner> inner) : m_inner(std::move(inner)) {}
+
+  std::shared_ptr<Inner> m_inner;
 };
 
 } // namespace denox

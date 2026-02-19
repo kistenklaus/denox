@@ -12,5 +12,5 @@ void populate(PopulateAction &action) {
 
   denox::populate(db, action.model.data, action.options);
 
-  db.atomic_writeback();
+  db.checkpoint();
 }

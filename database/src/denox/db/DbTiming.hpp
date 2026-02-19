@@ -18,4 +18,11 @@ struct DbDispatchTiming {
   uint64_t std_derivation_ns;
 };
 
+struct DbDispatchTimingInfo {
+  uint32_t dispatch_id;
+  uint64_t sample_count;
+  uint64_t mean_latency_ns;
+  uint64_t std_derivation_ns;
+};
+
 } // namespace denox
