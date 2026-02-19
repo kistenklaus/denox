@@ -45,12 +45,23 @@ public:
 
   bool insert_binary(const SHA256 &srcHash, const SpirvBinary &binary);
 
+  DbShaderBinary queryShaderBinaryById(uint32_t id) const;
+
+  DbComputeDispatch queryComputeDispatchById(uint32_t id) const;
+
+  DbEnv queryEnvById(uint32_t id) const;
+
+  uint32_t queryComputeDispatchCount() const;
+
   // insert_dispatch, invalidates the span!
+  [[deprecated]]
   std::span<const DbShaderBinary> binaries() const;
 
   // insert_dispatch, invalidates the span!
+  [[deprecated]]
   std::span<const DbComputeDispatch> dispatches() const;
 
+  [[deprecated]]
   std::span<const DbEnv> envs() const;
 
   // Accumulates benchmark results into existing timing statistics.

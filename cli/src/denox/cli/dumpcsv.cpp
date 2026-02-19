@@ -1,8 +1,8 @@
 #include "dumpcsv.hpp"
 #include "denox/cli/io/IOEndpoint.hpp"
 #include "denox/cli/io/OutputStream.hpp"
-#include "denox/common/commit_hash.hpp"
 #include "denox/db/Db.hpp"
+#include "denox/db/DbComputeDispatch.hpp"
 
 void dumpcsv(DumpCsvAction &action) {
 
@@ -59,7 +59,8 @@ void dumpcsv(DumpCsvAction &action) {
     first = false;
   }
   csv.push_back('\n');
-  for (const denox::DbComputeDispatch &dispatch : db.dispatches()) {
+  for (uint32_t d = 0; d < db.queryComputeDispatchCount(); ++d) {
+    const denox::DbComputeDispatch dispatch = db.queryComputeDispatchById(d);
     if (!dispatch.operation) {
       fmt::println("skipping line");
       continue; // skip lines without debug info.
@@ -125,7 +126,7 @@ void dumpcsv(DumpCsvAction &action) {
     std::string shader = *dispatch.shader_name;
     std::string config = *dispatch.config;
 
-    const auto binary = db.binaries()[dispatch.binaryId];
+    const auto binary = db.queryShaderBinaryById(dispatch.binaryId);
     const denox::SHA256 &src_hash = binary.hash;
     uint64_t spv_size = binary.spvBinary.spv.size() * sizeof(uint32_t);
 
@@ -148,11 +149,12 @@ void dumpcsv(DumpCsvAction &action) {
     uint64_t memory_writes = dispatch.memory_writes.value_or(0);
 
     std::string line_header = fmt::format(
-        "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{:40}\",\"{:40}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
-        *dispatch.operation,
-        input_shape, input_format, input_type, output_shape, output_format,
-        output_type, shader, config, spv_size, spv_hash, src_hash, coopmat,
-        parameterSize, descriptorCount, flops, memory_reads, memory_writes);
+        "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\","
+        "\"{:40}\",\"{:40}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
+        *dispatch.operation, input_shape, input_format, input_type,
+        output_shape, output_format, output_type, shader, config, spv_size,
+        spv_hash, src_hash, coopmat, parameterSize, descriptorCount, flops,
+        memory_reads, memory_writes);
 
     if (!dispatch.time) {
       continue;
@@ -161,7 +163,7 @@ void dumpcsv(DumpCsvAction &action) {
     const denox::DbDispatchTiming &timing = *dispatch.time;
 
     for (const denox::DbSample &sample : timing.samples) {
-      const denox::DbEnv &env = db.envs()[sample.env];
+      const denox::DbEnv &env = db.queryEnvById(sample.env);
 
       std::string clock_mode;
       switch (env.clock_mode) {
@@ -179,13 +181,14 @@ void dumpcsv(DumpCsvAction &action) {
         break;
       }
 
-      csv += fmt::format(
-          "{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n", line_header, env.device, env.os,
-          env.driver_version, env.start_timestamp, clock_mode,
-          env.l2_warmup_iterations, env.jit_warmup_iterations,
-          env.measurement_iterations,
-          static_cast<float>(sample.latency_ns) * 1e-6f, sample.timestamp,
-          sample.gpuClock, sample.memClock);
+      csv +=
+          fmt::format("{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}"
+                      "\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+                      line_header, env.device, env.os, env.driver_version,
+                      env.start_timestamp, clock_mode, env.l2_warmup_iterations,
+                      env.jit_warmup_iterations, env.measurement_iterations,
+                      static_cast<float>(sample.latency_ns) * 1e-6f,
+                      sample.timestamp, sample.gpuClock, sample.memClock);
     }
   }
 

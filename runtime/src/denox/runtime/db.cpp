@@ -85,8 +85,6 @@ static memory::vector<uint32_t> select_targets_from_candidates(
   memory::vector<uint32_t> result;
   result.reserve(N);
 
-  const auto dispatches = db.dispatches();
-
   auto inflight = [&](uint32_t candidateIndex) -> uint64_t {
     if (!samplesInFlight.has_value())
       return 0;
@@ -98,10 +96,11 @@ static memory::vector<uint32_t> select_targets_from_candidates(
   // ------------------------------------------------------------
   for (uint32_t i = 0; i < candidates.size() && result.size() < N; ++i) {
     uint32_t d = candidates[i]; // DB dispatch index
+    const auto dispatch = db.queryComputeDispatchById(d);
 
     uint64_t dbSamples = 0;
-    if (dispatches[d].time.has_value())
-      dbSamples = dispatches[d].time->samples.size();
+    if (dispatch.time.has_value())
+      dbSamples = dispatch.time->samples.size();
 
     uint64_t effectiveSamples = dbSamples + inflight(i);
 
@@ -141,7 +140,7 @@ static memory::vector<uint32_t> select_targets_from_candidates(
 
   for (uint32_t i = 0; i < candidates.size(); ++i) {
     uint32_t d = candidates[i];
-    const auto &dispatch = dispatches[d];
+    const auto dispatch = db.queryComputeDispatchById(d);
 
     // Exclude dispatches with no data yet from SEM phase
     if (!dispatch.time.has_value()) {
@@ -187,7 +186,7 @@ struct EpochDispatch {
   VkPipelineLayout layout;
   memory::vector<VkDescriptorSetLayout> descriptorLayouts;
   memory::vector<VkDescriptorSet> descriptorSets; // ordered by set index.
-  memory::span<const uint8_t> pc;
+  memory::vector<uint8_t> pc;
   uint32_t workgroupCountX;
   uint32_t workgroupCountY;
   uint32_t workgroupCountZ;
@@ -228,9 +227,6 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
                           const denox::Db &db, memory::span<uint32_t> targets,
                           uint32_t env, uint32_t batchSize,
                           uint32_t sampleCount, uint32_t jobs) {
-
-  const auto dbdispatches = db.dispatches();
-  const auto dbbinaries = db.binaries();
   // static size_t jj = 1;
 
   memory::vector<uint32_t> localMaxSets(jobs);
@@ -255,7 +251,7 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
 
       for (size_t i = start; i < end; ++i) {
         uint32_t target = targets[i];
-        const auto &dbdispatch = dbdispatches[target];
+        const auto dbdispatch = db.queryComputeDispatchById(target);
 
         size_t totalBufferSize = 0;
         uint32_t maxSet = 0;
@@ -295,7 +291,7 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
             setLayouts, static_cast<uint32_t>(dbdispatch.pushConstant.size()));
 
         VkPipeline pipeline = ctx->createComputePipeline(
-            layout, dbbinaries[binaryId].spvBinary.spv, "main",
+            layout, db.queryShaderBinaryById(binaryId).spvBinary.spv, "main",
             dbdispatch.fixed_subgroup_size);
 
         dispatches[i] = EpochDispatch{
@@ -356,7 +352,7 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
 
   for (uint32_t x = 0; x < targets.size(); ++x) {
     const uint32_t target = targets[x];
-    const auto &dbdispatch = dbdispatches[target];
+    const auto dbdispatch = db.queryComputeDispatchById(target);
     auto &dispatch = dispatches[x];
     uint32_t setCount =
         static_cast<uint32_t>(dispatch.descriptorLayouts.size());
@@ -630,16 +626,15 @@ static EpochBenchResults bench_epoch(BenchmarkState &state, const denox::Db &db,
 static std::pair<memory::optional<std::string>, float>
 print_progress_report(const denox::Db &db,
                       const runtime::DbBenchOptions &options) {
-  const auto dispatches = db.dispatches();
-  const uint64_t total = dispatches.size();
+  const uint64_t total = db.queryComputeDispatchCount();
 
   uint64_t noData = 0;
   uint64_t insufficientSamples = 0;
   uint64_t insufficientPrecision = 0;
   uint64_t converged = 0;
 
-  for (size_t i = 0; i < total; ++i) {
-    const auto &d = dispatches[i];
+  for (uint32_t i = 0; i < total; ++i) {
+    const auto d = db.queryComputeDispatchById(i);
 
     if (!d.time.has_value()) {
       noData += 1;
@@ -704,7 +699,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
     return;
   }
 
-  memory::vector<uint32_t> iota(m_db.dispatches().size());
+  memory::vector<uint32_t> iota(m_db.queryComputeDispatchCount());
   std::iota(iota.begin(), iota.end(), 0);
 
   auto deviceProperties =
@@ -748,7 +743,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
   std::stop_source stop;
   auto epoch_creation = std::thread(
       [&](std::stop_token token) {
-        std::vector<uint64_t> samples_in_flight(m_db.dispatches().size(), 0);
+        std::vector<uint64_t> samples_in_flight(m_db.queryComputeDispatchCount(), 0);
         const uint64_t big_sample_count = epochSize;
 
         uint32_t stage = 0;
@@ -779,8 +774,9 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
 
           bool rme_convergence_mode = true;
           for (uint32_t target : selected_targets) {
-            if (!m_db.dispatches()[target].time.has_value() ||
-                m_db.dispatches()[target].time->samples.size() <
+            const auto d = m_db.queryComputeDispatchById(target);
+            if (!d.time.has_value() ||
+                d.time->samples.size() <
                     options.minSamples) {
               rme_convergence_mode = false;
             }
@@ -898,9 +894,6 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
     fmt::println("[main] writeback-acquire took: {}", acquire_took);
     fmt::println("[main] writeback-acquire took: {}", acquire_took);
     fmt::println("[main] writeback-acquire took: {}", acquire_took);
-
-
-
 
     if (!epoch_is_live[stage].load()) {
       result_is_live[stage] = false;

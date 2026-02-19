@@ -1298,3 +1298,21 @@ uint32_t denox::Db::create_bench_environment(
 std::span<const denox::DbEnv> denox::Db::envs() const {
   return m_db->environments;
 }
+denox::DbShaderBinary denox::Db::queryShaderBinaryById(uint32_t id) const {
+  return m_db->binaries[id];
+};
+
+denox::DbComputeDispatch
+denox::Db::queryComputeDispatchById(uint32_t id) const {
+  assert(id < m_db->dispatches.size());
+  return m_db->dispatches[id];
+}
+
+denox::DbEnv denox::Db::queryEnvById(uint32_t id) const {
+  return m_db->environments[id];
+}
+
+uint32_t denox::Db::queryComputeDispatchCount() const {
+  return static_cast<uint32_t>(m_db->dispatches.size());
+}
+
