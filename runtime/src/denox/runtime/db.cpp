@@ -232,25 +232,16 @@ struct EpochBenchResults {
   memory::vector<Timing> timings;
 };
 
-static Epoch create_epoch(const runtime::ContextHandle &ctx,
-                          const denox::Db &db,
-                          memory::span<const uint32_t> dispatchIds,
-                          memory::span<uint32_t> targets, uint32_t env,
-                          uint32_t batchSize, uint32_t sampleCount,
-                          uint32_t jobs) {
+static Epoch
+create_epoch(const runtime::ContextHandle &ctx, const denox::Db &db,
+             memory::span<const DbComputeDispatch> computeDispatches,
+             memory::span<uint32_t> targets, uint32_t env, uint32_t batchSize,
+             uint32_t sampleCount, uint32_t jobs) {
   memory::vector<uint32_t> localMaxSets(jobs);
   memory::vector<uint32_t> localStorageBufferDescriptorCount(jobs);
   memory::vector<size_t> localPeakBufferSize(jobs);
 
   memory::vector<EpochDispatch> dispatches(targets.size(), EpochDispatch{});
-
-  memory::vector<uint32_t> ids(targets.size());
-  for (uint32_t i = 0; i < targets.size(); ++i) {
-    ids[i] = dispatchIds[targets[i]];
-  }
-
-  memory::vector<DbComputeDispatch> computeDispatches =
-      db.bulkQueryComputeDispatchById(ids);
 
   std::atomic<uint64_t> work_acc = 0;
 
@@ -644,8 +635,8 @@ print_progress_report(const denox::Db &db,
   if (total == 0) {
     return {memory::nullopt, 1.0f};
   }
-  const auto info =
-      db.query_convergence_info(options.minSamples, static_cast<double>(options.maxRelativeError));
+  const auto info = db.query_convergence_info(
+      options.minSamples, static_cast<double>(options.maxRelativeError));
   const uint64_t converged =
       std::min(info.converged_min_dispatches, info.converged_rel_dispatches);
   const uint64_t insufficientSamples = total - info.converged_min_dispatches;
@@ -748,14 +739,22 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           }
           uint32_t batchSize =
               static_cast<uint32_t>(selected_targets.size()); // heuristic!
+
+          memory::vector<uint32_t> ids(selected_targets.size());
+          for (uint32_t i = 0; i < selected_targets.size(); ++i) {
+            ids[i] = dispatchIds[selected_targets[i]];
+          }
+          memory::vector<DbComputeDispatch> computeDispatches =
+              m_db.bulkQueryComputeDispatchById(ids);
+
           bool rme_convergence_mode = true;
-          for (uint32_t target : selected_targets) {
-            const auto d = m_db.queryComputeDispatchById(dispatchIds[target]);
+          for (uint32_t i = 0; i < selected_targets.size(); ++i) {
+            const auto &d = computeDispatches[i];
             if (!d.time.has_value() ||
                 d.time->samples.size() < options.minSamples) {
               rme_convergence_mode = false;
             }
-            samples_in_flight[target] += big_sample_count;
+            samples_in_flight[selected_targets[i]] += big_sample_count;
           }
           uint32_t sample_count = 0;
           if (rme_convergence_mode) {
@@ -766,8 +765,8 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           epoch_is_live[stage].store(true);
 
           epochs[stage] =
-              create_epoch(m_context, m_db, dispatchIds, selected_targets, env,
-                           batchSize, sample_count, options.jobs);
+              create_epoch(m_context, m_db, computeDispatches, selected_targets,
+                           env, batchSize, sample_count, options.jobs);
 
           assert(!epochs[stage].targets.empty());
           constructedEpochs.release();
@@ -839,8 +838,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           auto [msg, prog] = print_progress_report(m_db, dispatchIds, options);
 
           if (msg && !stop_printing) {
-            progress.step_inplace(logger, prog, false, "{}{}{}",
-            logger.blue(),
+            progress.step_inplace(logger, prog, false, "{}{}{}", logger.blue(),
                                   *msg, logger.reset());
             // progress.step(logger, prog, "{}{}{}", logger.blue(), *msg,
             //               logger.reset());

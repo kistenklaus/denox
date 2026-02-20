@@ -1,9 +1,10 @@
 #include "dumpcsv.hpp"
 #include "denox/cli/io/IOEndpoint.hpp"
-#include "denox/memory/container/vector.hpp"
 #include "denox/cli/io/OutputStream.hpp"
 #include "denox/db/Db.hpp"
 #include "denox/db/DbComputeDispatch.hpp"
+#include "denox/diag/progress.hpp"
+#include "denox/memory/container/vector.hpp"
 
 void dumpcsv(DumpCsvAction &action) {
 
@@ -62,7 +63,10 @@ void dumpcsv(DumpCsvAction &action) {
   csv.push_back('\n');
 
   denox::memory::vector<uint32_t> dispatchIds = db.queryAllComputeDispatchIds();
+  size_t i = 0;
 
+  denox::diag::Logger logger("dumpcsv", true);
+  denox::diag::Progress progress;
 
   for (uint32_t d : dispatchIds) {
     const denox::DbComputeDispatch dispatch = db.queryComputeDispatchById(d);
@@ -195,8 +199,10 @@ void dumpcsv(DumpCsvAction &action) {
                       static_cast<float>(sample.latency_ns) * 1e-6f,
                       sample.timestamp, sample.gpuClock, sample.memClock);
     }
+    float prog = static_cast<float>(i) / static_cast<float>(dispatchIds.size());
+    progress.step_inplace(logger, prog, i == 0, "Writing CSV");
+    ++i;
   }
-
   OutputStream{action.csv}.write_exact(
       std::span{reinterpret_cast<const std::byte *>(csv.data()), csv.size()});
 }

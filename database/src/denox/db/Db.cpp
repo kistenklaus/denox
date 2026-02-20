@@ -558,13 +558,25 @@ DbComputeDispatch Db::queryComputeDispatchById(uint32_t id) const {
     DbDispatchTiming t{};
     t.mean_latency_ns = static_cast<uint64_t>(stmt.as_int64(16));
     t.std_derivation_ns = static_cast<uint64_t>(stmt.as_int64(17));
-    auto count_stmt = m_inner->db.prepare(
-        "SELECT COUNT(*) FROM timing_samples WHERE dispatch_id = ?1;");
-    count_stmt.bind_int64(1, static_cast<int64_t>(id));
-    if (count_stmt.next()) {
-      uint64_t n = static_cast<uint64_t>(count_stmt.as_int64(0));
-      t.samples.resize(n); // only size matters for convergence logic
+
+    auto sstmt = m_inner->db.prepare(
+        "SELECT idx, timestamp, latency_ns, env, gpu_clock, mem_clock "
+        "FROM timing_samples "
+        "WHERE dispatch_id = ?1 "
+        "ORDER BY idx ASC;");
+    sstmt.bind_int64(1, static_cast<int64_t>(id));
+
+    while (sstmt.next()) {
+      DbSample s{};
+      // idx = column 0 (ignored unless you store it)
+      s.timestamp = static_cast<uint64_t>(sstmt.as_int64(1));
+      s.latency_ns = static_cast<uint64_t>(sstmt.as_int64(2));
+      s.env = static_cast<uint32_t>(sstmt.as_int64(3));
+      s.gpuClock = static_cast<uint32_t>(sstmt.as_optional_int64(4).value_or(0));
+      s.memClock = static_cast<uint32_t>(sstmt.as_optional_int64(5).value_or(0));
+      t.samples.push_back(std::move(s));
     }
+
     out.time = std::move(t);
   }
   {
