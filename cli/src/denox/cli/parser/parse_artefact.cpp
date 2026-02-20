@@ -2,7 +2,6 @@
 #include "denox/cli/io/IOEndpoint.hpp"
 #include "denox/io/fs/File.hpp"
 #include "onnx.pb.h"
-#include <db.h>
 #include <dnx.h>
 
 #include <google/protobuf/io/coded_stream.h>
