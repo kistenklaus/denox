@@ -1,6 +1,7 @@
 #include "denox/compiler/populate/populate.hpp"
 #include "denox/algorithm/align_up.hpp"
 #include "denox/diag/progress.hpp"
+#include <limits>
 
 namespace denox::compiler {
 
@@ -8,36 +9,52 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
               const SymGraphEval &symeval, diag::Progress progressbar,
               diag::Logger &logger,
               [[maybe_unused]] const CompileOptions &options) {
+
   struct GlslCompilationUnit {
-    spirv::GlslCompilerInstance glsl;
+    const spirv::GlslCompilerInstance* glsl;
     SHA256 hash;
   };
 
-  std::unordered_set<SHA256> sourceExists;
+  progressbar.step(logger, 0.0f, "Collecting unavailable SPIR-V binaries");
+
+  memory::hash_map<SHA256, uint32_t> shader_cache =
+      db.query_in_memory_shader_cache();
+
+  uint32_t jj = options.jobs;
 
   memory::vector<GlslCompilationUnit> units;
-  for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
-    memory::EdgeId eid{e};
-    const compiler::SuperGraphEdge &edge{supergraph.graph.get(eid)};
-    for (const compiler::ComputeDispatch &dispatch : edge.dispatches) {
-      SHA256 hash = dispatch.glsl.fast_sha256();
-      auto cached = db.query_shader_binary(hash);
-      if (!cached && !sourceExists.contains(hash)) {
-        units.emplace_back(dispatch.glsl, hash);
-        sourceExists.insert(hash);
+  {
+    for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
+      memory::EdgeId eid{e};
+      const compiler::SuperGraphEdge &edge{supergraph.graph.get(eid)};
+      for (const compiler::ComputeDispatch &dispatch : edge.dispatches) {
+        SHA256 hash = dispatch.glsl.fast_sha256();
+        auto exists = shader_cache.contains(hash);
+        if (!exists) {
+          units.emplace_back(&dispatch.glsl, hash);
+          shader_cache.emplace(hash, std::numeric_limits<uint32_t>::max());
+        }
       }
     }
   }
-  uint32_t jj = options.jobs;
+
   memory::vector<std::thread> threads(jj);
   uint32_t thread_count = static_cast<uint32_t>(threads.size());
   std::atomic<uint32_t> progess = 0;
   std::mutex mutex;
+
+  std::atomic<uint64_t> work_acc = 0;
+
   for (uint32_t tid = 0; tid < thread_count; ++tid) {
-    threads[tid] = std::thread([tid, thread_count, &units, &logger, &db, &mutex,
-                                &progess, &progressbar] {
-      for (size_t i = tid; i < units.size(); i += thread_count) {
-        SpirvBinary binary = *units[i].glsl.compile();
+    threads[tid] = std::thread([&units, &logger, &db, &mutex, &progess,
+                                &progressbar, &work_acc] {
+      while (true) {
+        uint64_t i = work_acc.fetch_add(1);
+        if (i >= units.size()) {
+          break;
+        }
+        assert(units[i].glsl != nullptr);
+        SpirvBinary binary = *units[i].glsl->compile();
 
         std::lock_guard lck{mutex};
 
@@ -46,7 +63,7 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
                      (static_cast<float>(units.size() + 1));
         progressbar.step_inplace(
             logger, prog, idx == 0, "Building SPIR-V compute shader {} {}{}{}",
-            units[i].glsl.getSourcePath().relative_to(io::Path::assets()),
+            units[i].glsl->getSourcePath().relative_to(io::Path::assets()),
             logger.gray(), units[i].hash, logger.reset());
         db.insert_binary(units[i].hash, binary);
       }
@@ -55,14 +72,24 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
   for (uint32_t tid = 0; tid < thread_count; ++tid) {
     threads[tid].join();
   }
+
+  progressbar.step(logger, 0.99f, "Collecting SPIR-V binaries");
+
   // Register all dispatches in the database
   size_t new_dispatch_count = 0;
   for (size_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
     memory::EdgeId eid{e};
     const compiler::SuperGraphEdge &edge = supergraph.graph.get(eid);
     for (const compiler::ComputeDispatch &dispatch : edge.dispatches) {
+
       SHA256 hash = dispatch.glsl.fast_sha256();
-      SpirvBinary binary = *db.query_shader_binary(hash);
+
+      assert(shader_cache.contains(hash));
+      uint32_t binary_id = shader_cache[hash];
+      if (binary_id == std::numeric_limits<uint32_t>::max()) {
+        binary_id = *db.query_shader_binary_id(hash);
+      }
+
       uint32_t wgX = static_cast<uint32_t>(*symeval[dispatch.workgroupCountX]);
       uint32_t wgY = static_cast<uint32_t>(*symeval[dispatch.workgroupCountY]);
       uint32_t wgZ = static_cast<uint32_t>(*symeval[dispatch.workgroupCountZ]);
@@ -193,9 +220,10 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
       }
 
       bool new_dispatch = db.insert_dispatch(
-          hash, pcbuf, wgX, wgY, wgZ, bindings, binary, operation, shader_name,
-          config, memory_reads, memory_writes, flops, coopmat, input_bindings,
-          output_bindings, dispatch.requirements.fixedSubgroupSize);
+          hash, pcbuf, wgX, wgY, wgZ, bindings, binary_id, operation,
+          shader_name, config, memory_reads, memory_writes, flops, coopmat,
+          input_bindings, output_bindings,
+          dispatch.requirements.fixedSubgroupSize);
       if (new_dispatch) {
         new_dispatch_count++;
       }
@@ -207,10 +235,9 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
         logger, 1.0f,
         "All required dispatch configurations already present in database");
   } else {
-
-    progressbar.step_inplace(
-        logger, 1.0f, false, "{}Database populated. Added {} new dispatches{}",
-        logger.green(), new_dispatch_count, logger.reset());
+    progressbar.step(logger, 1.0f,
+                     "{}Database populated. Added {} new dispatches{}",
+                     logger.green(), new_dispatch_count, logger.reset());
   }
 }
 

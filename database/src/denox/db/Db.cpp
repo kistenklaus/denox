@@ -335,6 +335,126 @@ bool Db::insert_dispatch(
   });
 }
 
+bool Db::insert_dispatch(
+    const SHA256 &srcHash, std::span<const uint8_t> pushConstant,
+    uint32_t workgroupCountX, uint32_t workgroupCountY,
+    uint32_t workgroupCountZ, std::span<const DbTensorBinding> bindings,
+    uint32_t binary_id, memory::optional<memory::string> operation,
+    memory::optional<memory::string> shader_name,
+    memory::optional<memory::string> config,
+    memory::optional<uint64_t> memory_reads,
+    memory::optional<uint64_t> memory_writes, memory::optional<uint64_t> flops,
+    memory::optional<bool> coopmat,
+    memory::optional<std::span<const uint32_t>> input_bindings,
+    memory::optional<std::span<const uint32_t>> output_bindings,
+    memory::optional<uint32_t> subgroupSize) {
+  std::lock_guard lck{m_inner->mutex};
+  return m_inner->db.with_transaction([&]() -> bool {
+    uint64_t hash = std::hash<SHA256>{}(srcHash);
+    for (uint8_t b : pushConstant) {
+      hash = algorithm::hash_combine(hash, b);
+    }
+    hash = algorithm::hash_combine(hash, workgroupCountX);
+    hash = algorithm::hash_combine(hash, workgroupCountY);
+    hash = algorithm::hash_combine(hash, workgroupCountZ);
+    {
+      auto &stmt = m_inner->insert_dispatch_query_dispatch_existance;
+      stmt.reset();
+      stmt.clear_bindings();
+      stmt.bind_int64(1, static_cast<int64_t>(hash));
+      stmt.bind_int64(2, static_cast<int64_t>(binary_id));
+      stmt.bind_int64(3, workgroupCountX);
+      stmt.bind_int64(4, workgroupCountY);
+      stmt.bind_int64(5, workgroupCountZ);
+      stmt.bind_blob(6, pushConstant.data(),
+                     static_cast<int>(pushConstant.size()));
+      if (input_bindings) {
+        stmt.bind_blob(
+            7, input_bindings->data(),
+            static_cast<int>(input_bindings->size() * sizeof(uint32_t)));
+      } else {
+        stmt.bind_null(7);
+      }
+      if (output_bindings) {
+        stmt.bind_blob(
+            8, output_bindings->data(),
+            static_cast<int>(output_bindings->size() * sizeof(uint32_t)));
+      } else {
+        stmt.bind_null(8);
+      }
+      if (stmt.next()) {
+        return false;
+      }
+    }
+    uint64_t dispatchId = 0;
+    {
+      auto &ins = m_inner->insert_dispatch_insert_dispatch;
+      ins.reset();
+      ins.clear_bindings();
+      ins.bind_int64(1, static_cast<int64_t>(binary_id));
+      ins.bind_int64(2, workgroupCountX);
+      ins.bind_int64(3, workgroupCountY);
+      ins.bind_int64(4, workgroupCountZ);
+      ins.bind_blob(5, pushConstant.data(),
+                    static_cast<int>(pushConstant.size()));
+      ins.bind_int64(6, static_cast<int64_t>(hash));
+      operation ? ins.bind_sv(7, *operation) : ins.bind_null(7);
+      shader_name ? ins.bind_sv(8, *shader_name) : ins.bind_null(8);
+      config ? ins.bind_sv(9, *config) : ins.bind_null(9);
+      memory_reads ? ins.bind_int64(10, static_cast<int64_t>(*memory_reads))
+                   : ins.bind_null(10);
+      memory_writes ? ins.bind_int64(11, static_cast<int64_t>(*memory_writes))
+                    : ins.bind_null(11);
+      flops ? ins.bind_int64(12, static_cast<int64_t>(*flops))
+            : ins.bind_null(12);
+      coopmat ? ins.bind_int(13, *coopmat ? 1 : 0) : ins.bind_null(13);
+      subgroupSize ? ins.bind_int64(14, static_cast<int64_t>(*subgroupSize))
+                   : ins.bind_null(14);
+      // ---- input_bindings ----
+      if (input_bindings) {
+        ins.bind_blob(
+            15, input_bindings->data(),
+            static_cast<int>(input_bindings->size() * sizeof(uint32_t)));
+      } else {
+        ins.bind_null(15);
+      }
+      // ---- output_bindings ----
+      if (output_bindings) {
+        ins.bind_blob(
+            16, output_bindings->data(),
+            static_cast<int>(output_bindings->size() * sizeof(uint32_t)));
+      } else {
+        ins.bind_null(16);
+      }
+      ins.next();
+      dispatchId = static_cast<uint64_t>(m_inner->db.last_insert_rowid());
+    }
+    for (size_t i = 0; i < bindings.size(); ++i) {
+      const auto &b = bindings[i];
+      auto &ins = m_inner->insert_dispatch_insert_bindings;
+      ins.reset();
+      ins.clear_bindings();
+      ins.bind_int64(1, static_cast<int64_t>(dispatchId));
+      ins.bind_int64(2, static_cast<int64_t>(i));
+      ins.bind_int64(3, b.set);
+      ins.bind_int64(4, b.binding);
+      ins.bind_int64(5, static_cast<int>(b.access));
+      ins.bind_int64(6, static_cast<int>(b.format));
+      ins.bind_int64(7, static_cast<int>(b.storage));
+      ins.bind_int64(8, static_cast<int64_t>(b.byteSize));
+      ins.bind_int(9, b.alignment);
+      b.width ? ins.bind_int64(10, *b.width) : ins.bind_null(10);
+      b.height ? ins.bind_int64(11, *b.height) : ins.bind_null(11);
+      b.channels ? ins.bind_int64(12, *b.channels) : ins.bind_null(12);
+      b.type ? ins.bind_int64(13, static_cast<int>(*b.type))
+             : ins.bind_null(13);
+      ins.bind_int(14, b.is_param ? 1 : 0);
+      ins.next();
+    }
+    return true;
+  });
+}
+
 bool denox::Db::insert_binary(const SHA256 &srcHash,
                               const SpirvBinary &binary) {
   std::lock_guard lck{m_inner->mutex};
@@ -704,6 +824,54 @@ memory::vector<DbDispatchTimingInfo> Db::queryAllDispatchTimingInfos() const {
   }
 
   return out;
+}
+
+bool Db::has_shader_binary(const SHA256 &srcHash) const {
+  std::lock_guard lck{m_inner->mutex};
+
+  auto &stmt = m_inner->query_binary_existence;
+  stmt.reset();
+  stmt.clear_bindings();
+
+  stmt.bind_blob(1, srcHash.h, static_cast<int>(sizeof(uint32_t) * 8));
+
+  return stmt.next();
+}
+
+memory::hash_map<SHA256, uint32_t> Db::query_in_memory_shader_cache() const {
+  std::lock_guard lck{m_inner->mutex};
+  memory::hash_map<SHA256, uint32_t> cache;
+  cache.reserve(1 << 16);
+  auto stmt =
+      m_inner->db.prepare("SELECT id, src_sha256 FROM shader_binaries;");
+  while (stmt.next()) {
+    const uint32_t id = static_cast<uint32_t>(stmt.as_int64(0));
+    auto blob = stmt.as_blob_view(1);
+    if (blob.size() != sizeof(SHA256::h)) {
+      throw std::runtime_error("Invalid SHA256 size in shader_binaries table");
+    }
+    SHA256 hash;
+    std::memcpy(hash.h, blob.data(), sizeof(hash.h));
+    cache.emplace(hash, id);
+  }
+  return cache;
+}
+
+memory::optional<uint32_t>
+Db::query_shader_binary_id(const SHA256 &srcHash) const {
+  std::lock_guard lck{m_inner->mutex};
+
+  auto &stmt = m_inner->query_binary_existence;
+  stmt.reset();
+  stmt.clear_bindings();
+
+  stmt.bind_blob(1, srcHash.h, static_cast<int>(sizeof(srcHash.h)));
+
+  if (!stmt.next()) {
+    return memory::nullopt;
+  }
+
+  return static_cast<uint32_t>(stmt.as_int64(0));
 }
 
 } // namespace denox

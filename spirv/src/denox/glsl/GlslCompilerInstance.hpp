@@ -47,7 +47,7 @@ public:
 
   void enableDenoxPreprocessor() { m_denoxPreprocessor = true; }
 
-  CompilationResult compile();
+  CompilationResult compile() const;
 
   const io::Path &getSourcePath() const { return m_sourcePath; }
 

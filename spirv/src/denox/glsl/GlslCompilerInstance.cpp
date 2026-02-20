@@ -16,7 +16,7 @@
 
 namespace denox::spirv {
 
-CompilationResult GlslCompilerInstance::compile() {
+CompilationResult GlslCompilerInstance::compile() const {
   std::lock_guard lck{*m_mutex};
 
   ::glslang::TShader shader(EShLangCompute);

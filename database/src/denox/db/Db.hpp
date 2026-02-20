@@ -6,6 +6,7 @@
 #include "denox/db/DbTensorBinding.hpp"
 #include "denox/db/sqlite/sqlite.hpp"
 #include "denox/io/fs/Path.hpp"
+#include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include <chrono>
@@ -45,6 +46,24 @@ public:
           memory::nullopt,
       memory::optional<uint32_t> subgroupSize = memory::nullopt);
 
+  bool insert_dispatch(
+      const SHA256 &srcHash, std::span<const uint8_t> pushConstant,
+      uint32_t workgroupCountX, uint32_t workgroupCountY,
+      uint32_t workgroupCountZ, std::span<const DbTensorBinding> bindings,
+      uint32_t binary_id,
+      memory::optional<memory::string> operation = memory::nullopt,
+      memory::optional<memory::string> shader_name = memory::nullopt,
+      memory::optional<memory::string> config = memory::nullopt,
+      memory::optional<uint64_t> memory_reads = memory::nullopt,
+      memory::optional<uint64_t> memory_writes = memory::nullopt,
+      memory::optional<uint64_t> flops = memory::nullopt,
+      memory::optional<bool> coopmat = memory::nullopt,
+      memory::optional<std::span<const uint32_t>> input_bindings =
+          memory::nullopt,
+      memory::optional<std::span<const uint32_t>> output_bindings =
+          memory::nullopt,
+      memory::optional<uint32_t> subgroupSize = memory::nullopt);
+
   bool insert_binary(const SHA256 &srcHash, const SpirvBinary &binary);
 
   DbShaderBinary queryShaderBinaryById(uint32_t id) const;
@@ -68,6 +87,11 @@ public:
   memory::vector<uint32_t> queryAllComputeDispatchIds() const;
 
   memory::vector<DbDispatchTimingInfo> queryAllDispatchTimingInfos() const;
+
+  bool has_shader_binary(const SHA256 &srcHash) const;
+  memory::optional<uint32_t> query_shader_binary_id(const SHA256 &srcHash) const;
+
+  memory::hash_map<SHA256, uint32_t> query_in_memory_shader_cache() const;
 
 private:
   void finalize_stmts();

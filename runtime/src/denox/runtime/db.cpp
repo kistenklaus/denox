@@ -244,23 +244,20 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
 
   memory::vector<EpochDispatch> dispatches(targets.size(), EpochDispatch{});
 
-  // auto start = std::chrono::high_resolution_clock::now();
-  memory::vector<float> latencies(jobs);
+  std::atomic<uint64_t> work_acc = 0;
 
   std::vector<std::thread> threads(jobs);
   for (size_t tid = 0; tid < threads.size(); ++tid) {
     threads[tid] = std::thread([&, tid]() {
-      auto s = std::chrono::high_resolution_clock::now();
       localMaxSets[tid] = 0;
       localStorageBufferDescriptorCount[tid] = 0;
       localPeakBufferSize[tid] = 0;
-      size_t start = (tid * targets.size()) / threads.size();
-      size_t end = ((tid + 1) * targets.size()) / threads.size();
-      if (tid == threads.size() - 1) {
-        end = targets.size();
-      }
 
-      for (size_t i = start; i < end; ++i) {
+      while (true) {
+        uint64_t i = work_acc.fetch_add(1);
+        if (i >= dispatches.size()) {
+          break;
+        }
         uint32_t target = targets[i];
         const auto dbdispatch =
             db.queryComputeDispatchById(dispatchIds[target]);
@@ -317,28 +314,11 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
             .workgroupCountZ = dbdispatch.workgroupCountZ,
         };
       }
-      auto dur = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-          std::chrono::high_resolution_clock::now() - s);
-      latencies[tid] = dur.count();
     });
   }
   for (uint32_t i = 0; i < threads.size(); ++i) {
     threads[i].join();
   }
-
-  float minLatency = std::numeric_limits<float>::max();
-  float maxLatency = 0;
-  for (const auto& latency : latencies) {
-    minLatency = std::min(latency, minLatency);
-    maxLatency = std::max(latency, maxLatency);
-  }
-  float delta = std::abs(maxLatency - minLatency);
-  if (delta > 1000) {
-    fmt::println("load inplace during pipeline compilation: {}ms", delta);
-    fmt::println("load inplace during pipeline compilation: {}ms", delta);
-  }
-
-  
 
   memory::vector<VkPipeline> pipelines;
   memory::vector<VkPipelineLayout> pipelineLayouts;
