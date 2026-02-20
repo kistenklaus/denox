@@ -1,5 +1,7 @@
 #pragma once
 
+#include "denox/db/DbConvergence.hpp"
+#include "denox/memory/container/span.hpp"
 #include "denox/db/DbComputeDispatch.hpp"
 #include "denox/db/DbEnv.hpp"
 #include "denox/db/DbShaderBinary.hpp"
@@ -70,6 +72,9 @@ public:
 
   DbComputeDispatch queryComputeDispatchById(uint32_t id) const;
 
+  memory::vector<DbComputeDispatch>
+  bulkQueryComputeDispatchById(memory::span<const uint32_t> dispatch_ids) const;
+
   DbEnv queryEnvById(uint32_t id) const;
 
   uint32_t queryComputeDispatchCount() const;
@@ -92,6 +97,9 @@ public:
   memory::optional<uint32_t> query_shader_binary_id(const SHA256 &srcHash) const;
 
   memory::hash_map<SHA256, uint32_t> query_in_memory_shader_cache() const;
+
+  DbConvergenceInfo query_convergence_info(uint64_t minSamples,
+                                           double maxRelativeError) const;
 
 private:
   void finalize_stmts();

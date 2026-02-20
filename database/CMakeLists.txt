@@ -22,7 +22,6 @@ target_link_libraries(denox_database
   PUBLIC
     denox_common
     denox_spirv
-    denox::db
     denox::sqlite3
 )
 

@@ -244,8 +244,17 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
 
   memory::vector<EpochDispatch> dispatches(targets.size(), EpochDispatch{});
 
+  memory::vector<uint32_t> ids(targets.size());
+  for (uint32_t i = 0; i < targets.size(); ++i) {
+    ids[i] = dispatchIds[targets[i]];
+  }
+
+  memory::vector<DbComputeDispatch> computeDispatches =
+      db.bulkQueryComputeDispatchById(ids);
+
   std::atomic<uint64_t> work_acc = 0;
 
+  // auto s = std::chrono::high_resolution_clock::now();
   std::vector<std::thread> threads(jobs);
   for (size_t tid = 0; tid < threads.size(); ++tid) {
     threads[tid] = std::thread([&, tid]() {
@@ -258,13 +267,10 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
         if (i >= dispatches.size()) {
           break;
         }
-        uint32_t target = targets[i];
-        const auto dbdispatch =
-            db.queryComputeDispatchById(dispatchIds[target]);
 
         size_t totalBufferSize = 0;
         uint32_t maxSet = 0;
-        for (const auto &binding : dbdispatch.bindings) {
+        for (const auto &binding : computeDispatches[i].bindings) {
           totalBufferSize =
               algorithm::align_up(totalBufferSize, binding.alignment);
           totalBufferSize += binding.byteSize;
@@ -276,12 +282,12 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
         localPeakBufferSize[tid] =
             std::max(localPeakBufferSize[tid], totalBufferSize);
 
-        const uint32_t binaryId = dbdispatch.binaryId;
+        const uint32_t binaryId = computeDispatches[i].binaryId;
 
         memory::small_vector<
             memory::small_vector<VkDescriptorSetLayoutBinding, 4>, 4>
             bindings(setCount);
-        for (const auto &binding : dbdispatch.bindings) {
+        for (const auto &binding : computeDispatches[i].bindings) {
           bindings[binding.set].push_back(VkDescriptorSetLayoutBinding{
               .binding = binding.binding,
               .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -297,21 +303,22 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
         }
 
         VkPipelineLayout layout = ctx->createPipelineLayout(
-            setLayouts, static_cast<uint32_t>(dbdispatch.pushConstant.size()));
+            setLayouts,
+            static_cast<uint32_t>(computeDispatches[i].pushConstant.size()));
 
         VkPipeline pipeline = ctx->createComputePipeline(
             layout, db.queryShaderBinaryById(binaryId).spvBinary.spv, "main",
-            dbdispatch.fixed_subgroup_size);
+            computeDispatches[i].fixed_subgroup_size);
 
         dispatches[i] = EpochDispatch{
             .pipeline = pipeline,
             .layout = layout,
             .descriptorLayouts = setLayouts,
             .descriptorSets = {}, // <- allocated later
-            .pc = dbdispatch.pushConstant,
-            .workgroupCountX = dbdispatch.workgroupCountX,
-            .workgroupCountY = dbdispatch.workgroupCountY,
-            .workgroupCountZ = dbdispatch.workgroupCountZ,
+            .pc = computeDispatches[i].pushConstant,
+            .workgroupCountX = computeDispatches[i].workgroupCountX,
+            .workgroupCountY = computeDispatches[i].workgroupCountY,
+            .workgroupCountZ = computeDispatches[i].workgroupCountZ,
         };
       }
     });
@@ -320,6 +327,7 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
     threads[i].join();
   }
 
+  // auto s2 = std::chrono::high_resolution_clock::now();
   memory::vector<VkPipeline> pipelines;
   memory::vector<VkPipelineLayout> pipelineLayouts;
   memory::vector<VkDescriptorSetLayout> descriptorSetLayouts;
@@ -353,9 +361,17 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
   VkDescriptorPool descriptorPool =
       ctx->createDescriptorPool(maxSets, descriptorPoolSizes);
 
+  // std::chrono::duration<float, std::milli> queryLatency;
+
   for (uint32_t x = 0; x < targets.size(); ++x) {
-    const uint32_t target = targets[x];
-    const auto dbdispatch = db.queryComputeDispatchById(dispatchIds[target]);
+    // const uint32_t target = targets[x];
+    // auto q = std::chrono::high_resolution_clock::now();
+    const auto &dbdispatch = computeDispatches[x];
+    // auto a = std::chrono::duration_cast<std::chrono::duration<float,
+    // std::milli>>(
+    //     std::chrono::high_resolution_clock::now() - q);
+    // queryLatency += a;
+
     auto &dispatch = dispatches[x];
     uint32_t setCount =
         static_cast<uint32_t>(dispatch.descriptorLayouts.size());
@@ -384,7 +400,6 @@ static Epoch create_epoch(const runtime::ContextHandle &ctx,
       bufferInfo.offset = offset;
       offset += binding.byteSize;
       writeInfo.pBufferInfo = &bufferInfo;
-      ;
       writeInfo.pTexelBufferView = nullptr;
     }
     ctx->updateDescriptorSets(writeInfos);
@@ -626,60 +641,25 @@ print_progress_report(const denox::Db &db,
                       memory::span<const uint32_t> dispatchIds,
                       const runtime::DbBenchOptions &options) {
   const uint64_t total = dispatchIds.size();
-
-  uint64_t noData = 0;
-  uint64_t insufficientSamples = 0;
-  uint64_t insufficientPrecision = 0;
-  uint64_t converged = 0;
-
-  for (uint32_t i = 0; i < total; ++i) {
-    const auto d = db.queryComputeDispatchById(dispatchIds[i]);
-
-    if (!d.time.has_value()) {
-      noData += 1;
-      insufficientSamples += 1;
-      insufficientPrecision += 1;
-      continue;
-    }
-
-    const auto &t = *d.time;
-    const uint64_t n = t.samples.size();
-
-    // --- minSamples check ---
-    bool samplesOk = (n >= options.minSamples);
-    if (!samplesOk)
-      insufficientSamples += 1;
-
-    // --- relative SEM check ---
-    bool precisionOk = false;
-    if (n > 1 && t.mean_latency_ns > 0 && t.std_derivation_ns > 0) {
-      double sem_ns = static_cast<double>(t.std_derivation_ns) /
-                      std::sqrt(static_cast<double>(n));
-
-      double relError = sem_ns / static_cast<double>(t.mean_latency_ns);
-
-      precisionOk = (relError <= static_cast<double>(options.maxRelativeError));
-    }
-
-    if (!precisionOk)
-      insufficientPrecision += 1;
-
-    if (samplesOk && precisionOk)
-      converged += 1;
+  if (total == 0) {
+    return {memory::nullopt, 1.0f};
   }
-
+  const auto info =
+      db.query_convergence_info(options.minSamples, static_cast<double>(options.maxRelativeError));
+  const uint64_t converged =
+      std::min(info.converged_min_dispatches, info.converged_rel_dispatches);
+  const uint64_t insufficientSamples = total - info.converged_min_dispatches;
+  const uint64_t insufficientPrecision = total - info.converged_rel_dispatches;
   if (converged == total) {
-    return std::make_pair(memory::nullopt, 1.0f);
-  } else {
-    float prog = static_cast<float>(converged) / static_cast<float>(total);
-    return std::make_pair(fmt::format("converged: {} / {} | "
-                                      "minSamples pending: {} | "
-                                      "precision pending: {} | "
-                                      "no data: {}",
-                                      converged, total, insufficientSamples,
-                                      insufficientPrecision, noData),
-                          prog);
+    return {memory::nullopt, 1.0f};
   }
+  const float prog = static_cast<float>(converged) / static_cast<float>(total);
+  return {fmt::format("converged: {} / {} | "
+                      "minSamples pending: {} | "
+                      "precision pending: {}",
+                      converged, total, insufficientSamples,
+                      insufficientPrecision),
+          prog};
 }
 
 void denox::runtime::Db::bench(const DbBenchOptions &options,
@@ -788,6 +768,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           epochs[stage] =
               create_epoch(m_context, m_db, dispatchIds, selected_targets, env,
                            batchSize, sample_count, options.jobs);
+
           assert(!epochs[stage].targets.empty());
           constructedEpochs.release();
           stage = (stage + 1) % ASYNC_EPOCH_DEPTH;
@@ -806,6 +787,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
             break;
           }
           const EpochBenchResults &result = results[stage];
+
           for (uint32_t i = 0; i < result.timings.size(); ++i) {
             auto timing = result.timings[i];
 
@@ -853,15 +835,21 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
             m_db.add_dispatch_benchmark_result(info.dispatch_id,
                                                std::move(timing.samples));
           }
+
           auto [msg, prog] = print_progress_report(m_db, dispatchIds, options);
+
           if (msg && !stop_printing) {
-            progress.step_inplace(logger, prog, false, "{}{}{}", logger.blue(),
+            progress.step_inplace(logger, prog, false, "{}{}{}",
+            logger.blue(),
                                   *msg, logger.reset());
+            // progress.step(logger, prog, "{}{}{}", logger.blue(), *msg,
+            //               logger.reset());
             if (prog == 1.0f) {
               stop_printing = true;
             }
           }
-          if (options.saveProgress && (!throttle_writeback || stage == 0)) {
+          if (false && options.saveProgress &&
+              (!throttle_writeback || stage == 0)) {
             auto s = std::chrono::high_resolution_clock::now();
             m_db.checkpoint();
             auto dur = std::chrono::duration_cast<
@@ -885,16 +873,9 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
   std::stop_token main_token = stop.get_token();
   while (!main_token.stop_requested()) {
 
-    // auto s1 = std::chrono::high_resolution_clock::now();
     constructedEpochs.acquire();
-    // auto d1 =
-    //     std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(
-    //         std::chrono::high_resolution_clock::now() - s1);
 
-    // auto s2 = std::chrono::high_resolution_clock::now();
     emptyResults.acquire();
-    // auto d2 = std::chrono::duration_cast<std::chrono::duration<float,
-    // std::milli>>(std::chrono::high_resolution_clock::now() - s2);
 
     if (!epoch_is_live[stage].load()) {
       result_is_live[stage] = false;
@@ -913,6 +894,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
                    logger.red(), e.what(), logger.reset());
       break;
     }
+
     fullResults.release();
     emptyEpochs.release();
     stage = (stage + 1) % ASYNC_EPOCH_DEPTH;

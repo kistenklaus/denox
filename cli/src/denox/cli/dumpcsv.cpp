@@ -1,5 +1,6 @@
 #include "dumpcsv.hpp"
 #include "denox/cli/io/IOEndpoint.hpp"
+#include "denox/memory/container/vector.hpp"
 #include "denox/cli/io/OutputStream.hpp"
 #include "denox/db/Db.hpp"
 #include "denox/db/DbComputeDispatch.hpp"
@@ -59,7 +60,11 @@ void dumpcsv(DumpCsvAction &action) {
     first = false;
   }
   csv.push_back('\n');
-  for (uint32_t d = 0; d < db.queryComputeDispatchCount(); ++d) {
+
+  denox::memory::vector<uint32_t> dispatchIds = db.queryAllComputeDispatchIds();
+
+
+  for (uint32_t d : dispatchIds) {
     const denox::DbComputeDispatch dispatch = db.queryComputeDispatchById(d);
     if (!dispatch.operation) {
       fmt::println("skipping line");

@@ -52,7 +52,6 @@ target_link_libraries(denox
   PUBLIC
     denox::onnx
     denox::dnx
-    denox::db
     denox::png
     denox_compiler
     denox_common

@@ -61,6 +61,13 @@ public:
                             sqlite3_errmsg(sqlite3_db_handle(m_stmt)));
   }
 
+  void bind_double(int idx, double v) {
+    int rc = sqlite3_bind_double(m_stmt, idx, v);
+    if (rc != SQLITE_OK)
+      details::sqlite_error("sqlite3_bind_double", rc,
+                            sqlite3_errmsg(sqlite3_db_handle(m_stmt)));
+  }
+
   void bind_cstr(int idx, const char *v) {
     int rc = sqlite3_bind_text(m_stmt, idx, v, -1, SQLITE_TRANSIENT);
     if (rc != SQLITE_OK)
@@ -281,7 +288,6 @@ public:
 private:
   explicit Stmt(sqlite3_stmt *stmt) : m_stmt(stmt) {}
 
-
   sqlite3_stmt *m_stmt = nullptr;
 
   friend class Db;
@@ -399,9 +405,7 @@ public:
     return sqlite3_last_insert_rowid(m_handle);
   }
 
-  void checkpoint() { 
-    exec("PRAGMA wal_checkpoint(TRUNCATE);"); 
-  }
+  void checkpoint() { exec("PRAGMA wal_checkpoint(TRUNCATE);"); }
 
   void close() {
     if (m_handle) {
