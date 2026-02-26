@@ -1,13 +1,8 @@
 include_guard(GLOBAL) 
 
-include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
-
 find_package(Vulkan REQUIRED)
 
-if (Vulkan_FOUND)
-  log_success("✅ Vulkan available: ${Vulkan_LIBRARY}")
-else()
-  log_error("❌ Vulkan not available!")
+if(NOT TARGET Vulkan::Vulkan)
+  message(FATAL_ERROR "Vulkan::Vulkan target not found")
 endif()
 
-add_library(denox::vulkan ALIAS Vulkan::Vulkan)

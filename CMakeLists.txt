@@ -12,28 +12,57 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
 endif()
 
+set(CMAKE_CXX_STANDARD 20)
+
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+include(FetchContent)
+
+# Dependencies build from source
 include(cmake/fmt.cmake)
-include(cmake/generator.cmake)
-include(cmake/warnings.cmake)
-include(cmake/vulkan.cmake)
-include(cmake/glslang.cmake)
-include(cmake/spirv-tools.cmake)
-include(cmake/onnx.cmake)
-include(cmake/dnx.cmake)
 include(cmake/vma.cmake)
-include(cmake/png.cmake)
+include(cmake/generator.cmake)
+include(cmake/onnx.cmake)
+include(cmake/flatbuffers.cmake)
+include(cmake/dnx.cmake)
 include(cmake/sqlite.cmake)
 
-add_subdirectory(common)
-add_subdirectory(device_info)
-add_subdirectory(spirv)
-add_subdirectory(database)
-add_subdirectory(runtime)
-add_subdirectory(compiler)
-add_subdirectory(cli)
-add_subdirectory(sandbox)
+include(cmake/vulkan.cmake)
 
-install(DIRECTORY
-    ${CMAKE_BINARY_DIR}/share/denox
-    DESTINATION share
+include(cmake/shaderc.cmake)
+
+# include(cmake/glslang.cmake)
+# include(cmake/spirv-tools.cmake)
+
+
+# warnings
+include(cmake/warnings.cmake)
+
+add_executable(abc main.cpp)
+
+target_link_libraries(abc PUBLIC 
+  fmt
+  denox_vma
+  denox_generator
+  denox_onnx
+  denox_dnx
+  SQLite::SQLite3
 )
+
+
+
+# include(cmake/png.cmake)
+
+#
+# add_subdirectory(common)
+# add_subdirectory(device_info)
+# add_subdirectory(spirv)
+# add_subdirectory(database)
+# add_subdirectory(runtime)
+# add_subdirectory(compiler)
+# add_subdirectory(cli)
+# add_subdirectory(sandbox)
+#
+# install(DIRECTORY
+#     ${CMAKE_BINARY_DIR}/share/denox
+#     DESTINATION share
+# )
