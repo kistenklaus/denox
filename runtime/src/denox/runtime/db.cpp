@@ -846,7 +846,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
               stop_printing = true;
             }
           }
-          if (false && options.saveProgress &&
+          if (options.saveProgress &&
               (!throttle_writeback || stage == 0)) {
             auto s = std::chrono::high_resolution_clock::now();
             m_db.checkpoint();

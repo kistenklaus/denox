@@ -333,7 +333,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
     }
 
     if (m_configs.empty()) {
-      DENOX_WARN("ConcatConvCMShader: Failed to find any valid configuration.");
+      std::cerr << "Warning: ConcatConvCMShader: Failed to find any valid "
+                   "configuration."
+                << std::endl;
     }
     // fmt::println("config space: {}", m_configs.size());
   }

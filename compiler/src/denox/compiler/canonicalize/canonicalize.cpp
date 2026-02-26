@@ -1,6 +1,7 @@
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 
 #include "denox/algorithm/pattern_matching/match.hpp"
+#include <iostream>
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/canonicalize/CanoModel.hpp"
 #include "denox/compiler/canonicalize/rules/IFusionRule.hpp"
@@ -8,6 +9,7 @@
 #include "denox/diag/logging.hpp"
 #include "denox/memory/hypergraph/LinkedGraph.hpp"
 #include "denox/symbolic/SymGraph.hpp"
+#include <fmt/format.h>
 #include <stdexcept>
 
 namespace denox::compiler {
@@ -36,8 +38,11 @@ CanoModel canonicalize(const Model &model) {
 
   for (const auto &output : outputs) {
     if (output->incoming().size() == 0) {
-      DENOX_ERROR("Models output does not depend on the input. Denox does not "
-                  "support constant outputs!");
+      std::cerr
+          << fmt::format(
+                 "Models output does not depend on the input. Denox does not "
+                 "support constant outputs!")
+          << std::endl;
       throw std::runtime_error("Failed to canonicalize.");
     }
   }
@@ -47,9 +52,9 @@ CanoModel canonicalize(const Model &model) {
 
   SymGraph symGraph = model.symGraph();
 
-  LinkedGraph::NodeHandle root = graph.createNode(
-      TensorDescriptor(Sym::Const(0), Sym::Const(0), Sym::Const(0),
-        TensorStorage::Optimal, TensorFormat::Optimal, TensorDataType::Auto));
+  LinkedGraph::NodeHandle root = graph.createNode(TensorDescriptor(
+      Sym::Const(0), Sym::Const(0), Sym::Const(0), TensorStorage::Optimal,
+      TensorFormat::Optimal, TensorDataType::Auto));
 
   for (const auto &input : inputs) {
     root->outgoing().insert(input, ComputeOp{});

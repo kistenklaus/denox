@@ -1,15 +1,10 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 4.2)
 
 project(denox VERSION 0.1.0 LANGUAGES C CXX)
 
-option(BUILD_PYTHON_BINDING "Build tests" OFF)
 option(BUILD_TESTING "Build tests" ON)
 option(DENOX_SAN "Enables sanitizers" OFF)
-option(DENOX_DISABLE_WARNINGS "Enables sanitizers" OFF)
-option(DENOX_UNITY_BUILD "Enable unity builds" OFF)
-option(DENOX_USE_SYSTEM_FLATBUFFERS
-  "Use system-installed FlatBuffers instead of FetchContent"
-  ON)
+option(DENOX_DISABLE_WARNINGS "Disable pedantic warnings" OFF)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
@@ -18,7 +13,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 include(cmake/fmt.cmake)
-include(cmake/spdlog.cmake)
 include(cmake/generator.cmake)
 include(cmake/warnings.cmake)
 include(cmake/vulkan.cmake)

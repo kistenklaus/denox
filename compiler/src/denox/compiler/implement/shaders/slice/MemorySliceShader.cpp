@@ -1,6 +1,7 @@
 #include "denox/compiler/implement/shaders/slice/MemorySliceShader.hpp"
 #include "denox/algorithm/align_up.hpp"
 #include "denox/compiler/Options.hpp"
+#include <iostream>
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
@@ -441,9 +442,10 @@ memory_slice_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   } else if (inputFormat == TensorFormat::SSBO_HWC &&
              outputFormat == TensorFormat::SSBO_HWC) {
     if (channels % 8 == 0) {
-      DENOX_WARN(
-          "MemorySliceShader implements non vectorized layouts for format, "
-          "which may be vectorized, this works, but is suboptimal!");
+      std::cerr << "Warning: MemorySliceShader implements non vectorized "
+                   "layouts for format, "
+                   "which may be vectorized, this works, but is suboptimal!"
+                << std::endl;
     }
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);

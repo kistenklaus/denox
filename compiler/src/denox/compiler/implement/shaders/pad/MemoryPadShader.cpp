@@ -1,5 +1,6 @@
 #include "denox/compiler/implement/shaders/pad/MemoryPadShader.hpp"
 #include "denox/algorithm/align_up.hpp"
+#include <iostream>
 #include "denox/common/TensorDataType.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
@@ -446,9 +447,9 @@ memory_pad_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   } else if (inputFormat == TensorFormat::SSBO_HWC &&
              outputFormat == TensorFormat::SSBO_HWC) {
     if (channels % 8 == 0) {
-      DENOX_WARN(
-          "MemoryPadShader implements non vectorized layouts for format, "
-          "which may be vectorized, this works, but is suboptimal!");
+      std::cerr << 
+          "Warning: MemoryPadShader implements non vectorized layouts for format, "
+          "which may be vectorized, this works, but is suboptimal!" << std::endl;
     }
     shader.define("istype", "uint16_t");
     shader.define("ISTYPE_SIZE", 2);

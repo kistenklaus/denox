@@ -2,6 +2,7 @@
 #include "denox/common/ActivationFunction.hpp"
 #include "denox/common/PoolFunction.hpp"
 #include "denox/common/TensorFormat.hpp"
+#include <iostream>
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/memory/container/optional.hpp"
@@ -224,8 +225,9 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       }
     }
     if (m_configs.empty()) {
-      DENOX_WARN(
-          "DirectConvShaderCM: Failed to find any valid configurations.");
+      std::cerr << "Warning: DirectConvShaderCM: Failed to find any valid "
+                   "configurations."
+                << std::endl;
     }
   }
 

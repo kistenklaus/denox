@@ -1,6 +1,7 @@
 #include "denox/glsl/GlslPreprocessor.hpp"
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/logging.hpp"
+#include <iostream>
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/string_view.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -255,7 +256,8 @@ memory::string GlslPreprocessor::preprocess(memory::string_view src) {
 
     if (pp.kind == PragmaKind::End) {
       if (stack.empty()) {
-        DENOX_ERROR("Stray '#pragma end_block' at line {}", i + 1);
+        std::cerr << fmt::format("Stray '#pragma end_block' at line {}", i + 1)
+                  << std::endl;
         diag::invalid_argument();
       }
 
@@ -280,8 +282,8 @@ memory::string GlslPreprocessor::preprocess(memory::string_view src) {
   if (!stack.empty()) {
     const Beg &b = stack.back();
 
-    DENOX_ERROR("Unterminated block \"{}\" starting at line {}", b.id,
-                b.begin_idx + 1);
+    std::cerr << fmt::format("Unterminated block \"{}\" starting at line {}", b.id,
+                b.begin_idx + 1) << std::endl;
     diag::invalid_argument();
   }
 
@@ -299,7 +301,7 @@ memory::string GlslPreprocessor::preprocess(memory::string_view src) {
   auto get_block_index = [&](memory::string_view id) -> uint32_t {
     auto it = block_index.find(id);
     if (it == block_index.end()) {
-      DENOX_ERROR("#pragma inline_block references unknown block \"{}\"", id);
+      std::cerr << fmt::format("#pragma inline_block references unknown block \"{}\"", id) << std::endl;
       diag::invalid_argument();
     }
     return it->second;
@@ -337,7 +339,7 @@ memory::string GlslPreprocessor::preprocess(memory::string_view src) {
     }
     chain += blocks[next_idx].id;
 
-    DENOX_ERROR("Recursive #pragma inline_block expansion detected: {}", chain);
+    std::cerr << fmt::format("Recursive #pragma inline_block expansion detected: {}", chain) << std::endl;
     diag::invalid_argument();
   };
 

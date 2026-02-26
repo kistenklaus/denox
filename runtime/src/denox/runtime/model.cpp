@@ -123,8 +123,10 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
         access = Access::WriteOnly;
         break;
       case dnx::Access_ReadWrite:
-        DENOX_WARN("readwrite is not really supported, but we will let it pass "
-                   "for now");
+        std::cerr << "Warning: readwrite is not really supported, but we will "
+                     "let it pass "
+                     "for now"
+                  << std::endl;
         access = Access::ReadWrite;
         break;
       }
@@ -153,7 +155,8 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
                                        binary->spirv()->size());
 
   VkPipeline pipeline = ctx->createComputePipeline(
-      pipelineLayout, spirv, dispatch->entry_point()->c_str(), fixedSubgroupSize);
+      pipelineLayout, spirv, dispatch->entry_point()->c_str(),
+      fixedSubgroupSize);
 
   Sym workgroupCountX = parse_sym(dispatch->workgroup_count_x_type(),
                                   dispatch->workgroup_count_x());
@@ -649,7 +652,7 @@ Model::Model(const ContextHandle &context, memory::span<const std::byte> dnxbuf)
   flatbuffers::Verifier verifier(
       reinterpret_cast<const uint8_t *>(dnxbuf.data()), dnxbuf.size());
   if (!denox::dnx::VerifyModelBuffer(verifier)) {
-    DENOX_ERROR("Failed to verify dnx file format!");
+    std::cerr << "Failed to verify dnx file format!" << std::endl;
     diag::invalid_state();
   }
   const dnx::Model *dnx = denox::dnx::GetModel(dnxbuf.data());

@@ -1,5 +1,6 @@
 #include "denox/compiler/frontend/onnx/onnx.hpp"
 #include "denox/compiler/frontend/model/ModelControlBlock.hpp"
+#include <iostream>
 #include "denox/compiler/frontend/onnx/details/ImportState.hpp"
 #include "denox/compiler/frontend/onnx/details/import_node.hpp"
 #include "denox/compiler/frontend/onnx/details/import_value_info.hpp"
@@ -20,9 +21,9 @@ static void import_tensor(details::ImportState &state,
         name));
   }
   if (state.tensors.contains(name)) {
-    DENOX_WARN("Tensor \"{}\" is defined multiple times, "
+    std::cerr << fmt::format("Warning: Tensor \"{}\" is defined multiple times, "
                  "ignoring second occurrence.",
-                 name);
+                 name) << std::endl;
     return;
   }
   details::HostTensor h = details::HostTensor::parse(tensor, state.externalDir);

@@ -4,6 +4,7 @@
 #include "denox/spirv/CompilationError.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include <exception>
+#include <iostream>
 #include <variant>
 
 namespace denox::spirv {
@@ -32,7 +33,7 @@ public:
     if (isOk()) {
       return std::get<SpirvBinary>(m_repr);
     } else {
-      DENOX_ERROR(error().msg);
+      std::cerr << error().msg << std::endl;
       std::terminate();
     }
   }

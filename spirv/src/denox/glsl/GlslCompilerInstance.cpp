@@ -10,6 +10,7 @@
 #include <glslang/Public/ShaderLang.h>
 #include <glslang/SPIRV/GlslangToSpv.h>
 #include <glslang/SPIRV/Logger.h>
+#include <iostream>
 #include <spirv-tools/libspirv.h>
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/optimizer.hpp>
@@ -61,7 +62,6 @@ CompilationResult GlslCompilerInstance::compile() const {
   memory::span<const std::byte> src = m_srcHandle.bytes();
   memory::string preprocessed = preprocessor.preprocess(memory::string_view{
       reinterpret_cast<const char *>(src.data()), src.size()});
-  // DENOX_WARN("FINAL GLSL: {}\n{}{}", m_sourcePath, m_preamble, preprocessed);
 
   const char *srcPtr = preprocessed.c_str();
   shader.setStrings(&srcPtr, 1);
@@ -95,7 +95,9 @@ CompilationResult GlslCompilerInstance::compile() const {
   {
     const char *w1 = shader.getInfoLog();
     if (w1 && *w1) { // <- check if empty string.
-      DENOX_WARN("[::glslang-parse]: {}\n{}", m_sourcePath.str(), w1);
+      std::cerr << fmt::format("[::glslang-parse]: {}\n{}", m_sourcePath.str(),
+                               w1)
+                << std::endl;
     }
   }
 
@@ -108,7 +110,9 @@ CompilationResult GlslCompilerInstance::compile() const {
   {
     const char *w1 = program.getInfoLog();
     if (w1 && *w1) {
-      DENOX_WARN("[::glslang-link]: {}\n{}", m_sourcePath.str(), w1);
+      std::cerr << fmt::format("[::glslang-link]: {}\n{}", m_sourcePath.str(),
+                               w1)
+                << std::endl;
     }
   }
 
@@ -155,7 +159,9 @@ CompilationResult GlslCompilerInstance::compile() const {
   ::glslang::GlslangToSpv(*intermediate, spirv, &logger, &spvOptions);
   memory::string glslangSpvLog = logger.getAllMessages();
   if (!glslangSpvLog.empty()) {
-    DENOX_WARN("[::glslang-spirv]: {}\n{}", m_sourcePath.str(), glslangSpvLog);
+    std::cerr << fmt::format("[::glslang-spirv]: {}\n{}", m_sourcePath.str(),
+                             glslangSpvLog)
+              << std::endl;
   }
 
   SpirvBinary binary{spirv};

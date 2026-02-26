@@ -2,6 +2,7 @@
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/diag/missing_driver_support.hpp"
+#include <iostream>
 
 namespace denox {
 
@@ -22,10 +23,10 @@ static bool glob_match_ci(std::string pat, std::string text) {
       ++t;
     } else if (p < pat.size() && pat[p] == '*') {
       star = p++;
-      match = t; 
+      match = t;
     } else if (star != std::string::npos) {
       p = star + 1;
-      t = ++match; 
+      t = ++match;
     } else {
       return false;
     }
@@ -40,7 +41,8 @@ select_physical_device(vk::Instance instance,
                        const memory::optional<memory::string> &deviceName) {
   std::vector<vk::PhysicalDevice> devices = instance.enumeratePhysicalDevices();
   if (devices.empty()) {
-    DENOX_ERROR("Failed to select physical device: No Vulkan device found.");
+    std::cerr << "Failed to select physical device: No Vulkan device found."
+              << std::endl;
     diag::missing_driver_support();
   }
 
@@ -65,9 +67,12 @@ select_physical_device(vk::Instance instance,
   }
 
   if (matches.empty()) {
-    DENOX_ERROR("Failed to select physical device: pattern: \"{}\" did not "
-                "match any device.",
-                *deviceName);
+    std::cerr
+        << fmt::format(
+               "Failed to select physical device: pattern: \"{}\" did not "
+               "match any device.",
+               *deviceName)
+        << std::endl;
     diag::invalid_argument();
   }
   if (matches.size() > 1) {
@@ -76,13 +81,15 @@ select_physical_device(vk::Instance instance,
     for (auto &d : matches) {
       list += std::string(d.getProperties().deviceName) + "; ";
     }
-    DENOX_ERROR("Failed to select physical device: pattern :\"{}\" is "
-                "ambiguous, devices: {}",
-                *deviceName, list);
+    std::cerr << fmt::format(
+                     "Failed to select physical device: pattern :\"{}\" is "
+                     "ambiguous, devices: {}",
+                     *deviceName, list)
+              << std::endl;
     diag::invalid_argument();
   }
 
   return matches.front();
 }
 
-} // namespace denox::compiler::device_info::query
+} // namespace denox

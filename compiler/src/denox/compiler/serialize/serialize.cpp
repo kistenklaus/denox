@@ -11,6 +11,7 @@
 #include "flatbuffers/flatbuffer_builder.h"
 #include "flatbuffers/vector.h"
 #include <dnx.h>
+#include <iostream>
 #include <limits>
 #include <utility>
 
@@ -72,7 +73,8 @@ static denox::dnx::ScalarType serialize_type(memory::Dtype type) {
 static denox::dnx::ScalarType serialize_type(TensorDataType type) {
   switch (type) {
   case TensorDataType::Auto:
-    DENOX_ERROR("Failed to serialize: found auto type in final artefact");
+    std::cerr << "Failed to serialize: found auto type in final artefact"
+              << std::endl;
     diag::invalid_state();
   case TensorDataType::Float16:
     return denox::dnx::ScalarType_F16;
@@ -110,7 +112,8 @@ static denox::dnx::TensorStorage
 serialize_tensor_storage(TensorStorage storage) {
   switch (storage) {
   case TensorStorage::Optimal:
-    DENOX_ERROR("Failed to serialize: found optimal storage in final artefact");
+    std::cerr << "Failed to serialize: found optimal storage in final artefact"
+              << std::endl;
     diag::invalid_state();
   case TensorStorage::StorageBuffer:
     return denox::dnx::TensorStorage_StorageBuffer;
@@ -636,7 +639,7 @@ memory::vector<std::byte> serialize(const compiler::SpvSchedule &schedule,
 
   flatbuffers::Verifier v(buffer.data(), buffer.size());
   if (!dnx::VerifyModelBuffer(v)) {
-    DENOX_ERROR("Invalid DNX artefact: failed to verify");
+    std::cerr << "Invalid DNX artefact: failed to verify" << std::endl;
     diag::invalid_state();
   }
   memory::vector<std::byte> outbuf(buffer.size());

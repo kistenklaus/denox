@@ -1,6 +1,7 @@
 #include "denox/compiler/implement/shaders/activation/BasicActivationShader.hpp"
 #include "denox/algorithm/align_up.hpp"
 #include "denox/common/ActivationFunction.hpp"
+#include <iostream>
 #include "denox/common/TensorDataType.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/memory/dtype/dtype.hpp"
@@ -478,9 +479,10 @@ basic_activation_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   } else if (inputFormat == TensorFormat::SSBO_HWC &&
              outputFormat == TensorFormat::SSBO_HWC) {
     if (channels % 8 == 0) {
-      DENOX_WARN(
-          "BasicActivationShader implements non vectorized layouts for format, "
-          "which may be vectorized, this works, but is suboptimal!");
+      std::cerr << "Warning: BasicActivationShader implements non vectorized "
+                   "layouts for format, "
+                   "which may be vectorized, this works, but is suboptimal!"
+                << std::endl;
     }
     // HWC layout (slow path)
     shader.define("istype", "uint16_t");

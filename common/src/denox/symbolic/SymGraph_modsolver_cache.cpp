@@ -1,5 +1,6 @@
 #include "denox/diag/logging.hpp"
 #include "denox/symbolic/SymGraph.hpp"
+#include <iostream>
 
 namespace denox {
 
@@ -7,9 +8,10 @@ SymGraph::ModSolverHandle SymGraph::require_modsolver(Sym sym) {
   auto it = m_modSolverCache.find(sym);
   if (it == m_modSolverCache.end()) {
     if (m_modSolverCache.size() >= MAX_MODSOLVER_COUNT) {
-      DENOX_WARN(
-          "symbolic engines module solver exceeded memory limit: Stopping "
-          "modulo reasoning.");
+      std::cerr << "Warning: symbolic engines module solver exceeded memory "
+                   "limit: Stopping "
+                   "modulo reasoning."
+                << std::endl;
       return nullptr;
     }
     auto solver = std::make_shared<symbolic::details::ModSolver>();

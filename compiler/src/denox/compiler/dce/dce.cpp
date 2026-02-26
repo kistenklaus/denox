@@ -6,6 +6,7 @@
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include "denox/memory/hypergraph/NullWeight.hpp"
+#include <iostream>
 #include <utility>
 
 namespace denox::compiler {
@@ -65,7 +66,7 @@ ConstModel dce(const SpecModel &model) {
   inputs.reserve(model.inputs.size());
   for (const auto &input : model.inputs) {
     if (!exists[*input->id()]) {
-      DENOX_WARN("Found dead input, implicitly pruned!");
+      std::cerr << "Warning: Found dead input, implicitly pruned!" << std::endl;
       continue;
     }
     inputs.push_back(adjNodes[*input->id()]);

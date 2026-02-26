@@ -114,9 +114,11 @@ void import_value_info(ImportState &state,
             // channels
             if (interfaceDescriptor->channels.has_value() &&
                 interfaceDescriptor->channels.value() != v) {
-              DENOX_ERROR(
-                  "Input {}, has non dynamic channel count {}, expected {}.",
-                  name, v, interfaceDescriptor->channels.value());
+              std::cerr << fmt::format("Input {}, has non dynamic channel "
+                                       "count {}, expected {}.",
+                                       name, v,
+                                       interfaceDescriptor->channels.value())
+                        << std::endl;
               diag::invalid_argument();
             }
             if (interfaceDescriptor->channelValueName) {
@@ -370,16 +372,22 @@ void import_value_info(ImportState &state,
           if (dim.has_dim_value() &&
               interfaceDescriptor->channels.has_value() &&
               dim.dim_value() != interfaceDescriptor->channels.value()) {
-            DENOX_ERROR("Input \'{}\' has channel count {}, expected {}.", name,
-                        dim.dim_value(), interfaceDescriptor->channels.value());
+            std::cerr << fmt::format(
+                             "Input \'{}\' has channel count {}, expected {}.",
+                             name, dim.dim_value(),
+                             interfaceDescriptor->channels.value())
+                      << std::endl;
             diag::invalid_argument();
           }
           if (interfaceDescriptor->channelValueName.has_value()) {
             std::optional<Sym> lookup = state.output.getValueByName(
                 *interfaceDescriptor->channelValueName);
             if (lookup && dev.handle().channels() != *lookup) {
-              DENOX_ERROR("Input \'{}\' has invalid dynamic channel extent.",
-                          name);
+              std::cerr
+                  << fmt::format(
+                         "Input \'{}\' has invalid dynamic channel extent.",
+                         name)
+                  << std::endl;
               diag::invalid_argument();
             }
             if (!lookup) {
@@ -392,8 +400,10 @@ void import_value_info(ImportState &state,
         } else if (rd == 2) {
           if (dim.has_dim_value() && interfaceDescriptor->height.has_value() &&
               dim.dim_value() != interfaceDescriptor->height.value()) {
-            DENOX_ERROR("Input \'{}\' has height {}, expected {}.", name,
-                        dim.dim_value(), interfaceDescriptor->height.value());
+            std::cerr << fmt::format("Input \'{}\' has height {}, expected {}.",
+                                     name, dim.dim_value(),
+                                     interfaceDescriptor->height.value())
+                      << std::endl;
             diag::invalid_argument();
           }
 
@@ -401,8 +411,10 @@ void import_value_info(ImportState &state,
             std::optional<Sym> lookup = state.output.getValueByName(
                 *interfaceDescriptor->heightValueName);
             if (lookup && dev.handle().height() != *lookup) {
-              DENOX_ERROR("Input \'{}\' has invalid dynamic height extent.", // <- HERE
-                          name);
+              std::cerr << fmt::format("Input \'{}\' has invalid dynamic "
+                                       "height extent.", // <- HERE
+                                       name)
+                        << std::endl;
               diag::invalid_argument();
             }
             if (!lookup) {
@@ -414,16 +426,20 @@ void import_value_info(ImportState &state,
         } else if (rd == 3) {
           if (dim.has_dim_value() && interfaceDescriptor->width.has_value() &&
               dim.dim_value() != interfaceDescriptor->width.value()) {
-            DENOX_ERROR("Input \'{}\' has width {}, expected {}.", name,
-                        dim.dim_value(), interfaceDescriptor->width.value());
+            std::cerr << fmt::format("Input \'{}\' has width {}, expected {}.",
+                                     name, dim.dim_value(),
+                                     interfaceDescriptor->width.value())
+                      << std::endl;
             diag::invalid_argument();
           }
           if (interfaceDescriptor->widthValueName.has_value()) {
             std::optional<Sym> lookup = state.output.getValueByName(
                 *interfaceDescriptor->widthValueName);
             if (lookup && dev.handle().width() != *lookup) {
-              DENOX_ERROR("Input \'{}\' has invalid dynamic width extent.",
-                          name);
+              std::cerr << fmt::format(
+                               "Input \'{}\' has invalid dynamic width extent.",
+                               name)
+                        << std::endl;
               diag::invalid_argument();
             }
             if (!lookup) {
