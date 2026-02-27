@@ -19,7 +19,7 @@ target_link_libraries(denox_database
   PUBLIC
     denox_common
     denox_spirv
-    denox::sqlite3
+    SQLite::SQLite3
 )
 
 if (NOT DENOX_DISABLE_WARNINGS)

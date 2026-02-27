@@ -20,7 +20,7 @@ prune_duplicate_edges(const memory::ConstGraph<V, E, W> &graph) {
   for (uint64_t i = 0; i < N; ++i) {
     memory::NodeId nid{i};
     const V &n = graph.get(nid);
-    memory::NodeId _nid = subgraph.addNode(n);
+    [[maybe_unused]] memory::NodeId _nid = subgraph.addNode(n);
     assert(_nid == nid);
   }
 

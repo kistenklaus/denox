@@ -2,7 +2,7 @@
 #include "denox/device_info/ApiVersion.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/vector.hpp"
-#include "vma.hpp"
+#include <vk_mem_alloc.h>
 #include <cassert>
 #include <cstdint>
 #include <cstring>

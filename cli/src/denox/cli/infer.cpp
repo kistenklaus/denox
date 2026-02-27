@@ -68,8 +68,6 @@ void infer(InferAction &action) {
 
   while (!inputStream.eof()) {
 
-    auto start = std::chrono::high_resolution_clock::now();
-
     denox::memory::optional<denox::memory::ActivationTensor> parsed;
     parsed = PngInputStream{&inputStream}.read_image(denox::memory::Dtype::F16);
     bool isPng = parsed.has_value();
@@ -165,11 +163,5 @@ void infer(InferAction &action) {
     if (isPng) {
       PngOutputStream{&outputStream}.write_image(output);
     }
-
-    auto dur = std::chrono::high_resolution_clock::now() - start;
-    std::cerr << fmt::format("\ndenox-latency: {}\n",
-                             std::chrono::duration_cast<
-                                 std::chrono::duration<float, std::milli>>(dur))
-              << std::endl;
   }
 }

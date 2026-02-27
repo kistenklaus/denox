@@ -22,7 +22,7 @@ target_include_directories(denox_device_info PUBLIC
 
 target_link_libraries(denox_device_info 
   PRIVATE
-    denox::vulkan
+    Vulkan::Vulkan
   PUBLIC
     denox_common
 )

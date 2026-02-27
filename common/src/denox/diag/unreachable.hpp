@@ -6,7 +6,8 @@
 
 namespace denox::diag {
 
-[[noreturn]] static inline void unreachable(const std::string& msg = {}) {
+[[noreturn]] static inline void
+unreachable([[maybe_unused]] const std::string &msg = {}) {
 #ifndef NDEBUG
   if (msg.empty()) {
     throw std::logic_error("unrechable");
@@ -22,4 +23,4 @@ namespace denox::diag {
 #endif
 }
 
-} // namespace denox::compiler::diag
+} // namespace denox::diag

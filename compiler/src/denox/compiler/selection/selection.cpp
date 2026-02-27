@@ -11,7 +11,6 @@
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
-#include <absl/strings/str_format.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
@@ -36,7 +35,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   for (size_t n = 0; n < supergraph.graph.nodeCount(); ++n) {
     memory::NodeId nid{n};
     auto tid = supergraph.graph.get(nid);
-    memory::NodeId _nid = weightedSupergraph.addNode(tid);
+    [[maybe_unused]] memory::NodeId _nid = weightedSupergraph.addNode(tid);
     assert(_nid == nid);
   }
   for (size_t e = 0; e < supergraph.graph.edgeCount(); ++e) {

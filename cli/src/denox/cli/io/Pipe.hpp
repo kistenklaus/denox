@@ -17,9 +17,12 @@ struct Pipe {
   void flush();
 };
 
-template <> struct fmt::formatter<Pipe> : fmt::formatter<std::string_view> {
+template <> struct fmt::formatter<Pipe> {
+
+  constexpr auto parse(fmt::format_parse_context &ctx) { return ctx.begin(); }
+
   template <typename FormatContext>
   auto format(const Pipe &, FormatContext &ctx) const {
-    return fmt::formatter<std::string_view>::format("-", ctx);
+    return fmt::format_to(ctx.out(), "-");
   }
 };

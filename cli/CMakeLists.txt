@@ -50,9 +50,9 @@ target_include_directories(denox PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_link_libraries(denox 
   PUBLIC
-    denox::onnx
-    denox::dnx
-    denox::png
+    denox_onnx
+    denox_dnx
+    png_static
     denox_compiler
     denox_common
     denox_spirv

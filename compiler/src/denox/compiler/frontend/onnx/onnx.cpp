@@ -5,7 +5,6 @@
 #include "denox/compiler/frontend/onnx/details/import_node.hpp"
 #include "denox/compiler/frontend/onnx/details/import_value_info.hpp"
 #include "denox/diag/unreachable.hpp"
-#include <fmt/base.h>
 #include <fmt/format.h>
 #include <memory>
 #include <onnx.pb.h>

@@ -6,7 +6,6 @@
 #include "denox/memory/tensor/ActivationLayout.hpp"
 #include "denox/symbolic/SymIR.hpp"
 #include "model.hpp"
-#include "vma.hpp"
 #include <algorithm>
 #include <cstring>
 #include <fmt/format.h>

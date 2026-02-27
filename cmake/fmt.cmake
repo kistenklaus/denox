@@ -1,5 +1,4 @@
 include_guard(GLOBAL)  
-include(${PROJECT_SOURCE_DIR}/cmake/colorful.cmake)
 
 FetchContent_Declare(
   fmt
@@ -11,5 +10,12 @@ FetchContent_Declare(
 ) 
 
 FetchContent_MakeAvailable(fmt)
+
+
+add_library(denox_fmt INTERFACE)
+target_link_libraries(denox_fmt INTERFACE fmt)
+target_include_directories(denox_fmt 
+  SYSTEM INTERFACE $<TARGET_PROPERTY:fmt,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
 

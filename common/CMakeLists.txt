@@ -44,11 +44,9 @@ target_include_directories(denox_common
 )
 
 target_link_libraries(denox_common PUBLIC
-    denox::generator
-    denox::fmt
+  denox_generator
+  denox_fmt
 )
-
-
 
 target_compile_definitions(denox_common PUBLIC 
   DENOX_VERSION=0

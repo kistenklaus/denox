@@ -136,8 +136,8 @@ target_include_directories(denox_compiler
 
 target_link_libraries(denox_compiler 
   PRIVATE
-    denox::dnx
-    denox::onnx
+    denox_dnx
+    denox_onnx
   PUBLIC 
     denox_common
     denox_spirv

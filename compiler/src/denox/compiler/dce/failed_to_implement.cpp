@@ -1,7 +1,6 @@
 #include "denox/compiler/dce/failed_to_implement.hpp"
 #include "denox/algorithm/minimum_const_subgraph.hpp"
 #include "denox/compiler/dce/ConstModel.hpp"
-#include <absl/strings/internal/str_format/extension.h>
 #include <stdexcept>
 
 void denox::compiler::failed_to_implement(const SuperGraph &supergraph,

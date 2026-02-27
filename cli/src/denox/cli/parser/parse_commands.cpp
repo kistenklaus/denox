@@ -15,8 +15,6 @@
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
-// #include "denox/cli/parser/parse_options.hpp"
-#include <absl/strings/str_format.h>
 #include <exception>
 #include <fmt/format.h>
 #include <fmt/ostream.h>

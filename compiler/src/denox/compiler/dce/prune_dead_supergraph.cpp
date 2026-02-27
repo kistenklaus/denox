@@ -6,7 +6,6 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
-#include <fmt/base.h>
 #include <stdexcept>
 #include <utility>
 

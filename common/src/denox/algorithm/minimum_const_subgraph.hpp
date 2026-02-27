@@ -73,7 +73,7 @@ minimum_cost_subgraph(const memory::ConstGraph<V, E, W> &graph,
         continue;
       }
       bool first = true;
-      W best;
+      W best{};
       for (memory::EdgeId e : incoming) {
         W max_src = W{};
         bool first_src = true;
@@ -341,7 +341,7 @@ minimum_cost_subgraph(const memory::ConstGraph<V, E, W> &graph,
   memory::AdjGraph<V, E, W> subgraph;
   for (uint64_t i = 0; i < N; ++i) {
     memory::NodeId nid{i};
-    memory::NodeId _nid = subgraph.addNode(graph.get(nid));
+    [[maybe_unused]] memory::NodeId _nid = subgraph.addNode(graph.get(nid));
     assert(_nid == nid);
   }
 

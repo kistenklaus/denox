@@ -7,7 +7,6 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
-#include <absl/strings/internal/str_format/extension.h>
 
 static denox::memory::ConstGraph<denox::memory::NodeId,
                                  denox::memory::vector<denox::memory::EdgeId>,

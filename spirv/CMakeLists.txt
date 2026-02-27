@@ -1,8 +1,4 @@
 
-include(${PROJECT_SOURCE_DIR}/cmake/glslang.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/spirv-tools.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/warnings.cmake)
-
 add_library(denox_spirv EXCLUDE_FROM_ALL
   src/denox/glsl/global_glslang_runtime.cpp
   src/denox/glsl/GlslPreprocessor.cpp
@@ -23,8 +19,8 @@ target_include_directories(denox_spirv
 
 target_link_libraries(denox_spirv PUBLIC
 PRIVATE
-  denox::glslang
-  denox::spirv-tools
+  denox_glslang
+  SPIRV-Tools
 PUBLIC
   denox_common
   denox_device_info

@@ -1,5 +1,5 @@
 #include "context.hpp"
-#include "vk_mem_alloc.h"
+#include <vk_mem_alloc.h>
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -200,9 +200,9 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     : m_instance(VK_NULL_HANDLE), m_device(VK_NULL_HANDLE),
       m_physicalDevice(VK_NULL_HANDLE), m_queue(VK_NULL_HANDLE) {
 
-  uint32_t vulkanApiVersion;
+  uint32_t vulkanApiVersion = VK_API_VERSION_1_0;
   { // Create instance.
-    VkApplicationInfo appInfo;
+    VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pNext = nullptr;
 

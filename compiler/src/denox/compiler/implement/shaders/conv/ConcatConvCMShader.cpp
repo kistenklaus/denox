@@ -1060,13 +1060,12 @@ void ConcatConvCMShader::implement(
   memory::EdgeId convId = match[patternHandles.conv];
   memory::NodeId aId = match[patternHandles.a];
   memory::NodeId bId = match[patternHandles.b];
-  memory::NodeId inId = match[patternHandles.in];
+  // memory::NodeId inId = match[patternHandles.in];
   memory::NodeId outId = match[patternHandles.out];
 
   const ComputeOp &op = opGraph.get(convId);
   const auto &a = opGraph.get(aId);
   const auto &b = opGraph.get(bId);
-  const auto &in = opGraph.get(inId);
   const auto &out = opGraph.get(outId);
   assert(op.tag() == ComputeOpKind::Conv);
   assert(a.channels.isConstant());

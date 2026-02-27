@@ -1,110 +1,80 @@
-# cmake/glslang.cmake
 include_guard(GLOBAL)
 
-# ---- Options --------------------------------------------------------------
-# Prefer using a system-provided static lib first
-option(DENOX_GLSLANG_FORCE_FETCH "Skip system lib; always fetch/build glslang static" OFF)
-# Version to fetch (release tag). Change if you want a specific revision.
-set(DENOX_GLSLANG_VERSION "15.4.0" CACHE STRING "glslang release tag to fetch when system lib not found")
-# Optional integrity pin for the tarball (strongly recommended once known)
-set(DENOX_GLSLANG_URL_HASH "" CACHE STRING "SHA256 of the glslang tarball (optional but recommended)")
+# Save current state (PAIN!!)
+set(_old_unity ${CMAKE_UNITY_BUILD})
+set(CMAKE_UNITY_BUILD OFF)
+set(_old_c_flags   "${CMAKE_C_FLAGS}")
+set(_old_cxx_flags "${CMAKE_CXX_FLAGS}")
 
-# ---- Helper ---------------------------------------------------------------
-function(_denox_collect_targets out_var)
-  set(_found "")
-  foreach(t IN LISTS ARGN)
-    if (TARGET "${t}")
-      list(APPEND _found "${t}")
-    endif()
-  endforeach()
-  set(${out_var} "${_found}" PARENT_SCOPE)
-endfunction()
-
-# ---- 1) Try system static libglslang.a (+ headers) ------------------------
-if (NOT DENOX_GLSLANG_FORCE_FETCH AND NOT DENOX_SAN)
-  # Prefer .a
-  set(_save_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
-  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-  find_library(_GLSLANG_STATIC NAMES glslang)
-  set(CMAKE_FIND_LIBRARY_SUFFIXES "${_save_suffixes}")
-
-  find_path(_GLSLANG_INCLUDE_DIR
-    NAMES glslang/Public/ShaderLang.h
-    PATH_SUFFIXES include
-  )
-
-  if (_GLSLANG_STATIC AND _GLSLANG_INCLUDE_DIR)
-    add_library(denox_glslang STATIC IMPORTED GLOBAL)
-    set_target_properties(denox_glslang PROPERTIES
-      IMPORTED_LOCATION "${_GLSLANG_STATIC}"
-      INTERFACE_INCLUDE_DIRECTORIES "${_GLSLANG_INCLUDE_DIR}"
-    )
-
-    # Try to add companion libs if present (optional on modern glslang)
-    foreach(_n IN ITEMS SPIRV SPVRemapper OGLCompiler OSDependent HLSL glslang-default-resource-limits)
-      # prefer shared, then static
-      set(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".a")
-      find_library(_lib_${_n} NAMES ${_n})
-      if (_lib_${_n})
-        target_link_libraries(denox_glslang INTERFACE "${_lib_${_n}}")
-      endif()
-    endforeach()
-
-    add_library(denox::glslang ALIAS denox_glslang)
-    log_success("✅ glslang: using system STATIC core: ${_GLSLANG_STATIC} (headers: ${_GLSLANG_INCLUDE_DIR})")
-    return()
-  endif()
-endif()
-
-# ---- 2) FetchContent from release tarball (static) ------------------------
-include(FetchContent)
-
-# Minimal & static build knobs
-set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTING           OFF CACHE BOOL "" FORCE)
-set(ENABLE_HLSL             OFF  CACHE BOOL "" FORCE)  # switch OFF if you don't need HLSL
-set(ENABLE_OPT              OFF CACHE BOOL "" FORCE)  # keep OFF to avoid pulling SPIRV-Tools optimizer
-set(SKIP_GLSLANG_INSTALL     ON CACHE BOOL "" FORCE)
-set(BUILD_SHARED_LIBS        OFF CACHE BOOL "" FORCE)
-set(CMAKE_POSITION_INDEPENDENT_CODE BUILD_PIL)
-
-set(ENABLE_RTTI ON CACHE BOOL "" DENOX_SAN)
-
-set(_GLSLANG_URL "https://github.com/KhronosGroup/glslang/archive/refs/tags/${DENOX_GLSLANG_VERSION}.tar.gz")
-
-# Use URL tarball to avoid git altogether (more robust in CI / behind proxies).
-if (DENOX_GLSLANG_URL_HASH)
-  FetchContent_Declare(denox_glslang_src
-    URL       "${_GLSLANG_URL}"
-    URL_HASH  "SHA256=${DENOX_GLSLANG_URL_HASH}"
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-  )
+if (MSVC)
+  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} /W0")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W0")
 else()
-  # No hash pinned (less secure); still works. Pin once you've computed it.
-  FetchContent_Declare(denox_glslang_src
-    URL       "${_GLSLANG_URL}"
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-  )
+  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -w")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
 endif()
 
-FetchContent_MakeAvailable(denox_glslang_src)
 
-# Upstream exports these targets; collect whatever exists on this tag.
-_denox_collect_targets(_DEN0X_GLSLANG_TGTS
-  glslang::glslang
-  glslang::SPIRV
-  glslang::SPVRemapper
-  glslang::OGLCompiler
-  glslang::OSDependent
-  glslang::HLSL
-  glslang::glslang-default-resource-limits
-  # (Some versions also export legacy non-namespaced targets; add if needed.)
+
+set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
+set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
+
+set(SPIRV_TOOLS_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(SPIRV_TOOLS_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(SPIRV_TOOLS_LIBRARY_TYPE STATIC CACHE STRING "" FORCE)
+
+set(SKIP_SPIRV_TOOLS_INSTALL ON CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  spirv-headers
+  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Headers.git
+  GIT_TAG        04f10f650d514df88b76d25e83db360142c7b174 # from spirv-tools DEPS file of the used version
+  GIT_SHALLOW TRUE
+  OVERRIDE_FIND_PACKAGE
+  GIT_PROGRESS TRUE
+  EXCLUDE_FROM_ALL
 )
 
-if (NOT _DEN0X_GLSLANG_TGTS)
-  log_error("glslang (FetchContent): expected targets not created on version ${DENOX_GLSLANG_VERSION}")
-endif()
+FetchContent_Declare(
+  spirv-tools
+  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools.git
+  GIT_TAG        fbe4f3ad913c44fe8700545f8ffe35d1382b7093
+  GIT_SHALLOW TRUE
+  OVERRIDE_FIND_PACKAGE
+  GIT_PROGRESS TRUE
+  EXCLUDE_FROM_ALL
+)
 
-add_library(denox::glslang INTERFACE IMPORTED)
-target_link_libraries(denox::glslang INTERFACE ${_DEN0X_GLSLANG_TGTS})
-log_success("✅ glslang: fetched ${DENOX_GLSLANG_VERSION} (static) via URL tarball")
+set(BUILD_EXTERNAL OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)
+set(GLSLANG_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+set(ENABLE_GLSLANG_JS OFF CACHE BOOL "" FORCE)
+set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+# only possible because git hashes match exactly!
+set(ALLOW_EXTERNAL_SPIRV_TOOLS OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  glslang
+  GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
+  GIT_TAG        f0bd0257c308b9a26562c1a30c4748a0219cc951
+  GIT_SHALLOW TRUE
+  OVERRIDE_FIND_PACKAGE
+  GIT_PROGRESS TRUE
+  EXCLUDE_FROM_ALL
+)
+
+FetchContent_MakeAvailable(spirv-headers spirv-tools glslang)
+
+add_library(denox_glslang INTERFACE)
+target_link_libraries(denox_glslang INTERFACE glslang)
+target_include_directories(denox_glslang
+    SYSTEM INTERFACE
+        $<TARGET_PROPERTY:glslang,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
+# Restore flags
+set(CMAKE_UNITY_BUILD ${_old_unity})
+set(CMAKE_C_FLAGS   "${_old_c_flags}")
+set(CMAKE_CXX_FLAGS "${_old_cxx_flags}")

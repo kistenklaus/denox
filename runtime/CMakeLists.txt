@@ -22,7 +22,7 @@ foreach(shader IN LISTS RUNTIME_SHADER_FILES)
 endforeach()
 
 add_library(denox_runtime EXCLUDE_FROM_ALL
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/vma_impl.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/vma_impl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/context.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/model.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/runtime/instance.cpp
@@ -43,9 +43,9 @@ target_include_directories(denox_runtime
 
 target_link_libraries(denox_runtime 
 PUBLIC
-  denox::vulkan
-  denox::dnx
-  denox::vma
+  Vulkan::Vulkan
+  denox_vma
+  denox_dnx
   denox_device_info
   denox_spirv
   denox_common

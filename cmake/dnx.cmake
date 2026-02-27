@@ -21,11 +21,15 @@ add_custom_command(
     VERBATIM
 )
 
-add_library(denox_dnx INTERFACE)
-target_sources(denox_dnx
-    INTERFACE ${GENERATED_HEADER}
+add_custom_target(denox_dnx_generate
+    DEPENDS ${GENERATED_HEADER}
 )
-target_include_directories(denox_dnx INTERFACE ${GENERATED_DIR})
+
+add_library(denox_dnx INTERFACE)
+
+add_dependencies(denox_dnx denox_dnx_generate)
+
+target_include_directories(denox_dnx SYSTEM INTERFACE ${GENERATED_DIR})
 target_link_libraries(denox_dnx INTERFACE flatbuffers)
 
 

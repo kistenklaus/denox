@@ -25,44 +25,24 @@ include(cmake/onnx.cmake)
 include(cmake/flatbuffers.cmake)
 include(cmake/dnx.cmake)
 include(cmake/sqlite.cmake)
-
 include(cmake/vulkan.cmake)
+include(cmake/glslang.cmake)
+include(cmake/protobuf.cmake)
+include(cmake/png.cmake)
 
-include(cmake/shaderc.cmake)
-
-# include(cmake/glslang.cmake)
-# include(cmake/spirv-tools.cmake)
-
-
-# warnings
+# warnings helper
 include(cmake/warnings.cmake)
 
-add_executable(abc main.cpp)
-
-target_link_libraries(abc PUBLIC 
-  fmt
-  denox_vma
-  denox_generator
-  denox_onnx
-  denox_dnx
-  SQLite::SQLite3
-)
-
-
-
-# include(cmake/png.cmake)
-
-#
-# add_subdirectory(common)
-# add_subdirectory(device_info)
-# add_subdirectory(spirv)
-# add_subdirectory(database)
-# add_subdirectory(runtime)
-# add_subdirectory(compiler)
-# add_subdirectory(cli)
+add_subdirectory(common)
+add_subdirectory(device_info)
+add_subdirectory(spirv)
+add_subdirectory(database)
+add_subdirectory(runtime)
+add_subdirectory(compiler)
+add_subdirectory(cli)
 # add_subdirectory(sandbox)
-#
-# install(DIRECTORY
-#     ${CMAKE_BINARY_DIR}/share/denox
-#     DESTINATION share
-# )
+
+install(DIRECTORY
+    ${CMAKE_BINARY_DIR}/share/denox
+    DESTINATION share
+)

@@ -23,7 +23,7 @@ public:
     for (uint32_t n = 0; n < nodeCount; ++n) {
       memory::NodeId nid{n};
       TensorId tid = createTensor(model.graph.get(nid), nid);
-      memory::NodeId _nid = m_graph.addNode(tid);
+      [[maybe_unused]] memory::NodeId _nid = m_graph.addNode(tid);
       assert(_nid == nid);
     }
 
