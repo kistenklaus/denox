@@ -4,7 +4,6 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/logging.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include "denox/memory/tensor/BiasLayout.hpp"
@@ -17,12 +16,6 @@ namespace denox::compiler::shaders {
 ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                                        const CompileOptions &options)
     : m_compiler(compiler),
-      m_enableConvReluFusion(options.features.enableConvReluFusion),
-      m_maxComputeWorkGroupInvocations(
-          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
-      m_maxComputeWorkGroupSize(
-          options.deviceInfo.limits.maxComputeWorkGroupSize),
-      m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes),
       m_subgroupControl(
           options.deviceInfo.subgroup.controlProperties.supported &&
           options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
@@ -705,9 +698,6 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
     static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
     const auto &config = m_configs[c];
 
-    if (config.subgroupSize > m_maxComputeWorkGroupSize[0]) {
-      return {};
-    }
 
     const uint32_t A_RSC = R * S * A_C;
     const uint32_t B_RSC = R * S * B_C;
@@ -1073,8 +1063,6 @@ void ConcatConvCMShader::implement(
   assert(out.channels.isConstant());
   assert(a.type == b.type);
 
-  assert(in.width == out.width);
-  assert(in.height == out.height);
   const ComputeOpConv &conv = op.conv();
 
   uint32_t A_scalingFactor = 1;

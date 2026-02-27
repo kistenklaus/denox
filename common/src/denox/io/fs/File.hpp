@@ -25,7 +25,7 @@ namespace denox::io {
 
 class File {
 public:
-  using size_type = std::uint64_t;
+  using size_type = size_t;
 
   enum class OpenMode : unsigned {
     Read = 1u << 0,     // open existing for reading

@@ -20,14 +20,6 @@ namespace denox::compiler::shaders {
 DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                                        const CompileOptions &options)
     : m_compiler(compiler),
-      m_enableConvReluFusion(options.features.enableConvReluFusion),
-      m_maxComputeWorkGroupInvocations(
-          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
-      m_maxComputeSharedMemory(
-          options.deviceInfo.limits.maxComputeSharedMemory),
-      m_maxComputeWorkGroupSize(
-          options.deviceInfo.limits.maxComputeWorkGroupSize),
-      m_supportedCoopmatShapes(options.deviceInfo.coopmat.shapes),
       m_subgroupControl(
           options.deviceInfo.subgroup.controlProperties.supported &&
           options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
@@ -182,7 +174,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                   static constexpr double WG_SH_OCCUPANCY =
                       0.75; // 75% of max shared memory allowed
                   if (static_cast<double>(sh_size) >
-                      static_cast<double>(m_maxComputeSharedMemory) *
+                      static_cast<double>(options.deviceInfo.limits.maxComputeSharedMemory) *
                           WG_SH_OCCUPANCY) {
                     continue;
                   }
@@ -275,7 +267,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     m_capabilities.patterns.emplace_back(std::move(conv_pattern), std::move(in),
                                          std::move(out));
   }
-  if (m_enableConvReluFusion) { // possibly more patterns.
+  if (options.features.enableConvReluFusion) { // possibly more patterns.
     Pattern conv_relu_pattern;
     auto in = conv_relu_pattern.matchNode();
     auto conv = in->matchOutgoing();
@@ -463,7 +455,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                                          std::move(in), std::move(out));
   }
   if (options.features.enableConvMaxPoolFusion &&
-      m_enableConvReluFusion) { // possibly more patterns.
+      options.features.enableConvReluFusion) { // possibly more patterns.
     Pattern conv_relu_maxpool_pattern;
     auto in = conv_relu_maxpool_pattern.matchNode();
     auto conv = in->matchOutgoing();

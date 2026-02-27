@@ -43,12 +43,12 @@ public:
   //
   template <typename Allocator = mallocator>
   static std::tuple<memory::vector<NodeId>, ConstGraph>
-  from(const LinkedGraph<V, E, W, Allocator>::NodeHandle &input,
-       const LinkedGraph<V, E, W, Allocator>::NodeHandle &output) {
+  from(const typename LinkedGraph<V, E, W, Allocator>::NodeHandle &input,
+       const typename LinkedGraph<V, E, W, Allocator>::NodeHandle &output) {
     using LinkedGraph = LinkedGraph<V, E, W, Allocator>;
     using AdjGraph = AdjGraph<V, E, W>;
     AdjGraph adj;
-    using NodeHandle = LinkedGraph::NodeHandle;
+    using NodeHandle = typename LinkedGraph::NodeHandle;
 
     std::size_t upperNodeCount = input.upperNodeCount();
     assert(output.upperNodeCount() == upperNodeCount);
@@ -94,8 +94,8 @@ public:
 
   explicit ConstGraph(const AdjGraph<V, E, W> &graph) {
 
-    std::size_t nodeCount = graph.nodeCount();
-    std::size_t edgeCount = graph.edgeCount();
+    size_t nodeCount = graph.nodeCount();
+    size_t edgeCount = graph.edgeCount();
 
     m_nodeData.reserve(nodeCount);
     m_nodes.reserve(nodeCount);
@@ -103,21 +103,21 @@ public:
     m_edges.reserve(edgeCount);
 
     // Pass 0: Compact IDs and build remapping tables.
-    std::size_t maxNodeId{0};
+    size_t maxNodeId{0};
     for (typename AdjGraph<V, E, W>::const_node_iterator::Node n :
          graph.nodes()) {
-      maxNodeId = std::max(static_cast<std::uint64_t>(n.id()),
-                           static_cast<std::uint64_t>(maxNodeId));
+      maxNodeId = std::max<size_t>(*n.id(),
+                           maxNodeId);
     }
-    std::size_t maxEdgeId{0};
+    size_t maxEdgeId{0};
     for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
          graph.edges()) {
-      maxEdgeId = std::max(static_cast<std::uint64_t>(e.id()),
-                           static_cast<std::uint64_t>(maxEdgeId));
+      maxEdgeId = std::max<size_t>(*e.id(),
+                           maxEdgeId);
     }
     denox::memory::vector<NodeId> nodeRemap(maxNodeId + 1, NodeId{0});
     {
-      std::size_t ix = 0;
+      size_t ix = 0;
       for (const typename AdjGraph<V, E, W>::const_node_iterator::Node &n :
            graph.nodes()) {
         nodeRemap[*n.id()] = NodeId{ix++};
@@ -125,7 +125,7 @@ public:
     }
     denox::memory::vector<EdgeId> edgeRemap(maxEdgeId + 1, EdgeId{0});
     {
-      std::size_t ix = 0;
+      size_t ix = 0;
       for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
            graph.edges()) {
         edgeRemap[*e.id()] = EdgeId{ix++};
@@ -205,9 +205,8 @@ public:
   }
 
   explicit ConstGraph(AdjGraph<V, E, W> &&graph) {
-    // TODO: issue #85 addresses the missing implementation!
-    std::size_t nodeCount = graph.nodeCount();
-    std::size_t edgeCount = graph.edgeCount();
+    size_t nodeCount = graph.nodeCount();
+    size_t edgeCount = graph.edgeCount();
 
     m_nodeData.reserve(nodeCount);
     m_nodes.reserve(nodeCount);
@@ -215,21 +214,21 @@ public:
     m_edges.reserve(edgeCount);
 
     // Pass 0: Compact IDs and build remapping tables.
-    std::size_t maxNodeId{0};
+    size_t maxNodeId{0};
     for (typename AdjGraph<V, E, W>::const_node_iterator::Node n :
          graph.nodes()) {
-      maxNodeId = std::max(static_cast<std::uint64_t>(n.id()),
-                           static_cast<std::uint64_t>(maxNodeId));
+      maxNodeId = std::max<size_t>(*n.id(),
+                           maxNodeId);
     }
-    std::size_t maxEdgeId{0};
+    size_t maxEdgeId{0};
     for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
          graph.edges()) {
-      maxEdgeId = std::max(static_cast<std::uint64_t>(e.id()),
-                           static_cast<std::uint64_t>(maxEdgeId));
+      maxEdgeId = std::max<size_t>(*e.id(),
+                           maxEdgeId);
     }
     denox::memory::vector<NodeId> nodeRemap(maxNodeId + 1, NodeId{0});
     {
-      std::size_t ix = 0;
+      size_t ix = 0;
       for (const typename AdjGraph<V, E, W>::const_node_iterator::Node &n :
            graph.nodes()) {
         nodeRemap[*n.id()] = NodeId{ix++};
@@ -237,7 +236,7 @@ public:
     }
     denox::memory::vector<EdgeId> edgeRemap(maxEdgeId + 1, EdgeId{0});
     {
-      std::size_t ix = 0;
+      size_t ix = 0;
       for (const typename AdjGraph<V, E, W>::const_edge_iterator::EdgeInfo &e :
            graph.edges()) {
         edgeRemap[*e.id()] = EdgeId{ix++};

@@ -80,12 +80,6 @@ private:
   io::Path m_srcPath =
       io::Path::assets() /
       "compiler/src/denox/compiler/implement/shaders/conv/concat_conv_cm.comp";
-  bool m_enableConvReluFusion;
-
-  uint32_t m_maxComputeWorkGroupInvocations;
-  std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
-  std::span<const CoopmatShape> m_supportedCoopmatShapes;
-
   bool m_subgroupControl;
   memory::vector<ConcatConvConfig> m_configs;
 

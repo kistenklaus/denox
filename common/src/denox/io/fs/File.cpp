@@ -34,7 +34,7 @@ void File::close() noexcept {
   }
 }
 
-File::size_type File::read(memory::span<std::byte> dst) {
+size_t File::read(memory::span<std::byte> dst) {
   std::error_code ec;
   auto n = read_ec(dst, ec);
   if (ec)
@@ -44,10 +44,10 @@ File::size_type File::read(memory::span<std::byte> dst) {
 
 void File::read_exact(memory::span<std::byte> dst) {
   std::byte *it = dst.data();
-  size_type remaining = dst.size();
+  size_t remaining = dst.size();
   while (remaining) {
     std::error_code ec;
-    size_type n = read_ec({it, static_cast<size_t>(remaining)}, ec);
+    size_type n = read_ec({it, remaining}, ec);
     if (ec)
       throw std::system_error(ec, "File::read_exact");
     if (n == 0) {
@@ -61,7 +61,7 @@ void File::read_exact(memory::span<std::byte> dst) {
   }
 }
 
-File::size_type File::write(memory::span<const std::byte> src) {
+size_t File::write(memory::span<const std::byte> src) {
   std::error_code ec;
   auto n = write_ec(src, ec);
   if (ec)
@@ -71,10 +71,10 @@ File::size_type File::write(memory::span<const std::byte> src) {
 
 void File::write_exact(memory::span<const std::byte> src) {
   const std::byte *it = src.data();
-  size_type remaining = src.size();
+  size_t remaining = src.size();
   while (remaining) {
     std::error_code ec;
-    size_type n = write_ec({it, static_cast<size_t>(remaining)}, ec);
+    size_t n = write_ec({it, remaining}, ec);
     if (ec)
       throw std::system_error(ec, "File::write_exact");
     if (n == 0) {
@@ -107,7 +107,7 @@ std::uint64_t File::tell() const {
   return pos;
 }
 
-File::size_type File::size() const {
+size_t File::size() const {
   std::error_code ec;
   auto s = size_ec(ec);
   if (ec)
@@ -146,7 +146,7 @@ bool File::open_ec(const Path &p, OpenMode mode, std::error_code &ec) {
   return true;
 }
 
-File::size_type File::read_ec(memory::span<std::byte> dst,
+size_t File::read_ec(memory::span<std::byte> dst,
                               std::error_code &ec) noexcept {
   if (!m_file) {
     ec = std::make_error_code(std::errc::bad_file_descriptor);
@@ -159,10 +159,10 @@ File::size_type File::read_ec(memory::span<std::byte> dst,
   } else {
     ec.clear();
   }
-  return static_cast<size_type>(n);
+  return n;
 }
 
-File::size_type File::write_ec(memory::span<const std::byte> src,
+size_t File::write_ec(memory::span<const std::byte> src,
                                std::error_code &ec) noexcept {
   if (!m_file) {
     ec = std::make_error_code(std::errc::bad_file_descriptor);
@@ -175,7 +175,7 @@ File::size_type File::write_ec(memory::span<const std::byte> src,
   } else {
     ec.clear();
   }
-  return static_cast<size_type>(n);
+  return n;
 }
 
 bool File::flush_ec(std::error_code &ec) noexcept {
@@ -206,7 +206,7 @@ bool File::seek_ec(std::int64_t offset, SeekWhence whence,
     return true;
   }
 #else
-  if (::fseeko(m_file, static_cast<off_t>(offset), origin) == 0) {
+  if (::fseeko(m_file, offset, origin) == 0) {
     ec.clear();
     return true;
   }
@@ -238,7 +238,7 @@ std::uint64_t File::tell_ec(std::error_code &ec) const noexcept {
   return 0;
 }
 
-File::size_type File::size_ec(std::error_code &ec) const noexcept {
+size_t File::size_ec(std::error_code &ec) const noexcept {
   if (!m_file) {
     ec = std::make_error_code(std::errc::bad_file_descriptor);
     return 0;

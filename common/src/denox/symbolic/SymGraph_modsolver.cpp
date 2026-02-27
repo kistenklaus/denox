@@ -158,7 +158,7 @@ SymGraph::modsolve_resume_solver(ModSolverHandle solver, symbol lhs, Sym rhs,
         solver->expressions.push_back(*modexpr);
       } else {
         ModExpr modexprv;
-        modexprv.affine.coef.emplace_back(s, 1);
+        modexprv.affine.coef.emplace_back(s, value_type(1));
         solver->expressions.push_back(modexprv);
       }
       assert(solver->expressions.size() == s + 1);

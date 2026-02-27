@@ -68,11 +68,15 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spirv-headers spirv-tools glslang)
 
 add_library(denox_glslang INTERFACE)
-target_link_libraries(denox_glslang INTERFACE glslang)
-target_include_directories(denox_glslang
-    SYSTEM INTERFACE
-        $<TARGET_PROPERTY:glslang,INTERFACE_INCLUDE_DIRECTORIES>
-)
+target_link_libraries(denox_glslang 
+  INTERFACE 
+    glslang
+    SPIRV-Tools
+  )
+# target_include_directories(denox_glslang
+#     SYSTEM INTERFACE
+#         $<TARGET_PROPERTY:glslang,INTERFACE_INCLUDE_DIRECTORIES>
+# )
 
 # Restore flags
 set(CMAKE_UNITY_BUILD ${_old_unity})

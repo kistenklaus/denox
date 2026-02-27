@@ -1,10 +1,9 @@
-cmake_minimum_required(VERSION 4.2)
+cmake_minimum_required(VERSION 3.22)
 
 project(denox VERSION 0.1.0 LANGUAGES C CXX)
 
 option(BUILD_TESTING "Build tests" ON)
 option(DENOX_SAN "Enables sanitizers" OFF)
-option(DENOX_DISABLE_WARNINGS "Disable pedantic warnings" OFF)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
@@ -13,7 +12,9 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(FETCHCONTENT_QUIET OFF)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 include(FetchContent)
 

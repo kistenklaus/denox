@@ -17,16 +17,15 @@ target_include_directories(denox_spirv
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(denox_spirv PUBLIC
-PRIVATE
+target_link_libraries(denox_spirv 
+PUBLIC
   denox_glslang
   SPIRV-Tools
-PUBLIC
   denox_common
   denox_device_info
 )
 
-if (NOT DENOX_DISABLE_WARNINGS)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
   denox_enable_strict_warnings(denox_spirv)
 endif()
 

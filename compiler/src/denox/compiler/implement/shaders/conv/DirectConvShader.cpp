@@ -14,11 +14,6 @@ namespace denox::compiler::shaders {
 DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
                                    const CompileOptions &options)
     : m_compiler(compiler),
-      m_enableConvReluFusion(options.features.enableConvReluFusion),
-      m_maxComputeWorkGroupInvocations(
-          options.deviceInfo.limits.maxComputeWorkGroupInvocations),
-      m_maxComputeWorkGroupSize(
-          options.deviceInfo.limits.maxComputeWorkGroupSize),
       m_subgroupControl(
           options.deviceInfo.subgroup.controlProperties.supported &&
           options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
@@ -190,7 +185,7 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     m_capabilities.patterns.emplace_back(std::move(conv_pattern), std::move(in),
                                          std::move(out));
   }
-  if (m_enableConvReluFusion) { // possibly more patterns.
+  if (options.features.enableConvReluFusion) { // possibly more patterns.
     Pattern conv_relu_pattern;
     auto in = conv_relu_pattern.matchNode();
     auto conv = in->matchOutgoing();
@@ -275,10 +270,6 @@ memory::vector<unsigned int> DirectConvShader::acceptMatch(
     assert(config.invoc_k % 8 == 0 && "INVOC_K must be multiple of 8");
     assert((config.invoc_n * config.sg_n * config.wg_n) % 8 == 0 &&
            "WG_TILE_N must be multiple of 8");
-
-    if (config.subgroupSize > m_maxComputeWorkGroupSize[0]) {
-      return {};
-    }
 
     // static constexpr size_t KK_ASYNC_LIMIT = 3;
     static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;

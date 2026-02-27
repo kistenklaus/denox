@@ -1,7 +1,7 @@
 #include "denox/memory/container/hashmap.hpp"
+#include "denox/memory/container/shared_ptr.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/vector.hpp"
-#include "denox/memory/container/shared_ptr.hpp"
 #include "denox/symbolic/Sym.hpp"
 #include <cstdint>
 
@@ -13,6 +13,8 @@ using value_type = Sym::value_type;
 struct AffineCoef {
   symbol sym;
   value_type factor;
+
+  AffineCoef(symbol s, value_type f) : sym(s), factor(f) {}
 };
 
 struct AffineExpr {
@@ -199,4 +201,4 @@ struct ModSolver {
 using ModSolverHandle = denox::memory::shared_ptr<ModSolver>;
 using ModSolverCache = denox::memory::hash_map<Sym, ModSolverHandle, SymHash>;
 
-} // namespace denox::compiler::symbolic::details
+} // namespace denox::symbolic::details

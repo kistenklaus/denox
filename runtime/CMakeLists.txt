@@ -52,7 +52,7 @@ PUBLIC
   denox_database
 )
 
-if (NOT DENOX_DISABLE_WARNINGS)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
   denox_enable_strict_warnings(denox_runtime)
 endif()
 

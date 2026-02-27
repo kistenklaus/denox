@@ -3,9 +3,8 @@
 #include "denox/io/is_tty.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/container/string_view.hpp"
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/sinks/stdout_sinks.h>
-#include <spdlog/spdlog.h>
+#include <fmt/format.h>
+#include <memory>
 
 namespace denox::diag {
 
@@ -30,11 +29,8 @@ private:
   };
 
 public:
-  Logger(const memory::string &name, bool colors)
-      : m_codes(std::make_shared<AniCodes>()),
-        m_sink(std::make_shared<spdlog::sinks::stderr_sink_st>()),
-        m_logger(std::make_shared<spdlog::logger>(name, m_sink)) {
-
+  Logger([[maybe_unused]] const memory::string &name, bool colors)
+      : m_codes(std::make_shared<AniCodes>()) {
     if (!denox::io::stderr_is_tty()) {
       colors = false;
     }
@@ -49,7 +45,6 @@ public:
       m_codes->clear_line = "\r\x1B[K";
       m_codes->cursor_up = "\x1B[A";
     }
-    m_logger->set_pattern("%v");
   }
 
   memory::string_view red() const { return m_codes->red; }
@@ -64,44 +59,42 @@ public:
   memory::string_view cursor_up() const { return m_codes->cursor_up; }
 
   template <typename... Args>
-  void trace(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    m_logger->trace(fmt, std::forward<Args>(args)...);
+  void trace(fmt::format_string<Args...> fmt, Args &&...args) {
+    fmt::println(fmt, std::forward<Args>(args)...);
   }
 
-  template <typename T> void trace(const T &msg) { m_logger->trace(msg); }
+  template <typename T> void trace(const T &msg) { fmt::println("{}", msg); }
 
   template <typename... Args>
-  void debug(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    m_logger->debug(fmt, std::forward<Args>(args)...);
+  void debug(fmt::format_string<Args...> fmt, Args &&...args) {
+    fmt::println(fmt, std::forward<Args>(args)...);
   }
 
-  template <typename T> void debug(const T &msg) { m_logger->debug(msg); }
+  template <typename T> void debug(const T &msg) { fmt::println("{}", msg); }
 
   template <typename... Args>
-  void info(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    m_logger->info(fmt, std::forward<Args>(args)...);
+  void info(fmt::format_string<Args...> fmt, Args &&...args) {
+    fmt::println(fmt, std::forward<Args>(args)...);
   }
 
-  template <typename T> void info(const T &msg) { m_logger->info(msg); }
+  template <typename T> void info(const T &msg) { fmt::println("{}", msg); }
 
   template <typename... Args>
-  void warn(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    m_logger->warn(fmt::format(fmt, std::forward<Args>(args)...));
+  void warn(fmt::format_string<Args...> fmt, Args &&...args) {
+    fmt::println(fmt, std::forward<Args>(args)...);
   }
 
-  template <typename T> void warn(const T &msg) { m_logger->warn(msg); }
+  template <typename T> void warn(const T &msg) { fmt::println("{}", msg); }
 
   template <typename... Args>
-  void error(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    m_logger->error(fmt, std::forward<Args>(args)...);
+  void error(fmt::format_string<Args...> fmt, Args &&...args) {
+    fmt::println(fmt, std::forward<Args>(args)...);
   }
 
-  template <typename T> void error(const T &msg) { m_logger->error(msg); }
+  template <typename T> void error(const T &msg) { fmt::println("{}", msg); }
 
   // private:
   std::shared_ptr<AniCodes> m_codes;
-  std::shared_ptr<spdlog::sinks::stderr_sink_st> m_sink;
-  std::shared_ptr<spdlog::logger> m_logger;
 };
 
 } // namespace denox::diag

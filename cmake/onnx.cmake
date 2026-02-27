@@ -32,13 +32,10 @@ add_custom_target(denox_onnx_generate
         ${ONNX_PB_H}
 )
 
-add_library(denox_onnx
-    ${ONNX_PB_CC}
-)
+add_library(denox_onnx ${ONNX_PB_CC})
+set_target_properties(denox_onnx PROPERTIES UNITY_BUILD OFF)
 
 add_dependencies(denox_onnx denox_onnx_generate)
 
-target_link_libraries(denox_onnx PUBLIC protobuf::libprotobuf-lite)
-
-target_include_directories(denox_onnx SYSTEM PUBLIC ${DENOX_ONNX_GENERATED_DIR}
-)
+target_link_libraries(denox_onnx PUBLIC protobuf::libprotobuf)
+target_include_directories(denox_onnx SYSTEM PUBLIC ${DENOX_ONNX_GENERATED_DIR})

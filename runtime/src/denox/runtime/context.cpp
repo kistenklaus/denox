@@ -81,21 +81,6 @@ VkResult CreateDebugUtilsMessengerEXT(
   }
 }
 
-VkResult GetPhysicalDeviceCooperativeMatrixPropertiesKHR(
-    VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t *count,
-    VkCooperativeMatrixPropertiesKHR *properties) {
-
-  auto func =
-      reinterpret_cast<PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR>(
-          vkGetInstanceProcAddr(
-              instance, "vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR"));
-  if (func != nullptr) {
-    return func(physicalDevice, count, properties);
-  } else {
-    return VK_ERROR_EXTENSION_NOT_PRESENT;
-  }
-}
-
 void DestroyDebugUtilsMessengerEXT(VkInstance instance,
                                    VkDebugUtilsMessengerEXT debugMessenger,
                                    const VkAllocationCallbacks *pAllocator) {

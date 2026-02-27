@@ -14,7 +14,7 @@ SymGraph::symbol SymGraph::create_variable(ExprType type) {
   symbol s = next_sym();
   m_expressions[s].expr = type;
   m_expressions[s].affine.constant = 0;
-  m_expressions[s].affine.coef.emplace_back(s, 1);
+  m_expressions[s].affine.coef.emplace_back(s, value_type(1));
   m_affineCache.insert(std::make_pair(m_expressions[s].affine, s));
   return s;
 }

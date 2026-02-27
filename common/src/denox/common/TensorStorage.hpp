@@ -10,7 +10,7 @@ enum class TensorStorage {
   SampledStorageImage,
 };
 
-};
+}
 
 template <> struct fmt::formatter<denox::TensorStorage> {
   constexpr auto parse(fmt::format_parse_context &ctx) {

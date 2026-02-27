@@ -8,8 +8,8 @@
 #include <glslang/Include/ResourceLimits.h>
 #include <glslang/MachineIndependent/Versions.h>
 #include <glslang/Public/ShaderLang.h>
-#include <glslang/SPIRV/GlslangToSpv.h>
-#include <glslang/SPIRV/Logger.h>
+#include <SPIRV/GlslangToSpv.h>
+#include <SPIRV/Logger.h>
 #include <iostream>
 #include <spirv-tools/libspirv.h>
 #include <spirv-tools/libspirv.hpp>

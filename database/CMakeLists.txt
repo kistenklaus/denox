@@ -22,7 +22,7 @@ target_link_libraries(denox_database
     SQLite::SQLite3
 )
 
-if (NOT DENOX_DISABLE_WARNINGS)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
   denox_enable_strict_warnings(denox_database)
 endif()
 

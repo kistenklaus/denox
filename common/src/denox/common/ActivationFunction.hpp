@@ -72,7 +72,7 @@ private:
   Repr m_repr;
 };
 
-}; // namespace details
+} // namespace details
 
 class ActivationFunction {
 public:

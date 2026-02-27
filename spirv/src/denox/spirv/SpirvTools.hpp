@@ -152,7 +152,6 @@ private:
   std::mutex m_stateMutex;
   memory::hash_map<std::thread::id, std::shared_ptr<SpirvToolsThreadState>>
       m_state;
-  const char *m_current_stage = nullptr;
 };
 
 } // namespace denox::spirv

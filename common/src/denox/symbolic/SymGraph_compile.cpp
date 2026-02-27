@@ -617,7 +617,7 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
   }
 
   // assert(adjSupergraph.nodeCount() >= m_expressions.size());
-  memory::ConstGraph<SymValue, SymOp, weight_type> supergraph{adjSupergraph};
+  memory::ConstGraph<SymValue, SymOp, weight_type> supergraph{std::move(adjSupergraph)};
   memory::vector<memory::NodeId> vars;
   memory::vector<memory::NodeId> results;
   // Collect variables.

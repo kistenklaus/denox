@@ -18,11 +18,11 @@ set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_CONFORMANCE OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
-set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE) # usually safer
-set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)         # enable if needed
+set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE) 
+set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)         
 set(protobuf_BUILD_LIBPROTOC OFF CACHE BOOL "" FORCE)
 set(protobuf_FORCE_FETCH_DEPENDENCIES ON CACHE BOOL "" FORCE)
-set(protobuf_USE_UNITY_BUILD ON CACHE BOOL "" FORCE) # best effort whatever that means?
+set(protobuf_USE_UNITY_BUILD OFF CACHE BOOL "" FORCE) # best effort whatever that means?
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
@@ -33,7 +33,6 @@ FetchContent_Declare(
   GIT_SHALLOW TRUE
   OVERRIDE_FIND_PACKAGE
   GIT_PROGRESS TRUE
-  EXCLUDE_FROM_ALL
 )
 
 

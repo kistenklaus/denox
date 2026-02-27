@@ -75,10 +75,6 @@ private:
   io::Path m_srcPath =
       io::Path::assets() /
       "compiler/src/denox/compiler/implement/shaders/conv/direct_conv.comp";
-  bool m_enableConvReluFusion;
-
-  uint32_t m_maxComputeWorkGroupInvocations;
-  std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
   bool m_subgroupControl;
 
   memory::vector<DirectConvConfig> m_configs;

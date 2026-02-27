@@ -274,8 +274,8 @@ SymGraph::affine_mod(const AffineExpr &lhs, const AffineExpr &rhs) {
       };
       const static auto divide_all = [](AffineExpr e, value_type k) {
         for (auto &t : e.coef)
-          t.factor /= static_cast<value_type>(k);
-        e.constant /= static_cast<value_type>(k);
+          t.factor /= k;
+        e.constant /= k;
         return e;
       };
 
@@ -301,12 +301,12 @@ SymGraph::affine_mod(const AffineExpr &lhs, const AffineExpr &rhs) {
           }
           AffineExpr out;
           for (auto &t : EL.coef) {
-            value_type v = t.factor * static_cast<value_type>(s);
+            value_type v = t.factor * s;
             if (v != 0) {
               out.coef.emplace_back(t.sym, v);
             }
           }
-          out.constant = EL.constant * static_cast<value_type>(s);
+          out.constant = EL.constant * s;
           return out;
         }
       }

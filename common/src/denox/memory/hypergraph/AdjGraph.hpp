@@ -1,6 +1,5 @@
 #pragma once
 
-#include "denox/memory/allocator/mallocator.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/vector.hpp"
@@ -130,7 +129,7 @@ public:
     private:
       Node(NodeId id, optional<V> *node) : m_id(id), m_node(node) {}
       uint64_t m_id;
-      denox::memory::optional<V>* m_node;
+      denox::memory::optional<V> *m_node;
     };
     struct NodePtr {
       explicit NodePtr(Node node) : m_value(node) {}
@@ -172,10 +171,10 @@ public:
     }
 
     friend bool operator==(const node_iterator &a, const node_iterator &b) {
-      return a.m_current.m_id == b.m_current.m_id;
+      return a.m_current.id() == b.m_current.id();
     }
     friend bool operator!=(const node_iterator &a, const node_iterator &b) {
-      return a.m_current.m_id != b.m_current.m_id;
+      return a.m_current.id() != b.m_current.id();
     }
 
   private:
@@ -183,9 +182,13 @@ public:
     size_t m_end;
   };
 
+  static_assert(std::input_or_output_iterator<node_iterator>);
+  static_assert(std::forward_iterator<node_iterator>);
+  static_assert(std::sentinel_for<node_iterator, node_iterator>);
+
   struct const_node_iterator {
     struct Node {
-      friend struct const_node_iterator;
+      friend AdjGraph<V, E, W>::const_node_iterator;
       NodeId id() const { return NodeId{m_id}; }
       const V &node() const { return m_node->value(); }
 
@@ -197,7 +200,7 @@ public:
     };
     struct NodePtr {
       explicit NodePtr(Node node) : m_value(node) {}
-      const Node *operator->() const { return m_value; }
+      const Node *operator->() const { return &m_value; }
       const Node &operator*() const { return m_value; }
 
     private:
@@ -237,17 +240,20 @@ public:
 
     friend bool operator==(const const_node_iterator &a,
                            const const_node_iterator &b) {
-      return a.m_current.m_id == b.m_current.m_id;
+      return a.m_current.id() == b.m_current.id();
     }
     friend bool operator!=(const const_node_iterator &a,
                            const const_node_iterator &b) {
-      return a.m_current.m_id != b.m_current.m_id;
+      return a.m_current.id() != b.m_current.id();
     }
 
   private:
     Node m_current;
     std::size_t m_end;
   };
+  static_assert(std::input_or_output_iterator<const_node_iterator>);
+  static_assert(std::forward_iterator<const_node_iterator>);
+  static_assert(std::sentinel_for<const_node_iterator, const_node_iterator>);
 
   class Edge {
   public:
@@ -282,8 +288,8 @@ public:
 
   struct edge_iterator {
     struct EdgeInfo {
-      friend struct edge_iterator;
-      EdgeId id() { return EdgeId{m_id}; }
+      friend edge_iterator;
+      EdgeId id() const { return EdgeId{m_id}; }
       Edge &edge() { return m_edge->value(); }
 
     private:
@@ -326,22 +332,26 @@ public:
       return *this;
     }
     edge_iterator operator++(int) {
-      const_edge_iterator tmp = *this;
+      edge_iterator tmp = *this;
       ++(*this);
       return tmp;
     }
 
     friend bool operator==(const edge_iterator &a, const edge_iterator &b) {
-      return a.m_current.m_id == b.m_current.m_id;
+      return a.m_current.id() == b.m_current.id();
     }
     friend bool operator!=(const edge_iterator &a, const edge_iterator &b) {
-      return a.m_current.m_id != b.m_current.m_id;
+      return a.m_current.id() != b.m_current.id();
     }
 
   private:
     EdgeInfo m_current;
     size_t m_end;
   };
+
+  static_assert(std::input_or_output_iterator<edge_iterator>);
+  static_assert(std::forward_iterator<edge_iterator>);
+  static_assert(std::sentinel_for<edge_iterator, edge_iterator>);
 
   struct const_edge_iterator {
     struct EdgeInfo {
@@ -397,17 +407,21 @@ public:
 
     friend bool operator==(const const_edge_iterator &a,
                            const const_edge_iterator &b) {
-      return a.m_current.m_id == b.m_current.m_id;
+      return a.m_current.id() == b.m_current.id();
     }
     friend bool operator!=(const const_edge_iterator &a,
                            const const_edge_iterator &b) {
-      return a.m_current.m_id != b.m_current.m_id;
+      return a.m_current.id() != b.m_current.id();
     }
 
   private:
     EdgeInfo m_current;
     std::size_t m_end;
   };
+
+  static_assert(std::input_or_output_iterator<const_edge_iterator>);
+  static_assert(std::forward_iterator<const_edge_iterator>);
+  static_assert(std::sentinel_for<const_edge_iterator, const_edge_iterator>);
 
   [[nodiscard]] std::ranges::subrange<const_node_iterator>
   nodes() const noexcept {

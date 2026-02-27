@@ -153,7 +153,7 @@ set_target_properties(denox_compiler PROPERTIES CXX_STANDARD 20)
 set_target_properties(denox_compiler PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(denox_compiler PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-if (NOT DENOX_DISABLE_WARNINGS)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
   denox_enable_strict_warnings(denox_compiler)
 endif()
 
