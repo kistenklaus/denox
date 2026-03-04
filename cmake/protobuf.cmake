@@ -25,6 +25,7 @@ set(protobuf_FORCE_FETCH_DEPENDENCIES ON CACHE BOOL "" FORCE)
 set(protobuf_USE_UNITY_BUILD OFF CACHE BOOL "" FORCE) # best effort whatever that means?
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
   protobuf

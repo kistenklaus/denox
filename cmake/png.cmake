@@ -14,6 +14,7 @@ FetchContent_Declare(
   GIT_SHALLOW TRUE
   OVERRIDE_FIND_PACKAGE
   GIT_PROGRESS TRUE
+  EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(png)
 

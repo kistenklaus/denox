@@ -75,7 +75,8 @@ uint32_t parse_specialize(
     std::span<const Token> tokens,
     denox::memory::hash_map<denox::memory::string, int64_t> &assumptions);
 
-uint32_t parse_samples(std::span<const Token> tokens, uint32_t *samples);
+uint32_t parse_min_samples(std::span<const Token> tokens, uint32_t *samples);
+uint32_t parse_max_samples(std::span<const Token> tokens, uint32_t *samples);
 
 uint32_t parse_relative_error(std::span<const Token> tokens,
                               float* relative_error);

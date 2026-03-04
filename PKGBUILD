@@ -37,11 +37,7 @@ build() {
     -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DDENOX_UNITY_BUILD=ON \
-    -DBUILD_TESTING=OFF \
-    -DDENOX_SAN=OFF \
-    -DDENOX_DISABLE_WARNINGS=ON \
-    -DBUILD_PYTHON_BINDING=OFF 
+    -DDENOX_SAN=OFF
 
   cmake --build build
 }

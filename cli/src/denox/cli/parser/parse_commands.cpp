@@ -1,5 +1,4 @@
 #include "denox/cli/parser/parse_commands.hpp"
-#include "denox/cli/alloc/monotone_alloc.hpp"
 #include "denox/cli/io/Pipe.hpp"
 #include "denox/cli/parser/action.hpp"
 #include "denox/cli/parser/errors.hpp"
@@ -8,14 +7,12 @@
 #include "denox/device_info/ApiVersion.hpp"
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
-#include <exception>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
@@ -180,7 +177,12 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_samples(tail, &options.benchOptions.minSamples))) {
+    if ((jump = parse_min_samples(tail, &options.benchOptions.minSamples))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_max_samples(tail, &options.benchOptions.maxSamples))) {
       i += jump;
       continue;
     }
@@ -610,7 +612,12 @@ Action parse_bench(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_samples(tail, &dbBenchOptions.minSamples))) {
+    if ((jump = parse_min_samples(tail, &dbBenchOptions.minSamples))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_max_samples(tail, &dbBenchOptions.maxSamples))) {
       i += jump;
       continue;
     }

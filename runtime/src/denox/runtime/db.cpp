@@ -84,7 +84,8 @@ static BenchmarkState create_benchmark_state(const runtime::ContextHandle &ctx,
 
 static memory::vector<uint32_t> select_targets_from_candidates(
     BenchmarkState &state, memory::span<const uint32_t> candidates, size_t N,
-    uint32_t minSamples, float maxRelativeError, bool selectUnique = true,
+    uint32_t minSamples, uint32_t maxSamples, float maxRelativeError,
+    bool selectUnique = true,
     memory::optional<memory::span<const uint64_t>> samplesInFlight =
         memory::nullopt) {
   memory::vector<uint32_t> result;
@@ -144,6 +145,9 @@ static memory::vector<uint32_t> select_targets_from_candidates(
   for (uint32_t i = 0; i < candidates.size(); ++i) {
     uint32_t d = candidates[i];
     const auto &info = state.dispatchTimingInfos[d];
+    if (info.sample_count >= maxSamples) {
+      continue;
+    }
 
     // Exclude dispatches with no data yet from SEM phase
     if (info.sample_count == 0) {
@@ -448,10 +452,10 @@ struct Batch {
 };
 
 static Batch create_batch(BenchmarkState &state, const Epoch &epoch,
-                          uint32_t minSamples, float maxRelativeError,
+                          uint32_t minSamples, uint32_t maxSamples, float maxRelativeError,
                           memory::span<uint64_t> samplesInFlight) {
   memory::vector<uint32_t> dispatches = select_targets_from_candidates(
-      state, epoch.targets, epoch.batchSize, minSamples, maxRelativeError,
+      state, epoch.targets, epoch.batchSize, minSamples, maxSamples, maxRelativeError,
       false, samplesInFlight);
   for (uint32_t x : dispatches) {
     samplesInFlight[x] += 1;
@@ -587,7 +591,7 @@ static EpochBenchResults bench_epoch(BenchmarkState &state,
                  medianGpuClock, medianMemClock);
     }
 
-    batches[next] = create_batch(state, epoch, options.minSamples,
+    batches[next] = create_batch(state, epoch, options.minSamples, options.maxSamples,
                                  options.maxRelativeError, samplesInFlight);
     sampleCount += batches[next].dispatches.size();
     if (batches[next].dispatches.empty()) {
@@ -730,7 +734,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           }
           memory::vector<uint32_t> selected_targets =
               select_targets_from_candidates(
-                  state, iota, epochSize, options.minSamples,
+                  state, iota, epochSize, options.minSamples, options.maxSamples,
                   options.maxRelativeError, true, samples_in_flight);
 
           if (selected_targets.empty()) {
@@ -846,8 +850,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
               stop_printing = true;
             }
           }
-          if (options.saveProgress &&
-              (!throttle_writeback || stage == 0)) {
+          if (options.saveProgress && (!throttle_writeback || stage == 0)) {
             auto s = std::chrono::high_resolution_clock::now();
             m_db.checkpoint();
             auto dur = std::chrono::duration_cast<

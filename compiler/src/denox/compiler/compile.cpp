@@ -77,7 +77,8 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
     runtime::DbBenchOptions benchOptions;
     benchOptions.maxRelativeError = options.benchOptions.maxRelativeError;
     benchOptions.minSamples = options.benchOptions.minSamples;
-    benchOptions.saveProgress = false;
+    benchOptions.maxSamples = options.benchOptions.maxSamples;
+    benchOptions.saveProgress = options.benchOptions.saveProgress;
     benchOptions.jobs = options.jobs;
     runtimeDb->bench(benchOptions, progress.sub_progress(0.5f, 0.95f));
   }

@@ -648,7 +648,7 @@ uint32_t parse_specialize(
   return static_cast<uint32_t>(i);
 }
 
-uint32_t parse_samples(std::span<const Token> tokens, uint32_t *samples) {
+uint32_t parse_min_samples(std::span<const Token> tokens, uint32_t *samples) {
   if (tokens.empty()) {
     return 0;
   }
@@ -656,23 +656,51 @@ uint32_t parse_samples(std::span<const Token> tokens, uint32_t *samples) {
   if (head.kind() != TokenKind::Option) {
     return 0;
   }
-  if (head.option() != OptionToken::Samples) {
+  if (head.option() != OptionToken::MinSamples) {
     return 0;
   }
   if (tokens.size() < 2) {
-    throw ParseError(fmt::format("--samples expects one integral"));
+    throw ParseError(fmt::format("--min-samples expects one integral"));
   }
   const auto &samplesToken = tokens[1];
   if (samplesToken.kind() != TokenKind::Literal) {
-    throw ParseError(fmt::format("--samples expects one integral"));
+    throw ParseError(fmt::format("--min-samples expects one integral"));
   }
   if (!samplesToken.literal().is_unsigned_int()) {
-    throw ParseError(fmt::format("--samples expects one integral"));
+    throw ParseError(fmt::format("--min-samples expects one integral"));
   }
   if (samples) {
     *samples = static_cast<uint32_t>(samplesToken.literal().as_unsigned_int());
   }
   return 2;
+}
+
+uint32_t parse_max_samples(std::span<const Token> tokens, uint32_t *samples) {
+  if (tokens.empty()) {
+    return 0;
+  }
+  const Token &head = tokens.front();
+  if (head.kind() != TokenKind::Option) {
+    return 0;
+  }
+  if (head.option() != OptionToken::MaxSamples) {
+    return 0;
+  }
+  if (tokens.size() < 2) {
+    throw ParseError(fmt::format("--max-samples expects one integral"));
+  }
+  const auto &samplesToken = tokens[1];
+  if (samplesToken.kind() != TokenKind::Literal) {
+    throw ParseError(fmt::format("--max-samples expects one integral"));
+  }
+  if (!samplesToken.literal().is_unsigned_int()) {
+    throw ParseError(fmt::format("--max-samples expects one integral"));
+  }
+  if (samples) {
+    *samples = static_cast<uint32_t>(samplesToken.literal().as_unsigned_int());
+  }
+  return 2;
+
 }
 
 uint32_t parse_relative_error(std::span<const Token> tokens,
@@ -838,3 +866,4 @@ uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs) {
 
   return 2;
 }
+
