@@ -88,7 +88,7 @@ std::optional<OptionToken> parse_option(std::string_view str) {
     return OptionToken::MinSamples;
   }
   if (str == "max-samples") {
-    return OptionToken::MinSamples;
+    return OptionToken::MaxSamples;
   }
 
   if (str == "relative-error") {

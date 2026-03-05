@@ -112,7 +112,7 @@ const uint CM_N8 = CM_N / 8;
 // x : channel output tile.
 // y : x output / input tile.
 // z : y output / input tile.
-layout(local_size_x = SG_SIZE, local_size_y = SG_COUNT, local_size_z = 1, subgroup_size = SG_SIZE) in;
+layout(local_size_x = SG_SIZE, local_size_y = SG_COUNT, local_size_z = 1) in;
 void main() {
   const uvec3 wgi = gl_WorkGroupID.xyz;
   const uint sgi = gl_SubgroupID;

@@ -19,15 +19,14 @@ get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options) {
 
   shaders.push_back(std::make_unique<compiler::NoOp>());
 
-  if (options.features.coopmat && options.deviceInfo.coopmat.supported) {
-    shaders.push_back(std::make_unique<compiler::shaders::DirectConvShaderCM>(
-        compiler, options));
-    shaders.push_back(std::make_unique<compiler::shaders::ConcatConvCMShader>(
-        compiler, options));
-  } else {
-    shaders.push_back(std::make_unique<compiler::shaders::DirectConvShader>(
-        compiler, options));
-  }
+  shaders.push_back(std::make_unique<compiler::shaders::DirectConvShaderCM>(
+      compiler, options));
+  shaders.push_back(std::make_unique<compiler::shaders::ConcatConvCMShader>(
+      compiler, options));
+
+  shaders.push_back(
+      std::make_unique<compiler::shaders::DirectConvShader>(compiler, options));
+
   shaders.push_back(std::make_unique<compiler::shaders::CopyTransformShader>(
       compiler, options));
 
