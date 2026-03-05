@@ -13,6 +13,17 @@ std::once_flag g_nvml_init_once;
 bool g_nvml_available = false;
 } // namespace
 
+struct NVMLShutdown {
+  ~NVMLShutdown() {
+    if (g_nvml_available) {
+      nvmlShutdown();
+      g_nvml_available = false;
+    }
+  }
+};
+
+static NVMLShutdown m_nvmlShutdown{};
+
 void init_nvml_once() {
   if (nvmlInit_v2() == NVML_SUCCESS) {
     g_nvml_available = true;

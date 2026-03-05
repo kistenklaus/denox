@@ -447,7 +447,7 @@ static void destroy_epoch(const runtime::ContextHandle &ctx, Epoch epoch) {
 }
 
 struct Batch {
-  bool live;
+  bool live = false;
   memory::vector<uint32_t> dispatches; // <- indexes into EpochDispatch
 };
 

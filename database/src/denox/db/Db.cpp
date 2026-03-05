@@ -572,8 +572,10 @@ DbComputeDispatch Db::queryComputeDispatchById(uint32_t id) const {
       s.timestamp = static_cast<uint64_t>(sstmt.as_int64(1));
       s.latency_ns = static_cast<uint64_t>(sstmt.as_int64(2));
       s.env = static_cast<uint32_t>(sstmt.as_int64(3));
-      s.gpuClock = static_cast<uint32_t>(sstmt.as_optional_int64(4).value_or(0));
-      s.memClock = static_cast<uint32_t>(sstmt.as_optional_int64(5).value_or(0));
+      s.gpuClock =
+          static_cast<uint32_t>(sstmt.as_optional_int64(4).value_or(0));
+      s.memClock =
+          static_cast<uint32_t>(sstmt.as_optional_int64(5).value_or(0));
       t.samples.push_back(std::move(s));
     }
 
@@ -611,10 +613,11 @@ DbComputeDispatch Db::queryComputeDispatchById(uint32_t id) const {
 memory::vector<DbComputeDispatch> Db::bulkQueryComputeDispatchById(
     memory::span<const uint32_t> dispatch_ids) const {
   std::lock_guard lck{m_inner->mutex};
+
   memory::vector<DbComputeDispatch> out;
   if (dispatch_ids.empty())
     return out;
-  out.reserve(dispatch_ids.size());
+
   std::string in_clause = "(";
   for (size_t i = 0; i < dispatch_ids.size(); ++i) {
     if (i > 0)
@@ -622,6 +625,10 @@ memory::vector<DbComputeDispatch> Db::bulkQueryComputeDispatchById(
     in_clause += "?";
   }
   in_clause += ")";
+
+  memory::hash_map<uint32_t, DbComputeDispatch> dispatch_map;
+  dispatch_map.reserve(dispatch_ids.size());
+
   {
     std::string sql = "SELECT id, binary_id, wg_x, wg_y, wg_z, "
                       "push_constant, hash, "
@@ -633,24 +640,29 @@ memory::vector<DbComputeDispatch> Db::bulkQueryComputeDispatchById(
                       "FROM dispatches "
                       "WHERE id IN " +
                       in_clause + ";";
+
     auto stmt = m_inner->db.prepare(sql.c_str());
+
     for (size_t i = 0; i < dispatch_ids.size(); ++i)
       stmt.bind_int64(static_cast<int>(i + 1),
                       static_cast<int64_t>(dispatch_ids[i]));
-    memory::hash_map<uint32_t, size_t> id_to_index;
-    id_to_index.reserve(dispatch_ids.size());
+
     while (stmt.next()) {
       DbComputeDispatch d{};
-      const uint32_t id = static_cast<uint32_t>(stmt.as_int64(0));
+
+      const auto id = static_cast<uint32_t>(stmt.as_int64(0));
+
       d.binaryId = static_cast<uint32_t>(stmt.as_int64(1));
       d.workgroupCountX = static_cast<uint32_t>(stmt.as_int64(2));
       d.workgroupCountY = static_cast<uint32_t>(stmt.as_int64(3));
       d.workgroupCountZ = static_cast<uint32_t>(stmt.as_int64(4));
+
       {
         auto blob = stmt.as_blob_view(5);
         d.pushConstant.resize(blob.size());
         std::memcpy(d.pushConstant.data(), blob.data(), blob.size());
       }
+
       d.hash = static_cast<uint64_t>(stmt.as_int64(6));
       d.operation = stmt.as_optional_string(7);
       d.shader_name = stmt.as_optional_string(8);
@@ -660,27 +672,31 @@ memory::vector<DbComputeDispatch> Db::bulkQueryComputeDispatchById(
       d.flops = stmt.as_optional_int64(12);
       d.coopmat = stmt.as_optional_int(13).value_or(0) != 0;
       d.fixed_subgroup_size = stmt.as_optional_int64(14);
+
       if (!stmt.is_null(15)) {
         auto blob = stmt.as_blob_view(15);
         size_t count = blob.size() / sizeof(uint32_t);
         d.input_bindings.emplace(count);
         std::memcpy(d.input_bindings->data(), blob.data(), blob.size());
       }
+
       if (!stmt.is_null(16)) {
         auto blob = stmt.as_blob_view(16);
         size_t count = blob.size() / sizeof(uint32_t);
         d.output_bindings.emplace(count);
         std::memcpy(d.output_bindings->data(), blob.data(), blob.size());
       }
+
       if (!stmt.is_null(17)) {
         DbDispatchTiming t{};
         t.mean_latency_ns = static_cast<uint64_t>(stmt.as_int64(17));
         t.std_derivation_ns = static_cast<uint64_t>(stmt.as_int64(18));
         d.time = std::move(t);
       }
-      id_to_index[id] = out.size();
-      out.push_back(std::move(d));
+
+      dispatch_map.emplace(id, std::move(d));
     }
+
     std::string sql2 =
         "SELECT dispatch_id, idx, set_, binding, access, format, "
         "storage, byte_size, alignment, width, height, channels, "
@@ -688,16 +704,22 @@ memory::vector<DbComputeDispatch> Db::bulkQueryComputeDispatchById(
         "FROM dispatch_bindings "
         "WHERE dispatch_id IN " +
         in_clause + " ORDER BY dispatch_id, idx ASC;";
+
     auto bstmt = m_inner->db.prepare(sql2.c_str());
+
     for (size_t i = 0; i < dispatch_ids.size(); ++i)
       bstmt.bind_int64(static_cast<int>(i + 1),
                        static_cast<int64_t>(dispatch_ids[i]));
+
     while (bstmt.next()) {
-      uint32_t dispatch_id = static_cast<uint32_t>(bstmt.as_int64(0));
-      auto it = id_to_index.find(dispatch_id);
-      if (it == id_to_index.end())
+      auto dispatch_id = static_cast<uint32_t>(bstmt.as_int64(0));
+
+      auto it = dispatch_map.find(dispatch_id);
+      if (it == dispatch_map.end())
         continue;
-      auto &vec = out[it->second].bindings;
+
+      auto &vec = it->second.bindings;
+
       DbTensorBinding b{};
       b.set = static_cast<uint32_t>(bstmt.as_int64(2));
       b.binding = static_cast<uint32_t>(bstmt.as_int64(3));
@@ -709,29 +731,47 @@ memory::vector<DbComputeDispatch> Db::bulkQueryComputeDispatchById(
       b.width = bstmt.as_optional_int64(9);
       b.height = bstmt.as_optional_int64(10);
       b.channels = bstmt.as_optional_int64(11);
+
       if (!bstmt.is_null(12))
         b.type = static_cast<TensorDataType>(bstmt.as_int64(12));
+
       b.is_param = bstmt.as_int(13) != 0;
-      vec.push_back(std::move(b));
+
+      vec.push_back(b);
     }
+
     std::string sql3 = "SELECT dispatch_id, COUNT(*) "
                        "FROM timing_samples "
                        "WHERE dispatch_id IN " +
                        in_clause + " GROUP BY dispatch_id;";
+
     auto tstmt = m_inner->db.prepare(sql3.c_str());
+
     for (size_t i = 0; i < dispatch_ids.size(); ++i)
       tstmt.bind_int64(static_cast<int>(i + 1),
                        static_cast<int64_t>(dispatch_ids[i]));
+
     while (tstmt.next()) {
-      uint32_t dispatch_id = static_cast<uint32_t>(tstmt.as_int64(0));
-      uint64_t count = static_cast<uint64_t>(tstmt.as_int64(1));
-      auto it = id_to_index.find(dispatch_id);
-      if (it == id_to_index.end())
+      auto dispatch_id = static_cast<uint32_t>(tstmt.as_int64(0));
+      auto count = static_cast<uint64_t>(tstmt.as_int64(1));
+
+      auto it = dispatch_map.find(dispatch_id);
+      if (it == dispatch_map.end())
         continue;
-      if (out[it->second].time)
-        out[it->second].time->samples.resize(count);
+
+      if (it->second.time)
+        it->second.time->samples.resize(count);
     }
   }
+
+  out.reserve(dispatch_ids.size());
+
+  for (uint32_t id : dispatch_ids) {
+    auto it = dispatch_map.find(id);
+    if (it != dispatch_map.end())
+      out.push_back(it->second);
+  }
+
   return out;
 }
 
