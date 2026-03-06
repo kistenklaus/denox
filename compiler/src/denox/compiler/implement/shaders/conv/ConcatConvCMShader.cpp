@@ -9,6 +9,7 @@
 #include "denox/memory/tensor/BiasLayout.hpp"
 #include "denox/memory/tensor/FilterLayout.hpp"
 #include "denox/memory/tensor/FitlerDescriptor.hpp"
+#include <algorithm>
 #include <fmt/format.h>
 
 namespace denox::compiler::shaders {
@@ -91,7 +92,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
           coopmatShapes.emplace_back(0, shape);
         }
       }
-      std::ranges::sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
+      std::ranges::stable_sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
         return lhs.first >= rhs.first;
       });
       coopmatShapes.resize(
@@ -783,7 +784,7 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
 
     // POLICY: wgSize \in [128, 256]
     const uint32_t wgSize = config.wg_m * config.wg_n * config.subgroupSize;
-    if (wgSize < 128 || wgSize > 256) {
+    if (wgSize < 128 || wgSize > 512) {
       continue;
     }
     promissing.push_back(c);

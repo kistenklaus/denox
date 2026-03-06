@@ -48,6 +48,7 @@ void dumpcsv(DumpCsvAction &action) {
       "sample_timestamp",
       "gpu_clock",
       "mem_clock",
+      "subgroup_size",
   };
 
   std::string csv;
@@ -86,6 +87,8 @@ void dumpcsv(DumpCsvAction &action) {
     std::string input_shape;
     std::string input_format;
     std::string input_type;
+
+    bool first = true;
     for (uint32_t i : *dispatch.input_bindings) {
       const auto &binding = dispatch.bindings[i];
       if (!binding.width || !binding.height || !binding.channels ||
@@ -93,15 +96,18 @@ void dumpcsv(DumpCsvAction &action) {
         skip = true;
         break;
       }
+      if (!first) {
+        input_shape.push_back('#');
+      }
+      first = false;
       uint32_t H = *binding.height;
       uint32_t W = *binding.width;
       uint32_t C = *binding.channels;
-      input_shape = fmt::format("{}x{}x{}", H, W, C);
+      input_shape += fmt::format("{}x{}x{}", H, W, C);
       input_format = fmt::format("{}", binding.format);
       input_type = fmt::format("{}", *binding.type);
     }
     if (skip) {
-
       fmt::println("skipping line");
       continue;
     }
@@ -109,6 +115,7 @@ void dumpcsv(DumpCsvAction &action) {
     std::string output_shape;
     std::string output_format;
     std::string output_type;
+    first = true;
     for (uint32_t o : *dispatch.output_bindings) {
       const auto &binding = dispatch.bindings[o];
       if (!binding.width || !binding.height || !binding.channels ||
@@ -116,10 +123,14 @@ void dumpcsv(DumpCsvAction &action) {
         skip = true;
         break;
       }
+      if (!first) {
+        output_shape.push_back('#');
+      }
+      first = false;
       uint32_t H = *binding.height;
       uint32_t W = *binding.width;
       uint32_t C = *binding.channels;
-      output_shape = fmt::format("{}x{}x{}", H, W, C);
+      output_shape += fmt::format("{}x{}x{}", H, W, C);
       output_format = fmt::format("{}", binding.format);
       output_type = fmt::format("{}", *binding.type);
     }
@@ -192,12 +203,13 @@ void dumpcsv(DumpCsvAction &action) {
 
       csv +=
           fmt::format("{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}"
-                      "\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+                      "\",\"{}\",\"{}\",\"{}\",\"{}\", \"{}\"\n",
                       line_header, env.device, env.os, env.driver_version,
                       env.start_timestamp, clock_mode, env.l2_warmup_iterations,
                       env.jit_warmup_iterations, env.measurement_iterations,
                       static_cast<float>(sample.latency_ns) * 1e-6f,
-                      sample.timestamp, sample.gpuClock, sample.memClock);
+                      sample.timestamp, sample.gpuClock, sample.memClock,
+                      dispatch.fixed_subgroup_size.value_or(0));
     }
     float prog = static_cast<float>(i) / static_cast<float>(dispatchIds.size());
     progress.step_inplace(logger, prog, i == 0, "Writing CSV");
