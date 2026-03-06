@@ -1,5 +1,4 @@
 #include "context.hpp"
-#include <vk_mem_alloc.h>
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -7,6 +6,7 @@
 #include <fmt/printf.h>
 #include <stdexcept>
 #include <vector>
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
@@ -755,8 +755,8 @@ VkPipeline Context::createComputePipeline(
   pipelineInfo.layout = layout;
 
 #ifdef VK_EXT_subgroup_size_control
+  VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT subgroupSizeInfo{};
   if (m_subgroupControlEnabled) {
-    VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT subgroupSizeInfo{};
     if (subgroupSize.has_value()) {
       subgroupSizeInfo.sType =
           VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO_EXT;
