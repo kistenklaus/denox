@@ -414,6 +414,8 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     pNextDevice = &features12;
   }
 #endif
+
+  m_subgroupControlEnabled = false;
 #ifdef VK_API_VERSION_1_3
   VkPhysicalDeviceVulkan13Features features13;
   {
@@ -423,7 +425,6 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &features13;
     vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
-
     m_subgroupControlEnabled = features13.subgroupSizeControl;
     std::memset(&features13, 0, sizeof(VkPhysicalDeviceVulkan13Features));
     features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -441,6 +442,7 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     features2.pNext = &subgroupSizeControlFeatures;
     vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
     if (subgroupSizeControlFeatures.subgroupSizeControl) {
+      m_subgroupControlEnabled = true;
       extentions.push_back("VK_EXT_subgroup_size_control");
       subgroupSizeControlFeatures.pNext = pNextDevice;
       pNextDevice = &subgroupSizeControlFeatures;
@@ -486,7 +488,7 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     pNextDevice = &features14;
   }
 #endif
-  m_subgroupControlEnabled = false;
+
 #ifdef VK_KHR_cooperative_matrix
   VkPhysicalDeviceCooperativeMatrixFeaturesKHR coopmatFeatures;
   {

@@ -104,6 +104,9 @@ clockctrl::~clockctrl() noexcept {
 }
 
 uint32_t clockctrl::gpu_clock() const {
+  if (m_impl == nullptr) {
+    return 0;
+  }
   const NVMLImpl *impl = static_cast<NVMLImpl *>(m_impl);
   unsigned int clock;
   nvmlReturn_t r = nvmlDeviceGetClock(impl->device, NVML_CLOCK_SM,
@@ -115,6 +118,9 @@ uint32_t clockctrl::gpu_clock() const {
 }
 
 uint32_t clockctrl::mem_clock() const {
+  if (m_impl == nullptr) {
+    return 0;
+  }
   const NVMLImpl *impl = static_cast<NVMLImpl *>(m_impl);
   unsigned int clock;
   nvmlReturn_t r = nvmlDeviceGetClock(impl->device, NVML_CLOCK_MEM,
