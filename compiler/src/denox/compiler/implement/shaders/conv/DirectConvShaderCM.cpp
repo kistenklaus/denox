@@ -2,7 +2,6 @@
 #include "denox/common/ActivationFunction.hpp"
 #include "denox/common/PoolFunction.hpp"
 #include "denox/common/TensorFormat.hpp"
-#include <iostream>
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/memory/container/optional.hpp"
@@ -14,6 +13,7 @@
 #include "denox/memory/tensor/FilterTensor.hpp"
 #include <algorithm>
 #include <fmt/format.h>
+#include <iostream>
 
 namespace denox::compiler::shaders {
 
@@ -92,7 +92,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
           coopmatShapes.emplace_back(100, shape);
         }
       }
-      std::ranges::sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
+      std::ranges::stable_sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
         return lhs.first < rhs.first;
       });
 
@@ -174,7 +174,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                   static constexpr double WG_SH_OCCUPANCY =
                       0.75; // 75% of max shared memory allowed
                   if (static_cast<double>(sh_size) >
-                      static_cast<double>(options.deviceInfo.limits.maxComputeSharedMemory) *
+                      static_cast<double>(
+                          options.deviceInfo.limits.maxComputeSharedMemory) *
                           WG_SH_OCCUPANCY) {
                     continue;
                   }
@@ -655,7 +656,7 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
 
     // POLICY: wgSize \in [128, 256]
     const uint32_t wgSize = config.wg_m * config.wg_n * config.subgroupSize;
-    if (wgSize < 128 || wgSize > 256) {
+    if (wgSize < 128 || wgSize > 512) {
       continue;
     }
 
