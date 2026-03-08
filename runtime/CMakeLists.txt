@@ -64,28 +64,32 @@ endif()
 
 target_compile_definitions(denox_runtime PRIVATE GPU_CLOCKCTRL_HAS_CUDA)
 
-find_path(NVML_INCLUDE_DIR
-    NAMES nvml.h
-    PATH_SUFFIXES
-        nvidia-ml
-        include
-    PATHS
-        /usr
-        /opt/cuda/targets/x86_64-linux
-        /opt/cuda
-)
+if (DENOX_ENABLE_NVML_CLOCKCTRL) 
+  # Very wonky, but couldn't find a better way because find_package didn't 
+  # work out of the box on arch.
+  find_path(NVML_INCLUDE_DIR
+      NAMES nvml.h
+      PATH_SUFFIXES
+          nvidia-ml
+          include
+      PATHS
+          /usr
+          /opt/cuda/targets/x86_64-linux
+          /opt/cuda
+  )
 
 
-include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(NVML
-    REQUIRED_VARS NVML_INCLUDE_DIR
-)
+  include(FindPackageHandleStandardArgs)
+  find_package_handle_standard_args(NVML
+      REQUIRED_VARS NVML_INCLUDE_DIR
+  )
 
-if (NVML_FOUND)
-    add_library(NVML::Headers INTERFACE IMPORTED)
-    set_target_properties(NVML::Headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${NVML_INCLUDE_DIR}"
-    )
-    target_link_libraries(denox_runtime PRIVATE NVML::Headers nvidia-ml)
-    target_compile_definitions(denox_runtime PRIVATE DENOX_HAS_NVML=1)
+  if (NVML_FOUND)
+      add_library(NVML::Headers INTERFACE IMPORTED)
+      set_target_properties(NVML::Headers PROPERTIES
+          INTERFACE_INCLUDE_DIRECTORIES "${NVML_INCLUDE_DIR}"
+      )
+      target_link_libraries(denox_runtime PRIVATE NVML::Headers nvidia-ml)
+      target_compile_definitions(denox_runtime PRIVATE DENOX_HAS_NVML=1)
+  endif()
 endif()

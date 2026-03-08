@@ -5,6 +5,8 @@ project(denox VERSION 0.1.0 LANGUAGES C CXX)
 option(BUILD_TESTING "Build tests" ON)
 option(DENOX_SAN "Enables sanitizers" OFF)
 
+option(DENOX_ENABLE_NVML_CLOCKCTRL "Enables / Disables NVML clockctrl, this sometimes leads to ABI / compatibility issues on older GPUs" ON)
+
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
         $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>:-fdiagnostics-color=always>
