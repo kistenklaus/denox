@@ -699,8 +699,8 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
       1);
 
   // benchmark configuration.
-  const uint32_t epochSize = 500;
-  const uint32_t maxBatchSize = 100;
+  const uint32_t epochSize = 50;
+  const uint32_t maxBatchSize = 10;
 
   Epoch epochs[ASYNC_EPOCH_DEPTH]{};
   EpochBenchResults results[ASYNC_EPOCH_DEPTH];

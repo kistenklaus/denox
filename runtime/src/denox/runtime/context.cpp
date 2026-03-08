@@ -42,18 +42,16 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   // return VK_FALSE;
   switch (severity) {
   case Severity::None:
-    return VK_FALSE;
+    fmt::println("[Validation-Layer]: {}",
+                 pCallbackData->pMessage);
+    break;	
   case Severity::Verbose:
-#ifndef DENOX_QUIET
     fmt::println("\x1B[37m[Validation-Layer]:\x1B[0m {}",
                  pCallbackData->pMessage);
-#endif
     break;
   case Severity::Info:
-#ifndef DENOX_QUIET
     fmt::println("\x1B[34m[Validation-Layer]:\x1B[0m {}",
                  pCallbackData->pMessage);
-#endif
     break;
   case Severity::Warning:
     fmt::println("\x1B[33m[Validation-Layer]:\x1B[0m\n{}",
@@ -370,7 +368,7 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
     vkGetPhysicalDeviceFeatures(m_physicalDevice, &features);
     std::memset(&features, 0, sizeof(VkPhysicalDeviceFeatures));
-    features.robustBufferAccess = VK_FALSE;
+    features.robustBufferAccess = VK_TRUE;
     features.shaderInt16 = VK_TRUE;
   }
 
@@ -430,6 +428,7 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     features13.pNext = pNextDevice;
     features13.subgroupSizeControl = m_subgroupControlEnabled;
+		features13.computeFullSubgroups = VK_TRUE;
     pNextDevice = &features13;
   }
 #elif defined(VK_EXT_subgroup_size_contro)
@@ -764,6 +763,7 @@ VkPipeline Context::createComputePipeline(
           VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO_EXT;
       subgroupSizeInfo.requiredSubgroupSize = *subgroupSize;
       pipelineInfo.stage.pNext = &subgroupSizeInfo;
+			pipelineInfo.stage.flags |= VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT;
     }
   }
 #else

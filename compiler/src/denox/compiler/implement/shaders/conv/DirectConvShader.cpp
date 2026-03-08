@@ -98,6 +98,14 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
                     continue;
                   }
 
+									const uint32_t k8_tile = kernel.K / 8 * sg_k;
+									if (k8_tile % wg_n != 0) {
+										continue;
+									}
+									if (k8_tile < wg_n) {
+										continue;
+									}
+
                   const uint32_t VECS_PER_INVOC =
                       (kernel.N * kernel.M + 2 * subgroupSize - 1) /
                       (2 * subgroupSize);
