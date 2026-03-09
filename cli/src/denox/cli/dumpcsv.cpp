@@ -98,14 +98,16 @@ void dumpcsv(DumpCsvAction &action) {
       }
       if (!first) {
         input_shape.push_back('#');
+        input_format.push_back('#');
+        input_type.push_back('#');
       }
       first = false;
       uint32_t H = *binding.height;
       uint32_t W = *binding.width;
       uint32_t C = *binding.channels;
       input_shape += fmt::format("{}x{}x{}", H, W, C);
-      input_format = fmt::format("{}", binding.format);
-      input_type = fmt::format("{}", *binding.type);
+      input_format += fmt::format("{}", binding.format);
+      input_type += fmt::format("{}", *binding.type);
     }
     if (skip) {
       fmt::println("skipping line");
@@ -125,14 +127,16 @@ void dumpcsv(DumpCsvAction &action) {
       }
       if (!first) {
         output_shape.push_back('#');
+        output_format.push_back('#');
+        output_type.push_back('#');
       }
       first = false;
       uint32_t H = *binding.height;
       uint32_t W = *binding.width;
       uint32_t C = *binding.channels;
       output_shape += fmt::format("{}x{}x{}", H, W, C);
-      output_format = fmt::format("{}", binding.format);
-      output_type = fmt::format("{}", *binding.type);
+      output_format += fmt::format("{}", binding.format);
+      output_type += fmt::format("{}", *binding.type);
     }
     if (skip) {
       fmt::println("skipping line");
