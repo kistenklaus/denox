@@ -23,6 +23,7 @@ enum class OptionToken {
   MinSamples,
   MaxSamples,
   RelativeError,
+  BatchSize,
 
   TargetEnv, //
   Device,    //
@@ -75,6 +76,7 @@ struct fmt::formatter<OptionToken> {
       case OptionToken::MinSamples: name = "min-samples"; break;
       case OptionToken::MaxSamples: name = "max-samples"; break;
       case OptionToken::RelativeError: name = "relative-error"; break;
+      case OptionToken::BatchSize: name = "batch-size"; break;
       case OptionToken::OptimizationLevel: name = "optimization-level"; break;
       case OptionToken::Jobs: name = "jobs"; break;
     }

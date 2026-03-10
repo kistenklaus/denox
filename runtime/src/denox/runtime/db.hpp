@@ -13,6 +13,8 @@ struct DbBenchOptions {
   float maxRelativeError = 0.05f;
   bool saveProgress = true;
 
+  uint32_t batchSize = 100;
+
   uint32_t jobs;
 };
 

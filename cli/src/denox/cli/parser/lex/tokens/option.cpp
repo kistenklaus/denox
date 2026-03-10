@@ -103,5 +103,9 @@ std::optional<OptionToken> parse_option(std::string_view str) {
     return OptionToken::Jobs;
   }
 
+  if (str == "batch-size") {
+    return OptionToken::BatchSize;
+  }
+
   return std::nullopt;
 }

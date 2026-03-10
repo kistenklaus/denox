@@ -88,3 +88,5 @@ uint32_t parse_optimizationLevel(std::span<const Token> tokens,
                                 uint32_t *optimizationLevel);
 
 uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs);
+
+uint32_t parse_batch_size(std::span<const Token> tokens, uint32_t *batchSize);

@@ -700,7 +700,6 @@ uint32_t parse_max_samples(std::span<const Token> tokens, uint32_t *samples) {
     *samples = static_cast<uint32_t>(samplesToken.literal().as_unsigned_int());
   }
   return 2;
-
 }
 
 uint32_t parse_relative_error(std::span<const Token> tokens,
@@ -867,3 +866,42 @@ uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs) {
   return 2;
 }
 
+uint32_t parse_batch_size(std::span<const Token> tokens, uint32_t *batchSize) {
+  if (tokens.empty()) {
+    return 0;
+  }
+  const auto &head = tokens.front();
+  if (head.kind() != TokenKind::Option) {
+    return 0;
+  }
+
+  if (head.option() != OptionToken::Jobs) {
+    return 0;
+  }
+
+  if (tokens.size() < 2) {
+    throw ParseError(
+        "option '--batch-size' requires a positive integer argument");
+  }
+
+  const auto level = tokens[1];
+  if (level.kind() != TokenKind::Literal) {
+    throw ParseError(
+        "option '--batch-size' requires a positive integer argument");
+  }
+  const auto &lit = level.literal();
+  if (!lit.is_unsigned_int()) {
+    throw ParseError(
+        "option '--batch-size' requires a positive integer argument");
+  }
+  uint32_t b = static_cast<uint32_t>(lit.as_unsigned_int());
+  if (b > 0) {
+    throw ParseError(
+        "option '--batch-size' requires a positive integer argument");
+  }
+  if (batchSize) {
+    *batchSize = b;
+  }
+
+  return 2;
+}

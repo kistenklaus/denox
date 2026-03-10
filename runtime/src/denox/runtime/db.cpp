@@ -452,11 +452,12 @@ struct Batch {
 };
 
 static Batch create_batch(BenchmarkState &state, const Epoch &epoch,
-                          uint32_t minSamples, uint32_t maxSamples, float maxRelativeError,
+                          uint32_t minSamples, uint32_t maxSamples,
+                          float maxRelativeError,
                           memory::span<uint64_t> samplesInFlight) {
   memory::vector<uint32_t> dispatches = select_targets_from_candidates(
-      state, epoch.targets, epoch.batchSize, minSamples, maxSamples, maxRelativeError,
-      false, samplesInFlight);
+      state, epoch.targets, epoch.batchSize, minSamples, maxSamples,
+      maxRelativeError, false, samplesInFlight);
   for (uint32_t x : dispatches) {
     samplesInFlight[x] += 1;
   }
@@ -591,8 +592,9 @@ static EpochBenchResults bench_epoch(BenchmarkState &state,
                  medianGpuClock, medianMemClock);
     }
 
-    batches[next] = create_batch(state, epoch, options.minSamples, options.maxSamples,
-                                 options.maxRelativeError, samplesInFlight);
+    batches[next] =
+        create_batch(state, epoch, options.minSamples, options.maxSamples,
+                     options.maxRelativeError, samplesInFlight);
     sampleCount += batches[next].dispatches.size();
     if (batches[next].dispatches.empty()) {
       break;
@@ -699,8 +701,8 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
       1);
 
   // benchmark configuration.
-  const uint32_t epochSize = 500;
-  const uint32_t maxBatchSize = 100;
+  const uint32_t epochSize = options.batchSize * 5;
+  const uint32_t maxBatchSize = options.batchSize;
 
   Epoch epochs[ASYNC_EPOCH_DEPTH]{};
   EpochBenchResults results[ASYNC_EPOCH_DEPTH];
@@ -734,8 +736,9 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
           }
           memory::vector<uint32_t> selected_targets =
               select_targets_from_candidates(
-                  state, iota, epochSize, options.minSamples, options.maxSamples,
-                  options.maxRelativeError, true, samples_in_flight);
+                  state, iota, epochSize, options.minSamples,
+                  options.maxSamples, options.maxRelativeError, true,
+                  samples_in_flight);
 
           if (selected_targets.empty()) {
             constructedEpochs.release(); // <- produce unalive epoch (signal)

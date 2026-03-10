@@ -1,0 +1,4 @@
+*.parquet
+*.txt
+*.npy
+*.bin

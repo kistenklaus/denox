@@ -83,6 +83,7 @@ for path in list(Path("./data/").glob("*.csv")):
             .agg(
                 mean_latency_ms=("latency_ms", "mean"),
                 median_latency_ms=("latency_ms", "median"),
+                std_latency_ms=("latency_ms", "std"),
                 p95_latency_ms=("latency_ms", lambda x: x.quantile(0.95)),
                 mean_memory_throughput=("memory_throughput", "mean"),
                 median_memory_throughput=("memory_throughput", "median"),

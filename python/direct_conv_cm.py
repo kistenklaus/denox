@@ -195,8 +195,8 @@ def shared_memory_policy(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def perfect_ktiling_policy(df: pd.DataFrame) -> pd.DataFrame:
-    k_eff = ((df["output_channels"] + df["config_CM_N"] - 1) // df["config_CM_N"]) * df[
-        "config_CM_N"
+    k_eff = ((df["input_channels"] + df["config_CM_K"] - 1) // df["config_CM_K"]) * df[
+        "config_CM_K"
     ]
     RSC_eff = k_eff * R * S
     mask = (RSC_eff % df["ktile"]) == 0
@@ -375,3 +375,5 @@ plt.ylabel("number of configurations")
 plt.legend()
 plt.tight_layout()
 plt.savefig("plot_direct_conv_cm.pdf")
+
+print(df.columns)

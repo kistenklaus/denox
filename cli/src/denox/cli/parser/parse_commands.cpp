@@ -193,6 +193,11 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_batch_size(tail, &options.benchOptions.batchSize))) {
+      i += jump;
+      continue;
+    }
+
     if ((jump = parse_assume(tail, assumptions))) {
       i += jump;
       continue;
@@ -623,6 +628,11 @@ Action parse_bench(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_relative_error(tail, &dbBenchOptions.maxRelativeError))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_batch_size(tail, &dbBenchOptions.batchSize))) {
       i += jump;
       continue;
     }
