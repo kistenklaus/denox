@@ -3,10 +3,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-# ============================================================
-# parameters
-# ============================================================
-TOP_K = 10
+TOP_K = 1
 
 GROUP_COLS = [
     "operation",
@@ -58,10 +55,10 @@ CONFIG_COLS = [
 # PARQUET_GLOB = "direct-conv-cm-*"
 
 # Optional device filter
-DEVICES = [
+POLICY_DEVICES = [
     "NVIDIA GeForce RTX 4070",
     # "NVIDIA GeForce RTX 3080 Ti", # <- irgendwas stimmt hier doch nicht an den datensätzen ??
-    # "NVIDIA GeForce RTX 4080 SUPER",
+    "NVIDIA GeForce RTX 4080 SUPER",
     "Intel(R) Arc(tm) B580 Graphics (BMG G21)",
 ]
 # DEVICES = None
@@ -80,31 +77,56 @@ for path in Path("./parquets/").glob("direct-conv-cm*"):
 
 df = pd.concat(dfs, ignore_index=True)
 
+odf = df
 
 print("Devices:")
 for device in sorted(df["device"].dropna().unique()):
     print(f'"{device}"')
 
 
-if DEVICES is not None:
-    df = df.loc[df["device"].isin(DEVICES)].copy()
-
-print("Input shapes:")
-for input_shape in df["input_shape"].unique():
-    print(f'"{input_shape}"')
-
-odf = df
-
-# INPUT_SHAPE = "1088x1920x64"
-# INPUT_SHAPE = "1088x1920x67"
-# INPUT_SHAPE = "68x120x32"
-
-# odf = odf.loc[df["input_shape"] == INPUT_SHAPE]
+if POLICY_DEVICES is not None:
+    df = df.loc[df["device"].isin(POLICY_DEVICES)].copy()
 
 
 if df.empty:
     raise RuntimeError("Dataframe is empty after filtering.")
 
+print("Input shapes:")
+for input_shape in df["input_shape"].unique():
+    print(f'"{input_shape}"')
+
+
+# INPUT_SHAPE = "1088x1920x32"
+# INPUT_SHAPE = "544x960x32"
+# INPUT_SHAPE = "272x480x48"
+# INPUT_SHAPE = "136x240x64"
+# INPUT_SHAPE = "272x480x32"
+# INPUT_SHAPE = "136x240x32"
+# INPUT_SHAPE = "1088x1920x64"
+# INPUT_SHAPE = "1088x1920x67"
+# INPUT_SHAPE = "1088x1920x3"
+# INPUT_SHAPE = "544x960x64"
+# INPUT_SHAPE = "544x960x128"
+# INPUT_SHAPE = "272x480x96"
+# INPUT_SHAPE = "272x480x160"
+# INPUT_SHAPE = "136x240x112"
+INPUT_SHAPE = "136x240x160"
+# INPUT_SHAPE = "68x120x96"
+# INPUT_SHAPE = "68x120x80"
+# INPUT_SHAPE = "1088x1920x35"
+# INPUT_SHAPE = "544x960x96"
+# INPUT_SHAPE = "272x480x64"
+# INPUT_SHAPE = "68x120x32"
+
+odf = odf.loc[odf["input_shape"] == INPUT_SHAPE]
+
+ALL_DEVICES = [
+    # "NVIDIA GeForce RTX 4070",
+    # "NVIDIA GeForce RTX 3080 Ti", # <- irgendwas stimmt hier doch nicht an den datensätzen ??
+    "NVIDIA GeForce RTX 4080 SUPER",
+    # "Intel(R) Arc(tm) B580 Graphics (BMG G21)",
+]
+odf = odf.loc[odf["device"].isin(ALL_DEVICES)]
 
 # df = df.loc[(df["sample_count"].between(10, 12)) & (df["std_latency_ms"] < 0.1)]
 # df = df.loc[(df["median_latency_ms"] > 0.1)]
@@ -292,36 +314,9 @@ print("\nCombined summary:")
 print(summary)
 
 # ============================================================
-# save outputs
-# ============================================================
-competitive_configs.to_parquet("competitive_configs.parquet", index=False)
-topk.to_parquet("topk_per_group.parquet", index=False)
-
-config_policy.to_parquet("config_policy.parquet", index=False)
-policy_df.to_parquet("policy_df.parquet", index=False)
-
-original_search_space.to_parquet("original_search_space.parquet", index=False)
-policy_search_space.to_parquet("policy_search_space.parquet", index=False)
-search_space_comparison.to_parquet("search_space_comparison.parquet", index=False)
-
-summary.to_csv("search_space_summary.csv")
-
-# Raw masks
-np.save("config_policy_mask_bool.npy", policy_mask_bool)
-np.save("config_policy_mask_u8.npy", policy_mask_u8)
-
-# Packed mask
-with open("config_policy_mask.bin", "wb") as f:
-    f.write(policy_mask_packed.tobytes())
-
-# Optional human-readable mask
-with open("config_policy_mask.txt", "w") as f:
-    f.write("".join("1" if x else "0" for x in policy_mask_bool))
-
-# ============================================================
 # histogram: original row scores vs policy-filtered scores
 # ============================================================
-BINS = 50
+BINS = 100
 
 x_full = odf[SCORE_COL].to_numpy()
 x_policy = policy_df[SCORE_COL].to_numpy()
@@ -379,5 +374,5 @@ if len(x_orig_size) > 0 and len(x_policy_size) > 0:
     plt.ylabel("number of logical operations")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("plot_direct_conv_cm_policy_search_space_sizes.pdf")
+    # plt.savefig("plot_direct_conv_cm_policy_search_space_sizes.pdf")
     plt.close()

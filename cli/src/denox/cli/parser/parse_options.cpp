@@ -875,7 +875,7 @@ uint32_t parse_batch_size(std::span<const Token> tokens, uint32_t *batchSize) {
     return 0;
   }
 
-  if (head.option() != OptionToken::Jobs) {
+  if (head.option() != OptionToken::BatchSize) {
     return 0;
   }
 
@@ -895,7 +895,7 @@ uint32_t parse_batch_size(std::span<const Token> tokens, uint32_t *batchSize) {
         "option '--batch-size' requires a positive integer argument");
   }
   uint32_t b = static_cast<uint32_t>(lit.as_unsigned_int());
-  if (b > 0) {
+  if (b == 0) {
     throw ParseError(
         "option '--batch-size' requires a positive integer argument");
   }

@@ -111,6 +111,7 @@ for path in list(Path("./data/").glob("*.csv")):
                 "output_format",
                 "output_type",
                 "device",
+                "shader",
             ],
             sort=False,
             observed=False,

@@ -82,9 +82,129 @@ compilation + benchmarking takes 5min compared to 5h.
 
 
 
+### Top-K search space reduction:
+The idea is the following as we measurements from a large set of GPUs, with different architectures, 
+we can preprocess your search space to find configurations never competitive. 
+
+We take our measurements, and group them by (logical-operation, device), now we look at 
+best K performing configurations this group. Afterwards we union all of the top k configurations of
+all groups together and remove duplicates, we now have a list of configurations, which are at least good 
+for one (operation, device) in our dataset. Or in other words, a configuration was never in the top k,
+is not included. 
 
 
+### Set Cover Idea:
+Top-K is already actually quite good, it ensures that configs, which are never best are not picked, the 
+problem with top-k is that it only selects based on the rank, and if we have multiple configurations, which 
+almost perform identical, it should not matter, which one of those we pick.
+What we actually want to do is ensure that for all (device, operation) groups, 
+we take a least G many configurations, which are good (i.e. have a relative-speedup $s_{rel} > \alpha$.
+A secondary goal is to reduce the amount of candidate 
+configurations. So if one configurations only perform well on a single logical operation, but performs worse 
+everywhere else, but another configuration exists which is generally good across multiple devices and logical 
+operations, we should prefer it over the other. 
+This is a classic set cover minimization problem. \
+Let $\Phi$ be the set of (device, logical-operation) groups. 
+And $\Sigma$ be the set of all configurations. \
+**Set-Cover Instance:**
+Let the $U = \Phi$ be the universe and the 
+subsets $S_c = \left\{ t \in \Phi\ \vert\ s_{rel}(t, c) > \alpha \right\} \forall c \in \Sigma$ \
+Solving this instance, yields a list of configuraitons $\Sigma'$, where for 
+$\forall t \in \Phi:\exists c \in \Sigma': s_{rel}(t,c) > \alpha$.
+This is already good, but we actually want something a bit less strict, because picking just a single 
+good configuration per group is dangerous, as it's very unclear if the picked instance will also 
+perform well on other architectures or for operations not the dataset. 
+We can mitigate this my solving a multiset cover problem, instead where each $t \in T$ has to be 
+covered by at least $G$ many configurations.\
+*We implement this with ILP solvers*.\
+*It could also be interessting to consider weighted multiset cover, where we prefer configurations with higher relative-speedup.*
 
+
+### More ILP Ideas
+
+<!-- $$ -->
+<!-- \min \beta  \sum_{t\in \Phi} \frac{1}{\Sigma_t} \sum_{c \in \Sigma_t} L_{t,c}x_c  -->
+<!-- + \sum_{t \in \Phi} \sum_{c \in \Sigma_t} (L_{t,c} - L_t^*)y_{t,c} -->
+<!-- $$ -->
+<!--  -->
+<!--  -->
+<!-- $$ -->
+<!-- \min \beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t} L_{t,c}x_c  -->
+<!-- + \sum_{t \in \Phi} \sum_{c \in \Sigma_t} (L_{t,c} - L_t^*)y_{t,c} -->
+<!-- $$ -->
+<!--  -->
+<!--  -->
+
+<!-- $$ -->
+<!-- \min \left\{  -->
+<!-- \beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t} L_{t,c}x_c  -->
+<!-- + \sum_{t \in \Phi} \min_{c \in \Sigma_t, x_c = 1} \left\{L_{t,c} - L_t^* \right\} -->
+<!-- \right\} -->
+<!-- $$ -->
+<!--  -->
+<!--  -->
+<!-- $$ -->
+<!-- \argmin_{\Sigma' \subseteq \Sigma} \left\{  -->
+<!--  -->
+<!-- \beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t \cup \Sigma'} L_{t,c} -->
+<!-- +  -->
+<!-- \alpha \sum_{t \in \Phi} \min_{c \in \Sigma_t \cup \Sigma'} \left\{L_{t,c} - L_t^* \right\} -->
+<!-- \right\} -->
+<!-- $$ -->
+
+Minimization problem:
+$$
+\argmin_{\Sigma' \subseteq \Sigma} \left\{ 
+
+\beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t \cup \Sigma'} L_{t,c}
++ 
+\alpha \sum_{t \in \Phi} \sum_{i=1}^{n_t} \lambda_i (L_{t,(i)} - L_t^*)
+
+\right\}
+$$
+
+Where $L_{t,(i)}$ represents the i-th 
+best config $c \in \Sigma_t \cup \Sigma'$ in group $t$\
+and $n_t = \min(G, \vert\Sigma_t\vert)$ \
+$\lambda_i$'s are weights, maybe something like the harmonic series
+$$
+\lambda_i = \frac{1/i}{\sum_{j=1}^{n_t} 1/j}
+$$
+or just uniform, let's see.
+
+###### MILP:
+
+$$
+\min \left\{ 
+\beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t} L_{t,c}x_c 
++ 
+\alpha \sum_{t\in \Phi} \sum_{i=1}^{n_t} \sum_{c \in \Sigma_t} \lambda_i (L_{t,c} - L_t^*) y_{t,c,i}
+\right\}
+$$
+$$
+\forall t : \forall c : z_{t,c} \le x_c \land x_c, z_{t,c} \in \left\{0,1\right\}
+$$
+$$
+\sum_{c \in \Sigma_t} y_{t,c,i} = 1\ \ \forall i
+$$
+
+In total $\sum_{t \in \Phi} G \vert \Sigma_t \vert$ many variables.\
+
+With uniform weights $\lambda_i = \frac{1}{n_t}$ this becomes much more tracable:
+$$
+\min \left\{ 
+\beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t} L_{t,c}x_c 
++ 
+\alpha \sum_{t \in \Phi} \sum_{c \in \Sigma_t} \frac{1}{n_t}(L_{t,c} - L_t^*) y_{t,c}
+\right\}
+$$
+$$
+\forall t : \forall c : z_{t,c} \le x_c \land x_c, z_{t,c} \in \left\{0,1\right\}
+$$
+$$
+\sum_{c \in \Sigma_t} y_{t,c} = n_t
+$$
+Now with only $\sum_{t \in \Phi} \vert \Sigma_t \vert$ variables, (still a couple thousand).
 
 
 
