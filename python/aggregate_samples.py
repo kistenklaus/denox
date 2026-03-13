@@ -36,6 +36,7 @@ DENOX_DB_DTYPES: DtypeArg = {
     "sample_timestamp": "uint64",
     "gpu_clock": "int32",
     "mem_clock": "int32",
+    "subgroup_size": "int32",
 }
 
 parquet_cache_dir = Path("./parquets")
@@ -47,7 +48,8 @@ for path in list(Path("./data/").glob("*.csv")):
     if not parquet_df_path.exists():
         print(f"Reading CSV: {path}")
         df = pd.read_csv(
-            path, sep=",", engine="c", on_bad_lines="error", dtype=DENOX_DB_DTYPES
+            path, sep=",", engine="c", on_bad_lines="error", dtype=DENOX_DB_DTYPES,
+            skipinitialspace=True
         )
 
         print("Compute memory-throughput per sample")

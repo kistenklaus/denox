@@ -195,7 +195,7 @@ $$
 \min \left\{ 
 \beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t} L_{t,c}x_c 
 + 
-\alpha \sum_{t \in \Phi} \sum_{c \in \Sigma_t} \frac{1}{n_t}(L_{t,c} - L_t^*) y_{t,c}
+\alpha \sum_{t \in \Phi} \sum_{c \in \Sigma_t} \frac{1}{n_t}(L_{t,c} - L_t^*) z_{t,c}
 \right\}
 $$
 $$
@@ -204,8 +204,29 @@ $$
 $$
 \sum_{c \in \Sigma_t} y_{t,c} = n_t
 $$
-Now with only $\sum_{t \in \Phi} \vert \Sigma_t \vert$ variables, (still a couple thousand).
+Now with only $\sum_{t \in \Phi} \vert \Sigma_t \vert$ variables, (still a couple thousand), but definitely computable.
 
+All approaches abvoe have one problem, the first term minimizes the PGO cost (latency it takes to measure remaining configurations)
+and the second term minimizes the regret latency. Because both operate on the absolute latency, slower devices are weighted stronger (especially in the PGO cost).
+Instead it would be better to normalize latencies by device first. 
+One thing that we could try is computing some arbitrary weighting factor per device
+$$
+\omega_{d(t)} = 1 / \text{median}_{t \in \Phi_d} L_t^*
+$$
+and then weight then normalize both minimization factors:
+$$
+\min \left\{ 
+\beta  \sum_{t\in \Phi} \sum_{c \in \Sigma_t} \omega_{d(t)} L_{t,c}x_c 
++ 
+\alpha \sum_{t \in \Phi} \sum_{c \in \Sigma_t} \frac{\omega_{d(t)}}{n_t}(L_{t,c} - L_t^*) z_{t,c}
+\right\}
+$$
+$$
+\forall t : \forall c : z_{t,c} \le x_c \land x_c, z_{t,c} \in \left\{0,1\right\}
+$$
+$$
+\sum_{c \in \Sigma_t} y_{t,c} = n_t
+$$
 
 
 

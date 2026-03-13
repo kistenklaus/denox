@@ -583,7 +583,7 @@ void MemoryPadShader::implement(
 
   dispatch.setName(name());
   dispatch.setConfig(fmt::format(
-      "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H", config.invocC,
+      "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}", config.invocC,
       config.invocW, config.invocH, config.wgC, config.wgW, config.wgH));
   dispatch.setOperation(fmt::format(
       "pad(x,({},{},{},{}),mode=replicate)",
