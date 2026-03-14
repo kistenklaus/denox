@@ -1,7 +1,7 @@
 #pragma once
 
-#include "denox/compiler/Options.hpp"
 #include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/implement/shaders/IShader.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 
@@ -9,6 +9,14 @@ namespace denox::compiler::shaders {
 
 class CopyTransformShader : public IShader {
 public:
+  struct Config {
+    unsigned int invocC;
+    unsigned int invocW;
+    unsigned int invocH;
+    unsigned int wgC;
+    unsigned int wgW;
+    unsigned int wgH;
+  };
   using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
 
   static constexpr unsigned int IMPLICIT_CONCAT_MODE = 1 << 8;
@@ -20,7 +28,8 @@ public:
   static constexpr bool
       ENABLE_UNSTABLE_FEATURE_IMPLICIT_CONCAT_LIFETIME_INFERANCE = false;
 
-  CopyTransformShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
+  CopyTransformShader(spirv::GlslCompiler *compiler,
+                      const CompileOptions &options);
 
   const ShaderCapabilities &capabilities() const final override {
     return m_capabilities;
@@ -55,12 +64,15 @@ private:
   ShaderCapabilities m_capabilities;
   memory::vector<Handles> m_patternHandles;
   io::Path m_srcPath =
-      io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/copy/copy_transform.comp";
+      io::Path::assets() /
+      "compiler/src/denox/compiler/implement/shaders/copy/copy_transform.comp";
 
   bool m_enableImplicitConcat;
 
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<uint32_t, 3> m_maxComputeWorkGroupSize;
+
+  memory::vector<Config> m_configs;
 };
 
 } // namespace denox::compiler::shaders

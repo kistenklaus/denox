@@ -9,21 +9,6 @@
 namespace denox::compiler::shaders {
 
 class MemorySliceShader : public IShader {
-  struct Config_HWC {
-    uint32_t invocC;
-    uint32_t invocH;
-    uint32_t wgSizeHint;
-  };
-  struct Config_HWC8 {
-    uint32_t invocW;
-    uint32_t invocH;
-    uint32_t wgSizeHint;
-  };
-  struct Config_CHWC8 {
-    uint32_t invocW;
-    uint32_t invocH;
-    uint32_t wgSize;
-  };
 
 public:
   struct Config {
@@ -77,9 +62,7 @@ private:
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<std::uint32_t, 3> m_maxComputeWorkGroupSize;
 
-  memory::vector<Config_HWC> m_hwc_configs;
-  memory::vector<Config_HWC8> m_hwc8_configs;
-  memory::vector<Config_CHWC8> m_chwc8_configs;
+  memory::vector<Config> m_configs;
 
   uint32_t m_optimizationLevel;
 };

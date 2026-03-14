@@ -15,6 +15,7 @@ Path("plots").mkdir(exist_ok=True)
 
 def apply_milp(
     dfglob: str,
+    dir : str = "./parquets/",
     alpha=100000.0,
     beta=1.0,
     score_threshold=0.85,
@@ -23,7 +24,7 @@ def apply_milp(
     plot: str | None = None,
 ):
     dfs: list[pd.DataFrame] = []
-    for path in list(Path("./parquets/").glob(dfglob)):
+    for path in list(Path(dir).glob(dfglob)):
         if dfnot is not None and path.name.startswith(dfnot):
             continue
         dfs.append(pd.read_parquet(path))
@@ -178,6 +179,7 @@ generate_config_file(
 
 direct_conv_cm_milp = apply_milp(
     "direct-conv-cm-*",
+    dir = "./repaired/",
     alpha=1000,
     g=5,
     plot="plots/direct_conv_cm_milp.pdf",
@@ -197,11 +199,13 @@ generate_config_file(
         "config_WG_M",
         "config_WG_N",
         "config_ASYNC",
+        "config_SG_SIZE",
     ],
 )
 
 direct_conv_milp = apply_milp(
     "direct-conv-*",
+    dir = "./repaired/",
     dfnot="direct-conv-cm",
     alpha=1000,
     g=5,
@@ -222,11 +226,13 @@ generate_config_file(
         "config_WG_M",
         "config_WG_N",
         "config_ASYNC",
+        "config_SG_SIZE",
     ],
 )
 
 concat_conv_cm = apply_milp(
     "concat-conv-cm*",
+    dir = "./repaired/",
     alpha=1000,
     g=10,
     plot="plots/concat_conv_cm_milp.pdf",
@@ -249,6 +255,7 @@ generate_config_file(
         "config_WG_N",
         "config_A_ASYNC",
         "config_B_ASYNC",
+        "config_SG_SIZE",
     ],
 )
 
@@ -282,7 +289,7 @@ basic_upsample_milp = apply_milp(
 generate_config_file(
     basic_upsample_milp,
     repo_root
-    / "compiler/src/denox/compiler/implement/shaders/upsample/upsample_upsample.configs",
+    / "compiler/src/denox/compiler/implement/shaders/upsample/basic_upsample.configs",
     [
         "config_INVOC_C",
         "config_INVOC_W",
@@ -317,6 +324,7 @@ generate_config_file(
 
 memory_slice_milp = apply_milp(
     "memory-slice-*",
+    dir = "./repaired/",
     alpha=10,
     g=10,
     plot="plots/memory_slice_milp.pdf",
@@ -336,11 +344,12 @@ config_combinations = (
 config_combinations["config_WG_H"] = 1
 bool_cols = config_combinations.select_dtypes(include="bool").columns
 config_combinations[bool_cols] = config_combinations[bool_cols].astype(int)
-config_combinations.to_csv(repo_root / "compiler/src/denox/compiler/implement/shaders/slice/memory_slice.configs", index=False, header=False)
+config_combinations.to_csv(repo_root / "compiler/src/denox/compiler/implement/shaders/slice/memory_slice.configs", index=False, header=False, sep=' ')
 
 
 memory_pad_milp = apply_milp(
     "memory-pad-*",
+    dir = "./repaired/",
     alpha=10,
     g=1,
     plot="plots/memory_pad_milp.pdf",
@@ -360,4 +369,4 @@ config_combinations = (
 config_combinations["config_WG_H"] = 1
 bool_cols = config_combinations.select_dtypes(include="bool").columns
 config_combinations[bool_cols] = config_combinations[bool_cols].astype(int)
-config_combinations.to_csv(repo_root / "compiler/src/denox/compiler/implement/shaders/pad/memory_pad.configs", index=False, header=False)
+config_combinations.to_csv(repo_root / "compiler/src/denox/compiler/implement/shaders/pad/memory_pad.configs", index=False, header=False, sep=' ')

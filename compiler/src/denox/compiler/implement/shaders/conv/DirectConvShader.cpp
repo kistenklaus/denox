@@ -4,6 +4,7 @@
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
+#include "denox/io/fs/File.hpp"
 #include "denox/memory/dtype/dtype.hpp"
 #include <cassert>
 #include <flatbuffers/base.h>
@@ -29,127 +30,221 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     return;
   }
 
-  { // Create config space.
+  if (options.optimizationLevel >= 5) {
+    { // Create config space.
 
-    memory::small_vector<uint32_t, 2> subgroupSizes;
-    if (options.optimizationLevel >= 5 &&
-        options.deviceInfo.subgroup.controlProperties.supported) {
-      subgroupSizes =
-          options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes;
-    } else {
-      if (options.deviceInfo.subgroup.controlProperties.supported &&
-          std::ranges::count(options.deviceInfo.subgroup.controlProperties
-                                 .supportedSubgroupSizes,
-                             32) != 0) {
-        subgroupSizes = {32};
+      memory::small_vector<uint32_t, 2> subgroupSizes;
+      if (options.optimizationLevel >= 5 &&
+          options.deviceInfo.subgroup.controlProperties.supported) {
+        subgroupSizes = options.deviceInfo.subgroup.controlProperties
+                            .supportedSubgroupSizes;
       } else {
-        subgroupSizes.push_back(options.deviceInfo.subgroup.subgroupSize);
-      }
-    };
-
-    for (const uint32_t subgroupSize : subgroupSizes) {
-
-      struct MicroKernel {
-        uint32_t M;
-        uint32_t K;
-        uint32_t N;
-      };
-      memory::vector<MicroKernel> micro_kernels{
-          MicroKernel{16, 16, 16},
-          MicroKernel{16, 8, 16},
-          // MicroKernel{16, 8, 8},
+        if (options.deviceInfo.subgroup.controlProperties.supported &&
+            std::ranges::count(options.deviceInfo.subgroup.controlProperties
+                                   .supportedSubgroupSizes,
+                               32) != 0) {
+          subgroupSizes = {32};
+        } else {
+          subgroupSizes.push_back(options.deviceInfo.subgroup.subgroupSize);
+        }
       };
 
-      for (const auto &kernel : micro_kernels) {
-        assert(kernel.M % 8 == 0);
-        assert(kernel.K % 8 == 0);
-        assert(kernel.N % 8 == 0);
+      for (const uint32_t subgroupSize : subgroupSizes) {
 
-        for (uint32_t wg_m = 1; wg_m < 16; ++wg_m) {
-          for (uint32_t wg_n = 1; wg_n < 16; ++wg_n) {
-            const uint32_t workgroup_size = wg_m * wg_n * subgroupSize;
-            if (workgroup_size < 128 ||
-                workgroup_size >
-                    options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
-              continue;
-            }
-            if (workgroup_size > 512) {
-              continue; // heuristic!
-            }
+        struct MicroKernel {
+          uint32_t M;
+          uint32_t K;
+          uint32_t N;
+        };
+        memory::vector<MicroKernel> micro_kernels{
+            MicroKernel{16, 16, 16},
+            MicroKernel{16, 8, 16},
+            // MicroKernel{16, 8, 8},
+        };
 
-            for (uint32_t sg_m = 1; sg_m <= 8; ++sg_m) {
-              for (uint32_t sg_k = 1; sg_k <= 8; ++sg_k) {
-                for (uint32_t sg_n = 1; sg_n <= 8; ++sg_n) {
+        for (const auto &kernel : micro_kernels) {
+          assert(kernel.M % 8 == 0);
+          assert(kernel.K % 8 == 0);
+          assert(kernel.N % 8 == 0);
 
-                  static constexpr size_t PIPELINE_DEPTH = 2;
-                  const uint32_t sh_a_size =
-                      PIPELINE_DEPTH *
-                      (sg_m * wg_m * kernel.M * sg_k * kernel.K * 2);
-                  const uint32_t sh_b_size =
-                      PIPELINE_DEPTH *
-                      (kernel.N * sg_n * wg_n * sg_k * kernel.K * 2);
-                  const uint32_t sh_size = sh_a_size + sh_b_size;
+          for (uint32_t wg_m = 1; wg_m < 16; ++wg_m) {
+            for (uint32_t wg_n = 1; wg_n < 16; ++wg_n) {
+              const uint32_t workgroup_size = wg_m * wg_n * subgroupSize;
+              if (workgroup_size < 128 ||
+                  workgroup_size > options.deviceInfo.limits
+                                       .maxComputeWorkGroupInvocations) {
+                continue;
+              }
+              if (workgroup_size > 512) {
+                continue; // heuristic!
+              }
 
-                  static constexpr double MIN_WG_OCCUPANCY = 0.75;
-                  if (static_cast<double>(sh_size) >
-                      static_cast<double>(
-                          options.deviceInfo.limits.maxComputeSharedMemory) *
-                          MIN_WG_OCCUPANCY) {
-                    continue;
+              for (uint32_t sg_m = 1; sg_m <= 8; ++sg_m) {
+                for (uint32_t sg_k = 1; sg_k <= 8; ++sg_k) {
+                  for (uint32_t sg_n = 1; sg_n <= 8; ++sg_n) {
+
+                    static constexpr size_t PIPELINE_DEPTH = 2;
+                    const uint32_t sh_a_size =
+                        PIPELINE_DEPTH *
+                        (sg_m * wg_m * kernel.M * sg_k * kernel.K * 2);
+                    const uint32_t sh_b_size =
+                        PIPELINE_DEPTH *
+                        (kernel.N * sg_n * wg_n * sg_k * kernel.K * 2);
+                    const uint32_t sh_size = sh_a_size + sh_b_size;
+
+                    static constexpr double MIN_WG_OCCUPANCY = 0.75;
+                    if (static_cast<double>(sh_size) >
+                        static_cast<double>(
+                            options.deviceInfo.limits.maxComputeSharedMemory) *
+                            MIN_WG_OCCUPANCY) {
+                      continue;
+                    }
+
+                    const uint32_t k8_tile = kernel.K / 8 * sg_k;
+                    if (k8_tile % wg_n != 0) {
+                      continue;
+                    }
+                    if (k8_tile < wg_n) {
+                      continue;
+                    }
+
+                    const uint32_t VECS_PER_INVOC =
+                        (kernel.N * kernel.M + 2 * subgroupSize - 1) /
+                        (2 * subgroupSize);
+                    const uint32_t acc_regs =
+                        sg_n * sg_m * VECS_PER_INVOC * 4; // uvec4
+
+                    if (acc_regs > 128) {
+                      continue;
+                    }
+
+                    // fmt::println("{}x{}x{}  {}x{}x{}  {}x{}   -> {}",
+                    // kernel.M,
+                    //              kernel.K, kernel.N, sg_m, sg_k, sg_n, wg_m,
+                    //              wg_n, sh_size);
+
+                    m_configs.push_back(DirectConvConfig{
+                        .invoc_m = kernel.M,
+                        .invoc_k = kernel.K,
+                        .invoc_n = kernel.N,
+                        .wg_m = wg_m,
+                        .wg_n = wg_n,
+                        .sg_m = sg_m,
+                        .sg_k = sg_k,
+                        .sg_n = sg_n,
+                        .async = true,
+                        .subgroupSize = subgroupSize,
+                    });
+                    m_configs.push_back(DirectConvConfig{
+                        .invoc_m = kernel.M,
+                        .invoc_k = kernel.K,
+                        .invoc_n = kernel.N,
+                        .wg_m = wg_m,
+                        .wg_n = wg_n,
+                        .sg_m = sg_m,
+                        .sg_k = sg_k,
+                        .sg_n = sg_n,
+                        .async = false,
+                        .subgroupSize = subgroupSize,
+                    });
                   }
-
-									const uint32_t k8_tile = kernel.K / 8 * sg_k;
-									if (k8_tile % wg_n != 0) {
-										continue;
-									}
-									if (k8_tile < wg_n) {
-										continue;
-									}
-
-                  const uint32_t VECS_PER_INVOC =
-                      (kernel.N * kernel.M + 2 * subgroupSize - 1) /
-                      (2 * subgroupSize);
-                  const uint32_t acc_regs =
-                      sg_n * sg_m * VECS_PER_INVOC * 4; // uvec4
-
-                  if (acc_regs > 128) {
-                    continue;
-                  }
-
-                  // fmt::println("{}x{}x{}  {}x{}x{}  {}x{}   -> {}", kernel.M,
-                  //              kernel.K, kernel.N, sg_m, sg_k, sg_n, wg_m,
-                  //              wg_n, sh_size);
-
-                  m_configs.push_back(DirectConvConfig{
-                      .invoc_m = kernel.M,
-                      .invoc_k = kernel.K,
-                      .invoc_n = kernel.N,
-                      .wg_m = wg_m,
-                      .wg_n = wg_n,
-                      .sg_m = sg_m,
-                      .sg_k = sg_k,
-                      .sg_n = sg_n,
-                      .async = true,
-                      .subgroupSize = subgroupSize,
-                  });
-                  m_configs.push_back(DirectConvConfig{
-                      .invoc_m = kernel.M,
-                      .invoc_k = kernel.K,
-                      .invoc_n = kernel.N,
-                      .wg_m = wg_m,
-                      .wg_n = wg_n,
-                      .sg_m = sg_m,
-                      .sg_k = sg_k,
-                      .sg_n = sg_n,
-                      .async = false,
-                      .subgroupSize = subgroupSize,
-                  });
                 }
               }
             }
           }
         }
       }
+    }
+  } else {
+    // ==== Read valid configuration from file =====
+
+    auto fd = io::File::open(
+        io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/"
+                             "conv/direct_conv.configs",
+        io::File::OpenMode::Read);
+    std::string str;
+    str.resize(fd.size());
+    fd.read_exact(std::span<std::byte>(
+        reinterpret_cast<std::byte *>(str.data()), str.size()));
+    std::stringstream ss(str);
+
+    while (!ss.eof()) {
+      DirectConvConfig config;
+      ss >> config.invoc_m;
+      ss >> config.invoc_k;
+      ss >> config.invoc_n;
+      ss >> config.sg_m;
+      ss >> config.sg_k;
+      ss >> config.sg_n;
+      ss >> config.wg_m;
+      ss >> config.wg_n;
+      ss >> config.async;
+      ss >> config.subgroupSize;
+
+      if (config.subgroupSize >
+          options.deviceInfo.limits.maxComputeWorkGroupSize[0]) {
+        continue;
+      }
+      const uint32_t sg_count = config.wg_m * config.wg_n;
+      if (sg_count > options.deviceInfo.limits.maxComputeWorkGroupSize[1]) {
+        continue;
+      }
+      if (1 > options.deviceInfo.limits.maxComputeWorkGroupSize[2]) {
+        continue;
+      }
+      const uint32_t wg_size = sg_count * config.subgroupSize;
+      if (wg_size > options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
+        continue;
+      }
+
+      // check if valid on this device!
+      if (options.deviceInfo.subgroup.controlProperties.supported) {
+        const bool sg_supported =
+            std::ranges::count(options.deviceInfo.subgroup.controlProperties
+                                   .supportedSubgroupSizes,
+                               config.subgroupSize) != 0;
+        if (!sg_supported) {
+          continue; // subgroup control available, but subgroupSize invalid.
+        }
+      } else {
+        if (config.subgroupSize != options.deviceInfo.subgroup.subgroupSize) {
+          continue; // invalid subgroup size.
+        }
+      }
+
+      if ((config.invoc_m % 8 != 0) || (config.invoc_k % 8 != 0) ||
+          (config.invoc_k % 8 != 0)) {
+        continue;
+      }
+
+      static constexpr size_t PIPELINE_DEPTH = 2;
+      const uint32_t sh_a_size =
+          PIPELINE_DEPTH * (config.sg_m * config.wg_m * config.invoc_m *
+                            config.sg_k * config.invoc_k * 2);
+      const uint32_t sh_b_size =
+          PIPELINE_DEPTH * (config.invoc_n * config.sg_n * config.wg_n *
+                            config.sg_k * config.invoc_k * 2);
+      const uint32_t sh_size = sh_a_size + sh_b_size;
+      if (sh_size > options.deviceInfo.limits.maxComputeSharedMemory) {
+        continue;
+      }
+
+      const uint32_t k8_tile = config.invoc_k / 8 * config.sg_k;
+      if (k8_tile % config.wg_n != 0) {
+        continue;
+      }
+      if (k8_tile < config.wg_n) {
+        continue;
+      }
+
+      const uint32_t VECS_PER_INVOC =
+          (config.invoc_n * config.invoc_m + 2 * config.subgroupSize - 1) / (2 * config.subgroupSize);
+      const uint32_t acc_regs = config.sg_n * config.sg_m * VECS_PER_INVOC * 4; // uvec4
+
+      if (acc_regs > 128) {
+        continue;
+      }
+      m_configs.push_back(config);
     }
   }
 
@@ -339,8 +434,7 @@ direct_conv_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
                     TensorFormat inputFormat, TensorFormat outputFormat,
                     memory::optional<ActivationFunction> activationFunction,
                     memory::uvec2 kernelSize, memory::uvec2 padding,
-                    memory::uvec2 stride, bool bias,
-                    bool subgroupControl,
+                    memory::uvec2 stride, bool bias, bool subgroupControl,
                     const DirectConvConfig &config,
                     memory::FilterLayout *out_filterLayout,
                     memory::BiasLayout *out_biasLayout) {
@@ -508,8 +602,8 @@ void DirectConvShader::implement(
   auto shader = direct_conv_compile(
       m_compiler, m_srcPath, config.subgroupSize, C, K, in.format, out.format,
       activationFunction, memory::uvec2(conv->W->shape().r, conv->W->shape().s),
-      conv->padding, conv->stride, conv->B != nullptr, m_subgroupControl, config, &filterLayout,
-      &biasLayout);
+      conv->padding, conv->stride, conv->B != nullptr, m_subgroupControl,
+      config, &filterLayout, &biasLayout);
   // fmt::println("PREAMBLE:\n{}", shader.getPreamble());
 
   std::uint32_t tileX = config.invoc_n * config.sg_n * config.wg_n;

@@ -49,7 +49,7 @@ for path in list(Path("./data/").glob("*.csv")):
         print(f"Reading CSV: {path}")
         df = pd.read_csv(
             path, sep=",", engine="c", on_bad_lines="error", dtype=DENOX_DB_DTYPES,
-            skipinitialspace=True
+            skipinitialspace=True,
         )
 
         print("Compute memory-throughput per sample")
@@ -74,6 +74,7 @@ for path in list(Path("./data/").glob("*.csv")):
                     "output_format",
                     "output_type",
                     "shader",
+                    "subgroup_size",
                     "config",
                     "spirv_hash",
                     "src_hash",
@@ -86,16 +87,10 @@ for path in list(Path("./data/").glob("*.csv")):
                 mean_latency_ms=("latency_ms", "mean"),
                 median_latency_ms=("latency_ms", "median"),
                 std_latency_ms=("latency_ms", "std"),
-                p95_latency_ms=("latency_ms", lambda x: x.quantile(0.95)),
                 mean_memory_throughput=("memory_throughput", "mean"),
                 median_memory_throughput=("memory_throughput", "median"),
-                p95_memory_throughput=("memory_throughput", lambda x: x.quantile(0.95)),
                 mean_compute_throughput=("compute_throughput", "mean"),
                 median_compute_throughput=("compute_throughput", "median"),
-                p95_compute_throughput=(
-                    "compute_throughput",
-                    lambda x: x.quantile(0.95),
-                ),
                 sample_count=("latency_ms", "size"),
             )
             .reset_index()

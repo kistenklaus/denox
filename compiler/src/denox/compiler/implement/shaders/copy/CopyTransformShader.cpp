@@ -4,6 +4,7 @@
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
+#include "denox/io/fs/File.hpp"
 #include <stdexcept>
 
 namespace denox::compiler::shaders {
@@ -18,140 +19,6 @@ static constexpr unsigned int EXPLICIT_CONCAT_TAG = 0;
 static constexpr unsigned int IMPLICIT_CONCAT_TAG = 1;
 static constexpr unsigned int SINGLE_COPY_TAG = 2;
 
-struct CopyTransformConfig {
-  unsigned int invocC;
-  unsigned int invocW;
-  unsigned int invocH;
-  memory::optional<unsigned int> wgC;
-  unsigned int wgW;
-  unsigned int wgH;
-};
-
-static std::array<CopyTransformConfig, 15> COPY_TRANSFORM_CONFIGS{
-    CopyTransformConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 1,
-        .wgC = 8,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 2,
-        .wgC = 8,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 2,
-        .invocW = 2,
-        .invocH = 2,
-        .wgC = 4,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 32,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 16,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 8,
-        .wgH = 1,
-    },
-
-    CopyTransformConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 4,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 2,
-        .wgH = 1,
-    },
-
-    CopyTransformConfig{
-        .invocC = 1,
-        .invocW = 4,
-        .invocH = 1,
-        .wgC = memory::nullopt,
-        .wgW = 1,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 4,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 2,
-        .wgW = 64,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 2,
-        .wgW = 128,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 1,
-        .wgW = 128,
-        .wgH = 1,
-    },
-    CopyTransformConfig{
-        .invocC = 8,
-        .invocW = 1,
-        .invocH = 1,
-        .wgC = 1,
-        .wgW = 256,
-        .wgH = 1,
-    },
-};
-
 CopyTransformShader::CopyTransformShader(spirv::GlslCompiler *compiler,
                                          const CompileOptions &options)
     : m_compiler(compiler),
@@ -160,6 +27,43 @@ CopyTransformShader::CopyTransformShader(spirv::GlslCompiler *compiler,
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize) {
+
+  {
+    auto fd = io::File::open(io::Path::assets() /
+                                 "compiler/src/denox/compiler/implement/"
+                                 "shaders/copy/copy_transform.configs",
+                             io::File::OpenMode::Read);
+    std::string str;
+    str.resize(fd.size());
+    fd.read_exact(std::span<std::byte>(
+        reinterpret_cast<std::byte *>(str.data()), str.size()));
+    std::stringstream ss(str);
+
+    while (!ss.eof()) {
+      Config config;
+      ss >> config.invocC;
+      ss >> config.invocW;
+      ss >> config.invocH;
+      ss >> config.wgC;
+      ss >> config.wgW;
+      ss >> config.wgH;
+
+      if (config.wgC > options.deviceInfo.limits.maxComputeWorkGroupSize[0]) {
+        continue;
+      }
+      if (config.wgW > options.deviceInfo.limits.maxComputeWorkGroupSize[1]) {
+        continue;
+      }
+      if (config.wgH > options.deviceInfo.limits.maxComputeWorkGroupSize[2]) {
+        continue;
+      }
+      uint32_t wg_size = config.wgC * config.wgH * config.wgW;
+      if (wg_size > options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
+        continue;
+      }
+      m_configs.push_back(config);
+    }
+  }
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
     if (tensor.type != TensorDataType::Float16) {
@@ -317,19 +221,18 @@ memory::vector<unsigned int> CopyTransformShader::acceptMatch(
   std::vector<unsigned int> configs;
   switch (implementationType) {
   case ConcatImplementationType::Explicit:
-    configs.reserve(COPY_TRANSFORM_CONFIGS.size() *
-                    COPY_TRANSFORM_CONFIGS.size());
-    for (unsigned int c0 = 0; c0 < COPY_TRANSFORM_CONFIGS.size(); ++c0) {
-      const auto &config0 = COPY_TRANSFORM_CONFIGS[c0];
-      if (!supported(config0.wgC.value_or(src0.channels.constant()),
-                     config0.wgW, config0.wgH, config0.invocC, src0Format,
+    configs.reserve(m_configs.size() * m_configs.size());
+    for (unsigned int c0 = 0; c0 < m_configs.size(); ++c0) {
+      const auto &config0 = m_configs[c0];
+      if (!supported(config0.wgC, config0.wgW, config0.wgH, config0.invocC,
+                     src0Format,
                      static_cast<uint32_t>(src0.channels.constant()))) {
         continue;
       }
-      for (unsigned int c1 = 0; c1 < COPY_TRANSFORM_CONFIGS.size(); ++c1) {
-        const auto &config1 = COPY_TRANSFORM_CONFIGS[c1];
-        if (supported(config1.wgC.value_or(src1.channels.constant()),
-                      config1.wgW, config1.wgH, config1.invocC, src1Format,
+      for (unsigned int c1 = 0; c1 < m_configs.size(); ++c1) {
+        const auto &config1 = m_configs[c1];
+        if (supported(config1.wgC, config1.wgW, config1.wgH, config1.invocC,
+                      src1Format,
                       static_cast<uint32_t>(src1.channels.constant()))) {
           configs.push_back((c1 << 16) | (c0 << 8) | EXPLICIT_CONCAT_TAG);
         }
@@ -357,7 +260,7 @@ static spirv::GlslCompilerInstance copy_transform_compile(
     unsigned int inputChannelOffset, unsigned int inputChannels,
     unsigned int outputChannelOffset, unsigned int outputChannels,
     TensorFormat inputFormat, TensorFormat outputFormat,
-    bool allowVectorization, const CopyTransformConfig &config) {
+    bool allowVectorization, const CopyTransformShader::Config &config) {
   auto shader = compiler->read(srcPath);
 
   shader.define("IN_CH_OFFSET", inputChannelOffset);
@@ -398,7 +301,7 @@ static spirv::GlslCompilerInstance copy_transform_compile(
   shader.define("INVOC_C", config.invocC);
   shader.define("INVOC_W", config.invocW);
   shader.define("INVOC_H", config.invocH);
-  shader.define("WG_C", config.wgC.value_or(inputChannels));
+  shader.define("WG_C", config.wgC);
   shader.define("WG_W", config.wgW);
   shader.define("WG_H", config.wgH);
   return shader;
@@ -436,12 +339,12 @@ void CopyTransformShader::implement(
     uint32_t dstChannels = static_cast<uint32_t>(dst.channels.constant());
     {
       uint8_t config0Key = (configEnc >> 8) & 0xFF;
-      const CopyTransformConfig &config0 = COPY_TRANSFORM_CONFIGS[config0Key];
+      const Config &config0 = m_configs[config0Key];
       auto shader0 = copy_transform_compile(
           m_compiler, m_srcPath, 0, src0Channels, 0, dstChannels, src0.format,
           dst.format, true, config0);
 
-      std::uint32_t tileX = config0.invocC * config0.wgC.value_or(src0Channels);
+      std::uint32_t tileX = config0.invocC * config0.wgC;
       std::uint32_t tileY = config0.invocW * config0.wgW;
       std::uint32_t tileZ = config0.invocH * config0.wgH;
 
@@ -482,8 +385,8 @@ void CopyTransformShader::implement(
       copySrc0Dispatch.setName(name());
       copySrc0Dispatch.setConfig(fmt::format(
           "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}",
-          config0.invocC, config0.invocW, config0.invocH,
-          config0.wgC.value_or(src0Channels), config0.wgW, config0.wgH));
+          config0.invocC, config0.invocW, config0.invocH, config0.wgC,
+          config0.wgW, config0.wgH));
       copySrc0Dispatch.setSourcePath(m_srcPath);
     }
 
@@ -493,12 +396,12 @@ void CopyTransformShader::implement(
       uint32_t src1Channels = static_cast<uint32_t>(src1.channels.constant());
 
       uint8_t config1Key = (configEnc >> 16) & 0xFF;
-      const CopyTransformConfig &config1 = COPY_TRANSFORM_CONFIGS[config1Key];
+      const Config &config1 = m_configs[config1Key];
       auto shader1 = copy_transform_compile(
           m_compiler, m_srcPath, 0, src1Channels, src0Channels, dstChannels,
           src1.format, dst.format, src0.channels.constant() % 8 == 0, config1);
 
-      std::uint32_t tileX = config1.invocC * config1.wgC.value_or(src1Channels);
+      std::uint32_t tileX = config1.invocC * config1.wgC;
       std::uint32_t tileY = config1.invocW * config1.wgW;
       std::uint32_t tileZ = config1.invocH * config1.wgH;
 
@@ -530,8 +433,8 @@ void CopyTransformShader::implement(
                                                 src0Channels + src1Channels));
       copySrc1Dispatch.setConfig(fmt::format(
           "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}",
-          config1.invocC, config1.invocW, config1.invocH,
-          config1.wgC.value_or(src1Channels), config1.wgW, config1.wgH));
+          config1.invocC, config1.invocW, config1.invocH, config1.wgC,
+          config1.wgW, config1.wgH));
       copySrc1Dispatch.setName(name());
       copySrc1Dispatch.setSourcePath(m_srcPath);
     }

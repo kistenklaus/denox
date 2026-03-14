@@ -1,11 +1,8 @@
 #include "denox/compiler/implement/shaders/upsample/BasicUpsampleShader.hpp"
-#include "denox/algorithm/align_up.hpp"
 #include "denox/common/FilterMode.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/not_implemented.hpp"
-#include "denox/diag/unreachable.hpp"
-#include <bit>
+#include "denox/io/fs/File.hpp"
 #include <cassert>
 
 namespace denox::compiler::shaders {
@@ -19,124 +16,40 @@ BasicUpsampleShader::BasicUpsampleShader(spirv::GlslCompiler *compiler,
       m_maxComputeWorkGroupSize(
           options.deviceInfo.limits.maxComputeWorkGroupSize),
       m_optimizationLevel(options.optimizationLevel) {
+  auto fd = io::File::open(io::Path::assets() /
+                               "compiler/src/denox/compiler/implement/shaders/"
+                               "upsample/basic_upsample.configs",
+                           io::File::OpenMode::Read);
+  std::string str;
+  str.resize(fd.size());
+  fd.read_exact(std::span<std::byte>(reinterpret_cast<std::byte *>(str.data()),
+                                     str.size()));
+  std::stringstream ss(str);
 
-  { // Generate HWC config space
-    uint32_t min_invocC = 1;
-    uint32_t max_invocC = 4;
-    if (options.optimizationLevel < 4) {
-      min_invocC = 2;
-      max_invocC = 2;
-    }
+  while (!ss.eof()) {
+    Config config;
+    ss >> config.invocC;
+    ss >> config.invocW;
+    ss >> config.invocH;
+    ss >> config.wgC;
+    ss >> config.wgW;
+    ss >> config.wgH;
 
-    uint32_t min_invocH = 1;
-    uint32_t max_invocH = 8;
-    if (options.optimizationLevel < 4) {
-      min_invocH = 4;
-      max_invocH = 4;
+    if (config.wgC > options.deviceInfo.limits.maxComputeWorkGroupSize[0]) {
+      continue;
     }
-    uint32_t min_wg_size = m_subgroupSize;
-    uint32_t max_wg_size = std::max(
-        static_cast<uint32_t>(algorithm::align_up(512, m_subgroupSize)),
-        options.deviceInfo.limits.maxComputeWorkGroupInvocations);
-
-    if (options.optimizationLevel < 4) {
-      min_wg_size =
-          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
-      max_wg_size =
-          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
+    if (config.wgW > options.deviceInfo.limits.maxComputeWorkGroupSize[1]) {
+      continue;
     }
-
-    for (uint32_t invocC = min_invocC; invocC <= max_invocC; ++invocC) {
-      for (uint32_t invocH = min_invocH; invocH <= max_invocH; ++invocH) {
-        for (uint32_t wgSize = min_wg_size; wgSize <= max_wg_size;
-             wgSize += m_subgroupSize) {
-          m_hwc_configs.push_back(Config_HWC{
-              .invocC = invocC,
-              .invocH = invocH,
-              .wgSizeHint = wgSize,
-          });
-        }
-      }
+    if (config.wgH > options.deviceInfo.limits.maxComputeWorkGroupSize[2]) {
+      continue;
     }
-  }
-  { // HWC8 config space
-    uint32_t min_invocH = 1;
-    uint32_t max_invocH = 2;
-    if (options.optimizationLevel < 4) {
-      min_invocH = 1;
-      max_invocH = 1;
+    uint32_t wg_size = config.wgC * config.wgH * config.wgW;
+    if (wg_size > options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
+      continue;
     }
 
-    uint32_t min_invocW = 1;
-    uint32_t max_invocW = 2;
-    if (options.optimizationLevel < 4) {
-      min_invocW = 1;
-      max_invocW = 1;
-    }
-    uint32_t min_wg_size = m_subgroupSize;
-    uint32_t max_wg_size = std::max(
-        static_cast<uint32_t>(algorithm::align_up(512, m_subgroupSize)),
-        options.deviceInfo.limits.maxComputeWorkGroupInvocations);
-
-    if (options.optimizationLevel < 4) {
-      min_wg_size =
-          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
-      max_wg_size =
-          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
-    }
-
-    for (uint32_t invocW = min_invocW; invocW <= max_invocW; ++invocW) {
-      for (uint32_t invocH = min_invocH; invocH <= max_invocH; ++invocH) {
-
-        for (uint32_t wgSize = min_wg_size; wgSize <= max_wg_size;
-             wgSize += m_subgroupSize) {
-          m_hwc8_configs.push_back(Config_HWC8{
-              .invocW = invocW,
-              .invocH = invocH,
-              .wgSizeHint = wgSize,
-          });
-        }
-      }
-    }
-  }
-  { // CHWC8 config space
-    uint32_t min_invocH = 1;
-    uint32_t max_invocH = 2;
-    if (options.optimizationLevel < 4) {
-      min_invocH = 1;
-      max_invocH = 1;
-    }
-
-    uint32_t min_invocW = 1;
-    uint32_t max_invocW = 2;
-    if (options.optimizationLevel < 4) {
-      min_invocW = 1;
-      max_invocW = 1;
-    }
-
-    uint32_t min_wg_size = m_subgroupSize;
-    uint32_t max_wg_size = std::max(
-        static_cast<uint32_t>(algorithm::align_up(512, m_subgroupSize)),
-        options.deviceInfo.limits.maxComputeWorkGroupInvocations);
-
-    if (options.optimizationLevel < 4) {
-      min_wg_size =
-          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
-      max_wg_size =
-          static_cast<uint32_t>(algorithm::align_up(256u, m_subgroupSize));
-    }
-    for (uint32_t invocW = min_invocW; invocW <= max_invocW; ++invocW) {
-      for (uint32_t invocH = min_invocH; invocH <= max_invocH; ++invocH) {
-        for (uint32_t wgSize = min_wg_size; wgSize <= max_wg_size;
-             wgSize += m_subgroupSize) {
-          m_chwc8_configs.push_back(Config_CHWC8{
-              .invocW = invocW,
-              .invocH = invocH,
-              .wgSize = wgSize,
-          });
-        }
-      }
-    }
+    m_configs.push_back(config);
   }
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
@@ -200,8 +113,6 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   if (in.channels != out.channels) {
     diag::invalid_state();
   }
-  uint32_t C = static_cast<uint32_t>(in.channels.constant());
-
   enum Variant {
     HWC,
     HWC8,
@@ -217,220 +128,54 @@ memory::vector<unsigned int> BasicUpsampleShader::acceptMatch(
   }
 
   memory::vector<unsigned int> promissing;
-  switch (variant) {
-  case HWC: {
-    for (uint32_t c = 0; c < m_hwc_configs.size(); ++c) {
-      const auto &config = m_hwc_configs[c];
-      uint32_t wgC;
-      if (C < 256) {
-        wgC = (C + config.invocC - 1) / config.invocC;
-      } else {
-        wgC = 128;
-      }
-      uint32_t ctile = wgC * config.invocC;
-      if (C >= 256 && ctile < C) {
-        continue;
-      }
-      uint32_t wgH = 1;
-      uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
-      uint32_t wgSize = wgC * wgW * wgH;
-      if (wgSize < 64 ||
-          wgSize > std::min(512u, m_maxComputeWorkGroupInvocations)) {
-        continue;
-      }
-      if (wgSize % 32 != 0) {
-        continue;
-      }
-      if (wgC >= m_maxComputeWorkGroupSize[0]) {
-        continue;
-      }
-      if (wgW >= m_maxComputeWorkGroupSize[1]) {
-        continue;
-      }
-      if (wgH >= m_maxComputeWorkGroupSize[2]) {
-        continue;
-      }
+  for (unsigned int c = 0; c < m_configs.size(); ++c) {
+    const auto &config = m_configs[c];
+    switch (variant) {
+    case HWC:
 
-      if (m_optimizationLevel < 4) {
-        if (std::popcount(wgSize) != 1) {
-          continue; // only accept powers of 2
+      if (m_optimizationLevel < 3) {
+        if (config.invocW != 1) {
+          continue;
+        }
+        if (config.wgH != 1) {
+          continue;
         }
       }
 
       promissing.push_back(c);
-    }
-    if (promissing.empty()) {
-      for (uint32_t c = 0; c < m_hwc_configs.size(); ++c) {
-        const auto &config = m_hwc_configs[c];
-        uint32_t wgC;
-        if (C < 256) {
-          wgC = (C + config.invocC - 1) / config.invocC;
-        } else {
-          wgC = 128;
-        }
-        uint32_t ctile = wgC * config.invocC;
-        if (C >= 256 && ctile < C) { // weaker condition
-          continue;
-        }
-        uint32_t wgH = 1;
-        uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
-        uint32_t wgSize = wgC * wgW * wgH;
-
-        if (wgSize < m_subgroupSize ||
-            wgSize >= m_maxComputeWorkGroupInvocations) {
-          continue;
-        }
-        if (wgSize % 32 != 0) {
-          continue;
-        }
-
-        if (wgC >= m_maxComputeWorkGroupSize[0]) {
-          continue;
-        }
-        if (wgW >= m_maxComputeWorkGroupSize[1]) {
-          continue;
-        }
-        if (wgH >= m_maxComputeWorkGroupSize[2]) {
-          continue;
-        }
-
-        promissing.push_back(c);
-      }
-    }
-    if (promissing.empty()) {
-      for (uint32_t c = 0; c < m_hwc_configs.size(); ++c) {
-        const auto &config = m_hwc_configs[c];
-        uint32_t wgC;
-        if (C < 256) {
-          wgC = (C + config.invocC - 1) / config.invocC;
-        } else {
-          wgC = 128;
-        }
-        uint32_t ctile = wgC * config.invocC;
-        if (C <= 256 && ctile < C) { // weaker condition
-          continue;
-        }
-        uint32_t wgH = 1;
-        uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
-        uint32_t wgSize = wgC * wgW * wgH;
-
-        if (wgSize < m_subgroupSize ||
-            wgSize >= m_maxComputeWorkGroupInvocations) {
-          continue;
-        }
-
-        if (wgC >= m_maxComputeWorkGroupSize[0]) {
-          continue;
-        }
-        if (wgW >= m_maxComputeWorkGroupSize[1]) {
-          continue;
-        }
-        if (wgH >= m_maxComputeWorkGroupSize[2]) {
-          continue;
-        }
-
-        promissing.push_back(c);
-      }
-    }
-    assert(!promissing.empty());
-    break;
-  }
-  case HWC8: {
-    for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
-      const auto &config = m_hwc8_configs[c];
-      uint32_t wgC;
-      if (C < std::min(m_subgroupSize * 8, 512u)) {
-        assert(C % 8 == 0);
-        wgC = C / 8;
-      } else {
-        wgC = 128u;
-      }
-      const uint32_t wgH = 1;
-      uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
-
-      uint32_t wgSize = wgC * wgW * wgH;
-
-      if (wgSize < m_subgroupSize ||
-          wgSize >= m_maxComputeWorkGroupInvocations) {
+      break;
+    case HWC8:
+      if (config.invocC % 8 != 0) {
         continue;
       }
-
-      if (wgC >= m_maxComputeWorkGroupSize[0]) {
-        continue;
-      }
-      if (wgW >= m_maxComputeWorkGroupSize[1]) {
-        continue;
-      }
-      if (wgH >= m_maxComputeWorkGroupSize[2]) {
-        continue;
-      }
-      if (m_optimizationLevel < 4 && std::popcount(wgSize) != 1) {
-        continue;
-      }
-      if (m_optimizationLevel < 4 &&
-          (wgSize < std::min(4 * m_subgroupSize, 128u) ||
-           wgSize > std::max(512u, m_subgroupSize * 8))) {
-        continue;
-      }
-
-      promissing.push_back(c);
-    }
-
-    if (promissing.empty()) {
-      for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
-        const auto &config = m_hwc8_configs[c];
-        uint32_t wgC;
-        if (C < std::min(m_subgroupSize * 8, 512u)) {
-          assert(C % 8 == 0);
-          wgC = C / 8;
-        } else {
-          wgC = 128u;
-        }
-        const uint32_t wgH = 1;
-        uint32_t wgW = (config.wgSizeHint + wgC * wgH - 1) / (wgC * wgH);
-
-        uint32_t wgSize = wgC * wgW * wgH;
-
-        if (wgSize < m_subgroupSize ||
-            wgSize > m_maxComputeWorkGroupInvocations) {
+      if (m_optimizationLevel < 3) {
+        if (config.invocC != 8) {
           continue;
         }
-
-        if (wgC >= m_maxComputeWorkGroupSize[0]) {
+        if (config.wgH != 1) {
           continue;
         }
-        if (wgW >= m_maxComputeWorkGroupSize[1]) {
-          continue;
-        }
-        if (wgH >= m_maxComputeWorkGroupSize[2]) {
-          continue;
-        }
-        promissing.push_back(c);
-      }
-    }
-
-    assert(!promissing.empty());
-    break;
-  }
-  case CHWC8: {
-    for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
-      const auto &config = m_chwc8_configs[c];
-      uint32_t wgW = config.wgSize;
-      if (m_optimizationLevel < 4 && std::popcount(wgW) != 1) {
-        continue;
       }
       promissing.push_back(c);
-    }
-    if (promissing.empty()) {
-      for (uint32_t c = 0; c < m_hwc8_configs.size(); ++c) {
-        promissing.push_back(c);
+      break;
+    case CHWC8:
+      if (config.invocC % 8 != 0) {
+        continue;
       }
+      if (m_optimizationLevel < 3) {
+        if (config.invocC != 8) {
+          continue;
+        }
+        if (config.wgH != 1) {
+          continue;
+        }
+        if (config.wgC != 1) {
+          continue;
+        }
+      }
+      promissing.push_back(c);
+      break;
     }
-    assert(!promissing.empty());
-    break;
-  default:
-    denox::diag::unreachable();
-  }
   }
   return promissing;
 }
@@ -515,58 +260,8 @@ void BasicUpsampleShader::implement(
     HWC8,
     CHWC8,
   };
-  bool vec = in.channels.constant() % 8 == 0;
-  Variant variant = HWC;
-  if (in.format == TensorFormat::SSBO_HWC && vec) {
-    variant = HWC8;
-  } else if (in.format == TensorFormat::SSBO_CHWC8) {
-    assert(vec);
-    variant = CHWC8;
-  }
 
-  Config config{};
-  switch (variant) {
-  case HWC: {
-    config.invocC = m_hwc_configs[configKey].invocC;
-    config.invocW = 1;
-    config.invocH = m_hwc_configs[configKey].invocH;
-    if (C < 256) {
-      config.wgC = (C + config.invocC - 1) / config.invocC;
-    } else {
-      config.wgC = 128;
-    }
-    config.wgH = 1;
-    config.wgW =
-        (m_hwc_configs[configKey].wgSizeHint + config.wgC * config.wgH - 1) /
-        (config.wgC * config.wgH);
-    break;
-  }
-  case HWC8: {
-    config.invocC = 8;
-    config.invocW = m_hwc8_configs[configKey].invocW;
-    config.invocH = m_hwc8_configs[configKey].invocH;
-    if (C < 256) {
-      config.wgC = (C + config.invocC - 1) / config.invocC;
-    } else {
-      config.wgC = 128;
-    }
-    config.wgH = 1;
-    config.wgW =
-        (m_hwc8_configs[configKey].wgSizeHint + config.wgC * config.wgH - 1) /
-        (config.wgC * config.wgH);
-    break;
-  }
-  case CHWC8: {
-    config.invocC = 8;
-    config.invocW = m_chwc8_configs[configKey].invocW;
-    config.invocH = m_chwc8_configs[configKey].invocH;
-    config.wgC = 1;
-    config.wgH = 1;
-    config.wgW = m_chwc8_configs[configKey].wgSize;
-    break;
-  }
-  }
-
+  Config config = m_configs[configKey];
   auto shader =
       basic_upsample_compile(m_compiler, m_srcPath, in.format, out.format, C,
                              upsample.scalingFactor, config);

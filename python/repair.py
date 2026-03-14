@@ -5,27 +5,23 @@ import re
 import pandas as pd
 
 def repair_force_sg_size(df: pd.DataFrame) -> pd.DataFrame:
-    nvidia_mask = df["device"].str.contains("NVIDIA", case=False, na=False)
-    amd_mask = df["device"].str.contains("AMD", case=False, na=False)
-    intel_mask = df["device"].str.contains("Intel", case=False, na=False)
+    device = df["device"]
+    sg = df["subgroup_size"]
 
-    # NVIDIA: replace 0 or NaN with 32
-    invalid_nv = df.loc[nvidia_mask, "subgroup_size"].isna() | (
-        df.loc[nvidia_mask, "subgroup_size"] == 0
-    )
-    df.loc[nvidia_mask & invalid_nv, "subgroup_size"] = 32
+    nvidia_mask = device.str.contains("NVIDIA", case=False, na=False)
+    amd_mask = device.str.contains("AMD", case=False, na=False)
+    intel_mask = device.str.contains("Intel", case=False, na=False)
 
-    # AMD/Intel: ensure subgroup_size is valid
-    mask = amd_mask | intel_mask
-    invalid = df.loc[mask, "subgroup_size"].isna() | (
-        df.loc[mask, "subgroup_size"] == 0
-    )
+    invalid = sg.isna() | (sg == 0)
 
-    if invalid.any():
+    # NVIDIA: replace invalid values
+    df.loc[nvidia_mask & invalid, "subgroup_size"] = 32
+
+    # AMD / Intel: invalid values are an error
+    if (invalid & (amd_mask | intel_mask)).any():
         raise ValueError("Invalid subgroup_size for AMD/Intel")
 
     df["config_SG_SIZE"] = df["subgroup_size"]
-
     return df
 
 repaired_dir = Path("./repaired")

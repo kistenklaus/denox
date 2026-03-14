@@ -4,6 +4,7 @@
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
+#include "denox/io/fs/File.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/uvec2.hpp"
 #include "denox/memory/dtype/dtype.hpp"
@@ -41,162 +42,152 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     return;
   }
 
-  // ==== Generate all valid configurations ====
-  {
+  if (options.optimizationLevel >= 5) {
+    // ==== Generate all valid configurations ====
+    {
 
-    memory::small_vector<uint32_t, 2> subgroupSizes;
-    if (options.optimizationLevel >= 5 &&
-        options.deviceInfo.subgroup.controlProperties.supported) {
-      subgroupSizes =
-          options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes;
-    } else {
-      if (options.deviceInfo.subgroup.controlProperties.supported &&
-          std::ranges::count(options.deviceInfo.subgroup.controlProperties
-                                 .supportedSubgroupSizes,
-                             32) != 0) {
-        subgroupSizes = {32};
+      memory::small_vector<uint32_t, 2> subgroupSizes;
+      if (options.optimizationLevel >= 5 &&
+          options.deviceInfo.subgroup.controlProperties.supported) {
+        subgroupSizes = options.deviceInfo.subgroup.controlProperties
+                            .supportedSubgroupSizes;
       } else {
-        subgroupSizes.push_back(options.deviceInfo.subgroup.subgroupSize);
-      }
-    };
-
-    for (const uint32_t subgroupSize : subgroupSizes) {
-
-      // special config:
-      memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
-          coopmatShapes;
-      size_t coopmat_shape_space;
-      if (options.optimizationLevel >= 5) {
-        coopmat_shape_space = 3;
-      } else {
-        coopmat_shape_space = 1;
-      }
-      for (const denox::CoopmatShape &shape :
-           options.deviceInfo.coopmat.shapes) {
-        if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
-            shape.atype != memory::Dtype::F16 ||
-            shape.btype != memory::Dtype::F16 ||
-            shape.ctype != memory::Dtype::F16) {
-          continue;
-        }
-        if ((shape.M % 8 != 0) || (shape.K % 8 != 0) || (shape.N % 8 != 0)) {
-          continue;
-        }
-        if (shape.M == 16 && shape.K == 16 && shape.N == 16) {
-          coopmatShapes.emplace_back(0, shape);
-        } else if (shape.M == 16 && shape.K == 8 && shape.N == 8) {
-          coopmatShapes.emplace_back(8, shape);
-        } else if (shape.M == 16 && shape.K == 8 && shape.N == 16) {
-          coopmatShapes.emplace_back(5, shape);
+        if (options.deviceInfo.subgroup.controlProperties.supported &&
+            std::ranges::count(options.deviceInfo.subgroup.controlProperties
+                                   .supportedSubgroupSizes,
+                               32) != 0) {
+          subgroupSizes = {32};
         } else {
-          coopmatShapes.emplace_back(100, shape);
+          subgroupSizes.push_back(options.deviceInfo.subgroup.subgroupSize);
         }
-      }
-      std::ranges::stable_sort(coopmatShapes, [](const auto &lhs, const auto &rhs) {
-        return lhs.first < rhs.first;
-      });
+      };
 
-      coopmatShapes.resize(
-          std::min<size_t>(coopmatShapes.size(), coopmat_shape_space));
+      for (const uint32_t subgroupSize : subgroupSizes) {
 
-      for (const auto &[_, coopmat_shape] : coopmatShapes) {
-        const uint32_t cm_m = coopmat_shape.M;
-        const uint32_t cm_k = coopmat_shape.K;
-        const uint32_t cm_n = coopmat_shape.N;
-        if ((cm_m % 8 != 0) || (cm_k % 8 != 0) || (cm_n % 8 != 0)) {
-          continue;
+        // special config:
+        memory::small_vector<std::pair<uint32_t, denox::CoopmatShape>, 3>
+            coopmatShapes;
+        size_t coopmat_shape_space;
+        if (options.optimizationLevel >= 5) {
+          coopmat_shape_space = 3;
+        } else {
+          coopmat_shape_space = 1;
         }
+        for (const denox::CoopmatShape &shape :
+             options.deviceInfo.coopmat.shapes) {
+          if (!shape.subgroupScope || shape.acctype != memory::Dtype::F16 ||
+              shape.atype != memory::Dtype::F16 ||
+              shape.btype != memory::Dtype::F16 ||
+              shape.ctype != memory::Dtype::F16) {
+            continue;
+          }
+          if ((shape.M % 8 != 0) || (shape.K % 8 != 0) || (shape.N % 8 != 0)) {
+            continue;
+          }
+          if (shape.M == 16 && shape.K == 16 && shape.N == 16) {
+            coopmatShapes.emplace_back(0, shape);
+          } else if (shape.M == 16 && shape.K == 8 && shape.N == 8) {
+            coopmatShapes.emplace_back(8, shape);
+          } else if (shape.M == 16 && shape.K == 8 && shape.N == 16) {
+            coopmatShapes.emplace_back(5, shape);
+          } else {
+            coopmatShapes.emplace_back(100, shape);
+          }
+        }
+        std::ranges::stable_sort(coopmatShapes,
+                                 [](const auto &lhs, const auto &rhs) {
+                                   return lhs.first < rhs.first;
+                                 });
 
-        const uint32_t acc_register_estimate = (cm_m * cm_n) / subgroupSize;
-        const uint32_t a_register_estimate = (cm_m * cm_k) / subgroupSize;
-        const uint32_t b_register_estimate = (cm_k * cm_n) / subgroupSize;
+        coopmatShapes.resize(
+            std::min<size_t>(coopmatShapes.size(), coopmat_shape_space));
 
-        // very exhaustive search range!!!
-        for (uint32_t wg_m = 1; wg_m < 16; ++wg_m) {
-          for (uint32_t wg_n = 1; wg_n < 16; ++wg_n) {
-            const uint32_t workgroup_size = wg_m * wg_n * subgroupSize;
-            if (workgroup_size < 128 ||
-                workgroup_size >
-                    options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
-              continue; // unreasonable workgroup size
-            }
-            for (uint32_t sg_m = 1; sg_m <= 8; ++sg_m) {
-              for (uint32_t sg_k = 1; sg_k <= 8; ++sg_k) {
-                for (uint32_t sg_n = 1; sg_n <= 8; ++sg_n) {
-                  const uint32_t coopmats_register_estimate =
-                      acc_register_estimate * sg_n * sg_m +
-                      a_register_estimate * sg_m + b_register_estimate * sg_n;
-                  const uint32_t prefetch_A_QQ =
-                      (cm_m * cm_k * sg_k * sg_m) / 8;
-                  if (prefetch_A_QQ % wg_n != 0) {
-                    continue; // invalid configuration (uneven balance)!
-                  }
-                  const uint32_t prefetch_A_SQQ = prefetch_A_QQ / wg_n;
-                  // 16bytes word fetched per invocation!
-                  const uint32_t prefetch_A_IQQ =
-                      (prefetch_A_SQQ + subgroupSize - 1) / subgroupSize;
+        for (const auto &[_, coopmat_shape] : coopmatShapes) {
+          const uint32_t cm_m = coopmat_shape.M;
+          const uint32_t cm_k = coopmat_shape.K;
+          const uint32_t cm_n = coopmat_shape.N;
+          if ((cm_m % 8 != 0) || (cm_k % 8 != 0) || (cm_n % 8 != 0)) {
+            continue;
+          }
 
-                  const uint32_t prefetch_B_QQ =
-                      (cm_k * cm_n * sg_k * sg_n) / 8;
-                  if (prefetch_B_QQ % wg_m != 0) {
-                    continue; // invalid configuration (uneven balance)
-                  }
-                  const uint32_t prefetch_B_SQQ = prefetch_B_QQ / wg_m;
-                  // 16 bytes word fetched per invocation!
-                  const uint32_t prefetch_B_IQQ =
-                      (prefetch_B_SQQ + subgroupSize - 1) / subgroupSize;
+          const uint32_t acc_register_estimate = (cm_m * cm_n) / subgroupSize;
+          const uint32_t a_register_estimate = (cm_m * cm_k) / subgroupSize;
+          const uint32_t b_register_estimate = (cm_k * cm_n) / subgroupSize;
 
-                  const uint32_t prefetch_A_register_estimate =
-                      prefetch_A_IQQ * 4; // uvec4
-                  const uint32_t prefetch_B_register_estimate =
-                      prefetch_B_IQQ * 4; // uvec4
+          // very exhaustive search range!!!
+          for (uint32_t wg_m = 1; wg_m < 16; ++wg_m) {
+            for (uint32_t wg_n = 1; wg_n < 16; ++wg_n) {
+              const uint32_t workgroup_size = wg_m * wg_n * subgroupSize;
+              if (workgroup_size < 128 ||
+                  workgroup_size > options.deviceInfo.limits
+                                       .maxComputeWorkGroupInvocations) {
+                continue; // unreasonable workgroup size
+              }
+              for (uint32_t sg_m = 1; sg_m <= 8; ++sg_m) {
+                for (uint32_t sg_k = 1; sg_k <= 8; ++sg_k) {
+                  for (uint32_t sg_n = 1; sg_n <= 8; ++sg_n) {
+                    const uint32_t coopmats_register_estimate =
+                        acc_register_estimate * sg_n * sg_m +
+                        a_register_estimate * sg_m + b_register_estimate * sg_n;
+                    const uint32_t prefetch_A_QQ =
+                        (cm_m * cm_k * sg_k * sg_m) / 8;
+                    if (prefetch_A_QQ % wg_n != 0) {
+                      continue; // invalid configuration (uneven balance)!
+                    }
+                    const uint32_t prefetch_A_SQQ = prefetch_A_QQ / wg_n;
+                    // 16bytes word fetched per invocation!
+                    const uint32_t prefetch_A_IQQ =
+                        (prefetch_A_SQQ + subgroupSize - 1) / subgroupSize;
 
-                  const uint32_t register_estimate =
-                      coopmats_register_estimate +
-                      prefetch_A_register_estimate +
-                      prefetch_B_register_estimate;
-                  if (register_estimate > 200) {
-                    continue; // to many registers (conservative limit, because
-                              // optimizers might reduce this drastically)
-                  }
-                  const uint32_t sh_a_size =
-                      (wg_m * cm_m * cm_k * sg_k * sg_m) * 2;
-                  const uint32_t sh_b_size =
-                      (wg_n * cm_k * cm_n * sg_k * sg_n) * 2;
-                  const uint32_t sh_out_size =
-                      wg_m * wg_n * sg_m * sg_n * cm_m * cm_n * 2;
-                  const uint32_t sh_size =
-                      std::max(sh_a_size + sh_b_size, sh_out_size);
+                    const uint32_t prefetch_B_QQ =
+                        (cm_k * cm_n * sg_k * sg_n) / 8;
+                    if (prefetch_B_QQ % wg_m != 0) {
+                      continue; // invalid configuration (uneven balance)
+                    }
+                    const uint32_t prefetch_B_SQQ = prefetch_B_QQ / wg_m;
+                    // 16 bytes word fetched per invocation!
+                    const uint32_t prefetch_B_IQQ =
+                        (prefetch_B_SQQ + subgroupSize - 1) / subgroupSize;
 
-                  // again very conservative limit especially for this
-                  // implementation, because it almost doesn't require any
-                  // shared memory
-                  static constexpr double WG_SH_OCCUPANCY =
-                      0.75; // 75% of max shared memory allowed
-                  if (static_cast<double>(sh_size) >
-                      static_cast<double>(
-                          options.deviceInfo.limits.maxComputeSharedMemory) *
-                          WG_SH_OCCUPANCY) {
-                    continue;
-                  }
-                  // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}", cm_m,
-                  // cm_k,
-                  //              cm_n, sg_m, sg_k, sg_n, wg_m, wg_n, sh_size);
+                    const uint32_t prefetch_A_register_estimate =
+                        prefetch_A_IQQ * 4; // uvec4
+                    const uint32_t prefetch_B_register_estimate =
+                        prefetch_B_IQQ * 4; // uvec4
 
-                  m_configs.push_back(DirectConvConfigCM{
-                      .cm_m = cm_m,
-                      .cm_k = cm_k,
-                      .cm_n = cm_n,
-                      .wg_m = wg_m,
-                      .wg_n = wg_n,
-                      .sg_m = sg_m,
-                      .sg_k = sg_k,
-                      .sg_n = sg_n,
-                      .async = true,
-                      .subgroupSize = subgroupSize,
-                  });
+                    const uint32_t register_estimate =
+                        coopmats_register_estimate +
+                        prefetch_A_register_estimate +
+                        prefetch_B_register_estimate;
+                    if (register_estimate > 200) {
+                      continue; // to many registers (conservative limit,
+                                // because optimizers might reduce this
+                                // drastically)
+                    }
+                    const uint32_t sh_a_size =
+                        (wg_m * cm_m * cm_k * sg_k * sg_m) * 2;
+                    const uint32_t sh_b_size =
+                        (wg_n * cm_k * cm_n * sg_k * sg_n) * 2;
+                    const uint32_t sh_out_size =
+                        wg_m * wg_n * sg_m * sg_n * cm_m * cm_n * 2;
+                    const uint32_t sh_size =
+                        std::max(sh_a_size + sh_b_size, sh_out_size);
 
-                  if (options.optimizationLevel > 2) {
+                    // again very conservative limit especially for this
+                    // implementation, because it almost doesn't require any
+                    // shared memory
+                    static constexpr double WG_SH_OCCUPANCY =
+                        0.75; // 75% of max shared memory allowed
+                    if (static_cast<double>(sh_size) >
+                        static_cast<double>(
+                            options.deviceInfo.limits.maxComputeSharedMemory) *
+                            WG_SH_OCCUPANCY) {
+                      continue;
+                    }
+                    // fmt::println("{}x{}x{}   {}x{}x{}   {}x{}   ->  {}",
+                    // cm_m, cm_k,
+                    //              cm_n, sg_m, sg_k, sg_n, wg_m, wg_n,
+                    //              sh_size);
+
                     m_configs.push_back(DirectConvConfigCM{
                         .cm_m = cm_m,
                         .cm_k = cm_k,
@@ -206,9 +197,24 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
                         .sg_m = sg_m,
                         .sg_k = sg_k,
                         .sg_n = sg_n,
-                        .async = false,
+                        .async = true,
                         .subgroupSize = subgroupSize,
                     });
+
+                    if (options.optimizationLevel > 2) {
+                      m_configs.push_back(DirectConvConfigCM{
+                          .cm_m = cm_m,
+                          .cm_k = cm_k,
+                          .cm_n = cm_n,
+                          .wg_m = wg_m,
+                          .wg_n = wg_n,
+                          .sg_m = sg_m,
+                          .sg_k = sg_k,
+                          .sg_n = sg_n,
+                          .async = false,
+                          .subgroupSize = subgroupSize,
+                      });
+                    }
                   }
                 }
               }
@@ -216,11 +222,145 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
           }
         }
       }
+      if (m_configs.empty()) {
+        std::cerr << "Warning: DirectConvShaderCM: Failed to find any valid "
+                     "configurations."
+                  << std::endl;
+      }
     }
-    if (m_configs.empty()) {
-      std::cerr << "Warning: DirectConvShaderCM: Failed to find any valid "
-                   "configurations."
-                << std::endl;
+  } else {
+    // === Read valid configurations from file.
+    auto fd = io::File::open(
+        io::Path::assets() / "compiler/src/denox/compiler/implement/shaders/"
+                             "conv/direct_conv_cm.configs",
+        io::File::OpenMode::Read);
+    std::string str;
+    str.resize(fd.size());
+    fd.read_exact(std::span<std::byte>(
+        reinterpret_cast<std::byte *>(str.data()), str.size()));
+    std::stringstream ss(str);
+
+    while (!ss.eof()) {
+      DirectConvConfigCM config;
+      ss >> config.cm_m;
+      ss >> config.cm_k;
+      ss >> config.cm_n;
+      ss >> config.sg_m;
+      ss >> config.sg_k;
+      ss >> config.sg_n;
+      ss >> config.wg_m;
+      ss >> config.wg_n;
+      ss >> config.async;
+      ss >> config.subgroupSize;
+
+      // trivial workgroup size checks (should basically never fail)
+      if (config.subgroupSize >
+          options.deviceInfo.limits.maxComputeWorkGroupSize[0]) {
+        continue;
+      }
+      const uint32_t sg_count = config.wg_m * config.wg_n;
+      if (sg_count > options.deviceInfo.limits.maxComputeWorkGroupSize[1]) {
+        continue;
+      }
+      if (1 > options.deviceInfo.limits.maxComputeWorkGroupSize[2]) {
+        continue;
+      }
+      const uint32_t wg_size = sg_count * config.subgroupSize;
+      if (wg_size > options.deviceInfo.limits.maxComputeWorkGroupInvocations) {
+        continue;
+      }
+
+      // check if valid on this device!
+      if (options.deviceInfo.subgroup.controlProperties.supported) {
+        const bool sg_supported =
+            std::ranges::count(options.deviceInfo.subgroup.controlProperties
+                                   .supportedSubgroupSizes,
+                               config.subgroupSize) != 0;
+        if (!sg_supported) {
+          continue; // subgroup control available, but subgroupSize invalid.
+        }
+      } else {
+        if (config.subgroupSize != options.deviceInfo.subgroup.subgroupSize) {
+          continue; // invalid subgroup size.
+        }
+      }
+
+      bool shape_supported = false;
+      for (const denox::CoopmatShape &shape :
+           options.deviceInfo.coopmat.shapes) {
+        if (shape.atype == memory::Dtype::F16 &&
+            shape.btype == memory::Dtype::F16 &&
+            shape.ctype == memory::Dtype::F16 &&
+            shape.acctype == memory::Dtype::F16 && shape.subgroupScope &&
+            shape.M == config.cm_m && shape.K == config.cm_k &&
+            shape.N == config.cm_n) {
+          shape_supported = true;
+          break;
+        }
+      }
+      if (!shape_supported) {
+        continue;
+      }
+      if ((config.cm_m % 8 != 0) || (config.cm_k % 8 != 0) ||
+          (config.cm_n % 8 != 0)) {
+        continue;
+      }
+
+      const uint32_t acc_register_estimate =
+          (config.cm_m * config.cm_n) / config.subgroupSize;
+      const uint32_t a_register_estimate =
+          (config.cm_m * config.cm_k) / config.subgroupSize;
+      const uint32_t b_register_estimate =
+          (config.cm_k * config.cm_n) / config.subgroupSize;
+
+      const uint32_t coopmats_register_estimate =
+          acc_register_estimate * config.sg_n * config.sg_m +
+          a_register_estimate * config.sg_m + b_register_estimate * config.sg_n;
+      const uint32_t prefetch_A_QQ =
+          (config.cm_m * config.cm_k * config.sg_k * config.sg_m) / 8;
+      if (prefetch_A_QQ % config.wg_n != 0) {
+        continue; // invalid configuration (uneven balance)!
+      }
+      const uint32_t prefetch_A_SQQ = prefetch_A_QQ / config.wg_n;
+      // 16bytes word fetched per invocation!
+      const uint32_t prefetch_A_IQQ =
+          (prefetch_A_SQQ + config.subgroupSize - 1) / config.subgroupSize;
+
+      const uint32_t prefetch_B_QQ =
+          (config.cm_k * config.cm_n * config.sg_k * config.sg_n) / 8;
+      if (prefetch_B_QQ % config.wg_m != 0) {
+        continue; // invalid configuration (uneven balance)
+      }
+      const uint32_t prefetch_B_SQQ = prefetch_B_QQ / config.wg_m;
+      // 16 bytes word fetched per invocation!
+      const uint32_t prefetch_B_IQQ =
+          (prefetch_B_SQQ + config.subgroupSize - 1) / config.subgroupSize;
+
+      const uint32_t prefetch_A_register_estimate = prefetch_A_IQQ * 4; // uvec4
+      const uint32_t prefetch_B_register_estimate = prefetch_B_IQQ * 4; // uvec4
+
+      const uint32_t register_estimate = coopmats_register_estimate +
+                                         prefetch_A_register_estimate +
+                                         prefetch_B_register_estimate;
+      if (register_estimate > 200) {
+        continue; // to many registers (conservative limit,
+                  // because optimizers might reduce this
+                  // drastically)
+      }
+      const uint32_t sh_a_size = (config.wg_m * config.cm_m * config.cm_k *
+                                  config.sg_k * config.sg_m) *
+                                 2;
+      const uint32_t sh_b_size = (config.wg_n * config.cm_k * config.cm_n *
+                                  config.sg_k * config.sg_n) *
+                                 2;
+      const uint32_t sh_out_size = config.wg_m * config.wg_n * config.sg_m *
+                                   config.sg_n * config.cm_m * config.cm_n * 2;
+      const uint32_t sh_size = std::max(sh_a_size + sh_b_size, sh_out_size);
+
+      if (sh_size > options.deviceInfo.limits.maxComputeSharedMemory) {
+        continue; // invalid amount of shared memory.
+      }
+      m_configs.push_back(config);
     }
   }
 
