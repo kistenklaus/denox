@@ -71,6 +71,13 @@ if (DENOX_SAN)
 endif()
 
 
+if (DENOX_STATIC_LIBSTDCPP)
+  target_link_options(denox PRIVATE
+      -static-libstdc++
+  )
+endif()
+
+
 install(TARGETS denox 
   RUNTIME DESTINATION bin
 )

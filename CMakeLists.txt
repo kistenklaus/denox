@@ -7,6 +7,8 @@ option(DENOX_SAN "Enables sanitizers" OFF)
 
 option(DENOX_ENABLE_NVML_CLOCKCTRL "Enables / Disables NVML clockctrl, this sometimes leads to ABI / compatibility issues on older GPUs" ON)
 
+option(DENOX_STATIC_LIBSTDCPP "Enables statically linking libstdc++. Can improve ABI stability of produced binary" OFF)
+
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
         $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>:-fdiagnostics-color=always>
