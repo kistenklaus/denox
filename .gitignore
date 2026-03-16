@@ -69,3 +69,4 @@ cmake-debug-build
 *.lock
 *.db-wal
 *.db-shm
+dist/
