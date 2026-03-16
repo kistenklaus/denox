@@ -24,7 +24,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       m_subgroupControl(
           options.deviceInfo.subgroup.controlProperties.supported &&
           options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
-                  .size() > 1) {
+                  .size() > 1),
+      m_optimizationLevel(options.optimizationLevel) {
 
   if (options.deviceInfo.subgroup.subgroupSize == 0) {
     return;
@@ -720,6 +721,7 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
     static constexpr size_t MAX_CHANNEL_TILE_OVERALLOCATION = 2;
     static constexpr size_t MAX_KTILE_OVERALLOCATION = 2;
 
+    // correctness policies.
     // maxpool220 invariant!
     if (pattern == m_conv_maxpool_pattern ||
         pattern == m_conv_activation_maxpool_pattern) {
@@ -731,37 +733,23 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
       }
     }
 
+    // safe policies that almost never prune best configurations.
+
     // GEMM loop iterations
     const uint32_t RSC = R * S * C;
     const uint32_t ktile = config.cm_k * config.sg_k;
     const uint32_t KK = (RSC + ktile - 1) / ktile;
 
-    if (KK < KK_ASYNC_LIMIT && config.async) {
-      // continue; // async doesn't make any sense here!
-    }
     if (RSC * MAX_KTILE_OVERALLOCATION < ktile) {
       continue;
     }
 
-    // k over allocation factor.
-
     uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
     uint32_t channelDispatchSize = (K + ctile - 1) / ctile;
     if (channelDispatchSize > 1 && K <= 256) {
-      // avoid output channel tiling, in cases where implementations
-      // without output tiling exist and are most likely a lot better
       continue;
     }
 
-    uint32_t K_eff = std::max(K, config.cm_n);
-
-    if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
-      // continue;
-    }
-
-    // POLICY: RSC % ktile == 0
-    // NOTE: Only apply if there exist at least one config which achieves cm_k,
-    //    which is implied by RSC % config.cm_k == 0, with sg_k = 1
     if (RSC % config.cm_k == 0) {
       // It's defnitely posisble to find get perfect k-tiling
       if (RSC % ktile != 0) {
@@ -779,7 +767,6 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
       // fmt::println("padding = {}", padding);
     }
 
-    // POLICY: K % ctile == 0
     if (K % config.cm_n == 0) {
       if (K % ctile != 0) {
         continue;
@@ -800,21 +787,43 @@ memory::vector<unsigned int> DirectConvShaderCM::acceptMatch(
       continue;
     }
 
-    // POLICY: aspect ratio \in [1,2]
-    const uint32_t xtile = config.cm_m;
-    const uint32_t ytile = config.sg_m * config.wg_m;
-    const float aspect = static_cast<float>(xtile) / static_cast<float>(ytile);
-    const float eps = 0.001f;
-    if (!((aspect + eps) >= 1 && (aspect - eps) <= 2)) {
-      // continue;
-    }
+    if (m_optimizationLevel <= 2) {
 
-    // POLICY: tile pressure greater than 32K
-    const uint32_t tile_pressue = config.cm_m * config.cm_k * config.cm_n *
-                                  config.sg_m * config.sg_k * config.sg_n;
-    if (tile_pressue < (1 << 15)) {
-      // NOTE: Needs to be configured based on problem size!
-      // continue;
+      if (KK < KK_ASYNC_LIMIT && config.async) {
+        continue; // async doesn't make any sense here!
+      }
+
+      // k over allocation factor.
+
+      uint32_t K_eff = std::max(K, config.cm_n);
+      if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
+        continue;
+      }
+
+      // POLICY: RSC % ktile == 0
+      // NOTE: Only apply if there exist at least one config which achieves
+      // cm_k,
+      //    which is implied by RSC % config.cm_k == 0, with sg_k = 1
+
+      // POLICY: K % ctile == 0
+
+      // POLICY: aspect ratio \in [1,2]
+      const uint32_t xtile = config.cm_m;
+      const uint32_t ytile = config.sg_m * config.wg_m;
+      const float aspect =
+          static_cast<float>(xtile) / static_cast<float>(ytile);
+      const float eps = 0.001f;
+      if (!((aspect + eps) >= 1 && (aspect - eps) <= 2)) {
+        // continue;
+      }
+
+      // POLICY: tile pressure greater than 32K
+      const uint32_t tile_pressue = config.cm_m * config.cm_k * config.cm_n *
+                                    config.sg_m * config.sg_k * config.sg_n;
+      if (tile_pressue < (1 << 15)) {
+        // NOTE: Needs to be configured based on problem size!
+        // continue;
+      }
     }
 
     // fmt::println("{}x{}x{}   {}x{}x{}   {}x{} -> ({}) {}", config.cm_m,

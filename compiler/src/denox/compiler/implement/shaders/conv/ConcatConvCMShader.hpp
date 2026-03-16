@@ -81,6 +81,7 @@ private:
       io::Path::assets() /
       "compiler/src/denox/compiler/implement/shaders/conv/concat_conv_cm.comp";
   bool m_subgroupControl;
+  unsigned int m_optimizationLevel;
   memory::vector<ConcatConvConfig> m_configs;
 
 

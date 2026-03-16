@@ -59,6 +59,8 @@ public:
 
   memory::string name() const final override;
 
+  bool supported() const { return !m_configs.empty(); }
+
 private:
   struct Handles {
     Pattern::NP in;
@@ -78,6 +80,7 @@ private:
       io::Path::assets() /
       "compiler/src/denox/compiler/implement/shaders/conv/direct_conv_cm.comp";
   bool m_subgroupControl;
+  unsigned int m_optimizationLevel;
 
   std::vector<DirectConvConfigCM> m_configs;
 

@@ -21,7 +21,8 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       m_subgroupControl(
           options.deviceInfo.subgroup.controlProperties.supported &&
           options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
-                  .size() > 1) {
+                  .size() > 1),
+      m_optimizationLevel(options.optimizationLevel) {
 
   if (options.deviceInfo.subgroup.subgroupSize == 0) {
     return;
@@ -565,7 +566,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
 
       const uint32_t sh_size = std::max(A_sh_size, B_sh_size);
 
-      if (sh_size > options.deviceInfo.limits.maxComputeSharedMemory)  {
+      if (sh_size > options.deviceInfo.limits.maxComputeSharedMemory) {
         continue;
       }
       m_configs.push_back(config);
@@ -960,11 +961,6 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
       continue;
     }
 
-    // fmt::println("{}x{}/{}x{}   {}x{}/{}x{}   {}x{}", config.cm_m,
-    // config.a_cm_k,
-    //              config.b_cm_k, config.cm_n, config.sg_m, config.a_sg_k,
-    //              config.b_sg_k, config.sg_n, config.wg_m, config.wg_n);
-
     // output channel tile!
     const uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
     uint32_t channelDispatchSize = (K + ctile - 1) / ctile;
@@ -1024,6 +1020,18 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
     const uint32_t wgSize = config.wg_m * config.wg_n * config.subgroupSize;
     if (wgSize < 128 || wgSize > 512) {
       continue;
+    }
+
+    if (m_optimizationLevel <= 2) {
+      if (config.a_async != config.b_async) { 
+        continue;
+      }
+      if (config.a_cm_k != config.b_cm_k) {
+        continue;
+      }
+      if (config.a_sg_k != config.b_sg_k) { 
+        continue;
+      }
     }
     promissing.push_back(c);
   }
