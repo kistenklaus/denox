@@ -70,3 +70,4 @@ cmake-debug-build
 *.db-wal
 *.db-shm
 dist/
+trash/
