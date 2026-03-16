@@ -181,7 +181,7 @@ direct_conv_cm_milp = apply_milp(
     "direct-conv-cm-*",
     dir = "./repaired/",
     alpha=1000,
-    g=2,
+    g=5,
     plot="plots/direct_conv_cm_milp.pdf",
     score_threshold=0.9,
 )
@@ -234,7 +234,7 @@ concat_conv_cm = apply_milp(
     "concat-conv-cm*",
     dir = "./repaired/",
     alpha=1000,
-    g=2,
+    g=10,
     plot="plots/concat_conv_cm_milp.pdf",
     score_threshold=0.9,
 )
