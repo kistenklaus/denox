@@ -2,7 +2,6 @@
 #include "denox/device_info/ApiVersion.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/vector.hpp"
-#include <vk_mem_alloc.h>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -12,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
@@ -23,6 +23,42 @@ struct Buffer {
 };
 
 class Context {
+private:
+  struct DeviceSupport {
+    uint32_t instanceApiVersion = VK_API_VERSION_1_0;
+    uint32_t deviceApiVersion = VK_API_VERSION_1_0;
+
+    // extensions
+    bool portabilitySubset = false;
+    bool cooperativeMatrixExt = false;
+    bool subgroupSizeControlExt = false;
+    uint32_t subgroupSizeControlExtVersion = 0;
+    bool pciBusInfo = false;
+    bool memoryBudget = false;
+    bool memoryPriority = false;
+    bool dedicatedAllocation = false;
+    bool bindMemory2 = false;
+    bool maintenance4 = false;
+    bool maintenance5 = false;
+    bool bufferDeviceAddressExt = false;
+
+    // base features
+    bool robustBufferAccess = false;
+    bool shaderInt16 = false;
+
+    // promoted / chained features
+    bool storageBuffer16BitAccess = false;
+    bool shaderFloat16 = false;
+    bool vulkanMemoryModel = false;
+    bool vulkanMemoryModelDeviceScope = false;
+    bool bufferDeviceAddress = false;
+    bool bufferDeviceAddressCaptureReplay = false;
+    bool bufferDeviceAddressMultiDevice = false;
+    bool subgroupSizeControl = false;
+    bool computeFullSubgroups = false;
+    bool cooperativeMatrix = false;
+  };
+
 public:
   static std::shared_ptr<Context> make(const char *deviceName,
                                        ApiVersion apiVersion) {
@@ -48,9 +84,10 @@ public:
       uint32_t pushConstantRange);
   void destroyPipelineLayout(VkPipelineLayout layout);
 
-  VkPipeline createComputePipeline(VkPipelineLayout layout,
-                                   memory::span<const uint32_t> binary,
-                                   const char *entry, std::optional<uint32_t> subgroupSize = std::nullopt);
+  VkPipeline
+  createComputePipeline(VkPipelineLayout layout,
+                        memory::span<const uint32_t> binary, const char *entry,
+                        std::optional<uint32_t> subgroupSize = std::nullopt);
   void destroyPipeline(VkPipeline pipeline);
 
   VkDescriptorPool
@@ -235,7 +272,7 @@ public:
   VkInstance vkInstance() const { return m_instance; }
   VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
 
-  bool extPCIbusInfoAvailable() const { return m_extPCIbufInfoAvailable; }
+  bool extPCIbusInfoAvailable() const { return m_support.pciBusInfo; }
 
 private:
 #ifdef NDEBUG
@@ -255,9 +292,12 @@ private:
   uint32_t m_queueFamily;
   VkQueue m_queue;
   VmaAllocator m_vma;
+
   float m_timestampPeriod;
-  bool m_extPCIbufInfoAvailable;
-  bool m_subgroupControlEnabled;
+  // bool m_extPCIbufInfoAvailable;
+  // bool m_subgroupControlEnabled;
+
+  DeviceSupport m_support;
 };
 
 using ContextHandle = std::shared_ptr<Context>;

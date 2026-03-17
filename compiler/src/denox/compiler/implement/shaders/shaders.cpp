@@ -22,7 +22,6 @@ get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options) {
   auto direct_conv_cm = std::make_unique<compiler::shaders::DirectConvShaderCM>(
       compiler, options);
   bool cm_supported = direct_conv_cm->supported();
-  fmt::println("CM-supported : {}", cm_supported);
   shaders.push_back(std::move(direct_conv_cm));
 
   shaders.push_back(std::make_unique<compiler::shaders::ConcatConvCMShader>(

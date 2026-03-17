@@ -38,10 +38,10 @@ DeviceInfo query_driver_device_info(vk::Instance instance,
   ResourceLimits limits =
       query_resource_limits(instance, physicalDevice);
   SubgroupProperties subgroup =
-      query_subgroup_properties(instance, physicalDevice);
-  LayoutRules layouts = query_layout_rules(instance, physicalDevice);
+      query_subgroup_properties(instance, physicalDevice, apiVersion);
+  LayoutRules layouts = query_layout_rules(instance, physicalDevice, apiVersion);
   MemoryModelProperties memoryModel =
-      query_model_model_properties(instance, physicalDevice);
+      query_memory_model_properties(instance, physicalDevice, apiVersion);
   CoopmatProperties coopmat =
       query_coopmat_properties(instance, physicalDevice);
 
