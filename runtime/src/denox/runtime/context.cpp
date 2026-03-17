@@ -1134,7 +1134,7 @@ VkPipeline Context::createComputePipeline(
 
       pipelineInfo.stage.pNext = &subgroupSizeInfo;
       pipelineInfo.stage.flags |=
-          VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT;
+          VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT;
 #elif defined(VK_EXT_subgroup_size_control)
       subgroupSizeInfo.sType =
           VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO_EXT;
@@ -1143,7 +1143,7 @@ VkPipeline Context::createComputePipeline(
 
       pipelineInfo.stage.pNext = &subgroupSizeInfo;
       pipelineInfo.stage.flags |=
-          VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT_EXT;
+          VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT;
 #else
       throw std::runtime_error(
           "This build was compiled without subgroup-size-control pipeline "
