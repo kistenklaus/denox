@@ -18,7 +18,7 @@
 
 namespace denox {
 
-static constexpr size_t INSTANCE_BENCH_WARMUP_ITERATIONS = 100;
+static constexpr size_t INSTANCE_BENCH_WARMUP_ITERATIONS = 5;
 
 static std::vector<runtime::Buffer>
 create_buffers(const runtime::ModelHandle &model, const SymIREval &symeval) {
