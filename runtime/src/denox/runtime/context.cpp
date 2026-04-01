@@ -2,6 +2,7 @@
 #include "denox/diag/unreachable.hpp"
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstring>
 #include <fmt/format.h>
 #include <fmt/printf.h>

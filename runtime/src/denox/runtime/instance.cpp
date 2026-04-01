@@ -7,6 +7,7 @@
 #include "denox/symbolic/SymIR.hpp"
 #include "model.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -18,7 +19,7 @@
 
 namespace denox {
 
-static constexpr size_t INSTANCE_BENCH_WARMUP_ITERATIONS = 5;
+static constexpr size_t INSTANCE_BENCH_WARMUP_ITERATIONS = 0;
 
 static std::vector<runtime::Buffer>
 create_buffers(const runtime::ModelHandle &model, const SymIREval &symeval) {
@@ -628,7 +629,15 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
                         VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
   ++previousTimestamp;
 
-  ctx->endSubmitWaitCommandBuffer(cmdPool, cmd);
+
+  ctx->endCommandBuffer(cmd);
+  ctx->waitIdle();
+  ctx->submit(cmd);
+  auto s = std::chrono::high_resolution_clock::now();
+  ctx->waitIdle();
+  auto e = std::chrono::high_resolution_clock::now();
+  ctx->freeCommandBuffer(cmdPool, cmd);
+  fmt::println("Host-latency: {}ms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(e - s));
   ctx->destroyCommandPool(cmdPool);
   memory::vector<uint64_t> timestamps =
       ctx->getQueryResults(queryPool, previousTimestamp);
