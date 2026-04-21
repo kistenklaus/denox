@@ -604,7 +604,6 @@ void DirectConvShader::implement(
       activationFunction, memory::uvec2(conv->W->shape().r, conv->W->shape().s),
       conv->padding, conv->stride, conv->B != nullptr, m_subgroupControl,
       config, &filterLayout, &biasLayout);
-  // fmt::println("PREAMBLE:\n{}", shader.getPreamble());
 
   std::uint32_t tileX = config.invoc_n * config.sg_n * config.wg_n;
   std::uint32_t tileY = config.invoc_m;

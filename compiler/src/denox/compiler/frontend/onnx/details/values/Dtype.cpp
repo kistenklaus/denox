@@ -69,7 +69,7 @@ std::optional<TensorDataType> dtype::details::Dtype::toTensorType() const {
   case DtypeKind::Float32:
     return TensorDataType::Float32;
   case DtypeKind::Float16:
-    return TensorDataType::Float32;
+    return TensorDataType::Float16;
   case DtypeKind::Undefined:
   case DtypeKind::Int8:
   case DtypeKind::Int16:

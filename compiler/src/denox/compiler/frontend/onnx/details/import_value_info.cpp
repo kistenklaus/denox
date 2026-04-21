@@ -6,6 +6,7 @@
 #include "denox/diag/logging.hpp"
 #include "denox/memory/container/optional.hpp"
 
+#include <fmt/printf.h>
 #include <onnx.pb.h>
 
 namespace denox::onnx::details {
@@ -78,7 +79,7 @@ void import_value_info(ImportState &state,
   if (context == ValueInfoImportContext::Input) {
     if (!ttype.has_shape()) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: tensor {} has unknown shape (dynamic rank unsupported)",
+          "denox: tensor {} has unknown shape (dynamic rank unsupported)",
           name));
     }
     // TensorShape::parse
@@ -88,7 +89,7 @@ void import_value_info(ImportState &state,
     dims.reserve(static_cast<std::size_t>(shp.dim_size()));
     auto g = symGraph;
     if (!g) {
-      throw std::runtime_error("vkcnn: symGraph is null");
+      throw std::runtime_error("denox: symGraph is null");
     }
 
     auto interfaceDescriptor = std::ranges::find_if(
@@ -102,7 +103,7 @@ void import_value_info(ImportState &state,
         const int64_t v = d.dim_value();
         if (v < 0) {
           throw std::runtime_error(
-              fmt::format("vkcnn: {} has negative dim at axis {}", name, i));
+              fmt::format("denox: {} has negative dim at axis {}", name, i));
         }
         dims.emplace_back(g, Sym::Const(v));
         // NOTE: Check that it matches the input-shape option if set.

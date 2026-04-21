@@ -51,9 +51,12 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                                    options.spirv.debugInfo);
 
   compiler::Model model = compiler::frontend(onnx, options);
+
   compiler::CanoModel cano = compiler::canonicalize(model);
   compiler::Lifetimes lifetimes = compiler::lifeness(cano);
+
   compiler::SpecModel specModel = compiler::specialize(cano, lifetimes);
+
   compiler::ConstModel cmodel = compiler::dce(specModel);
 
   compiler::SuperGraph supergraph =
@@ -89,6 +92,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
 
   compiler::MemSchedule memSchedule = compiler::placement(
       optSchedule, progress.sub_progress(0.95f, 0.97f), logger);
+
 
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);

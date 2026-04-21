@@ -11,7 +11,7 @@
 namespace denox::compiler {
 
 static TensorFormat supported_ssbo_formats[] = {
-    TensorFormat::SSBO_CHWC8,
+    TensorFormat::SSBO_CHWC8, 
     TensorFormat::SSBO_HWC,
 };
 
