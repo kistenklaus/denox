@@ -7,6 +7,9 @@
 #include "denox/runtime/model.hpp"
 
 void bench(BenchAction &action) {
+
+  denox::diag::Logger logger("denox.bench", true);
+
   switch (action.target.kind()) {
   case ArtefactKind::Onnx: {
     denox::memory::optional<denox::Db> db;
@@ -38,7 +41,7 @@ void bench(BenchAction &action) {
 
     auto ctx = denox::runtime::Context::make(device, action.apiVersion);
     auto model = denox::runtime::Model::make(dnxbuf);
-    auto instance = denox::runtime::Instance::make(model, action.valueSpecs);
+    auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
     instance->bench().report();
     break;
   }
@@ -49,7 +52,7 @@ void bench(BenchAction &action) {
     }
     auto ctx = denox::runtime::Context::make(device, action.apiVersion);
     auto model = denox::runtime::Model::make(action.target.dnx().data);
-    auto instance = denox::runtime::Instance::make(model, action.valueSpecs);
+    auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
     instance->bench().report();
     break;
   }

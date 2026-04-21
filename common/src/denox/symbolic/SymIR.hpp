@@ -57,6 +57,9 @@ public:
       return sym.constant();
     }
   }
+  SymIREval() : m_dp() {
+    
+  }
 
 private:
   SymIREval(memory::vector<int64_t> dp) : m_dp(std::move(dp)) {}

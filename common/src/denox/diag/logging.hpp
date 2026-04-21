@@ -80,18 +80,18 @@ public:
   template <typename T> void info(const T &msg) { fmt::println("{}", msg); }
 
   template <typename... Args>
-  void warn(fmt::format_string<Args...> fmt, Args &&...args) {
+  void warn(fmt::format_string<Args...> fmt, Args &&...args) const {
     fmt::println(fmt, std::forward<Args>(args)...);
   }
 
-  template <typename T> void warn(const T &msg) { fmt::println("{}", msg); }
+  template <typename T> void warn(const T &msg) const { fmt::println("{}", msg); }
 
   template <typename... Args>
-  void error(fmt::format_string<Args...> fmt, Args &&...args) {
+  void error(fmt::format_string<Args...> fmt, Args &&...args) const {
     fmt::println(fmt, std::forward<Args>(args)...);
   }
 
-  template <typename T> void error(const T &msg) { fmt::println("{}", msg); }
+  template <typename T> void error(const T &msg) const { fmt::println("{}", msg); }
 
   // private:
   std::shared_ptr<AniCodes> m_codes;

@@ -8,9 +8,7 @@
 #include "denox/diag/invalid_state.hpp"
 #include "denox/runtime/instance.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
-#include <chrono>
 #include <fmt/ostream.h>
-#include <iostream>
 
 void infer(InferAction &action) {
 
@@ -18,6 +16,8 @@ void infer(InferAction &action) {
   if (action.deviceName) {
     device = action.deviceName->c_str();
   }
+
+  denox::diag::Logger logger("denox.infer", true);
 
   const auto ctx = denox::runtime::Context::make(device, action.apiVersion);
   denox::runtime::ModelHandle model;
@@ -141,11 +141,11 @@ void infer(InferAction &action) {
       if (equal) {
         instance = instanceCache->instance;
       } else {
-        instance = denox::runtime::Instance::make(model, specs);
+        instance = denox::runtime::Instance::make(model, specs, logger);
         instanceCache.emplace(std::move(specs), instance);
       }
     } else {
-      instance = denox::runtime::Instance::make(model, specs);
+      instance = denox::runtime::Instance::make(model, specs, logger);
       instanceCache.emplace(std::move(specs), instance);
     }
 

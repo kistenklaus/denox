@@ -94,7 +94,6 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::MemSchedule memSchedule = compiler::placement(
       optSchedule, progress.sub_progress(0.95f, 0.97f), logger);
 
-
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);
 

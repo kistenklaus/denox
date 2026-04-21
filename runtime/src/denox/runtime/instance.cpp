@@ -275,8 +275,97 @@ void update_descriptor_sets(const runtime::ModelHandle &model,
 }
 
 runtime::Instance::Instance(const ModelHandle &model,
-                            memory::span<const SymSpec> specs)
-    : m_model(model), m_symeval(model->symir().eval(specs)) {
+                            memory::span<const SymSpec> specs,
+                            const diag::Logger &logger)
+    : m_model(model) {
+
+  // symeval:
+  {
+    size_t varcount = model->symir().varCount;
+    std::vector<bool> specified(varcount, false);
+    for (const auto &spec : specs) {
+      if (spec.symbol >= varcount) {
+        auto valueNames = model->valueNames();
+        auto it = std::ranges::find_if(valueNames, [&](const ValueName &vn) {
+          return vn.value == Sym::Symbol(spec.symbol);
+        });
+        if (it != valueNames.end()) {
+          const ValueName &valueName = *it;
+          throw std::runtime_error(fmt::format(
+              "Invalid symbol specialization. Symbol \"{}\" is not a variable!",
+              valueName.name));
+        } else {
+          throw std::runtime_error(fmt::format(
+              "Invalid symbol specialization. Symbol <{}> is not a variable!",
+              spec.symbol));
+        }
+      }
+      if (specified[spec.symbol]) {
+        auto valueNames = model->valueNames();
+        auto it = std::ranges::find_if(valueNames, [&](const ValueName &vn) {
+          return vn.value == Sym::Symbol(spec.symbol);
+        });
+        if (it != valueNames.end()) {
+          const ValueName &valueName = *it;
+          logger.warn("Invalid symbol specialization. Symbol \"{}\" is "
+                      "already specialized! Skipping!",
+                      valueName.name);
+          continue;
+        } else {
+          logger.warn("Invalid symbol specialization. Symbol <{}> is "
+                      "already specialized! Skipping!",
+                      spec.symbol);
+          continue;
+        }
+      }
+      specified[spec.symbol] = true;
+    }
+    std::vector<SymSpec> dspecs(specs.begin(), specs.end());
+    for (Sym::symbol s = 0; s < varcount; ++s) {
+      if (!specified[s]) {
+        auto valueNames = model->valueNames();
+        auto it = std::ranges::find_if(valueNames, [&](const ValueName &vn) {
+          return vn.value == Sym::Symbol(s);
+        });
+        if (it != valueNames.end()) {
+          const ValueName &valueName = *it;
+          logger.warn(
+              "{}"
+              "WARNING: No value specified for symbol {}. Assigning default value 1024! "
+              "\n"
+              "  To benchmark the model at a specific resolution, you can \n"
+              "  specify dynamic values (like the inputs spatial dimensions), \n"
+              "  with the --spec flag. For example \"--spec H=1080 W=1920\".\n"
+              "{}"
+              ,
+              logger.yellow(),
+              valueName.name, logger.reset());
+          dspecs.push_back(SymSpec{
+              .symbol = s,
+              .value = 1024,
+          });
+        } else {
+          throw std::runtime_error(fmt::format(
+              "WARNING: No value specified for a unnamed symbol!\n"
+              "  The dnx model contains a symbol (dynamic value), which doesn't \n"
+              "  have a name, but is a variable that has to be known at runtime. \n"
+              "  Often this is the input's spatial resolution. You can give \n"
+              "  those values names either during the export process from \n"
+              "  pytorch, but onnxscript often renames dynamic values during the \n"
+              "  export so you might end up with different names for your input \n"
+              "  width or height. To fix simply specify the name of those \n"
+              "  dimensions when you compile the dnx model. \n"
+              "  denox compile <...> --shape input=H:W:C \n"
+              "  Here \"input\" is the name of the input in your python script,\n"
+              "  onnxscript doesn't change this and \"H\", \"W\" and \"C\" \n"
+              "  are names for the input tensor dimensions (height, width, channels).",
+              s));
+        }
+      }
+    }
+    m_symeval = model->symir().eval(dspecs);
+  }
+
   m_buffers = create_buffers(m_model, m_symeval);
   upload_initalizers(m_model, m_symeval, m_buffers);
   m_descriptorPool = create_descriptor_pool(m_model);
@@ -301,7 +390,8 @@ void runtime::Instance::release() {
 
 std::shared_ptr<runtime::Instance>
 runtime::Instance::make(const ModelHandle &model,
-                        memory::span<const ValueSpec> specs) {
+                        memory::span<const ValueSpec> specs,
+                        const diag::Logger &logger) {
   memory::vector<SymSpec> symSpecs;
   for (const auto &spec : specs) {
     auto it =
@@ -315,7 +405,7 @@ runtime::Instance::make(const ModelHandle &model,
       symSpecs.emplace_back(it->value.sym(), spec.value);
     }
   }
-  return make(model, symSpecs);
+  return make(model, symSpecs, logger);
 }
 
 void runtime::Instance::infer(const void **pInputs, void **pOutputs) const {
@@ -629,7 +719,6 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
                         VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
   ++previousTimestamp;
 
-
   ctx->endCommandBuffer(cmd);
   ctx->waitIdle();
   ctx->submit(cmd);
@@ -637,7 +726,10 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
   ctx->waitIdle();
   auto e = std::chrono::high_resolution_clock::now();
   ctx->freeCommandBuffer(cmdPool, cmd);
-  fmt::println("Host-latency: {}ms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(e - s));
+  fmt::println(
+      "Host-latency: {}ms",
+      std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(e -
+                                                                           s));
   ctx->destroyCommandPool(cmdPool);
   memory::vector<uint64_t> timestamps =
       ctx->getQueryResults(queryPool, previousTimestamp);

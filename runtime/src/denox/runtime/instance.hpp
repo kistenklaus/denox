@@ -2,6 +2,7 @@
 
 #include "context.hpp"
 #include "denox/common/ValueSpec.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/memory/tensor/ActivationTensor.hpp"
 #include "denox/symbolic/SymGraphEval.hpp"
 #include "model.hpp"
@@ -44,16 +45,16 @@ struct InstanceBenchmarkResult {
 class Instance {
 public:
   static std::shared_ptr<Instance>
-  make(const ModelHandle &model, std::initializer_list<ValueSpec> specs) {
-    return make(model, std::span{specs.begin(), specs.end()});
+  make(const ModelHandle &model, std::initializer_list<ValueSpec> specs, const diag::Logger& logger) {
+    return make(model, std::span{specs.begin(), specs.end()}, logger);
   }
 
   static std::shared_ptr<Instance> make(const ModelHandle &model,
-                                        memory::span<const ValueSpec> specs);
+                                        memory::span<const ValueSpec> specs, const diag::Logger& logger);
 
   static std::shared_ptr<Instance> make(const ModelHandle &model,
-                                        memory::span<const SymSpec> specs) {
-    return std::shared_ptr<Instance>(new Instance(model, specs));
+                                        memory::span<const SymSpec> specs, const diag::Logger& logger) {
+    return std::shared_ptr<Instance>(new Instance(model, specs, logger));
   }
 
   void infer(const void **inputs, void **outputs) const;
@@ -71,7 +72,7 @@ public:
   void release();
 
 private:
-  Instance(const ModelHandle &model, memory::span<const SymSpec> specs);
+  Instance(const ModelHandle &model, memory::span<const SymSpec> specs, const diag::Logger& logger);
 
   ModelHandle m_model;
   SymIREval m_symeval;
