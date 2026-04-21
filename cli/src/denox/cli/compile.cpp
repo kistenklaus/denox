@@ -26,10 +26,6 @@ void compile(CompileAction &action) {
     db = denox::Db::open(action.database->endpoint.path());
   }
 
-  action.options.assumptions.valueAssumptions.emplace_back("H", 1080);
-  action.options.assumptions.valueAssumptions.emplace_back("W", 1920);
-  action.options.debugInfo = denox::compiler::DebugInfo::Enable;
-
   auto dnxbuf = denox::compile(action.input.data, db, context, action.options);
 
   switch (action.output.kind()) {

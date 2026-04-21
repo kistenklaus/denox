@@ -48,8 +48,8 @@ struct InterfaceTensorDescriptor {
 };
 
 struct SpirvOptions {
-  spirv::SpirvDebugInfoLevel debugInfo;
-  bool optimize;
+  spirv::SpirvDebugInfoLevel debugInfo = spirv::SpirvDebugInfoLevel::Strip;
+  bool optimize = true;
 };
 
 struct OptimizationAssumptions {
@@ -71,7 +71,7 @@ struct CompileOptions {
   diag::LogLevel loglevel;
   OptimizationAssumptions assumptions;
   DebugInfo debugInfo;
-  uint32_t optimizationLevel = 1;
+  uint32_t optimizationLevel = 3;
 
   uint32_t jobs = 1;
 

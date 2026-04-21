@@ -70,6 +70,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                                 progress.sub_progress(0.21f, 0.28f), logger);
   }
 
+
   SymGraphEval symeval = compiler::assumed_symeval(supergraph.symGraph,
                                                    model.valueNames(), options);
 
