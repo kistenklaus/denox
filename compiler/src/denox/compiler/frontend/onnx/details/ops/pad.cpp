@@ -13,13 +13,13 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // ---- arity ----
   if (inputs.size() < 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pad \"{}\" expects at least 2 inputs (data, pads).", nodeName));
+        "Pad \"{}\" expects at least 2 inputs (data, pads).", nodeName));
   if (inputs.size() > 4)
     throw std::runtime_error(
-        fmt::format("vkcnn: Pad \"{}\": too many inputs (max 4).", nodeName));
+        fmt::format("Pad \"{}\": too many inputs (max 4).", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Pad \"{}\" must have exactly 1 output.", nodeName));
+        fmt::format("Pad \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &dataT = *inputs[0];
 
@@ -32,7 +32,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (auto it = attributes.find("mode"); it != attributes.end()) {
     if (!it->second.isString())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Pad \"{}\": attribute 'mode' must be string.", nodeName));
+          "Pad \"{}\": attribute 'mode' must be string.", nodeName));
     modeStr = it->second.s();
   }
   enum class HostPadMode { Constant, Edge, Reflect };
@@ -48,18 +48,18 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     hostMode = HostPadMode::Reflect; /* device unsupported */
   } else {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pad \"{}\": unsupported mode '{}'.", nodeName, modeStr));
+        "Pad \"{}\": unsupported mode '{}'.", nodeName, modeStr));
   }
 
   // ---- pads must be HostTensor, 1-D ----
   if (!padsT.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pad \"{}\": 'pads' must be a host tensor.", nodeName));
+        "Pad \"{}\": 'pads' must be a host tensor.", nodeName));
   const HostTensor &padsHT = padsT.host();
   const auto padsShapeU64 = padsHT.shape().toU64();
   if (padsShapeU64.size() != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Pad \"{}\": 'pads' must be 1-D.", nodeName));
+        fmt::format("Pad \"{}\": 'pads' must be 1-D.", nodeName));
 
   // ---- axes (optional), must be Host INT64 1-D if present ----
   memory::vector<std::int64_t> axes;
@@ -67,11 +67,11 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const Tensor &axesT = *inputs[3];
     if (!axesT.isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Pad \"{}\": 'axes' must be a host tensor.", nodeName));
+          "Pad \"{}\": 'axes' must be a host tensor.", nodeName));
     const HostTensor &axesHT = axesT.host();
     if (!axesHT.isConstant() || axesHT.type() != Dtype::Int64)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Pad \"{}\": 'axes' must be constant INT64.", nodeName));
+          "Pad \"{}\": 'axes' must be constant INT64.", nodeName));
     const auto axesSpan = axesHT.storage()->i64();
     axes.assign(axesSpan.begin(), axesSpan.end());
   }
@@ -80,7 +80,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (dataT.isDevice()) {
     if (hostMode == HostPadMode::Reflect)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Pad \"{}\": 'reflect' mode not supported for device tensors.",
+          "Pad \"{}\": 'reflect' mode not supported for device tensors.",
           nodeName));
 
     const DeviceTensor &devIn = dataT.device();
@@ -88,7 +88,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const std::size_t r = inS.rank();
     if (r != 3 && r != 4) {
       throw std::runtime_error(
-          fmt::format("vkcnn: Pad \"{}\": device tensor must be rank 3 (CHW) "
+          fmt::format("Pad \"{}\": device tensor must be rank 3 (CHW) "
                       "or 4 (NCHW); got {}.",
                       nodeName, r));
     }
@@ -99,17 +99,17 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     if (padsHT.type() == Dtype::Int64) {
       if (!padsHT.isConstant())
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": device path requires constant 'pads' if INT64.",
+            "Pad \"{}\": device path requires constant 'pads' if INT64.",
             nodeName));
     } else if (padsHT.type() != Dtype::Sym) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Pad \"{}\": 'pads' must be INT64 or SYM.", nodeName));
+          "Pad \"{}\": 'pads' must be INT64 or SYM.", nodeName));
     }
 
     std::size_t expect = hasAxes ? (2 * axes.size()) : (2 * r);
     if (padLen != expect)
       throw std::runtime_error(
-          fmt::format("vkcnn: Pad \"{}\": 'pads' length must be {} (got {}).",
+          fmt::format("Pad \"{}\": 'pads' length must be {} (got {}).",
                       nodeName, expect, padLen));
 
     // Build full-length vectors (rank) of Sym zeros, then fill from axes/pads.
@@ -136,7 +136,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
           v += static_cast<std::int64_t>(r);
         if (v < 0 || v >= static_cast<std::int64_t>(r))
           throw std::runtime_error(fmt::format(
-              "vkcnn: Pad \"{}\": axis {} out of range for rank {}.", nodeName,
+              "Pad \"{}\": axis {} out of range for rank {}.", nodeName,
               v, r));
         nAxes.push_back(static_cast<std::size_t>(v));
       }
@@ -148,7 +148,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
           std::int64_t a = p[i + nAxes.size()];
           if (b < 0 || a < 0)
             throw std::runtime_error(fmt::format(
-                "vkcnn: Pad \"{}\": negative pads not supported on device.",
+                "Pad \"{}\": negative pads not supported on device.",
                 nodeName));
           put_pad(nAxes[i], Sym::Const(b), Sym::Const(a));
         }
@@ -167,7 +167,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
           std::int64_t a = p[ax + r];
           if (b < 0 || a < 0)
             throw std::runtime_error(fmt::format(
-                "vkcnn: Pad \"{}\": negative pads not supported on device.",
+                "Pad \"{}\": negative pads not supported on device.",
                 nodeName));
           assert(ax < before.size());
           assert(ax < after.size());
@@ -203,7 +203,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         continue;
       if (!isKnownZero(before[ax]) || !isKnownZero(after[ax])) {
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": device path supports padding only H/W axes.",
+            "Pad \"{}\": device path supports padding only H/W axes.",
             nodeName));
       }
     }
@@ -213,12 +213,12 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       const Tensor &cvT = *inputs[2];
       if (!cvT.isHost())
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": 'constant_value' must be a host tensor.",
+            "Pad \"{}\": 'constant_value' must be a host tensor.",
             nodeName));
       const HostTensor &cv = cvT.host();
       if (!cv.isConstant() || cv.sizeElemsIfStatic() != 1)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": 'constant_value' must be scalar & constant.",
+            "Pad \"{}\": 'constant_value' must be scalar & constant.",
             nodeName));
       // accept int/float == 0 only
       bool ok = false;
@@ -272,7 +272,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       }
       if (!ok)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": device constant mode supports only value==0.",
+            "Pad \"{}\": device constant mode supports only value==0.",
             nodeName));
     }
 
@@ -291,7 +291,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   const HostTensor &hin = dataT.host();
   if (!hin.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pad \"{}\": dynamic host tensor unsupported.", nodeName));
+        "Pad \"{}\": dynamic host tensor unsupported.", nodeName));
 
   const auto inU64 = hin.shape().toU64();
   const std::size_t r = inU64.size();
@@ -300,14 +300,14 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // to materialize.
   if (!padsHT.isConstant() || padsHT.type() != Dtype::Int64)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pad \"{}\": host path requires constant INT64 'pads'.",
+        "Pad \"{}\": host path requires constant INT64 'pads'.",
         nodeName));
 
   const auto p = padsHT.storage()->i64();
   std::size_t expect = hasAxes ? (2 * axes.size()) : (2 * r);
   if (p.size() != expect)
     throw std::runtime_error(
-        fmt::format("vkcnn: Pad \"{}\": 'pads' length must be {} (got {}).",
+        fmt::format("Pad \"{}\": 'pads' length must be {} (got {}).",
                     nodeName, expect, p.size()));
 
   memory::vector<std::uint64_t> before(r, 0), after(r, 0);
@@ -320,14 +320,14 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         v += static_cast<std::int64_t>(r);
       if (v < 0 || v >= static_cast<std::int64_t>(r))
         throw std::runtime_error(
-            fmt::format("vkcnn: Pad \"{}\": axis {} out of range for rank {}.",
+            fmt::format("Pad \"{}\": axis {} out of range for rank {}.",
                         nodeName, v, r));
       nAxes.push_back(static_cast<size_t>(v));
     }
     for (size_t i = 0; i < nAxes.size(); ++i) {
       if (p[i] < 0 || p[i + nAxes.size()] < 0)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": negative pads not supported on host.",
+            "Pad \"{}\": negative pads not supported on host.",
             nodeName));
       before[nAxes[i]] = static_cast<std::uint64_t>(p[i]);
       after[nAxes[i]] = static_cast<std::uint64_t>(p[i + nAxes.size()]);
@@ -336,7 +336,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     for (size_t ax = 0; ax < r; ++ax) {
       if (p[ax] < 0 || p[ax + r] < 0)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": negative pads not supported on host.",
+            "Pad \"{}\": negative pads not supported on host.",
             nodeName));
       before[ax] = static_cast<std::uint64_t>(p[ax]);
       after[ax] = static_cast<std::uint64_t>(p[ax + r]);
@@ -386,17 +386,17 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const Tensor &cvT = *inputs[2];
     if (!cvT.isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Pad \"{}\": 'constant_value' must be a host tensor.",
+          "Pad \"{}\": 'constant_value' must be a host tensor.",
           nodeName));
     const HostTensor &cv = cvT.host();
     if (!cv.isConstant() || cv.sizeElemsIfStatic() != 1)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Pad \"{}\": 'constant_value' must be scalar & constant.",
+          "Pad \"{}\": 'constant_value' must be scalar & constant.",
           nodeName));
     if (dt == Dtype::String) {
       if (cv.type() != Dtype::String)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": constant_value type must match (string).",
+            "Pad \"{}\": constant_value type must match (string).",
             nodeName));
       const char *s = cv.storage()->strs()[0];
       constString.assign(s ? s : "");
@@ -447,7 +447,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       case DtypeKind::Undefined:
       default:
         throw std::runtime_error(fmt::format(
-            "vkcnn: Pad \"{}\": unsupported constant_value dtype.", nodeName));
+            "Pad \"{}\": unsupported constant_value dtype.", nodeName));
       }
     }
   }
@@ -555,7 +555,7 @@ pad(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     case DtypeKind::Undefined:
     default:
       throw std::runtime_error(
-          "vkcnn: internal: write_const_one unsupported dtype.");
+          "internal: write_const_one unsupported dtype.");
     }
   };
 

@@ -202,7 +202,7 @@ infer_attribute_type_loose(const ::onnx::AttributeProto &a,
 
   // Not supported until you implement function-attribute indirection.
   if (!a.ref_attr_name().empty()) {
-    throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+    throw std::runtime_error("node \"" + memory::string(nodeName) +
                              "\" attribute \"" + aname +
                              "\": ref_attr_name is unsupported");
   }
@@ -215,25 +215,25 @@ infer_attribute_type_loose(const ::onnx::AttributeProto &a,
     switch (explicit_t) {
     case AT::AttributeProto_AttributeType_TENSOR:
       if (!a.has_t())
-        throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+        throw std::runtime_error("node \"" + memory::string(nodeName) +
                                  "\" attribute \"" + aname +
                                  "\": type=TENSOR but no tensor payload");
       break;
     case AT::AttributeProto_AttributeType_SPARSE_TENSOR:
       if (!a.has_sparse_tensor())
-        throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+        throw std::runtime_error("node \"" + memory::string(nodeName) +
                                  "\" attribute \"" + aname +
                                  "\": type=SPARSE_TENSOR but no payload");
       break;
     case AT::AttributeProto_AttributeType_GRAPH:
       if (!a.has_g())
-        throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+        throw std::runtime_error("node \"" + memory::string(nodeName) +
                                  "\" attribute \"" + aname +
                                  "\": type=GRAPH but no graph payload");
       break;
     case AT::AttributeProto_AttributeType_TYPE_PROTO:
       if (!a.has_tp())
-        throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+        throw std::runtime_error("node \"" + memory::string(nodeName) +
                                  "\" attribute \"" + aname +
                                  "\": type=TYPE_PROTO but no payload");
       break;
@@ -272,7 +272,7 @@ infer_attribute_type_loose(const ::onnx::AttributeProto &a,
     if (!cond)
       return;
     if (found && acc != t) {
-      throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+      throw std::runtime_error("node \"" + memory::string(nodeName) +
                                "\" attribute \"" + aname +
                                "\" mixes multiple payload families");
     }
@@ -318,7 +318,7 @@ infer_attribute_type_loose(const ::onnx::AttributeProto &a,
 
     const int count = (has_i ? 1 : 0) + (has_f ? 1 : 0) + (has_s ? 1 : 0);
     if (count > 1) {
-      throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+      throw std::runtime_error("node \"" + memory::string(nodeName) +
                                "\" attribute \"" + aname +
                                "\" has conflicting scalar payloads");
     }
@@ -334,25 +334,25 @@ infer_attribute_type_loose(const ::onnx::AttributeProto &a,
   switch (ret) {
   case AT::AttributeProto_AttributeType_TENSOR:
     if (!a.has_t())
-      throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+      throw std::runtime_error("node \"" + memory::string(nodeName) +
                                "\" attribute \"" + aname +
                                "\": inferred TENSOR but no tensor payload");
     break;
   case AT::AttributeProto_AttributeType_GRAPH:
     if (!a.has_g())
-      throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+      throw std::runtime_error("node \"" + memory::string(nodeName) +
                                "\" attribute \"" + aname +
                                "\": inferred GRAPH but no graph payload");
     break;
   case AT::AttributeProto_AttributeType_SPARSE_TENSOR:
     if (!a.has_sparse_tensor())
-      throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+      throw std::runtime_error("node \"" + memory::string(nodeName) +
                                "\" attribute \"" + aname +
                                "\": inferred SPARSE_TENSOR but no payload");
     break;
   case AT::AttributeProto_AttributeType_TYPE_PROTO:
     if (!a.has_tp())
-      throw std::runtime_error("vkcnn: node \"" + memory::string(nodeName) +
+      throw std::runtime_error("node \"" + memory::string(nodeName) +
                                "\" attribute \"" + aname +
                                "\": inferred TYPE_PROTO but no payload");
     break;
@@ -416,7 +416,7 @@ NamedAttribute Attribute::parse(const ::onnx::AttributeProto &a,
 
   if (!a.ref_attr_name().empty()) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: node \"{}\" attribute \"{}\": ref_attr_name is unsupported",
+        "node \"{}\" attribute \"{}\": ref_attr_name is unsupported",
         nodeName, name));
   }
 
@@ -428,7 +428,7 @@ NamedAttribute Attribute::parse(const ::onnx::AttributeProto &a,
     // Ambiguous (e.g., scalar default 0 or empty list w/o explicit type).
     // Safer to fail loudly than guess.
     throw std::runtime_error(fmt::format(
-        "vkcnn: node \"{}\" attribute \"{}\": unable to infer attribute type "
+        "node \"{}\" attribute \"{}\": unable to infer attribute type "
         "(ambiguous/absent payload). Exporter should set explicit type.",
         nodeName, name));
 
@@ -449,17 +449,17 @@ NamedAttribute Attribute::parse(const ::onnx::AttributeProto &a,
 
   case AT::AttributeProto_AttributeType_GRAPH:
     throw std::runtime_error(fmt::format(
-        "vkcnn: node \"{}\" attribute \"{}\": GRAPH attributes unsupported",
+        "node \"{}\" attribute \"{}\": GRAPH attributes unsupported",
         nodeName, name));
 
   case AT::AttributeProto_AttributeType_SPARSE_TENSOR:
     throw std::runtime_error(fmt::format(
-        "vkcnn: node \"{}\" attribute \"{}\": SPARSE_TENSOR unsupported",
+        "node \"{}\" attribute \"{}\": SPARSE_TENSOR unsupported",
         nodeName, name));
 
   case AT::AttributeProto_AttributeType_TYPE_PROTO:
     throw std::runtime_error(fmt::format(
-        "vkcnn: node \"{}\" attribute \"{}\": TYPE_PROTO unsupported", nodeName,
+        "node \"{}\" attribute \"{}\": TYPE_PROTO unsupported", nodeName,
         name));
 
   case AT::AttributeProto_AttributeType_FLOATS: {
@@ -497,17 +497,17 @@ NamedAttribute Attribute::parse(const ::onnx::AttributeProto &a,
 
   case AT::AttributeProto_AttributeType_GRAPHS:
     throw std::runtime_error(
-        fmt::format("vkcnn: node \"{}\" attribute \"{}\": GRAPHS unsupported",
+        fmt::format("node \"{}\" attribute \"{}\": GRAPHS unsupported",
                     nodeName, name));
 
   case AT::AttributeProto_AttributeType_SPARSE_TENSORS:
     throw std::runtime_error(fmt::format(
-        "vkcnn: node \"{}\" attribute \"{}\": SPARSE_TENSORS unsupported",
+        "node \"{}\" attribute \"{}\": SPARSE_TENSORS unsupported",
         nodeName, name));
 
   case AT::AttributeProto_AttributeType_TYPE_PROTOS:
     throw std::runtime_error(fmt::format(
-        "vkcnn: node \"{}\" attribute \"{}\": TYPE_PROTOS unsupported",
+        "node \"{}\" attribute \"{}\": TYPE_PROTOS unsupported",
         nodeName, name));
   case AT::
       AttributeProto_AttributeType_AttributeProto_AttributeType_INT_MAX_SENTINEL_DO_NOT_USE_:
@@ -520,7 +520,7 @@ NamedAttribute Attribute::parse(const ::onnx::AttributeProto &a,
   }
 
   throw std::runtime_error(fmt::format(
-      "vkcnn: node \"{}\" attribute \"{}\": unsupported/unknown attribute type",
+      "node \"{}\" attribute \"{}\": unsupported/unknown attribute type",
       nodeName, name));
 }
 

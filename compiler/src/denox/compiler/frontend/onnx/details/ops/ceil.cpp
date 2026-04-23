@@ -15,20 +15,20 @@ memory::vector<Tensor> ceil(
   // ---- arity ----
   if (inputs.size() != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Ceil \"{}\" expects 1 input.", nodeName));
+        fmt::format("Ceil \"{}\" expects 1 input.", nodeName));
   if (!inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Ceil \"{}\": input is required.", nodeName));
+        fmt::format("Ceil \"{}\": input is required.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Ceil \"{}\" must have exactly 1 output.", nodeName));
+        "Ceil \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &xT = *inputs[0];
 
   // Host-only
   if (!xT.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Ceil \"{}\": DeviceTensor is not supported.", nodeName));
+        "Ceil \"{}\": DeviceTensor is not supported.", nodeName));
 
   const HostTensor &Xin = xT.host();
 
@@ -36,7 +36,7 @@ memory::vector<Tensor> ceil(
   const Dtype dt = Xin.type();
   if (!dt.toDenoxType().has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Ceil \"{}\": only floating HostTensors are supported (got {}).",
+        "Ceil \"{}\": only floating HostTensors are supported (got {}).",
         nodeName, dt.to_string()));
 
   // Work on a contiguous view for simple linear iteration
@@ -45,7 +45,7 @@ memory::vector<Tensor> ceil(
   // Shape must be known (so we can allocate exact size)
   if (!Xc.shape().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Ceil \"{}\": dynamic host shapes are unsupported.", nodeName));
+        "Ceil \"{}\": dynamic host shapes are unsupported.", nodeName));
 
   const auto dimsU64 = Xc.shape().toU64();
   std::size_t count = 1;
@@ -93,7 +93,7 @@ memory::vector<Tensor> ceil(
   case DtypeKind::Sym:
     std::free(raw);
     throw std::runtime_error(
-        fmt::format("vkcnn: Ceil \"{}\": unsupported floating dtype {} "
+        fmt::format("Ceil \"{}\": unsupported floating dtype {} "
                     "(supported: f32, f64).",
                     nodeName, dt.to_string()));
   }

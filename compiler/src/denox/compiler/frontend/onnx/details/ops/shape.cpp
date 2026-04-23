@@ -13,10 +13,10 @@ shape(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Shape expects exactly 1 output (node = \"{}\")", nodeName));
+        "Shape expects exactly 1 output (node = \"{}\")", nodeName));
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Shape expects 1 input (node = \"{}\")", nodeName));
+        fmt::format("Shape expects 1 input (node = \"{}\")", nodeName));
 
   const Tensor &in = *inputs[0];
   const TensorShape inShape = in.shape();
@@ -30,14 +30,14 @@ shape(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (itS != attributes.end()) {
     if (!itS->second.isInt())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Shape: 'start' must be INT (node = \"{}\")", nodeName));
+          "Shape: 'start' must be INT (node = \"{}\")", nodeName));
     start = itS->second.i();
   }
   auto itE = attributes.find("end");
   if (itE != attributes.end()) {
     if (!itE->second.isInt())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Shape: 'end' must be INT (node = \"{}\")", nodeName));
+          "Shape: 'end' must be INT (node = \"{}\")", nodeName));
     end = itE->second.i();
   }
 

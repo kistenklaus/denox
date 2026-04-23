@@ -6,7 +6,7 @@ namespace denox {
 
 struct ComputeOpConcat {};
 
-} // namespace vkcnn
+} 
 
 template <>
 struct fmt::formatter<denox::ComputeOpConcat> {

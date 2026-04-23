@@ -23,12 +23,12 @@ void import_value_info(ImportState &state,
                        const compiler::CompileOptions &options) {
   const memory::string &name = valueInfo.name();
   if (name.empty())
-    throw std::runtime_error("vkcnn: \"\" is not a valid tensor name.");
+    throw std::runtime_error("\"\" is not a valid tensor name.");
 
   if (!valueInfo.has_type()) {
     if (context == ValueInfoImportContext::Input)
       throw std::runtime_error(fmt::format(
-          "vkcnn: input tensor \"{}\" does not define a type.", name));
+          "input tensor \"{}\" does not define a type.", name));
     if (context == ValueInfoImportContext::Output ||
         context == ValueInfoImportContext::Hint)
       return; // ignore missing type for Output/Hint
@@ -38,22 +38,22 @@ void import_value_info(ImportState &state,
   const auto &tp = valueInfo.type();
   if (tp.has_optional_type())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Tensor \"{}\" has unsupported optional_type", name));
+        "Tensor \"{}\" has unsupported optional_type", name));
   if (tp.has_sparse_tensor_type())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Tensor \"{}\" has unsupported sparse_tensor_type", name));
+        "Tensor \"{}\" has unsupported sparse_tensor_type", name));
   if (tp.has_map_type())
     throw std::runtime_error(
-        fmt::format("vkcnn: Tensor \"{}\" has unsupported map_type", name));
+        fmt::format("Tensor \"{}\" has unsupported map_type", name));
   if (tp.has_sequence_type())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Tensor \"{}\" has unsupported sequence_type", name));
+        "Tensor \"{}\" has unsupported sequence_type", name));
   if (!tp.has_tensor_type()) {
     if (context == ValueInfoImportContext::Hint ||
         context == ValueInfoImportContext::Output)
       return; // ignore for Hint/Output
     throw std::runtime_error(
-        fmt::format("vkcnn: Tensor \"{}\" missing tensor_type", name));
+        fmt::format("Tensor \"{}\" missing tensor_type", name));
   }
 
   const auto &ttype = tp.tensor_type();
@@ -63,7 +63,7 @@ void import_value_info(ImportState &state,
   if (!dtypeOpt) {
     if (context == ValueInfoImportContext::Input) {
       throw std::runtime_error(
-          fmt::format("vkcnn: Tensor \"{}\" has unsupported elem_type {}", name,
+          fmt::format("Tensor \"{}\" has unsupported elem_type {}", name,
                       Dtype::parse_to_string(ttype.elem_type())));
     }
     // For Output/Hint we just skip dtype-based checks.
@@ -158,7 +158,7 @@ void import_value_info(ImportState &state,
         const std::string &label = d.dim_param();
         if (label.empty()) {
           throw std::runtime_error(
-              fmt::format("vkcnn: {} has empty dim_param at axis {}", name, i));
+              fmt::format("{} has empty dim_param at axis {}", name, i));
         }
         Sym s;
         if (shp.dim_size() == 4 && i == 0) {
@@ -270,7 +270,7 @@ void import_value_info(ImportState &state,
 
     if (r != 3 && r != 4) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Input \"{}\" must be rank 3 (CHW) or 4 (NCHW); got {}", name,
+          "Input \"{}\" must be rank 3 (CHW) or 4 (NCHW); got {}", name,
           r));
     }
 
@@ -323,7 +323,7 @@ void import_value_info(ImportState &state,
   }
   if (!it->second.isDevice()) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Output (\"{}\") is not a runtime tensor (constant "
+        fmt::format("Output (\"{}\") is not a runtime tensor (constant "
                     "outputs unsupported).",
                     name));
   }
@@ -345,7 +345,7 @@ void import_value_info(ImportState &state,
       if (h.type() == TensorDataType::Auto) {
         h.setType(*want);
       } else if (h.type() != *want) {
-        throw std::runtime_error("vkcnn: Output tensor type mismatch.");
+        throw std::runtime_error("Output tensor type mismatch.");
       }
     }
   }
@@ -359,7 +359,7 @@ void import_value_info(ImportState &state,
     const size_t pr = dev.shape().rank();
     if (pr != 3 && pr != 4) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Output tensor (\"{}\") must be rank 3 or 4; got {}.", name,
+          "Output tensor (\"{}\") must be rank 3 or 4; got {}.", name,
           pr));
     }
     // If ONNX rank doesn't match or is weird, we don't try to reconcile; we

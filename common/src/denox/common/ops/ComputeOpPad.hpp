@@ -48,7 +48,7 @@ private:
   std::unique_ptr<Storage> m_store;
 };
 
-} // namespace vkcnn
+} 
 
 template <>
 struct fmt::formatter<denox::ComputeOpPad> {

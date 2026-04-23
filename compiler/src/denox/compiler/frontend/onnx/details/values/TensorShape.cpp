@@ -161,7 +161,7 @@ TensorShape TensorShape::parse(const ::onnx::TensorShapeProto &shp,
   dims.reserve(static_cast<std::size_t>(shp.dim_size()));
   auto g = symGraph;
   if (!g)
-    throw std::runtime_error("vkcnn: symGraph is null");
+    throw std::runtime_error("symGraph is null");
 
   for (int i = 0; i < shp.dim_size(); ++i) {
     const auto &d = shp.dim(i);
@@ -169,7 +169,7 @@ TensorShape TensorShape::parse(const ::onnx::TensorShapeProto &shp,
       const int64_t v = d.dim_value();
       if (v < 0) {
         throw std::runtime_error(fmt::format(
-            "vkcnn: {} has negative dim at axis {}", tensorName, i));
+            "{} has negative dim at axis {}", tensorName, i));
       }
       dims.emplace_back(g, Sym::Const(v));
     } else if (d.has_dim_param()) {
@@ -177,7 +177,7 @@ TensorShape TensorShape::parse(const ::onnx::TensorShapeProto &shp,
       const std::string &label = d.dim_param();
       if (label.empty()) {
         throw std::runtime_error(fmt::format(
-            "vkcnn: {} has empty dim_param at axis {}", tensorName, i));
+            "{} has empty dim_param at axis {}", tensorName, i));
       }
       Sym s;
       if (shp.dim_size() == 4 && i == 0) {

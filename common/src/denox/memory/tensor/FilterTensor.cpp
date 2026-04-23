@@ -27,4 +27,4 @@ void FilterTensorView::assignFrom(const FilterTensorConstView &view) {
     }
   }
 }
-} // namespace vkcnn
+} 

@@ -16,10 +16,10 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Arity
   if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Add \"{}\" expects 2 inputs.", nodeName));
+        fmt::format("Add \"{}\" expects 2 inputs.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Add \"{}\" must have exactly 1 output.", nodeName));
+        fmt::format("Add \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &aT = *inputs[0];
   const Tensor &bT = *inputs[1];
@@ -27,7 +27,7 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Runtime tensors not supported here
   if (aT.isDevice() || bT.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Add \"{}\": runtime tensors not supported.", nodeName));
+        "Add \"{}\": runtime tensors not supported.", nodeName));
 
   const HostTensor &a0 = aT.host();
   const HostTensor &b0 = bT.host();
@@ -35,7 +35,7 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Must be static for host compute (we rely on constIndexOf)
   if (!a0.isConstant() || !b0.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Add \"{}\": dynamic host tensors unsupported.", nodeName));
+        "Add \"{}\": dynamic host tensors unsupported.", nodeName));
 
   const Dtype adt = a0.type();
   const Dtype bdt = b0.type();
@@ -44,7 +44,7 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (adt == Dtype::String || bdt == Dtype::String || adt == Dtype::Bool ||
       bdt == Dtype::Bool)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Add \"{}\": unsupported dtype (string/bool).", nodeName));
+        "Add \"{}\": unsupported dtype (string/bool).", nodeName));
 
   // Make base-contiguous for clean reads
   HostTensor A = a0.contiguous();
@@ -71,7 +71,7 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   if (!viewA.isConstant() || !viewB.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Add \"{}\": non-constant broadcast view.", nodeName));
+        "Add \"{}\": non-constant broadcast view.", nodeName));
 
   HostTensor A_broadcasted = A.withView(outShape, viewA);
   HostTensor B_broadcasted = B.withView(outShape, viewB);
@@ -95,7 +95,7 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (adt == Dtype::Sym || bdt == Dtype::Sym) {
     if (adt.isFloat() || bdt.isFloat())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Add \"{}\": symbolic with floats not supported.", nodeName));
+          "Add \"{}\": symbolic with floats not supported.", nodeName));
 
     std::size_t outCount = 1;
     for (auto d : outDims)
@@ -162,7 +162,7 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // -------- Integer path (mixed widths/signedness allowed) --------
   if (!(adt.isInteger() && bdt.isInteger()))
     throw std::runtime_error(fmt::format(
-        "vkcnn: Add \"{}\": unsupported dtype combination.", nodeName));
+        "Add \"{}\": unsupported dtype combination.", nodeName));
 
   const bool anySigned = adt.isSignedInt() || bdt.isSignedInt();
   std::size_t outCount = 1;

@@ -14,10 +14,10 @@ memory::vector<Tensor> pow(
   // ---- arity ----
   if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pow \"{}\" expects exactly 2 inputs.", nodeName));
+        "Pow \"{}\" expects exactly 2 inputs.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pow \"{}\" must have exactly 1 output.", nodeName));
+        "Pow \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &A = *inputs[0];
   const Tensor &B = *inputs[1];
@@ -25,7 +25,7 @@ memory::vector<Tensor> pow(
   // Host-only for now
   if (!A.isHost() || !B.isHost())
     throw std::runtime_error(
-        fmt::format("vkcnn: Pow \"{}\": only HostTensor inputs are supported.",
+        fmt::format("Pow \"{}\": only HostTensor inputs are supported.",
                     nodeName));
 
   const HostTensor &Ah = A.host();
@@ -34,10 +34,10 @@ memory::vector<Tensor> pow(
   // Require constant shape/view so we can index deterministically
   if (!Ah.isConstant() || !Bh.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pow \"{}\": inputs must have constant shapes.", nodeName));
+        "Pow \"{}\": inputs must have constant shapes.", nodeName));
   if (!Ah.view().isConstant() || !Bh.view().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Pow \"{}\": inputs must have constant views.", nodeName));
+        "Pow \"{}\": inputs must have constant views.", nodeName));
 
   // Dtype checks (float only). Allow F32/F64; upcast to F64 if mixed.
   const Dtype adt = Ah.type();
@@ -48,7 +48,7 @@ memory::vector<Tensor> pow(
   const bool bF64 = (bdt == Dtype::Float64);
   if ((!aF32 && !aF64) || (!bF32 && !bF64)) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Pow \"{}\": unsupported dtypes (A={}, B={}). "
+        fmt::format("Pow \"{}\": unsupported dtypes (A={}, B={}). "
                     "Supported: Float32, Float64.",
                     nodeName, adt.to_string(), bdt.to_string()));
   }
@@ -186,4 +186,4 @@ memory::vector<Tensor> pow(
   }
 }
 
-} // namespace vkcnn::details
+} 

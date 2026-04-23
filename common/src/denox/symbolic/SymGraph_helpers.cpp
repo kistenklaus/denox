@@ -71,4 +71,4 @@ void SymGraph::emod_affine(AffineExpr &expr, value_type m) {
   expr.constant = emod(expr.constant, m);
 }
 
-} // namespace vkcnn
+} 

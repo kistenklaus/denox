@@ -14,15 +14,15 @@ memory::vector<Tensor> transpose(
   // Arity checks
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Transpose \"{}\" expects exactly 1 input.", nodeName));
+        "Transpose \"{}\" expects exactly 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Transpose \"{}\" must have exactly 1 output.", nodeName));
+        "Transpose \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &inT = *inputs[0];
   if (inT.isDevice())
     throw std::runtime_error(
-        fmt::format("vkcnn: Transpose \"{}\": runtime tensors not supported.",
+        fmt::format("Transpose \"{}\": runtime tensors not supported.",
                     nodeName));
   const HostTensor &X = inT.host();
 
@@ -33,7 +33,7 @@ memory::vector<Tensor> transpose(
   if (auto it = attributes.find("perm"); it != attributes.end()) {
     if (!it->second.isInts())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Transpose \"{}\": 'perm' must be a list of int64.",
+          "Transpose \"{}\": 'perm' must be a list of int64.",
           nodeName));
     const auto &v = it->second.ints();
     if (v.empty()) {
@@ -53,18 +53,18 @@ memory::vector<Tensor> transpose(
   // Validate perm is a permutation of [0..r-1]
   if (perm.size() != r)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Transpose \"{}\": perm size ({}) must equal rank ({}).",
+        "Transpose \"{}\": perm size ({}) must equal rank ({}).",
         nodeName, perm.size(), r));
   {
     memory::vector<uint8_t> seen(r, 0);
     for (auto v : perm) {
       if (v < 0 || static_cast<std::size_t>(v) >= r)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Transpose \"{}\": perm value {} out of range for rank {}.",
+            "Transpose \"{}\": perm value {} out of range for rank {}.",
             nodeName, v, r));
       if (seen[static_cast<std::size_t>(v)]++)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Transpose \"{}\": perm contains duplicates.", nodeName));
+            "Transpose \"{}\": perm contains duplicates.", nodeName));
     }
   }
 
@@ -76,4 +76,4 @@ memory::vector<Tensor> transpose(
   return {Tensor::Host(std::move(out))};
 }
 
-} // namespace vkcnn::details
+}

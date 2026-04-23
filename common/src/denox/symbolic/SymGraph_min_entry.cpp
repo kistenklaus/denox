@@ -15,4 +15,4 @@ Sym SymGraph::min_xx(Sym lhs, Sym rhs, bool dno) {
   return Sym::Symbol(require_nonaffine_sym(nonaffine));
 }
 
-} // namespace vkcnn
+} 

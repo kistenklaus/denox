@@ -15,17 +15,17 @@ gather([[maybe_unused]] ImportState &state,
   // Arity
   if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Gather \"{}\" expects 2 inputs.", nodeName));
+        fmt::format("Gather \"{}\" expects 2 inputs.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Gather \"{}\" must have exactly 1 output.", nodeName));
+        "Gather \"{}\" must have exactly 1 output.", nodeName));
 
   // Host-only
   const Tensor &dataT = *inputs[0];
   const Tensor &indicesT = *inputs[1];
   if (dataT.isDevice() || indicesT.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Gather \"{}\": runtime tensors not supported.", nodeName));
+        "Gather \"{}\": runtime tensors not supported.", nodeName));
   const HostTensor &data = dataT.host();
   const HostTensor &indices = indicesT.host();
 
@@ -34,35 +34,35 @@ gather([[maybe_unused]] ImportState &state,
   if (auto it = attributes.find("axis"); it != attributes.end()) {
     if (!it->second.isInt())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Gather \"{}\": attribute 'axis' must be int.", nodeName));
+          "Gather \"{}\": attribute 'axis' must be int.", nodeName));
     axis = it->second.i();
   }
 
   // Must be static (host op)
   if (!data.isConstant() || !indices.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Gather \"{}\": dynamic host tensors unsupported.", nodeName));
+        "Gather \"{}\": dynamic host tensors unsupported.", nodeName));
   // We’ll use constIndexOf → require constant view too.
   if (!data.view().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Gather \"{}\": non-constant view unsupported.", nodeName));
+        "Gather \"{}\": non-constant view unsupported.", nodeName));
 
   // Normalize axis
   const auto dRank = static_cast<std::int64_t>(data.rank());
   if (dRank <= 0)
     throw std::runtime_error(
-        fmt::format("vkcnn: Gather \"{}\": data rank must be >=1.", nodeName));
+        fmt::format("Gather \"{}\": data rank must be >=1.", nodeName));
   if (axis < 0)
     axis += dRank;
   if (axis < 0 || axis >= dRank)
     throw std::runtime_error(
-        fmt::format("vkcnn: Gather \"{}\": axis {} out of range for rank {}.",
+        fmt::format("Gather \"{}\": axis {} out of range for rank {}.",
                     nodeName, axis, dRank));
 
   // Indices dtype
   if (indices.type() != Dtype::Int64)
     throw std::runtime_error(
-        fmt::format("vkcnn: Gather \"{}\": indices must be INT64.", nodeName));
+        fmt::format("Gather \"{}\": indices must be INT64.", nodeName));
 
   // Make indices contiguous for easy reading
   HostTensor idxC = indices.contiguous();
@@ -78,7 +78,7 @@ gather([[maybe_unused]] ImportState &state,
     const auto ax = static_cast<std::size_t>(axis);
     if (v < 0 || static_cast<std::uint64_t>(v) >= dataDims[ax])
       throw std::runtime_error(fmt::format(
-          "vkcnn: Gather \"{}\": index {} out of bounds for axis {}.", nodeName,
+          "Gather \"{}\": index {} out of bounds for axis {}.", nodeName,
           v, axis));
 
     HostTensor out = data.select(ax, static_cast<std::uint64_t>(v));
@@ -108,7 +108,7 @@ gather([[maybe_unused]] ImportState &state,
       const std::uint64_t ustart = static_cast<std::uint64_t>(start);
       if (ustart > axSize || (L > 0 && ustart + (L - 1) >= axSize))
         throw std::runtime_error(fmt::format(
-            "vkcnn: Gather \"{}\": range [{}, {}] out of bounds on axis {}.",
+            "Gather \"{}\": range [{}, {}] out of bounds on axis {}.",
             nodeName, start, start + static_cast<std::int64_t>(L - 1), axis));
 
       HostTensor out = data.narrow(ax, ustart, L);
@@ -223,7 +223,7 @@ gather([[maybe_unused]] ImportState &state,
     const auto ax = static_cast<std::size_t>(axis);
     if (selectVal < 0 || static_cast<std::uint64_t>(selectVal) >= dataDims[ax])
       throw std::runtime_error(fmt::format(
-          "vkcnn: Gather \"{}\": index {} out of bounds on axis {}.", nodeName,
+          "Gather \"{}\": index {} out of bounds on axis {}.", nodeName,
           selectVal, axis));
     dIdx[ax] = static_cast<std::uint64_t>(selectVal);
 

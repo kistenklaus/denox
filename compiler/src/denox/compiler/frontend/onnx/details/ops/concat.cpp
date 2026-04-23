@@ -13,21 +13,21 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Concat \"{}\" must have exactly 1 output.", nodeName));
+        "Concat \"{}\" must have exactly 1 output.", nodeName));
   if (inputs.empty())
     throw std::runtime_error(
-        fmt::format("vkcnn: Concat \"{}\" needs at least 1 input.", nodeName));
+        fmt::format("Concat \"{}\" needs at least 1 input.", nodeName));
   for (std::size_t i = 0; i < inputs.size(); ++i)
     if (!inputs[i].has_value())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Concat \"{}\": input {} is missing.", nodeName, i));
+          "Concat \"{}\": input {} is missing.", nodeName, i));
 
   // axis (default 0)
   std::int64_t axis = 0;
   if (auto it = attributes.find("axis"); it != attributes.end()) {
     if (!it->second.isInt())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Concat \"{}\": attribute 'axis' must be int.", nodeName));
+          "Concat \"{}\": attribute 'axis' must be int.", nodeName));
     axis = it->second.i();
   }
 
@@ -40,13 +40,13 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     }
     if (anyDevice && !allDevice)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Concat \"{}\": cannot mix device and host tensors.",
+          "Concat \"{}\": cannot mix device and host tensors.",
           nodeName));
 
     if (allDevice) {
       if (inputs.size() != 2)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Concat \"{}\": device concat supports exactly 2 inputs.",
+            "Concat \"{}\": device concat supports exactly 2 inputs.",
             nodeName));
 
       const DeviceTensor &d0 = inputs[0]->device();
@@ -57,7 +57,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       const std::size_t r0 = s0.rank(), r1 = s1.rank();
       if ((r0 != 3 && r0 != 4) || r1 != r0)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Concat \"{}\": device tensors must be rank 3/4 and match.",
+            "Concat \"{}\": device tensors must be rank 3/4 and match.",
             nodeName));
 
       const std::size_t chAxis = (r0 == 4) ? 1u : 0u;
@@ -66,11 +66,11 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         naxis += static_cast<std::int64_t>(r0);
       if (naxis < 0 || naxis >= static_cast<std::int64_t>(r0))
         throw std::runtime_error(fmt::format(
-            "vkcnn: Concat \"{}\": axis {} out of range for rank {}.", nodeName,
+            "Concat \"{}\": axis {} out of range for rank {}.", nodeName,
             axis, r0));
       if (static_cast<std::size_t>(naxis) != chAxis)
         throw std::runtime_error(
-            fmt::format("vkcnn: Concat \"{}\": device concat supported only on "
+            fmt::format("Concat \"{}\": device concat supported only on "
                         "channel axis {}.",
                         nodeName, chAxis));
 
@@ -87,27 +87,27 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   for (const auto &topt : inputs) {
     if (!topt->isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Concat \"{}\": expected all host tensors.", nodeName));
+          "Concat \"{}\": expected all host tensors.", nodeName));
     hs.push_back(&topt->host());
   }
 
   // All static & same rank
   if (!hs[0]->isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Concat \"{}\": dynamic host tensors unsupported.", nodeName));
+        "Concat \"{}\": dynamic host tensors unsupported.", nodeName));
   const auto d0 = hs[0]->shape().toU64();
   const std::size_t R = d0.size();
   if (R == 0)
     throw std::runtime_error(
-        fmt::format("vkcnn: Concat \"{}\": cannot concat scalars.", nodeName));
+        fmt::format("Concat \"{}\": cannot concat scalars.", nodeName));
   for (std::size_t i = 1; i < hs.size(); ++i) {
     if (!hs[i]->isConstant())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Concat \"{}\": dynamic host tensors unsupported.", nodeName));
+          "Concat \"{}\": dynamic host tensors unsupported.", nodeName));
     const auto di = hs[i]->shape().toU64();
     if (di.size() != R)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Concat \"{}\": rank mismatch at input {}.", nodeName, i));
+          "Concat \"{}\": rank mismatch at input {}.", nodeName, i));
   }
 
   // Determine common output dtype:
@@ -135,7 +135,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     for (std::size_t i = 1; i < hs.size(); ++i) {
       if (hs[i]->type() != dt0) {
         throw std::runtime_error(fmt::format(
-            "vkcnn: Concat \"{}\": dtype mismatch ({} vs {}) at input {}.",
+            "Concat \"{}\": dtype mismatch ({} vs {}) at input {}.",
             nodeName, dt0.to_string(), hs[i]->type().to_string(), i));
       }
     }
@@ -149,7 +149,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     naxis += static_cast<std::int64_t>(R);
   if (naxis < 0 || naxis >= static_cast<std::int64_t>(R))
     throw std::runtime_error(
-        fmt::format("vkcnn: Concat \"{}\": axis {} out of range for rank {}.",
+        fmt::format("Concat \"{}\": axis {} out of range for rank {}.",
                     nodeName, axis, R));
   const std::size_t A = static_cast<std::size_t>(naxis);
 
@@ -164,7 +164,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         continue;
       if (di[ax] != d0[ax])
         throw std::runtime_error(
-            fmt::format("vkcnn: Concat \"{}\": non-concat dimension {} "
+            fmt::format("Concat \"{}\": non-concat dimension {} "
                         "mismatch at input {}.",
                         nodeName, ax, i));
     }
@@ -217,7 +217,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     for (std::size_t i = 0; i < contig.size(); ++i)
       if (contig[i].type() != Dtype::String)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Concat \"{}\": cannot concat String with non-String.",
+            "Concat \"{}\": cannot concat String with non-String.",
             nodeName));
 
     auto table = static_cast<char **>(std::malloc(totalElems * sizeof(char *)));
@@ -258,7 +258,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     for (std::size_t i = 0; i < contig.size(); ++i)
       if (contig[i].type() != outDt)
         throw std::runtime_error(
-            fmt::format("vkcnn: Concat \"{}\": dtype mismatch (cannot "
+            fmt::format("Concat \"{}\": dtype mismatch (cannot "
                         "reconcile to {} at input {}).",
                         nodeName, outDt.to_string(), i));
 
@@ -318,7 +318,7 @@ concat(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
             out[outIndex++] = Sym::Const(src[base + k]);
         } else {
           throw std::runtime_error(fmt::format(
-              "vkcnn: Concat \"{}\": unexpected dtype in Sym-promotion path.",
+              "Concat \"{}\": unexpected dtype in Sym-promotion path.",
               nodeName));
         }
       }

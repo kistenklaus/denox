@@ -16,31 +16,31 @@ constant_of_shape([[maybe_unused]] ImportState &state,
   // arity
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: ConstantOfShape \"{}\" expects exactly 1 input (shape).",
+        "ConstantOfShape \"{}\" expects exactly 1 input (shape).",
         nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: ConstantOfShape \"{}\" must have exactly 1 output.", nodeName));
+        "ConstantOfShape \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &in = *inputs[0];
   if (in.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: ConstantOfShape \"{}\": runtime tensors not supported.",
+        "ConstantOfShape \"{}\": runtime tensors not supported.",
         nodeName));
   const HostTensor &shapeHT = in.host();
 
   // shape must be INT64, rank-1, constant
   if (shapeHT.type() != Dtype::Int64)
     throw std::runtime_error(fmt::format(
-        "vkcnn: ConstantOfShape \"{}\": input shape tensor must be INT64.",
+        "ConstantOfShape \"{}\": input shape tensor must be INT64.",
         nodeName));
   if (shapeHT.rank() != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: ConstantOfShape \"{}\": input shape tensor must be rank-1.",
+        "ConstantOfShape \"{}\": input shape tensor must be rank-1.",
         nodeName));
   if (!shapeHT.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: ConstantOfShape \"{}\": dynamic shape not supported.",
+        "ConstantOfShape \"{}\": dynamic shape not supported.",
         nodeName));
 
   // read extents
@@ -52,7 +52,7 @@ constant_of_shape([[maybe_unused]] ImportState &state,
     const std::int64_t v = d64[i];
     if (v < 0)
       throw std::runtime_error(fmt::format(
-          "vkcnn: ConstantOfShape \"{}\": negative dimension {} at axis {}.",
+          "ConstantOfShape \"{}\": negative dimension {} at axis {}.",
           nodeName, v, i));
     extents[i] = static_cast<std::uint64_t>(v);
   }
@@ -72,20 +72,20 @@ constant_of_shape([[maybe_unused]] ImportState &state,
   if (auto it = attributes.find("value"); it != attributes.end()) {
     if (!it->second.isTensor())
       throw std::runtime_error(fmt::format(
-          "vkcnn: ConstantOfShape \"{}\": 'value' must be a tensor.",
+          "ConstantOfShape \"{}\": 'value' must be a tensor.",
           nodeName));
     const HostTensor &v = it->second.t();
     if (!v.isConstant())
       throw std::runtime_error(fmt::format(
-          "vkcnn: ConstantOfShape \"{}\": 'value' must be constant.",
+          "ConstantOfShape \"{}\": 'value' must be constant.",
           nodeName));
     if (v.sizeElemsIfStatic() != 1)
       throw std::runtime_error(fmt::format(
-          "vkcnn: ConstantOfShape \"{}\": 'value' must have exactly 1 element.",
+          "ConstantOfShape \"{}\": 'value' must have exactly 1 element.",
           nodeName));
     if (v.type() == Dtype::Sym)
       throw std::runtime_error(fmt::format(
-          "vkcnn: ConstantOfShape \"{}\": 'value' cannot be symbolic.",
+          "ConstantOfShape \"{}\": 'value' cannot be symbolic.",
           nodeName));
     value = v.contiguous();
     outDtype = value->type();
@@ -114,7 +114,7 @@ constant_of_shape([[maybe_unused]] ImportState &state,
   case DtypeKind::Bool: {
     if (!value.has_value() || value->type() != Dtype::Bool)
       throw std::runtime_error(fmt::format(
-          "vkcnn: ConstantOfShape \"{}\": BOOL output requires 'value' BOOL.",
+          "ConstantOfShape \"{}\": BOOL output requires 'value' BOOL.",
           nodeName));
     const bool v = !value->storage()->boolean().empty() &&
                    value->storage()->boolean()[0] != 0;
@@ -129,7 +129,7 @@ constant_of_shape([[maybe_unused]] ImportState &state,
   case DtypeKind::String: {
     if (!value.has_value() || value->type() != Dtype::String)
       throw std::runtime_error(
-          fmt::format("vkcnn: ConstantOfShape \"{}\": STRING output requires "
+          fmt::format("ConstantOfShape \"{}\": STRING output requires "
                       "'value' STRING.",
                       nodeName));
     const char *s = value->storage()->strs()[0];
@@ -223,7 +223,7 @@ constant_of_shape([[maybe_unused]] ImportState &state,
   case DtypeKind::Undefined:
   case DtypeKind::Sym:
     throw std::runtime_error(fmt::format(
-        "vkcnn: ConstantOfShape \"{}\": unsupported dtype for fill.",
+        "ConstantOfShape \"{}\": unsupported dtype for fill.",
         nodeName));
   }
 

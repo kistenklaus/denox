@@ -16,25 +16,25 @@ sqrt([[maybe_unused]] ImportState &state,
   // ---- arity ----
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Sqrt \"{}\" expects exactly 1 input.", nodeName));
+        fmt::format("Sqrt \"{}\" expects exactly 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sqrt \"{}\" must have exactly 1 output.", nodeName));
+        "Sqrt \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &X = *inputs[0];
   if (!X.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sqrt \"{}\": only HostTensor is supported.", nodeName));
+        "Sqrt \"{}\": only HostTensor is supported.", nodeName));
 
   const HostTensor &Xin = X.host();
 
   // Require constant shape/view (we rely on constIndexOf)
   if (!Xin.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sqrt \"{}\": input must have constant shape.", nodeName));
+        "Sqrt \"{}\": input must have constant shape.", nodeName));
   if (!Xin.view().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sqrt \"{}\": input must have constant view.", nodeName));
+        "Sqrt \"{}\": input must have constant view.", nodeName));
 
   const Dtype dt = Xin.type();
   const bool isF32 = (dt == Dtype::Float32);
@@ -42,7 +42,7 @@ sqrt([[maybe_unused]] ImportState &state,
 
   if (!isF32 && !isF64)
     throw std::runtime_error(
-        fmt::format("vkcnn: Sqrt \"{}\": unsupported dtype {}. "
+        fmt::format("Sqrt \"{}\": unsupported dtype {}. "
                     "Supported: Float32, Float64.",
                     nodeName, dt.to_string()));
 

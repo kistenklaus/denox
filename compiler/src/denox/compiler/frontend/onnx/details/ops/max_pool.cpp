@@ -15,22 +15,22 @@ max_pool(ImportState &state,
   // Arity / outputs: we only support the value output (no indices).
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: MaxPool \"{}\" expects exactly 1 input.", nodeName));
+        "MaxPool \"{}\" expects exactly 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: MaxPool \"{}\": indices output not supported "
+        fmt::format("MaxPool \"{}\": indices output not supported "
                     "(expected 1 output).",
                     nodeName));
 
   const Tensor &X = *inputs[0];
   if (!X.isDevice())
-    throw std::runtime_error("vkcnn: MaxPool: only DeviceTensor is supported.");
+    throw std::runtime_error("MaxPool: only DeviceTensor is supported.");
 
   const DeviceTensor Xdev = X.device();
   const std::size_t r = Xdev.rank();
   if (r != 3 && r != 4)
     throw std::runtime_error(fmt::format(
-        "vkcnn: MaxPool \"{}\": input must be CHW or NCHW.", nodeName));
+        "MaxPool \"{}\": input must be CHW or NCHW.", nodeName));
 
   // --- Attributes ---
 
@@ -38,21 +38,21 @@ max_pool(ImportState &state,
   if (auto it = attributes.find("auto_pad"); it != attributes.end()) {
     if (!it->second.isString())
       throw std::runtime_error(
-          fmt::format("vkcnn: MaxPool \"{}\": auto_pad must be string, got {}.",
+          fmt::format("MaxPool \"{}\": auto_pad must be string, got {}.",
                       nodeName, it->second.kindName()));
     if (it->second.s() != "NOTSET")
       throw std::runtime_error(
-          "vkcnn: MaxPool: only auto_pad=\"NOTSET\" is supported.");
+          "MaxPool: only auto_pad=\"NOTSET\" is supported.");
   }
 
   // ceil_mode: must be 0/false
   if (auto it = attributes.find("ceil_mode"); it != attributes.end()) {
     if (!it->second.isInt())
       throw std::runtime_error(
-          fmt::format("vkcnn: MaxPool \"{}\": ceil_mode must be int, got {}.",
+          fmt::format("MaxPool \"{}\": ceil_mode must be int, got {}.",
                       nodeName, it->second.kindName()));
     if (it->second.i() != 0)
-      throw std::runtime_error("vkcnn: MaxPool: ceil_mode!=0 not supported.");
+      throw std::runtime_error("MaxPool: ceil_mode!=0 not supported.");
   }
 
   // storage_order: only 0 supported (row-major indices; we don't output indices
@@ -60,11 +60,11 @@ max_pool(ImportState &state,
   if (auto it = attributes.find("storage_order"); it != attributes.end()) {
     if (!it->second.isInt())
       throw std::runtime_error(fmt::format(
-          "vkcnn: MaxPool \"{}\": storage_order must be int, got {}.", nodeName,
+          "MaxPool \"{}\": storage_order must be int, got {}.", nodeName,
           it->second.kindName()));
     if (it->second.i() != 0)
       throw std::runtime_error(
-          "vkcnn: MaxPool: storage_order!=0 not supported.");
+          "MaxPool: storage_order!=0 not supported.");
   }
 
   // kernel_shape (required)
@@ -72,19 +72,19 @@ max_pool(ImportState &state,
   {
     auto it = attributes.find("kernel_shape");
     if (it == attributes.end())
-      throw std::runtime_error("vkcnn: MaxPool: kernel_shape is required.");
+      throw std::runtime_error("MaxPool: kernel_shape is required.");
     const Attribute &a = it->second;
     if (!a.isInts())
       throw std::runtime_error(fmt::format(
-          "vkcnn: MaxPool \"{}\": kernel_shape must be ints, got {}.", nodeName,
+          "MaxPool \"{}\": kernel_shape must be ints, got {}.", nodeName,
           a.kindName()));
     const auto &v = a.ints();
     if (v.size() != 2)
       throw std::runtime_error(fmt::format(
-          "vkcnn: MaxPool \"{}\": kernel_shape must have size 2 (H,W), got {}.",
+          "MaxPool \"{}\": kernel_shape must have size 2 (H,W), got {}.",
           nodeName, v.size()));
     if (v[0] < 1 || v[1] < 1)
-      throw std::runtime_error("vkcnn: MaxPool: kernel dims must be >= 1.");
+      throw std::runtime_error("MaxPool: kernel dims must be >= 1.");
     kernel.y = static_cast<unsigned>(v[0]); // H
     kernel.x = static_cast<unsigned>(v[1]); // W
   }
@@ -95,15 +95,15 @@ max_pool(ImportState &state,
     const Attribute &a = it->second;
     if (!a.isInts())
       throw std::runtime_error(
-          fmt::format("vkcnn: MaxPool \"{}\": strides must be ints, got {}.",
+          fmt::format("MaxPool \"{}\": strides must be ints, got {}.",
                       nodeName, AttributeKind_name(a.kind())));
     const auto &v = a.ints();
     if (v.size() != 2)
       throw std::runtime_error(fmt::format(
-          "vkcnn: MaxPool \"{}\": strides must have size 2 (H,W), got {}.",
+          "MaxPool \"{}\": strides must have size 2 (H,W), got {}.",
           nodeName, v.size()));
     if (v[0] < 1 || v[1] < 1)
-      throw std::runtime_error("vkcnn: MaxPool: strides must be >= 1.");
+      throw std::runtime_error("MaxPool: strides must be >= 1.");
     stride.y = static_cast<unsigned>(v[0]);
     stride.x = static_cast<unsigned>(v[1]);
   }
@@ -114,15 +114,15 @@ max_pool(ImportState &state,
     const Attribute &a = it->second;
     if (!a.isInts())
       throw std::runtime_error(
-          fmt::format("vkcnn: MaxPool \"{}\": dilations must be ints, got {}.",
+          fmt::format("MaxPool \"{}\": dilations must be ints, got {}.",
                       nodeName, AttributeKind_name(a.kind())));
     const auto &v = a.ints();
     if (v.size() != 2)
       throw std::runtime_error(fmt::format(
-          "vkcnn: MaxPool \"{}\": dilations must have size 2 (H,W), got {}.",
+          "MaxPool \"{}\": dilations must have size 2 (H,W), got {}.",
           nodeName, v.size()));
     if (v[0] < 1 || v[1] < 1)
-      throw std::runtime_error("vkcnn: MaxPool: dilations must be >= 1.");
+      throw std::runtime_error("MaxPool: dilations must be >= 1.");
     dilation.y = static_cast<unsigned>(v[0]);
     dilation.x = static_cast<unsigned>(v[1]);
   }
@@ -133,26 +133,26 @@ max_pool(ImportState &state,
     const Attribute &a = it->second;
     if (!a.isInts())
       throw std::runtime_error(
-          fmt::format("vkcnn: MaxPool \"{}\": pads must be ints, got {}.",
+          fmt::format("MaxPool \"{}\": pads must be ints, got {}.",
                       nodeName, AttributeKind_name(a.kind())));
     const auto &v = a.ints();
     if (v.size() == 2) {
       if (v[0] < 0 || v[1] < 0)
-        throw std::runtime_error("vkcnn: MaxPool: pads must be >= 0.");
+        throw std::runtime_error("MaxPool: pads must be >= 0.");
       padding.y = static_cast<unsigned>(v[0]); // H
       padding.x = static_cast<unsigned>(v[1]); // W
     } else if (v.size() == 4) {
       if (v[0] != v[2] || v[1] != v[3])
         throw std::runtime_error(
-            "vkcnn: MaxPool: asymmetric pads not supported (require "
+            "MaxPool: asymmetric pads not supported (require "
             "top==bottom and left==right).");
       if (v[0] < 0 || v[1] < 0)
-        throw std::runtime_error("vkcnn: MaxPool: pads must be >= 0.");
+        throw std::runtime_error("MaxPool: pads must be >= 0.");
       padding.y = static_cast<unsigned>(v[0]); // top/bottom
       padding.x = static_cast<unsigned>(v[1]); // left/right
     } else {
       throw std::runtime_error(fmt::format(
-          "vkcnn: MaxPool \"{}\": pads must have size 2 or 4, got {}.",
+          "MaxPool \"{}\": pads must have size 2 or 4, got {}.",
           nodeName, v.size()));
     }
   }

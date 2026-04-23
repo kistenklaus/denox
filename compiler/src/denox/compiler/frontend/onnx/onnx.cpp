@@ -33,8 +33,8 @@ static void import_graph(details::ImportState &state,
                          const ::onnx::GraphProto &graph,
                          const compiler::CompileOptions &options) {
   if (graph.sparse_initializer_size() != 0) {
-    throw std::runtime_error("vkcnn: Model contains sparse initializers are "
-                             "not supported by vkcnn.");
+    throw std::runtime_error("Model contains sparse initializers are "
+                             "not supported by denox.");
   }
 
   for (const auto &tensor : graph.initializer()) {
@@ -75,13 +75,13 @@ compiler::Model read(memory::span<const std::byte> raw,
       throw std::runtime_error("Failed to parse ONNX protobuf");
     }
     if (onnx.functions_size() != 0) {
-      throw std::runtime_error("vkcnn: ONNX functions are not supported.");
+      throw std::runtime_error("ONNX functions are not supported.");
     }
     if (onnx.opset_import_size() == 0) {
-      throw std::runtime_error("vkcnn: missing opset_import.");
+      throw std::runtime_error("missing opset_import.");
     }
     if (!onnx.has_graph()) {
-      throw std::runtime_error("vkcnn: missing top-level graph.");
+      throw std::runtime_error("missing top-level graph.");
     }
 
     auto controlBlock =
@@ -132,7 +132,7 @@ compiler::Model read(memory::span<const std::byte> raw,
     auto core_it = state.opset_versions.map.find("ai.onnx");
     if (core_it == state.opset_versions.map.end() || core_it->second <= 0) {
       throw std::runtime_error(
-          "vkcnn: missing or invalid core opset (ai.onnx).");
+          "missing or invalid core opset (ai.onnx).");
     }
     state.opset_versions.core_version = core_it->second;
     state.opset_versions.map.emplace("", core_it->second);
@@ -141,7 +141,7 @@ compiler::Model read(memory::span<const std::byte> raw,
       const memory::string &dom = kv.first;
       const opset_version ver = kv.second;
       if (dom != "ai.onnx" && dom != "") {
-        throw std::runtime_error("vkcnn: unsupported operator set domain \"" +
+        throw std::runtime_error("unsupported operator set domain \"" +
                                  dom + "\" (version " + std::to_string(ver) +
                                  ")");
       }
@@ -152,7 +152,7 @@ compiler::Model read(memory::span<const std::byte> raw,
     return std::move(state.output);
   } catch (const std::runtime_error &e) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Failed to import ONNX model: {}", e.what()));
+        fmt::format("Failed to import ONNX model: {}", e.what()));
   }
   diag::unreachable();
 }

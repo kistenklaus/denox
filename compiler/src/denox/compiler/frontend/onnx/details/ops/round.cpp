@@ -15,27 +15,27 @@ round([[maybe_unused]] ImportState &state,
   // ---- arity ----
   if (inputs.size() != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Round \"{}\" expects 1 input.", nodeName));
+        fmt::format("Round \"{}\" expects 1 input.", nodeName));
   if (!inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Round \"{}\": input is required.", nodeName));
+        fmt::format("Round \"{}\": input is required.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Round \"{}\" must have exactly 1 output.", nodeName));
+        "Round \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &xT = *inputs[0];
 
   // Host-only
   if (!xT.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Round \"{}\": DeviceTensor is not supported.", nodeName));
+        "Round \"{}\": DeviceTensor is not supported.", nodeName));
 
   const HostTensor &Xin = xT.host();
 
   // Only floating types; keep dtype unchanged
   const Dtype dt = Xin.type();
   if (!dt.toDenoxType().has_value())
-    throw std::runtime_error(fmt::format("vkcnn: Round \"{}\": only floating "
+    throw std::runtime_error(fmt::format("Round \"{}\": only floating "
                                          "HostTensors are supported (got {}).",
                                          nodeName, dt.to_string()));
 
@@ -45,7 +45,7 @@ round([[maybe_unused]] ImportState &state,
   // Shape must be known (so we can allocate exact size)
   if (!Xc.shape().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Round \"{}\": dynamic host shapes are unsupported.", nodeName));
+        "Round \"{}\": dynamic host shapes are unsupported.", nodeName));
 
   const auto dimsU64 = Xc.shape().toU64();
   std::size_t count = 1;
@@ -119,7 +119,7 @@ round([[maybe_unused]] ImportState &state,
   case DtypeKind::Sym:
     std::free(raw);
     throw std::runtime_error(
-        fmt::format("vkcnn: Round \"{}\": unsupported floating dtype {} "
+        fmt::format("Round \"{}\": unsupported floating dtype {} "
                     "(supported: f32, f64).",
                     nodeName, dt.to_string()));
   }

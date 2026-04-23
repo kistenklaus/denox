@@ -14,28 +14,28 @@ memory::vector<Tensor> clip(
   // ---- arity ----
   if (inputs.size() < 1 || inputs.size() > 3)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Clip \"{}\" expects 1..3 inputs (X, [min], [max]).", nodeName));
+        "Clip \"{}\" expects 1..3 inputs (X, [min], [max]).", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Clip \"{}\" must have exactly 1 output.", nodeName));
+        "Clip \"{}\" must have exactly 1 output.", nodeName));
 
   // ---- X ----
   if (!inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Clip \"{}\": input X is required.", nodeName));
+        fmt::format("Clip \"{}\": input X is required.", nodeName));
   const Tensor &X = *inputs[0];
   if (!X.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Clip \"{}\": only HostTensor is supported.", nodeName));
+        "Clip \"{}\": only HostTensor is supported.", nodeName));
   const HostTensor &Xin = X.host();
 
   // Static shape + constant view (we rely on constIndexOf)
   if (!Xin.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Clip \"{}\": X must have constant shape.", nodeName));
+        "Clip \"{}\": X must have constant shape.", nodeName));
   if (!Xin.view().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Clip \"{}\": X must have constant view.", nodeName));
+        "Clip \"{}\": X must have constant view.", nodeName));
 
   const TensorShape Xshape = Xin.shape();
   const auto dims = Xshape.toU64();
@@ -71,17 +71,17 @@ memory::vector<Tensor> clip(
   // Float32/Float64 readers (strict dtype match)
   auto read_scalar_f32 = [&](const HostTensor &t) -> float {
     if (t.type() != Dtype::Float32)
-      throw std::runtime_error("vkcnn: Clip: scalar must be Float32.");
+      throw std::runtime_error("Clip: scalar must be Float32.");
     if (!is_scalar_len(t))
-      throw std::runtime_error("vkcnn: Clip: scalar must be rank-0 or 1x1.");
+      throw std::runtime_error("Clip: scalar must be rank-0 or 1x1.");
     const auto idx = read_scalar_index(t);
     return t.storage()->f32()[idx];
   };
   auto read_scalar_f64 = [&](const HostTensor &t) -> double {
     if (t.type() != Dtype::Float64)
-      throw std::runtime_error("vkcnn: Clip: scalar must be Float64.");
+      throw std::runtime_error("Clip: scalar must be Float64.");
     if (!is_scalar_len(t))
-      throw std::runtime_error("vkcnn: Clip: scalar must be rank-0 or 1x1.");
+      throw std::runtime_error("Clip: scalar must be rank-0 or 1x1.");
     const auto idx = read_scalar_index(t);
     return t.storage()->f64()[idx];
   };
@@ -89,7 +89,7 @@ memory::vector<Tensor> clip(
   // Sym readers (allow Int64 promoted to Sym::Const)
   auto read_scalar_sym = [&](const HostTensor &t) -> Sym {
     if (!is_scalar_len(t))
-      throw std::runtime_error("vkcnn: Clip: scalar must be rank-0 or 1x1.");
+      throw std::runtime_error("Clip: scalar must be rank-0 or 1x1.");
     const auto idx = read_scalar_index(t);
     if (t.type() == Dtype::Sym) {
       return t.storage()->sym()[idx];
@@ -97,7 +97,7 @@ memory::vector<Tensor> clip(
       return Sym::Const(t.storage()->i64()[idx]);
     } else {
       throw std::runtime_error(
-          "vkcnn: Clip: for symbolic X, min/max must be SYM or INT64.");
+          "Clip: for symbolic X, min/max must be SYM or INT64.");
     }
   };
 
@@ -110,12 +110,12 @@ memory::vector<Tensor> clip(
   const HostTensor *MaxT = nullptr;
   if (hasMin) {
     if (!inputs[1]->isHost())
-      throw std::runtime_error("vkcnn: Clip: 'min' must be a HostTensor.");
+      throw std::runtime_error("Clip: 'min' must be a HostTensor.");
     MinT = &inputs[1]->host();
   }
   if (hasMax) {
     if (!inputs[2]->isHost())
-      throw std::runtime_error("vkcnn: Clip: 'max' must be a HostTensor.");
+      throw std::runtime_error("Clip: 'max' must be a HostTensor.");
     MaxT = &inputs[2]->host();
   }
 
@@ -154,7 +154,7 @@ memory::vector<Tensor> clip(
 
     // Optional sanity: if both finite and min>max, it's ill-posed
     if (minv > maxv)
-      throw std::runtime_error("vkcnn: Clip: min > max.");
+      throw std::runtime_error("Clip: min > max.");
 
     auto outStore = make_out(Dtype::Float32, sizeof(float));
     float *dst = reinterpret_cast<float *>(outStore->data());
@@ -201,7 +201,7 @@ memory::vector<Tensor> clip(
       maxv = read_scalar_f64(*MaxT);
 
     if (minv > maxv)
-      throw std::runtime_error("vkcnn: Clip: min > max.");
+      throw std::runtime_error("Clip: min > max.");
 
     auto outStore = make_out(Dtype::Float64, sizeof(double));
     double *dst = reinterpret_cast<double *>(outStore->data());
@@ -287,7 +287,7 @@ memory::vector<Tensor> clip(
 
   // If you want, you can add int dtypes here similarly.
   throw std::runtime_error(
-      fmt::format("vkcnn: Clip \"{}\": unsupported dtype {} for host Clip.",
+      fmt::format("Clip \"{}\": unsupported dtype {} for host Clip.",
                   nodeName, xdt.to_string()));
 }
 

@@ -49,4 +49,4 @@ Sym SymGraph::sub_cc(value_type lhs, value_type rhs, bool dno) {
                             affine, dno);
 }
 
-} // namespace vkcnn
+} 

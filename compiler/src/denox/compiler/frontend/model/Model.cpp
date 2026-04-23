@@ -33,7 +33,7 @@ TensorHandle Model::conv2d(const TensorHandle &src,
   // We still don’t support dilation ≠ 1 in the backend
   if (dilation != memory::uvec2(1, 1)) {
     throw std::runtime_error(
-        "vkcnn: conv2d currently does not support dilation != (1,1)");
+        "conv2d currently does not support dilation != (1,1)");
   }
 
   // Fetch input node & kernel size (sx = width, sy = height)
@@ -48,7 +48,7 @@ TensorHandle Model::conv2d(const TensorHandle &src,
   case AutoPadMode::None: {
     if (!padding.has_value()) {
       throw std::runtime_error(
-          "vkcnn: conv2d(autoPad=None) requires explicit padding");
+          "conv2d(autoPad=None) requires explicit padding");
     }
     pad = *padding;
     break;
@@ -63,7 +63,7 @@ TensorHandle Model::conv2d(const TensorHandle &src,
   case AutoPadMode::SameLower: {
     if (stride != memory::uvec2(1, 1)) {
       throw std::runtime_error(
-          "vkcnn: conv2d SAME_* only supported for stride=(1,1)");
+          "conv2d SAME_* only supported for stride=(1,1)");
     }
 
     const unsigned sumX = (kernelSize.x > 0) ? (kernelSize.x - 1u) : 0u;
@@ -71,7 +71,7 @@ TensorHandle Model::conv2d(const TensorHandle &src,
 
     if ((sumX & 1u) != 0u || (sumY & 1u) != 0u) {
       throw std::runtime_error(
-          "vkcnn: conv2d SAME_* requires symmetric padding; (kernel-1) must "
+          "conv2d SAME_* requires symmetric padding; (kernel-1) must "
           "be even in both dims");
     }
 
@@ -81,7 +81,7 @@ TensorHandle Model::conv2d(const TensorHandle &src,
   }
 
   default:
-    throw std::runtime_error("vkcnn: conv2d received unknown AutoPadMode");
+    throw std::runtime_error("conv2d received unknown AutoPadMode");
   }
 
   Sym width = m_controlBlock->symGraph.pool(srcTensor.width, kernelSize.x,
@@ -97,7 +97,7 @@ TensorHandle Model::conv2d(const TensorHandle &src,
     const Sym inH = g.resolve(srcTensor.height);
 
     if (!(outW == inW && outH == inH)) {
-      throw std::runtime_error("vkcnn: conv2d SAME_* rejected: shape is not "
+      throw std::runtime_error("conv2d SAME_* rejected: shape is not "
                                "provably preserved with symmetric padding");
     }
   }
@@ -154,7 +154,7 @@ TensorHandle Model::pool(const TensorHandle &src, memory::uvec2 kernelSize,
 
   if (dilation != memory::uvec2(1, 1)) {
     throw std::runtime_error(
-        "vkcnn: Model::pool, does not support dilation != (1,1).");
+        "Model::pool, does not support dilation != (1,1).");
   }
 
   memory::NodeId srcId = src.m_nodeId;
@@ -188,7 +188,7 @@ TensorHandle Model::concat(const TensorHandle &src0,
           m_controlBlock->symGraph.resolve(src1Node.height)) {
     throw std::runtime_error(
         "Model::concat: Failed to prove that "
-        "spatial dims of concat arguments match.\nvkcnn only accepts concat "
+        "spatial dims of concat arguments match.\ndenox only accepts concat "
         "operations, if it can prove that all arguments have the same "
         "spatial extent. \nMake sure that your inputs are either cropped "
         "before passing them to concat,\nor align the network inputs spatial "

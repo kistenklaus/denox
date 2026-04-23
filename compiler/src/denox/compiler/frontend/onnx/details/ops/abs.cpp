@@ -14,25 +14,25 @@ abs(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // ---- arity ----
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Abs \"{}\" expects exactly 1 input.", nodeName));
+        fmt::format("Abs \"{}\" expects exactly 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Abs \"{}\" must have exactly 1 output.", nodeName));
+        fmt::format("Abs \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &X = *inputs[0];
   if (!X.isHost())
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Abs \"{}\": only HostTensor is supported.", nodeName));
+    throw std::runtime_error(
+        fmt::format("Abs \"{}\": only HostTensor is supported.", nodeName));
 
   const HostTensor &Xin = X.host();
 
   // Require constant shape/view (we rely on constIndexOf)
   if (!Xin.isConstant())
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Abs \"{}\": input must have constant shape.", nodeName));
+    throw std::runtime_error(
+        fmt::format("Abs \"{}\": input must have constant shape.", nodeName));
   if (!Xin.view().isConstant())
-    throw std::runtime_error(fmt::format(
-        "vkcnn: Abs \"{}\": input must have constant view.", nodeName));
+    throw std::runtime_error(
+        fmt::format("Abs \"{}\": input must have constant view.", nodeName));
 
   const Dtype dt = Xin.type();
   const bool isF32 = (dt == Dtype::Float32);
@@ -43,7 +43,7 @@ abs(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   if (!isF32 && !isF64 && !isI32 && !isI64 && !isSym)
     throw std::runtime_error(
-        fmt::format("vkcnn: Abs \"{}\": unsupported dtype {}. "
+        fmt::format("Abs \"{}\": unsupported dtype {}. "
                     "Supported: Float32, Float64, Int32, Int64, Sym.",
                     nodeName, dt.to_string()));
 
@@ -119,7 +119,7 @@ abs(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       // Guard INT32_MIN to avoid overflow on negation
       if (v == std::numeric_limits<std::int32_t>::min())
         throw std::runtime_error(fmt::format(
-            "vkcnn: Abs \"{}\": abs(INT32_MIN) overflows.", nodeName));
+            "Abs \"{}\": abs(INT32_MIN) overflows.", nodeName));
       dst[i] = (v < 0) ? -v : v;
       if (!next_indexer(idx))
         break;
@@ -139,7 +139,7 @@ abs(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       const std::int64_t v = src[lin];
       if (v == std::numeric_limits<std::int64_t>::min())
         throw std::runtime_error(fmt::format(
-            "vkcnn: Abs \"{}\": abs(INT64_MIN) overflows.", nodeName));
+            "Abs \"{}\": abs(INT64_MIN) overflows.", nodeName));
       dst[i] = (v < 0) ? -v : v;
       if (!next_indexer(idx))
         break;

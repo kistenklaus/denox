@@ -315,4 +315,4 @@ SymGraph::affine_mod(const AffineExpr &lhs, const AffineExpr &rhs) {
   return denox::memory::nullopt;
 }
 
-} // namespace vkcnn
+}

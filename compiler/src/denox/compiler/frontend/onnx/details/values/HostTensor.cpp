@@ -331,13 +331,13 @@ HostTensor::HostTensor(TensorShape shape, TensorViewDesc view,
 HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
                              const io::Path &externalDir) {
   static_assert(std::endian::native == std::endian::little,
-                "vkcnn requires a little-endian host.");
+                "denox requires a little-endian host.");
 
   const std::string &name = tensor.name();
 
   if (tensor.has_segment()) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Tensor \"{}\" contains segment, not supported by vkcnn.",
+        "Tensor \"{}\" contains segment, not supported by denox.",
         name));
   }
 
@@ -345,13 +345,13 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
   const auto dtypeOpt = Dtype::parse(tensor.data_type());
   if (!dtypeOpt) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Unsupported data type: \"{}\"",
+        fmt::format("Unsupported data type: \"{}\"",
                     Dtype::parse_to_string(tensor.data_type())));
   }
   const Dtype dt = *dtypeOpt;
   if (dt == Dtype::Undefined) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: initializer tensor (\"{}\") type cannot be undefined.", name));
+        "initializer tensor (\"{}\") type cannot be undefined.", name));
   }
 
   std::vector<std::uint64_t> dims_u64;
@@ -360,7 +360,7 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
     const int64_t d = tensor.dims(i);
     if (d < 0) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: initializer has negative dim for tensor \"{}\"", name));
+          "initializer has negative dim for tensor \"{}\"", name));
     }
     dims_u64.push_back(static_cast<std::uint64_t>(d));
   }
@@ -386,10 +386,10 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
         length = static_cast<std::size_t>(std::stoull(kv.value()));
     }
     if (location.empty()) {
-      throw std::runtime_error("vkcnn: Missing external location");
+      throw std::runtime_error("Missing external location");
     }
     if (externalDir.empty()) {
-      throw std::runtime_error("vkcnn: ONNX contains external location, but no "
+      throw std::runtime_error("ONNX contains external location, but no "
                                "external directory specified.");
     }
 
@@ -398,7 +398,7 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
     const std::size_t fileSize = f.size();
     if (offset > fileSize) {
       throw std::runtime_error(
-          fmt::format("vkcnn: External file offset ({}) is past EOF of \"{}\"",
+          fmt::format("External file offset ({}) is past EOF of \"{}\"",
                       offset, p.str()));
     }
     const std::size_t toRead = (length == 0) ? (fileSize - offset) : length;
@@ -416,21 +416,21 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       // We only support strings via string_data(); raw/external-encoded strings
       // not supported.
       throw std::runtime_error(
-          "vkcnn: string initializers must use string_data()");
+          "string initializers must use string_data()");
     }
     const std::size_t elt = dt.size();
     if (elt == 0) {
-      throw std::runtime_error("vkcnn: invalid dtype_size for this dtype");
+      throw std::runtime_error("invalid dtype_size for this dtype");
     }
     if (bytes % elt != 0) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Invalid data length ({} bytes) not divisible by {}", bytes,
+          "Invalid data length ({} bytes) not divisible by {}", bytes,
           elt));
     }
     const std::size_t count = bytes / elt;
     if (count != n) {
       throw std::runtime_error(
-          fmt::format("vkcnn: Invalid data length. Expected {} elements ({} "
+          fmt::format("Invalid data length. Expected {} elements ({} "
                       "bytes), got {} ({} bytes)",
                       n, n * elt, count, bytes));
     }
@@ -453,10 +453,10 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
   else {
     switch (dt.kind()) {
     case DtypeKind::Sym:
-      throw std::logic_error("vkcnn: Unexpected dtype.");
+      throw std::logic_error("Unexpected dtype.");
     case DtypeKind::Undefined:
       throw std::runtime_error(
-          "vkcnn: Failed to parse tensor. undefined type!");
+          "Failed to parse tensor. undefined type!");
     case DtypeKind::Bool: {
       // ONNX puts bools in int32_data (0/1) commonly.
       const std::size_t sz = static_cast<std::size_t>(tensor.int32_data_size());
@@ -466,7 +466,7 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
         break;
       }
       if (sz != n) {
-        throw std::runtime_error("vkcnn: bool initializer length mismatch");
+        throw std::runtime_error("bool initializer length mismatch");
       }
       std::vector<std::uint8_t> bytes(n);
       for (size_t i = 0; i < n; ++i) {
@@ -481,17 +481,17 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<size_t>(tensor.int32_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing int32_data for INT8 initializer");
+            "missing int32_data for INT8 initializer");
       std::vector<std::int8_t> v(sz);
       for (size_t i = 0; i < sz; ++i) {
         int32_t x = tensor.int32_data(static_cast<int>(i));
         if (x < std::numeric_limits<int8_t>::min() ||
             x > std::numeric_limits<int8_t>::max())
-          throw std::runtime_error("vkcnn: INT8 value out of range");
+          throw std::runtime_error("INT8 value out of range");
         v[i] = static_cast<std::int8_t>(x);
       }
       if (sz != n)
-        throw std::runtime_error("vkcnn: INT8 initializer length mismatch");
+        throw std::runtime_error("INT8 initializer length mismatch");
       storage = std::make_shared<HostTensorStorage>(HostTensorStorage::Int8(v));
       break;
     }
@@ -499,17 +499,17 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<std::size_t>(tensor.int32_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing int32_data for INT16 initializer");
+            "missing int32_data for INT16 initializer");
       std::vector<std::int16_t> v(sz);
       for (size_t i = 0; i < sz; ++i) {
         int32_t x = tensor.int32_data(static_cast<int>(i));
         if (x < std::numeric_limits<int16_t>::min() ||
             x > std::numeric_limits<int16_t>::max())
-          throw std::runtime_error("vkcnn: INT16 value out of range");
+          throw std::runtime_error("INT16 value out of range");
         v[i] = static_cast<std::int16_t>(x);
       }
       if (sz != n)
-        throw std::runtime_error("vkcnn: INT16 initializer length mismatch");
+        throw std::runtime_error("INT16 initializer length mismatch");
       storage =
           std::make_shared<HostTensorStorage>(HostTensorStorage::Int16(v));
       break;
@@ -518,9 +518,9 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<std::size_t>(tensor.int32_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing int32_data for INT32 initializer");
+            "missing int32_data for INT32 initializer");
       if (sz != n)
-        throw std::runtime_error("vkcnn: INT32 initializer length mismatch");
+        throw std::runtime_error("INT32 initializer length mismatch");
 
       storage = std::make_shared<HostTensorStorage>(HostTensorStorage::Int32(
           memory::span<const std::int32_t>(tensor.int32_data().data(), sz)));
@@ -530,9 +530,9 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<std::size_t>(tensor.int64_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing int64_data for INT64 initializer");
+            "missing int64_data for INT64 initializer");
       if (sz != n)
-        throw std::runtime_error("vkcnn: INT64 initializer length mismatch");
+        throw std::runtime_error("INT64 initializer length mismatch");
       storage = std::make_shared<HostTensorStorage>(HostTensorStorage::Int64(
           std::span<const int64_t>(tensor.int64_data().data(), sz)));
       break;
@@ -541,16 +541,16 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<std::size_t>(tensor.int32_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing int32_data for UINT8 initializer");
+            "missing int32_data for UINT8 initializer");
       std::vector<std::uint8_t> v(sz);
       for (size_t i = 0; i < sz; ++i) {
         int32_t x = tensor.int32_data(static_cast<int>(i));
         if (x < 0 || x > std::numeric_limits<uint8_t>::max())
-          throw std::runtime_error("vkcnn: UINT8 value out of range");
+          throw std::runtime_error("UINT8 value out of range");
         v[i] = static_cast<std::uint8_t>(x);
       }
       if (sz != n)
-        throw std::runtime_error("vkcnn: UINT8 initializer length mismatch");
+        throw std::runtime_error("UINT8 initializer length mismatch");
       storage =
           std::make_shared<HostTensorStorage>(HostTensorStorage::Uint8(v));
       break;
@@ -559,16 +559,16 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const std::size_t sz = static_cast<std::size_t>(tensor.int32_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing int32_data for UINT16 initializer");
+            "missing int32_data for UINT16 initializer");
       std::vector<std::uint16_t> v(sz);
       for (std::size_t i = 0; i < sz; ++i) {
         std::int32_t x = tensor.int32_data(static_cast<int>(i));
         if (x < 0 || x > std::numeric_limits<uint16_t>::max())
-          throw std::runtime_error("vkcnn: UINT16 value out of range");
+          throw std::runtime_error("UINT16 value out of range");
         v[i] = static_cast<std::uint16_t>(x);
       }
       if (sz != n)
-        throw std::runtime_error("vkcnn: UINT16 initializer length mismatch");
+        throw std::runtime_error("UINT16 initializer length mismatch");
       storage =
           std::make_shared<HostTensorStorage>(HostTensorStorage::Uint16(v));
       break;
@@ -578,12 +578,12 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       std::size_t sz64 = static_cast<std::size_t>(tensor.uint64_data_size());
       if (sz64) {
         if (sz64 != n)
-          throw std::runtime_error("vkcnn: UINT32 initializer length mismatch");
+          throw std::runtime_error("UINT32 initializer length mismatch");
         std::vector<std::uint32_t> v(sz64);
         for (std::size_t i = 0; i < sz64; ++i) {
           std::uint64_t x = tensor.uint64_data(static_cast<int>(i));
           if (x > std::numeric_limits<uint32_t>::max())
-            throw std::runtime_error("vkcnn: UINT32 value out of range");
+            throw std::runtime_error("UINT32 value out of range");
           v[i] = static_cast<std::uint32_t>(x);
         }
         storage =
@@ -593,15 +593,15 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       // Fallback: some exporters use int32_data for UINT32
       size_t sz32 = static_cast<std::size_t>(tensor.int32_data_size());
       if (sz32 == 0 && n != 0)
-        throw std::runtime_error("vkcnn: missing data for UINT32 initializer");
+        throw std::runtime_error("missing data for UINT32 initializer");
       if (sz32 != n)
-        throw std::runtime_error("vkcnn: UINT32 initializer length mismatch");
+        throw std::runtime_error("UINT32 initializer length mismatch");
       std::vector<std::uint32_t> v(sz32);
       for (size_t i = 0; i < sz32; ++i) {
         int32_t x = tensor.int32_data(static_cast<int>(i));
         if (x < 0)
           throw std::runtime_error(
-              "vkcnn: negative value in UINT32 initializer");
+              "negative value in UINT32 initializer");
         v[i] = static_cast<std::uint32_t>(x);
       }
       storage =
@@ -612,9 +612,9 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<std::size_t>(tensor.uint64_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing uint64_data for UINT64 initializer");
+            "missing uint64_data for UINT64 initializer");
       if (sz != n)
-        throw std::runtime_error("vkcnn: UINT64 initializer length mismatch");
+        throw std::runtime_error("UINT64 initializer length mismatch");
       storage = std::make_shared<HostTensorStorage>(HostTensorStorage::Uint64(
           std::span<const uint64_t>(tensor.uint64_data().data(), sz)));
       break;
@@ -623,9 +623,9 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<std::size_t>(tensor.float_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing float_data for FLOAT32 initializer");
+            "missing float_data for FLOAT32 initializer");
       if (sz != n)
-        throw std::runtime_error("vkcnn: FLOAT32 initializer length mismatch");
+        throw std::runtime_error("FLOAT32 initializer length mismatch");
       storage = std::make_shared<HostTensorStorage>(HostTensorStorage::F32(
           std::span<const float>(tensor.float_data().data(), sz)));
       break;
@@ -634,9 +634,9 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       const size_t sz = static_cast<std::size_t>(tensor.double_data_size());
       if (sz == 0 && n != 0)
         throw std::runtime_error(
-            "vkcnn: missing double_data for FLOAT64 initializer");
+            "missing double_data for FLOAT64 initializer");
       if (sz != n)
-        throw std::runtime_error("vkcnn: FLOAT64 initializer length mismatch");
+        throw std::runtime_error("FLOAT64 initializer length mismatch");
       storage = std::make_shared<HostTensorStorage>(HostTensorStorage::F64(
           std::span<const double>(tensor.double_data().data(), sz)));
       break;
@@ -644,7 +644,7 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
     case DtypeKind::Float16: {
       // Usually provided via raw_data; if not present, we consider it missing.
       throw std::runtime_error(
-          "vkcnn: FLOAT16 initializer must use raw_data or external_data");
+          "FLOAT16 initializer must use raw_data or external_data");
     }
     case DtypeKind::String: {
       const size_t sz = static_cast<std::size_t>(tensor.string_data_size());
@@ -654,7 +654,7 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
         break;
       }
       if (sz != n) {
-        throw std::runtime_error("vkcnn: STRING initializer length mismatch");
+        throw std::runtime_error("STRING initializer length mismatch");
       }
       // Build vector<string> then storage
       std::vector<std::string> vals(sz);
@@ -666,7 +666,7 @@ HostTensor HostTensor::parse(const ::onnx::TensorProto &tensor,
       break;
     }
     default:
-      throw std::runtime_error("vkcnn: unsupported initializer dtype");
+      throw std::runtime_error("unsupported initializer dtype");
     }
   }
   // ---- HostTensor (identity view over the shape) ----

@@ -13,13 +13,13 @@ memory::vector<Tensor> constant(
 
   if (!inputs.empty())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Constant node \"{}\" must have 0 inputs.", nodeName));
+        "Constant node \"{}\" must have 0 inputs.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Constant node \"{}\" must have exactly 1 output.",
+        fmt::format("Constant node \"{}\" must have exactly 1 output.",
                     nodeName));
   if (!state.symGraph)
-    throw std::runtime_error("vkcnn: Constant: symGraph is null");
+    throw std::runtime_error("Constant: symGraph is null");
 
   const auto it_value = attributes.find("value");
   const auto it_sparse_value = attributes.find("sparse_value");
@@ -42,11 +42,11 @@ memory::vector<Tensor> constant(
 
   if (present == 0) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Constant node \"{}\" has no value attribute.", nodeName));
+        "Constant node \"{}\" has no value attribute.", nodeName));
   }
   if (present > 1) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Constant node \"{}\" specifies multiple value attributes.",
+        "Constant node \"{}\" specifies multiple value attributes.",
         nodeName));
   }
 
@@ -55,7 +55,7 @@ memory::vector<Tensor> constant(
     const Attribute &a = it_value->second;
     if (!a.isTensor())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Constant \"{}\": attribute 'value' is not a tensor.",
+          "Constant \"{}\": attribute 'value' is not a tensor.",
           nodeName));
     HostTensor ht = a.t(); // Already a HostTensor
     return {Tensor::Host(std::move(ht))};
@@ -64,7 +64,7 @@ memory::vector<Tensor> constant(
   // 2) Sparse tensor: unsupported.
   if (it_sparse_value != attributes.end()) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Constant \"{}\": sparse_value not supported.", nodeName));
+        "Constant \"{}\": sparse_value not supported.", nodeName));
   }
 
   // Helpers to build HostTensor from scalars / vectors.
@@ -84,7 +84,7 @@ memory::vector<Tensor> constant(
   if (it_f != attributes.end()) {
     const Attribute &a = it_f->second;
     if (!a.isFloat())
-      throw std::runtime_error("vkcnn: Constant: value_float has wrong type.");
+      throw std::runtime_error("Constant: value_float has wrong type.");
     float v = a.f();
     auto store = std::make_shared<HostTensorStorage>(
         HostTensorStorage::F32(memory::span<const float>(&v, 1)));
@@ -95,7 +95,7 @@ memory::vector<Tensor> constant(
   if (it_fs != attributes.end()) {
     const Attribute &a = it_fs->second;
     if (!a.isFloats())
-      throw std::runtime_error("vkcnn: Constant: value_floats has wrong type.");
+      throw std::runtime_error("Constant: value_floats has wrong type.");
     const auto &vec = a.floats();
     auto store = std::make_shared<HostTensorStorage>(
         HostTensorStorage::F32(memory::span<const float>(vec.data(), vec.size())));
@@ -107,7 +107,7 @@ memory::vector<Tensor> constant(
   if (it_i != attributes.end()) {
     const Attribute &a = it_i->second;
     if (!a.isInt())
-      throw std::runtime_error("vkcnn: Constant: value_int has wrong type.");
+      throw std::runtime_error("Constant: value_int has wrong type.");
     std::int64_t v = a.i();
     auto store = std::make_shared<HostTensorStorage>(
         HostTensorStorage::Int64(memory::span<const std::int64_t>(&v, 1)));
@@ -118,7 +118,7 @@ memory::vector<Tensor> constant(
   if (it_is != attributes.end()) {
     const Attribute &a = it_is->second;
     if (!a.isInts())
-      throw std::runtime_error("vkcnn: Constant: value_ints has wrong type.");
+      throw std::runtime_error("Constant: value_ints has wrong type.");
     const auto &vec = a.ints();
     auto store = std::make_shared<HostTensorStorage>(HostTensorStorage::Int64(
         memory::span<const std::int64_t>(vec.data(), vec.size())));
@@ -130,7 +130,7 @@ memory::vector<Tensor> constant(
   if (it_s != attributes.end()) {
     const Attribute &a = it_s->second;
     if (!a.isString())
-      throw std::runtime_error("vkcnn: Constant: value_string has wrong type.");
+      throw std::runtime_error("Constant: value_string has wrong type.");
     const memory::string &sv = a.s();
     auto store = std::make_shared<HostTensorStorage>(
         HostTensorStorage::String(memory::span<const memory::string>(&sv, 1)));
@@ -142,7 +142,7 @@ memory::vector<Tensor> constant(
     const Attribute &a = it_ss->second;
     if (!a.isStrings())
       throw std::runtime_error(
-          "vkcnn: Constant: value_strings has wrong type.");
+          "Constant: value_strings has wrong type.");
     const auto &vec = a.strings();
     auto store = std::make_shared<HostTensorStorage>(HostTensorStorage::String(
         memory::span<const memory::string>(vec.data(), vec.size())));
@@ -151,7 +151,7 @@ memory::vector<Tensor> constant(
   }
 
   // Fallback: should be unreachable because we counted 'present' above.
-  throw std::logic_error("vkcnn: Constant: unreachable dispatch.");
+  throw std::logic_error("Constant: unreachable dispatch.");
 }
 
-} // namespace vkcnn::details
+}

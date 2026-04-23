@@ -14,16 +14,16 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // ---- arity ----
   if (inputs.size() < 3 || inputs.size() > 5)
     throw std::runtime_error(
-        fmt::format("vkcnn: Slice \"{}\" expects 3..5 inputs (data, starts, "
+        fmt::format("Slice \"{}\" expects 3..5 inputs (data, starts, "
                     "ends, [axes], [steps]).",
                     nodeName));
   if (!inputs[0].has_value() || !inputs[1].has_value() ||
       !inputs[2].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Slice \"{}\": data/starts/ends are required.", nodeName));
+        "Slice \"{}\": data/starts/ends are required.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Slice \"{}\" must have exactly 1 output.", nodeName));
+        "Slice \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &dataT = *inputs[0];
   const Tensor &startsT = *inputs[1];
@@ -36,17 +36,17 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   auto read_len_1d = [](const HostTensor &t) -> std::size_t {
     if (!t.isConstant())
       throw std::runtime_error(
-          "vkcnn: Slice: control tensor must have constant shape.");
+          "Slice: control tensor must have constant shape.");
     const auto dims = t.shape().toU64();
     if (dims.size() != 1)
-      throw std::runtime_error("vkcnn: Slice: control tensor must be 1-D.");
+      throw std::runtime_error("Slice: control tensor must be 1-D.");
     return static_cast<std::size_t>(dims[0]);
   };
 
   auto read_i64_1d = [&](const HostTensor &t) -> memory::vector<std::int64_t> {
     if (t.type() != Dtype::Int64)
       throw std::runtime_error(
-          fmt::format("vkcnn: Slice \"{}\": expected INT64 tensor.", nodeName));
+          fmt::format("Slice \"{}\": expected INT64 tensor.", nodeName));
     const std::size_t n = read_len_1d(t);
 
     memory::vector<std::int64_t> out(n);
@@ -55,7 +55,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       auto s = t.storage()->i64();
       if (s.size() < n)
         throw std::runtime_error(
-            "vkcnn: Slice: storage smaller than logical size.");
+            "Slice: storage smaller than logical size.");
       std::memcpy(out.data(), s.data(), n * sizeof(std::int64_t));
     } else {
       for (std::size_t i = 0; i < n; ++i) {
@@ -78,7 +78,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         auto s = t.storage()->sym();
         if (s.size() < n)
           throw std::runtime_error(
-              "vkcnn: Slice: storage smaller than logical size.");
+              "Slice: storage smaller than logical size.");
         for (std::size_t i = 0; i < n; ++i)
           out[i] = s[i];
       } else {
@@ -95,14 +95,14 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         out[i] = Sym::Const(ints[i]);
     } else {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Slice \"{}\": starts/ends must be INT64 or SYM.", nodeName));
+          "Slice \"{}\": starts/ends must be INT64 or SYM.", nodeName));
     }
     return out;
   };
 
   if (!startsT.isHost() || !endsT.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Slice \"{}\": 'starts' and 'ends' must be host tensors.",
+        "Slice \"{}\": 'starts' and 'ends' must be host tensors.",
         nodeName));
 
   const HostTensor &startsH = startsT.host();
@@ -112,7 +112,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   const memory::vector<Sym> endsSym = read_sym_1d(endsH);
   if (startsSym.size() != endsSym.size())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Slice \"{}\": 'starts' and 'ends' must have same length.",
+        "Slice \"{}\": 'starts' and 'ends' must have same length.",
         nodeName));
 
   memory::vector<std::int64_t> axes;
@@ -120,7 +120,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const Tensor &axesT = *inputs[3];
     if (!axesT.isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Slice \"{}\": 'axes' must be a host tensor.", nodeName));
+          "Slice \"{}\": 'axes' must be a host tensor.", nodeName));
     axes = read_i64_1d(axesT.host());
   }
 
@@ -129,18 +129,18 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const Tensor &stepsT = *inputs[4];
     if (!stepsT.isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Slice \"{}\": 'steps' must be a host tensor.", nodeName));
+          "Slice \"{}\": 'steps' must be a host tensor.", nodeName));
     stepsI64 = read_i64_1d(stepsT.host());
   }
 
   const std::size_t nSpec = startsSym.size();
   if (hasAxes && axes.size() != nSpec)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Slice \"{}\": 'axes' length ({}) must match starts/ends ({}).",
+        "Slice \"{}\": 'axes' length ({}) must match starts/ends ({}).",
         nodeName, axes.size(), nSpec));
   if (hasSteps && stepsI64.size() != nSpec)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Slice \"{}\": 'steps' length ({}) must match starts/ends ({}).",
+        "Slice \"{}\": 'steps' length ({}) must match starts/ends ({}).",
         nodeName, stepsI64.size(), nSpec));
 
   // ---- normalize axes ----
@@ -153,7 +153,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
           a += static_cast<std::int64_t>(rank);
         if (a < 0 || a >= static_cast<std::int64_t>(rank))
           throw std::runtime_error(fmt::format(
-              "vkcnn: Slice \"{}\": axis {} out of range for rank {}.",
+              "Slice \"{}\": axis {} out of range for rank {}.",
               nodeName, a, rank));
         out.push_back(static_cast<std::size_t>(a));
       }
@@ -172,7 +172,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const std::size_t r = devIn.rank(); // 3 (CHW) or 4 (NCHW)
     if (r != 3 && r != 4)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Slice \"{}\": device tensor must be CHW or NCHW.", nodeName));
+          "Slice \"{}\": device tensor must be CHW or NCHW.", nodeName));
 
     const auto ax = normalize_axes(r);
 
@@ -184,7 +184,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     for (std::size_t i = 0; i < nSpec; ++i) {
       if (stepsDev[i] != 1)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Slice \"{}\": device path supports only step==1.",
+            "Slice \"{}\": device path supports only step==1.",
             nodeName));
     }
 
@@ -223,7 +223,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
           // N or C → must be no-op on 'start'
           if (!(s.isConstant() && s.constant() == 0))
             throw std::runtime_error(
-                fmt::format("vkcnn: Slice \"{}\": device slicing supports only "
+                fmt::format("Slice \"{}\": device slicing supports only "
                             "H/W. N/C must be no-op.",
                             nodeName));
         }
@@ -237,7 +237,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         } else { // C
           if (!(s.isConstant() && s.constant() == 0))
             throw std::runtime_error(
-                fmt::format("vkcnn: Slice \"{}\": device slicing supports only "
+                fmt::format("Slice \"{}\": device slicing supports only "
                             "H/W. C must be no-op.",
                             nodeName));
         }
@@ -258,7 +258,7 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // ===========================================================================
   if (startsH.type() == Dtype::Sym || endsH.type() == Dtype::Sym)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Slice \"{}\": host path does not support SYM starts/ends.",
+        "Slice \"{}\": host path does not support SYM starts/ends.",
         nodeName));
 
   const memory::vector<std::int64_t> startsI64 = read_i64_1d(startsH);
@@ -282,12 +282,12 @@ slice(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
     const std::int64_t step = stepsHost[i];
     if (step == 0)
       throw std::runtime_error(
-          fmt::format("vkcnn: Slice \"{}\": step must be non-zero.", nodeName));
+          fmt::format("Slice \"{}\": step must be non-zero.", nodeName));
 
     // Host tensor shapes are constant; assert that and use ints for clamping.
     if (!shape[a].isConstant())
       throw std::runtime_error(
-          "vkcnn: Slice host path expects constant shape.");
+          "Slice host path expects constant shape.");
     int64_t dimC = shape[a].constant();
 
     int64_t st = startsI64[i];

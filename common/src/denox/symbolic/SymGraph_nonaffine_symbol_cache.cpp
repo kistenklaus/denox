@@ -41,4 +41,4 @@ SymGraph::find_nonaffine_sym(const NonAffineExpr &nonaffine) const {
   }
 }
 
-} // namespace vkcnn
+}

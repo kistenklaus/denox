@@ -14,15 +14,15 @@ memory::vector<Tensor> leaky_relu(
   // Arity
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: LeakyRelu \"{}\" expects exactly 1 input.", nodeName));
+        "LeakyRelu \"{}\" expects exactly 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: LeakyRelu \"{}\" must have exactly 1 output.", nodeName));
+        "LeakyRelu \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &inT = *inputs[0];
   if (!inT.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: LeakyRelu \"{}\": only runtime tensors are supported.",
+        "LeakyRelu \"{}\": only runtime tensors are supported.",
         nodeName));
 
   [[maybe_unused]] float alpha = 0.01f;
@@ -30,7 +30,7 @@ memory::vector<Tensor> leaky_relu(
     const Attribute &a = it->second;
     if (!a.isFloat())
       throw std::runtime_error(fmt::format(
-          "vkcnn: LeakyRelu \"{}\": attribute 'alpha' must be float.",
+          "LeakyRelu \"{}\": attribute 'alpha' must be float.",
           nodeName));
     alpha = a.f();
   }

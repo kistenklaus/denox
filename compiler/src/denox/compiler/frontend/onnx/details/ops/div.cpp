@@ -15,10 +15,10 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Arity
   if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Div \"{}\" expects 2 inputs.", nodeName));
+        fmt::format("Div \"{}\" expects 2 inputs.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Div \"{}\" must have exactly 1 output.", nodeName));
+        fmt::format("Div \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &aT = *inputs[0];
   const Tensor &bT = *inputs[1];
@@ -26,7 +26,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Runtime tensors not supported
   if (aT.isDevice() || bT.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Div \"{}\": runtime tensors not supported.", nodeName));
+        "Div \"{}\": runtime tensors not supported.", nodeName));
 
   const HostTensor &a0 = aT.host();
   const HostTensor &b0 = bT.host();
@@ -34,7 +34,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Must be static (we rely on constIndexOf)
   if (!a0.isConstant() || !b0.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Div \"{}\": dynamic host tensors unsupported.", nodeName));
+        "Div \"{}\": dynamic host tensors unsupported.", nodeName));
 
   const Dtype adt = a0.type();
   const Dtype bdt = b0.type();
@@ -43,7 +43,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (adt == Dtype::String || bdt == Dtype::String || adt == Dtype::Bool ||
       bdt == Dtype::Bool || adt == Dtype::Float16 || bdt == Dtype::Float16)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Div \"{}\": unsupported dtype (string/bool/float16).",
+        "Div \"{}\": unsupported dtype (string/bool/float16).",
         nodeName));
 
   // Base-contiguous
@@ -70,7 +70,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       B.view().broadcastInDim(B.shape().dims(), outShape.dims(), axesB);
   if (!viewA.isConstant() || !viewB.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Div \"{}\": non-constant broadcast view.", nodeName));
+        "Div \"{}\": non-constant broadcast view.", nodeName));
 
   HostTensor A_broadcasted = A.withView(outShape, viewA);
   HostTensor B_broadcasted = B.withView(outShape, viewB);
@@ -94,7 +94,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (adt == Dtype::Sym || bdt == Dtype::Sym) {
     if (adt.isFloat() || bdt.isFloat())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Div \"{}\": symbolic with floats not supported.", nodeName));
+          "Div \"{}\": symbolic with floats not supported.", nodeName));
 
     std::size_t outCount = 1;
     for (auto d : outDims)
@@ -114,10 +114,10 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         const auto den = ys.constant();
         if (den == 0)
           throw std::runtime_error(
-              fmt::format("vkcnn: Div \"{}\": division by zero.", nodeName));
+              fmt::format("Div \"{}\": division by zero.", nodeName));
         if (den < 0)
           throw std::runtime_error(
-              fmt::format("vkcnn: Div \"{}\": negative constant denominator "
+              fmt::format("Div \"{}\": negative constant denominator "
                           "unsupported for symbolic division.",
                           nodeName));
       }
@@ -176,7 +176,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // -------- Integer path (truncating division) --------
   if (!(adt.isInteger() && bdt.isInteger()))
     throw std::runtime_error(fmt::format(
-        "vkcnn: Div \"{}\": unsupported dtype combination.", nodeName));
+        "Div \"{}\": unsupported dtype combination.", nodeName));
 
   const bool anySigned = adt.isSignedInt() || bdt.isSignedInt();
   std::size_t outCount = 1;
@@ -194,7 +194,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       const int64_t y = B_broadcasted.loadI64(idx);
       if (y == 0)
         throw std::runtime_error(
-            fmt::format("vkcnn: Div \"{}\": division by zero.", nodeName));
+            fmt::format("Div \"{}\": division by zero.", nodeName));
       *po++ =
           (x / y); // trunc toward zero; overflow UB accepted per your policy
       if (!inc())
@@ -216,7 +216,7 @@ div(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       const uint64_t y = B_broadcasted.loadU64(idx);
       if (y == 0)
         throw std::runtime_error(
-            fmt::format("vkcnn: Div \"{}\": division by zero.", nodeName));
+            fmt::format("Div \"{}\": division by zero.", nodeName));
       *po++ = (x / y);
       if (!inc())
         break;

@@ -15,10 +15,10 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // ---- arity ----
   if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Mod \"{}\" expects 2 inputs.", nodeName));
+        fmt::format("Mod \"{}\" expects 2 inputs.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Mod \"{}\" must have exactly 1 output.", nodeName));
+        fmt::format("Mod \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &aT = *inputs[0];
   const Tensor &bT = *inputs[1];
@@ -26,7 +26,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Host-only for now
   if (aT.isDevice() || bT.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Mod \"{}\": runtime tensors not supported.", nodeName));
+        "Mod \"{}\": runtime tensors not supported.", nodeName));
 
   const HostTensor &a0 = aT.host();
   const HostTensor &b0 = bT.host();
@@ -34,7 +34,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // We rely on constIndexOf during iteration
   if (!a0.isConstant() || !b0.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Mod \"{}\": dynamic host tensors unsupported.", nodeName));
+        "Mod \"{}\": dynamic host tensors unsupported.", nodeName));
 
   const Dtype adt = a0.type();
   const Dtype bdt = b0.type();
@@ -73,7 +73,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   if (!viewA.isConstant() || !viewB.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Mod \"{}\": non-constant broadcast view.", nodeName));
+        "Mod \"{}\": non-constant broadcast view.", nodeName));
 
   HostTensor A_broadcasted = A.withView(outShape, viewA);
   HostTensor B_broadcasted = B.withView(outShape, viewB);
@@ -102,14 +102,14 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   if (aIsFloat || bIsFloat) {
     if (aIsSym || bIsSym)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Mod \"{}\": symbolic with floats not supported.", nodeName));
+          "Mod \"{}\": symbolic with floats not supported.", nodeName));
 
     // ONNX attr fmod (int). If present ==0 → Euclidean; else → fmod.
     bool useFmod = true; // default
     if (auto it = attributes.find("fmod"); it != attributes.end()) {
       if (!it->second.isInt())
         throw std::runtime_error(fmt::format(
-            "vkcnn: Mod \"{}\": attribute 'fmod' must be int.", nodeName));
+            "Mod \"{}\": attribute 'fmod' must be int.", nodeName));
       useFmod = (it->second.i() != 0);
     }
 
@@ -129,7 +129,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         const double y = B_broadcasted.loadDouble(idx);
         if (y == 0.0)
           throw std::runtime_error(fmt::format(
-              "vkcnn: Mod \"{}\": division by zero (float).", nodeName));
+              "Mod \"{}\": division by zero (float).", nodeName));
         const double r =
             useFmod ? std::fmod(x, y) : (x - y * std::floor(x / y));
         *po++ = r;
@@ -143,7 +143,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         const double y = B_broadcasted.loadDouble(idx);
         if (y == 0.0)
           throw std::runtime_error(fmt::format(
-              "vkcnn: Mod \"{}\": division by zero (float).", nodeName));
+              "Mod \"{}\": division by zero (float).", nodeName));
         const double r =
             useFmod ? std::fmod(x, y) : (x - y * std::floor(x / y));
         *po++ = static_cast<float>(r);
@@ -171,7 +171,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
       if (ys.isConstant() && ys.constant() == 0)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Mod \"{}\": division by zero (sym).", nodeName));
+            "Mod \"{}\": division by zero (sym).", nodeName));
 
       // If exactly one side is constant and negative → forbid (your earlier
       // rule)
@@ -181,7 +181,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
         const auto neg = (xC ? xs.constant() : ys.constant()) < 0;
         if (neg) {
           throw std::runtime_error(fmt::format(
-              "vkcnn: Mod \"{}\": negative constant with symbolic counterpart "
+              "Mod \"{}\": negative constant with symbolic counterpart "
               "is not supported.",
               nodeName));
         }
@@ -201,7 +201,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // -------- INTEGERS --------
   if (!(aIsInt && bIsInt))
     throw std::runtime_error(fmt::format(
-        "vkcnn: Mod \"{}\": unsupported dtype combination.", nodeName));
+        "Mod \"{}\": unsupported dtype combination.", nodeName));
 
   const bool anySigned = adt.isSignedInt() || bdt.isSignedInt();
 
@@ -216,7 +216,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       const int64_t y = B_broadcasted.loadI64(idx);
       if (y == 0)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Mod \"{}\": division by zero (int).", nodeName));
+            "Mod \"{}\": division by zero (int).", nodeName));
       *po++ = (x % y); // C++ % for signed (you earlier said assume positives)
       if (!inc())
         break;
@@ -237,7 +237,7 @@ mod(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
       const uint64_t y = B_broadcasted.loadU64(idx);
       if (y == 0)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Mod \"{}\": division by zero (int).", nodeName));
+            "Mod \"{}\": division by zero (int).", nodeName));
       *po++ = (x % y); // wrap-around semantics ok for unsigned
       if (!inc())
         break;

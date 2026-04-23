@@ -15,10 +15,10 @@ reshape([[maybe_unused]] ImportState &state,
   // Arity
   if (inputs.size() != 2 || !inputs[0].has_value() || !inputs[1].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Reshape \"{}\" expects 2 inputs (data, shape).", nodeName));
+        "Reshape \"{}\" expects 2 inputs (data, shape).", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Reshape \"{}\" must have exactly 1 output.", nodeName));
+        "Reshape \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &dataT = *inputs[0];
   const Tensor &shapeT = *inputs[1];
@@ -26,7 +26,7 @@ reshape([[maybe_unused]] ImportState &state,
   // Device tensors unsupported
   if (dataT.isDevice() || shapeT.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Reshape \"{}\": runtime tensors not supported.", nodeName));
+        "Reshape \"{}\": runtime tensors not supported.", nodeName));
 
   const HostTensor &data = dataT.host();
   const HostTensor &shape = shapeT.host();
@@ -34,23 +34,23 @@ reshape([[maybe_unused]] ImportState &state,
   // Require static input shape (HostTensor::reshape needs static)
   if (!data.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Reshape \"{}\": input shape must be static.", nodeName));
+        "Reshape \"{}\": input shape must be static.", nodeName));
 
   // Shape tensor must be 1-D (ONNX spec)
   if (!shape.isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Reshape \"{}\": shape tensor must be constant.", nodeName));
+        "Reshape \"{}\": shape tensor must be constant.", nodeName));
   const auto shpU64 = shape.shape().toU64();
   if (shpU64.size() != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Reshape \"{}\": shape tensor must be 1-D.", nodeName));
+        "Reshape \"{}\": shape tensor must be 1-D.", nodeName));
 
   // Parse 'allowzero' (default 0: zeros mean copy from input dim at same index)
   bool allowZero = false;
   if (auto it = attributes.find("allowzero"); it != attributes.end()) {
     if (!it->second.isInt())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Reshape \"{}\": attribute 'allowzero' must be int.",
+          "Reshape \"{}\": attribute 'allowzero' must be int.",
           nodeName));
     allowZero = (it->second.i() != 0);
   }
@@ -71,12 +71,12 @@ reshape([[maybe_unused]] ImportState &state,
         // (If you want to support symbolic reshape target, you'd need a
         // different path) For now keep it simple:
         throw std::runtime_error(fmt::format(
-            "vkcnn: Reshape \"{}\": symbolic shape entries are not supported.",
+            "Reshape \"{}\": symbolic shape entries are not supported.",
             nodeName));
       }
     } else {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Reshape \"{}\": shape tensor must be INT64.", nodeName));
+          "Reshape \"{}\": shape tensor must be INT64.", nodeName));
     }
   }
 
@@ -95,7 +95,7 @@ reshape([[maybe_unused]] ImportState &state,
       }
     if (hasZero && req.size() != inRank) {
       throw std::runtime_error(
-          fmt::format("vkcnn: Reshape \"{}\": zeros in target shape require "
+          fmt::format("Reshape \"{}\": zeros in target shape require "
                       "same rank as input.",
                       nodeName));
     }
@@ -109,13 +109,13 @@ reshape([[maybe_unused]] ImportState &state,
       if (v == -1) {
         if (inferPos >= 0) {
           throw std::runtime_error(fmt::format(
-              "vkcnn: Reshape \"{}\": only one -1 is allowed in shape.",
+              "Reshape \"{}\": only one -1 is allowed in shape.",
               nodeName));
         }
         inferPos = static_cast<int>(i);
       } else {
         throw std::runtime_error(
-            fmt::format("vkcnn: Reshape \"{}\": invalid negative dimension {}.",
+            fmt::format("Reshape \"{}\": invalid negative dimension {}.",
                         nodeName, v));
       }
     }
@@ -165,19 +165,19 @@ reshape([[maybe_unused]] ImportState &state,
     if (hasZeroDim) {
       // Ambiguous: -1 with zero dims — disallow to keep semantics simple
       throw std::runtime_error(
-          fmt::format("vkcnn: Reshape \"{}\": cannot infer -1 when other "
+          fmt::format("Reshape \"{}\": cannot infer -1 when other "
                       "target dims are zero.",
                       nodeName));
     }
     if (knownProd == 0) {
       throw std::runtime_error(
-          fmt::format("vkcnn: Reshape \"{}\": cannot infer -1 with zero "
+          fmt::format("Reshape \"{}\": cannot infer -1 with zero "
                       "product of known dims.",
                       nodeName));
     }
     if (oldN % knownProd != 0) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: Reshape \"{}\": element count mismatch (cannot infer -1).",
+          "Reshape \"{}\": element count mismatch (cannot infer -1).",
           nodeName));
     }
     const std::size_t inferred = oldN / knownProd;

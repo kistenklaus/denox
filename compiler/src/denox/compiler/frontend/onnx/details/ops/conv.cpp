@@ -14,17 +14,17 @@ memory::vector<Tensor> conv(
   // ---- arity ----
   if (inputs.size() != 2 && inputs.size() != 3) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Conv \"{}\": expects 2 or 3 inputs, got {}.",
+        fmt::format("Conv \"{}\": expects 2 or 3 inputs, got {}.",
                     nodeName, inputs.size()));
   }
   if (outputCount != 1) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Conv \"{}\": must have exactly 1 output.", nodeName));
+        "Conv \"{}\": must have exactly 1 output.", nodeName));
   }
 
   // ---- inputs ----
   if (!inputs[0].has_value() || !inputs[1].has_value())
-    throw std::runtime_error("vkcnn: Conv: inputs X and W are required.");
+    throw std::runtime_error("Conv: inputs X and W are required.");
 
   const Tensor &X = *inputs[0];
   const Tensor &W = *inputs[1];
@@ -34,26 +34,26 @@ memory::vector<Tensor> conv(
     B = *inputs[2];
 
   if (!X.isDevice())
-    throw std::runtime_error("vkcnn: Conv: X must be a DeviceTensor.");
+    throw std::runtime_error("Conv: X must be a DeviceTensor.");
   if (!W.isHost())
-    throw std::runtime_error("vkcnn: Conv: W must be a HostTensor.");
+    throw std::runtime_error("Conv: W must be a HostTensor.");
   if (B && !B->isHost())
     throw std::runtime_error(
-        "vkcnn: Conv: B (if present) must be a HostTensor.");
+        "Conv: B (if present) must be a HostTensor.");
 
   const DeviceTensor Xdev = X.device();
 
   if (Xdev.rank() != 3 && Xdev.rank() != 4)
-    throw std::runtime_error("vkcnn: Conv: X must be CHW or NCHW.");
+    throw std::runtime_error("Conv: X must be CHW or NCHW.");
 
   // ---- attributes: group ----
   if (auto it = attributes.find("group"); it != attributes.end()) {
     if (!it->second.isInt())
       throw std::runtime_error(
-          fmt::format("vkcnn: Conv \"{}\": group must be int, got {}.",
+          fmt::format("Conv \"{}\": group must be int, got {}.",
                       nodeName, it->second.kindName()));
     if (it->second.i() != 1)
-      throw std::runtime_error("vkcnn: Conv: only group=1 is supported.");
+      throw std::runtime_error("Conv: only group=1 is supported.");
   }
 
   // ---- attributes: dilations ----
@@ -62,15 +62,15 @@ memory::vector<Tensor> conv(
     const Attribute &a = it->second;
     if (!a.isInts())
       throw std::runtime_error(
-          fmt::format("vkcnn: Conv \"{}\": dilations must be ints, got {}.",
+          fmt::format("Conv \"{}\": dilations must be ints, got {}.",
                       nodeName, a.kindName()));
     const auto &v = a.ints();
     if (v.size() != 2)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Conv \"{}\": dilations must have size 2 (H,W), got {}.",
+          "Conv \"{}\": dilations must have size 2 (H,W), got {}.",
           nodeName, v.size()));
     if (v[0] < 1 || v[1] < 1)
-      throw std::runtime_error("vkcnn: Conv: dilations must be >= 1.");
+      throw std::runtime_error("Conv: dilations must be >= 1.");
     dilations.y = static_cast<unsigned>(v[0]); // H
     dilations.x = static_cast<unsigned>(v[1]); // W
   }
@@ -81,15 +81,15 @@ memory::vector<Tensor> conv(
     const Attribute &a = it->second;
     if (!a.isInts())
       throw std::runtime_error(
-          fmt::format("vkcnn: Conv \"{}\": strides must be ints, got {}.",
+          fmt::format("Conv \"{}\": strides must be ints, got {}.",
                       nodeName, a.kindName()));
     const auto &v = a.ints();
     if (v.size() != 2)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Conv \"{}\": strides must have size 2 (H,W), got {}.",
+          "Conv \"{}\": strides must have size 2 (H,W), got {}.",
           nodeName, v.size()));
     if (v[0] < 1 || v[1] < 1)
-      throw std::runtime_error("vkcnn: Conv: strides must be >= 1.");
+      throw std::runtime_error("Conv: strides must be >= 1.");
     strides.y = static_cast<unsigned>(v[0]); // H
     strides.x = static_cast<unsigned>(v[1]); // W
   }
@@ -100,15 +100,15 @@ memory::vector<Tensor> conv(
     const Attribute &a = it->second;
     if (!a.isInts())
       throw std::runtime_error(
-          fmt::format("vkcnn: Conv \"{}\": kernel_shape must be ints, got {}.",
+          fmt::format("Conv \"{}\": kernel_shape must be ints, got {}.",
                       nodeName, a.kindName()));
     const auto &v = a.ints();
     if (v.size() != 2)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Conv \"{}\": kernel_shape must have size 2 (H,W), got {}.",
+          "Conv \"{}\": kernel_shape must have size 2 (H,W), got {}.",
           nodeName, v.size()));
     if (v[0] < 1 || v[1] < 1)
-      throw std::runtime_error("vkcnn: Conv: kernel_shape must be >= 1.");
+      throw std::runtime_error("Conv: kernel_shape must be >= 1.");
     kernelShapeAttr = memory::uvec2(static_cast<unsigned>(v[1]),  // x=W
                                     static_cast<unsigned>(v[0])); // y=H
   }
@@ -118,7 +118,7 @@ memory::vector<Tensor> conv(
   if (auto it = attributes.find("auto_pad"); it != attributes.end()) {
     if (!it->second.isString())
       throw std::runtime_error(
-          fmt::format("vkcnn: Conv \"{}\": auto_pad must be string, got {}.",
+          fmt::format("Conv \"{}\": auto_pad must be string, got {}.",
                       nodeName, it->second.kindName()));
     const memory::string v = it->second.s();
     if (v == "NOTSET")
@@ -131,7 +131,7 @@ memory::vector<Tensor> conv(
       autoPad = AutoPadMode::Zero;
     else
       throw std::runtime_error(
-          fmt::format("vkcnn: Conv \"{}\": unsupported auto_pad value \"{}\".",
+          fmt::format("Conv \"{}\": unsupported auto_pad value \"{}\".",
                       nodeName, v));
   }
 
@@ -142,27 +142,27 @@ memory::vector<Tensor> conv(
       const Attribute &a = it->second;
       if (!a.isInts())
         throw std::runtime_error(
-            fmt::format("vkcnn: Conv \"{}\": pads must be ints, got {}.",
+            fmt::format("Conv \"{}\": pads must be ints, got {}.",
                         nodeName, AttributeKind_name(a.kind())));
       const auto &v = a.ints();
       if (v.size() == 2) {
         // shorthand [pad_h, pad_w]
         if (v[0] < 0 || v[1] < 0)
-          throw std::runtime_error("vkcnn: Conv: pads must be >= 0.");
+          throw std::runtime_error("Conv: pads must be >= 0.");
         padding.y = static_cast<unsigned>(v[0]);
         padding.x = static_cast<unsigned>(v[1]);
       } else if (v.size() == 4) {
         // canonical [top, left, bottom, right] (must be symmetric)
         if (v[0] != v[2] || v[1] != v[3])
-          throw std::runtime_error("vkcnn: Conv: asymmetric pads not supported "
+          throw std::runtime_error("Conv: asymmetric pads not supported "
                                    "(require top==bottom and left==right).");
         if (v[0] < 0 || v[1] < 0)
-          throw std::runtime_error("vkcnn: Conv: pads must be >= 0.");
+          throw std::runtime_error("Conv: pads must be >= 0.");
         padding.y = static_cast<unsigned>(v[0]); // top/bottom
         padding.x = static_cast<unsigned>(v[1]); // left/right
       } else {
         throw std::runtime_error(fmt::format(
-            "vkcnn: Conv \"{}\": pads must have size 2 or 4, got {}.", nodeName,
+            "Conv \"{}\": pads must have size 2 or 4, got {}.", nodeName,
             v.size()));
       }
     }
@@ -174,16 +174,16 @@ memory::vector<Tensor> conv(
   auto wft = wdt.toDenoxType();
   if (!wft)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Conv: W has unsupported type {}.", wdt.to_string()));
+        "Conv: W has unsupported type {}.", wdt.to_string()));
 
   const TensorShape Wshape = Wc.shape(); // [K,C,R,S] (OIHW)
   if (Wshape.rank() != 4)
-    throw std::runtime_error("vkcnn: Conv: W must be rank-4 (KCRS/OIHW).");
+    throw std::runtime_error("Conv: W must be rank-4 (KCRS/OIHW).");
 
   const Symbolic K = Wshape[0], C = Wshape[1], R = Wshape[2],
                            S = Wshape[3];
   if (!K.isConstant() || !C.isConstant() || !R.isConstant() || !S.isConstant())
-    throw std::runtime_error("vkcnn: Conv: W must have constant K,C,R,S.");
+    throw std::runtime_error("Conv: W must have constant K,C,R,S.");
 
   const unsigned k = static_cast<unsigned>(K.constant());
   const unsigned c = static_cast<unsigned>(C.constant());
@@ -192,11 +192,11 @@ memory::vector<Tensor> conv(
 
   if (kernelShapeAttr && (kernelShapeAttr->y != r || kernelShapeAttr->x != s))
     throw std::runtime_error(fmt::format(
-        "vkcnn: Conv: kernel_shape mismatch (W has {}x{}, attr is {}x{}).", r,
+        "Conv: kernel_shape mismatch (W has {}x{}, attr is {}x{}).", r,
         s, kernelShapeAttr->y, kernelShapeAttr->x));
 
   if (!Xdev.handle().channels().isConstant()) {
-    throw std::runtime_error("vkcnn: Conv: input channels must be constant!");
+    throw std::runtime_error("Conv: input channels must be constant!");
   }
 
 
@@ -204,7 +204,7 @@ memory::vector<Tensor> conv(
   // Check input channels
   if (Xdev.handle().channels().constant() != c) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Conv: input channels ({}) do not match W.C ({}).",
+        fmt::format("Conv: input channels ({}) do not match W.C ({}).",
                     Xdev.handle().channels().constant(), c));
   }
 
@@ -223,17 +223,17 @@ memory::vector<Tensor> conv(
   if (B) {
     HostTensor Bc = B->host().contiguous();
     if (Bc.shape().rank() != 1)
-      throw std::runtime_error("vkcnn: Conv: B must be 1-D [K].");
+      throw std::runtime_error("Conv: B must be 1-D [K].");
     const Symbolic KB = Bc.shape()[0];
     if (!KB.isConstant() || static_cast<unsigned>(KB.constant()) != k)
-      throw std::runtime_error("vkcnn: Conv: B length must equal K.");
+      throw std::runtime_error("Conv: B length must equal K.");
     const Dtype bdt = Bc.type();
     auto bft = bdt.toDenoxType();
     if (!bft)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Conv: B has unsupported type {}.", bdt.to_string()));
+          "Conv: B has unsupported type {}.", bdt.to_string()));
     if (*bft != *wft)
-      throw std::runtime_error("vkcnn: Conv: W/B float types must match.");
+      throw std::runtime_error("Conv: W/B float types must match.");
 
     memory::BiasDescriptor B_desc{
         .shape = k,
@@ -255,11 +255,11 @@ memory::vector<Tensor> conv(
     // SAME_UPPER / SAME_LOWER
     if (strides != memory::uvec2(1, 1)) {
       throw std::runtime_error(
-          "vkcnn: Conv SAME_* only supported for stride=(1,1)");
+          "Conv SAME_* only supported for stride=(1,1)");
     }
     if (dilations != memory::uvec2(1, 1)) {
       throw std::runtime_error(
-          "vkcnn: Conv SAME_* only supported for dilation=(1,1)");
+          "Conv SAME_* only supported for dilation=(1,1)");
     }
 
     const unsigned sumX = (s > 0) ? (s - 1u) : 0u;
@@ -267,7 +267,7 @@ memory::vector<Tensor> conv(
     if ((sumX & 1u) != 0u || (sumY & 1u) != 0u) {
       // We only support symmetric SAME (size-preserving) which requires odd
       // kernels.
-      throw std::runtime_error("vkcnn: Conv SAME_* requires odd kernel sizes "
+      throw std::runtime_error("Conv SAME_* requires odd kernel sizes "
                                "(enables symmetric padding).");
     }
     const unsigned px = sumX / 2u;
@@ -283,7 +283,7 @@ memory::vector<Tensor> conv(
 
     if (!(state.symGraph->resolve(Hout) == state.symGraph->resolve(Hin)) ||
         !(state.symGraph->resolve(Wout) == state.symGraph->resolve(Win))) {
-      throw std::runtime_error("vkcnn: Conv SAME_* currently supported only "
+      throw std::runtime_error("Conv SAME_* currently supported only "
                                "when output extent equals input extent.");
     }
 

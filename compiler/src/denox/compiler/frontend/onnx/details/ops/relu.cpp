@@ -14,23 +14,23 @@ relu(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // Arity
   if (inputs.size() != 1 || !inputs[0].has_value()) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Relu \"{}\" expects exactly 1 input.", nodeName));
+        fmt::format("Relu \"{}\" expects exactly 1 input.", nodeName));
   }
   if (outputCount != 1) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Relu \"{}\" must have exactly 1 output.", nodeName));
+        "Relu \"{}\" must have exactly 1 output.", nodeName));
   }
 
   // No attributes for ONNX Relu
   if (!attributes.empty()) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Relu \"{}\": unexpected attributes present.", nodeName));
+        "Relu \"{}\": unexpected attributes present.", nodeName));
   }
 
   const Tensor &inT = *inputs[0];
   if (!inT.isDevice()) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Relu \"{}\": only runtime tensors are supported.", nodeName));
+        "Relu \"{}\": only runtime tensors are supported.", nodeName));
   }
 
   const DeviceTensor &inDev = inT.device();

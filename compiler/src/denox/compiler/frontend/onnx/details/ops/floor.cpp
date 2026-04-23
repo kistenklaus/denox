@@ -15,20 +15,20 @@ memory::vector<Tensor> floor(
   // ---- arity ----
   if (inputs.size() != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Floor \"{}\" expects 1 input.", nodeName));
+        fmt::format("Floor \"{}\" expects 1 input.", nodeName));
   if (!inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Floor \"{}\": input is required.", nodeName));
+        fmt::format("Floor \"{}\": input is required.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Floor \"{}\" must have exactly 1 output.", nodeName));
+        "Floor \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &xT = *inputs[0];
 
   // Host-only
   if (!xT.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Floor \"{}\": DeviceTensor is not supported.", nodeName));
+        "Floor \"{}\": DeviceTensor is not supported.", nodeName));
 
   const HostTensor &Xin = xT.host();
 
@@ -36,7 +36,7 @@ memory::vector<Tensor> floor(
   const Dtype dt = Xin.type();
   // Use the same helper you already rely on to detect float types
   if (!dt.toDenoxType().has_value())
-    throw std::runtime_error(fmt::format("vkcnn: Floor \"{}\": only floating "
+    throw std::runtime_error(fmt::format("Floor \"{}\": only floating "
                                          "HostTensors are supported (got {}).",
                                          nodeName, dt.to_string()));
 
@@ -46,7 +46,7 @@ memory::vector<Tensor> floor(
   // Shape must be known (so we can allocate exact size)
   if (!Xc.shape().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Floor \"{}\": dynamic host shapes are unsupported.", nodeName));
+        "Floor \"{}\": dynamic host shapes are unsupported.", nodeName));
 
   const auto dimsU64 = Xc.shape().toU64();
   std::size_t count = 1;
@@ -96,7 +96,7 @@ memory::vector<Tensor> floor(
     // If you later add f16/bf16, add branches here converting to/from float.
     std::free(raw);
     throw std::runtime_error(
-        fmt::format("vkcnn: Floor \"{}\": unsupported floating dtype {} "
+        fmt::format("Floor \"{}\": unsupported floating dtype {} "
                     "(supported: f32, f64).",
                     nodeName, dt.to_string()));
   }

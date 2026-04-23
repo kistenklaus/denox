@@ -16,10 +16,10 @@ memory::vector<Tensor> min(
   // ---- arity ----
   if (inputs.empty())
     throw std::runtime_error(
-        fmt::format("vkcnn: Min \"{}\" expects at least 1 input.", nodeName));
+        fmt::format("Min \"{}\" expects at least 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Min \"{}\" must have exactly 1 output.", nodeName));
+        fmt::format("Min \"{}\" must have exactly 1 output.", nodeName));
 
   // ---- gather & validate inputs (host-only) ----
   memory::vector<const HostTensor *> Xs;
@@ -27,20 +27,20 @@ memory::vector<Tensor> min(
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (!inputs[i].has_value())
       throw std::runtime_error(
-          fmt::format("vkcnn: Min \"{}\": input {} is missing.", nodeName, i));
+          fmt::format("Min \"{}\": input {} is missing.", nodeName, i));
     const Tensor &t = *inputs[i];
     if (!t.isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Min \"{}\": only HostTensor is supported (input {}).",
+          "Min \"{}\": only HostTensor is supported (input {}).",
           nodeName, i));
     const HostTensor &h = t.host();
     if (!h.isConstant())
       throw std::runtime_error(
-          fmt::format("vkcnn: Min \"{}\": input {} must have constant shape.",
+          fmt::format("Min \"{}\": input {} must have constant shape.",
                       nodeName, i));
     if (!h.view().isConstant())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Min \"{}\": input {} must have constant view.", nodeName, i));
+          "Min \"{}\": input {} must have constant view.", nodeName, i));
     Xs.push_back(&h);
   }
 
@@ -51,14 +51,14 @@ memory::vector<Tensor> min(
                   [&](const HostTensor *h) { return h->type() == dt0; });
   if (!all_same_dtype)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Min \"{}\": all inputs must have the same dtype.", nodeName));
+        "Min \"{}\": all inputs must have the same dtype.", nodeName));
 
   const bool isF32 = (dt0 == Dtype::Float32);
   const bool isF64 = (dt0 == Dtype::Float64);
   const bool isSym = (dt0 == Dtype::Sym);
   if (!isF32 && !isF64 && !isSym)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Min \"{}\": unsupported dtype {} (only Float32, Float64, Sym).",
+        "Min \"{}\": unsupported dtype {} (only Float32, Float64, Sym).",
         nodeName, dt0.to_string()));
 
   // ---- broadcast output shape ----

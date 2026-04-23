@@ -17,25 +17,25 @@ squeeze([[maybe_unused]] ImportState &state,
   // ---- arity ----
   if (inputs.size() < 1 || inputs.size() > 2)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Squeeze \"{}\" expects 1 or 2 inputs (data, [axes]).",
+        "Squeeze \"{}\" expects 1 or 2 inputs (data, [axes]).",
         nodeName));
   if (!inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Squeeze \"{}\": data is required.", nodeName));
+        fmt::format("Squeeze \"{}\": data is required.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Squeeze \"{}\" must have exactly 1 output.", nodeName));
+        "Squeeze \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &dataT = *inputs[0];
 
   // Only HostTensor supported per requirements.
   if (dataT.isDevice()) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Squeeze \"{}\": DeviceTensor not supported.", nodeName));
+        "Squeeze \"{}\": DeviceTensor not supported.", nodeName));
   }
   if (!dataT.isHost())
     throw std::runtime_error(
-        fmt::format("vkcnn: Squeeze \"{}\": expected HostTensor.", nodeName));
+        fmt::format("Squeeze \"{}\": expected HostTensor.", nodeName));
 
   const HostTensor &Xin = dataT.host();
   const TensorShape inShape = Xin.shape();
@@ -45,17 +45,17 @@ squeeze([[maybe_unused]] ImportState &state,
   auto read_len_1d = [](const HostTensor &t) -> std::size_t {
     if (!t.isConstant())
       throw std::runtime_error(
-          "vkcnn: Squeeze: control tensor must have constant shape.");
+          "Squeeze: control tensor must have constant shape.");
     const auto dims = t.shape().toU64();
     if (dims.size() != 1)
-      throw std::runtime_error("vkcnn: Squeeze: 'axes' must be 1-D.");
+      throw std::runtime_error("Squeeze: 'axes' must be 1-D.");
     return static_cast<std::size_t>(dims[0]);
   };
 
   auto read_i64_1d = [&](const HostTensor &t) -> memory::vector<std::int64_t> {
     if (t.type() != Dtype::Int64)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Squeeze \"{}\": 'axes' must be INT64.", nodeName));
+          "Squeeze \"{}\": 'axes' must be INT64.", nodeName));
     const std::size_t n = read_len_1d(t);
     memory::vector<std::int64_t> out(n);
     if (t.isContiguous() && t.view().offset().isConstant() &&
@@ -63,7 +63,7 @@ squeeze([[maybe_unused]] ImportState &state,
       auto s = t.storage()->i64();
       if (s.size() < n)
         throw std::runtime_error(
-            "vkcnn: Squeeze: storage smaller than logical size.");
+            "Squeeze: storage smaller than logical size.");
       std::memcpy(out.data(), s.data(), n * sizeof(std::int64_t));
     } else {
       for (std::size_t i = 0; i < n; ++i) {
@@ -81,7 +81,7 @@ squeeze([[maybe_unused]] ImportState &state,
     const Tensor &axesT = *inputs[1];
     if (!axesT.isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Squeeze \"{}\": 'axes' input must be a HostTensor.",
+          "Squeeze \"{}\": 'axes' input must be a HostTensor.",
           nodeName));
     const auto axesI64 = read_i64_1d(axesT.host());
 
@@ -93,7 +93,7 @@ squeeze([[maybe_unused]] ImportState &state,
         a += static_cast<std::int64_t>(r);
       if (a < 0 || a >= static_cast<std::int64_t>(r))
         throw std::runtime_error(fmt::format(
-            "vkcnn: Squeeze \"{}\": axis {} out of range for rank {}.",
+            "Squeeze \"{}\": axis {} out of range for rank {}.",
             nodeName, a, r));
       tmp.push_back(static_cast<std::size_t>(a));
     }
@@ -102,18 +102,18 @@ squeeze([[maybe_unused]] ImportState &state,
     for (auto a : tmp) {
       if (seen[a]++)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Squeeze \"{}\": duplicate axis {}.", nodeName, a));
+            "Squeeze \"{}\": duplicate axis {}.", nodeName, a));
     }
     // ONNX: each specified axis must be of size 1 (constant)
     for (auto a : tmp) {
       const auto &d = inShape[a];
       if (!d.isConstant())
         throw std::runtime_error(fmt::format(
-            "vkcnn: Squeeze \"{}\": axis {} is symbolic; must be constant 1.",
+            "Squeeze \"{}\": axis {} is symbolic; must be constant 1.",
             nodeName, a));
       if (d.constant() != 1)
         throw std::runtime_error(fmt::format(
-            "vkcnn: Squeeze \"{}\": dimension at axis {} is {}, expected 1.",
+            "Squeeze \"{}\": dimension at axis {} is {}, expected 1.",
             nodeName, a, d.constant()));
     }
     axes = std::move(tmp);

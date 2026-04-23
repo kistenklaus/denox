@@ -127,7 +127,7 @@ import_node_op(ImportState &state, const ::onnx::NodeProto &node,
                              node.name());
   } else {
     throw std::runtime_error(
-        fmt::format("vkcnn: operation {} is not supported (node = \"{}\")", op,
+        fmt::format("operation {} is not supported (node = \"{}\")", op,
                     node.name()));
   }
   assert(outputs.size() == outputCount);
@@ -148,7 +148,7 @@ void import_node(ImportState &state, const ::onnx::NodeProto &node) {
         Attribute::parse(attrib, state.externalDir, node.name());
     if (attributes.contains(attribute.name)) {
       throw std::runtime_error(
-          fmt::format("vkcnn: Node {} has duplicate attribute {}", node.name(),
+          fmt::format("Node {} has duplicate attribute {}", node.name(),
                       attribute.name));
     }
     attributes.emplace(attribute.name, attribute.attribute);
@@ -163,14 +163,14 @@ void import_node(ImportState &state, const ::onnx::NodeProto &node) {
     auto it = state.tensors.find(in);
     if (it == state.tensors.end()) {
       throw std::runtime_error(fmt::format(
-          "vkcnn: input {} of node {} is undefined.", in, node.name()));
+          "input {} of node {} is undefined.", in, node.name()));
     }
     inputs.push_back(it->second);
   }
   auto outputs = import_node_op(state, node, inputs, attributes);
   if (outputs.size() != static_cast<std::size_t>(node.output_size())) {
     throw std::runtime_error(
-        fmt::format("vkcnn: Node {} produced the wrong amount of outputs. "
+        fmt::format("Node {} produced the wrong amount of outputs. "
                     "Expected {}, Got {}",
                     node.name(), node.output_size(), outputs.size()));
   }
@@ -182,7 +182,7 @@ void import_node(ImportState &state, const ::onnx::NodeProto &node) {
 
     if (state.tensors.contains(outputName)) {
       throw std::runtime_error(
-          fmt::format("vkcnn: Node {} produces already existing value ({}). "
+          fmt::format("Node {} produces already existing value ({}). "
                       "Naming collision.",
                       node.name(), outputName));
     }

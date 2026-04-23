@@ -16,10 +16,10 @@ max(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   // ---- arity ----
   if (inputs.empty())
     throw std::runtime_error(
-        fmt::format("vkcnn: Max \"{}\" expects at least 1 input.", nodeName));
+        fmt::format("Max \"{}\" expects at least 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(
-        fmt::format("vkcnn: Max \"{}\" must have exactly 1 output.", nodeName));
+        fmt::format("Max \"{}\" must have exactly 1 output.", nodeName));
 
   // ---- gather & validate inputs (host-only) ----
   memory::vector<const HostTensor *> Xs;
@@ -27,20 +27,20 @@ max(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   for (std::size_t i = 0; i < inputs.size(); ++i) {
     if (!inputs[i].has_value())
       throw std::runtime_error(
-          fmt::format("vkcnn: Max \"{}\": input {} is missing.", nodeName, i));
+          fmt::format("Max \"{}\": input {} is missing.", nodeName, i));
     const Tensor &t = *inputs[i];
     if (!t.isHost())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Max \"{}\": only HostTensor is supported (input {}).",
+          "Max \"{}\": only HostTensor is supported (input {}).",
           nodeName, i));
     const HostTensor &h = t.host();
     if (!h.isConstant())
       throw std::runtime_error(
-          fmt::format("vkcnn: Max \"{}\": input {} must have constant shape.",
+          fmt::format("Max \"{}\": input {} must have constant shape.",
                       nodeName, i));
     if (!h.view().isConstant())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Max \"{}\": input {} must have constant view.", nodeName, i));
+          "Max \"{}\": input {} must have constant view.", nodeName, i));
     Xs.push_back(&h);
   }
 
@@ -51,7 +51,7 @@ max(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
                   [&](const HostTensor *h) { return h->type() == dt0; });
   if (!all_same_dtype) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Max \"{}\": all inputs must have the same dtype.", nodeName));
+        "Max \"{}\": all inputs must have the same dtype.", nodeName));
   }
 
   const bool isF32 = (dt0 == Dtype::Float32);
@@ -60,7 +60,7 @@ max(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   if (!isF32 && !isF64 && !isSym) {
     throw std::runtime_error(fmt::format(
-        "vkcnn: Max \"{}\": unsupported dtype {} (only Float32, Float64, Sym).",
+        "Max \"{}\": unsupported dtype {} (only Float32, Float64, Sym).",
         nodeName, dt0.to_string()));
   }
 
@@ -226,7 +226,7 @@ max(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
 
   // unreachable for now
   throw std::runtime_error(
-      "vkcnn: Max: internal error: dtype dispatch failed.");
+      "Max: internal error: dtype dispatch failed.");
 }
 
 } // namespace denox::onnx::details::ops

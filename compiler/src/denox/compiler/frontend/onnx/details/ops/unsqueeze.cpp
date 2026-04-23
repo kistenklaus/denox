@@ -17,17 +17,17 @@ unsqueeze([[maybe_unused]] ImportState &state,
   // Arity & output count
   if (inputs.empty() || !inputs[0].has_value())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Unsqueeze \"{}\" expects at least 1 input.", nodeName));
+        "Unsqueeze \"{}\" expects at least 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Unsqueeze \"{}\" must have exactly 1 output.", nodeName));
+        "Unsqueeze \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &dataT = *inputs[0];
 
   // Device tensors not supported here
   if (dataT.isDevice())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Unsqueeze \"{}\": runtime tensors not supported.", nodeName));
+        "Unsqueeze \"{}\": runtime tensors not supported.", nodeName));
 
   const HostTensor &data = dataT.host();
 
@@ -38,16 +38,16 @@ unsqueeze([[maybe_unused]] ImportState &state,
     const Tensor &axesT = *inputs[1];
     if (axesT.isDevice())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Unsqueeze \"{}\": axes input must be host tensor.",
+          "Unsqueeze \"{}\": axes input must be host tensor.",
           nodeName));
     const HostTensor &axesH = axesT.host();
     if (!axesH.isConstant())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Unsqueeze \"{}\": axes must be a constant tensor.",
+          "Unsqueeze \"{}\": axes must be a constant tensor.",
           nodeName));
     if (axesH.type() != Dtype::Int64)
       throw std::runtime_error(fmt::format(
-          "vkcnn: Unsqueeze \"{}\": axes tensor must be INT64.", nodeName));
+          "Unsqueeze \"{}\": axes tensor must be INT64.", nodeName));
 
     HostTensor axesC = axesH.contiguous();
     const auto span = axesC.storage()->i64();
@@ -56,7 +56,7 @@ unsqueeze([[maybe_unused]] ImportState &state,
     auto it = attributes.find("axes");
     if (it == attributes.end() || !it->second.isInts())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Unsqueeze \"{}\": missing 'axes' (as input or attribute).",
+          "Unsqueeze \"{}\": missing 'axes' (as input or attribute).",
           nodeName));
     const auto &v = it->second.ints();
     axes.assign(v.begin(), v.end());
@@ -73,7 +73,7 @@ unsqueeze([[maybe_unused]] ImportState &state,
   for (auto &ax : axes) {
     if (ax < -(inRank + 1) || ax > inRank)
       throw std::runtime_error(
-          fmt::format("vkcnn: Unsqueeze \"{}\": axis {} out of valid range "
+          fmt::format("Unsqueeze \"{}\": axis {} out of valid range "
                       "[-{}, {}] for rank {}.",
                       nodeName, ax, inRank + 1, inRank, inRank));
     if (ax < 0)
@@ -86,7 +86,7 @@ unsqueeze([[maybe_unused]] ImportState &state,
     algorithm::unstable_sort(tmp.begin(), tmp.end());
     if (std::adjacent_find(tmp.begin(), tmp.end()) != tmp.end())
       throw std::runtime_error(fmt::format(
-          "vkcnn: Unsqueeze \"{}\": axes must be unique.", nodeName));
+          "Unsqueeze \"{}\": axes must be unique.", nodeName));
   }
 
   // ---- Apply unsqueeze (view-only; no copy) ----

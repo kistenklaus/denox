@@ -16,27 +16,27 @@ sign([[maybe_unused]] ImportState &state,
   // ---- arity ----
   if (inputs.size() != 1 || !inputs[0].has_value())
     throw std::runtime_error(
-        fmt::format("vkcnn: Sign \"{}\" expects exactly 1 input.", nodeName));
+        fmt::format("Sign \"{}\" expects exactly 1 input.", nodeName));
   if (outputCount != 1)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sign \"{}\" must have exactly 1 output.", nodeName));
+        "Sign \"{}\" must have exactly 1 output.", nodeName));
 
   const Tensor &X = *inputs[0];
 
   // Host-only for now
   if (!X.isHost())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sign \"{}\": only HostTensor is supported.", nodeName));
+        "Sign \"{}\": only HostTensor is supported.", nodeName));
 
   const HostTensor &H = X.host();
 
   // No symbolic dtype for sign (explicit request)
   if (H.type() == Dtype::Sym)
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sign \"{}\": symbolic tensors are not supported.", nodeName));
+        "Sign \"{}\": symbolic tensors are not supported.", nodeName));
   if (!H.isConstant() || !H.view().isConstant())
     throw std::runtime_error(fmt::format(
-        "vkcnn: Sign \"{}\": input must have constant shape and view.",
+        "Sign \"{}\": input must have constant shape and view.",
         nodeName));
 
   const TensorShape shape = H.shape();
@@ -152,7 +152,7 @@ sign([[maybe_unused]] ImportState &state,
   // (e.g., Int32), add similar branches here. For now, conservatively
   // reject other dtypes (strings, bools, etc.).
   throw std::runtime_error(
-      fmt::format("vkcnn: Sign \"{}\": unsupported dtype {} (non-symbolic).",
+      fmt::format("Sign \"{}\": unsupported dtype {} (non-symbolic).",
                   nodeName, dt.to_string()));
 }
 
