@@ -7,6 +7,7 @@
 #include "denox/common/ValueName.hpp"
 #include "denox/common/ValueSpec.hpp"
 #include "denox/compiler/frontend/model/NamedValue.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/io/fs/File.hpp"
 #include "denox/memory/container/vector.hpp"
 #include <fmt/format.h>
@@ -42,9 +43,8 @@ static uint32_t parse_bool_flag(std::span<const Token> tokens,
         fmt::format("invalid value for --{} (expected true or false)", name));
   }
 
-  if (out) {
+  if (out) 
     *out = lit.as_bool();
-  }
   return 2;
 }
 
@@ -62,12 +62,30 @@ uint32_t parse_spirv_debug_info(std::span<const Token> t, bool *v) {
   return parse_bool_flag(t, OptionToken::SpirvDebugInfo, v, "spirv-debug-info");
 }
 
-uint32_t parse_verbose(std::span<const Token> t, bool *v) {
-  return parse_bool_flag(t, OptionToken::Verbose, v, "verbose");
+uint32_t parse_verbose(std::span<const Token> t, denox::diag::LogLevel *v) {
+  bool flag;
+  uint32_t skip = parse_bool_flag(t, OptionToken::Verbose, &flag, "verbose");
+  if (skip) {
+    if (flag && v) {
+      *v = denox::diag::LogLevel::Verbose;
+    }
+  } 
+  return skip;
 }
 
-uint32_t parse_quiet(std::span<const Token> t, bool *v) {
-  return parse_bool_flag(t, OptionToken::Quiet, v, "quiet");
+uint32_t parse_quiet(std::span<const Token> t, denox::diag::LogLevel *v) {
+  bool flag;
+  uint32_t skip = parse_bool_flag(t, OptionToken::Quiet, &flag, "quiet");
+  if (skip) {
+    if (flag && v) {
+      *v = denox::diag::LogLevel::Quite;
+    }
+  } 
+  return skip;
+}
+
+uint32_t parse_color(std::span<const Token> t, bool *v) {
+  return parse_bool_flag(t, OptionToken::Color, v, "color");
 }
 
 static uint32_t parse_feature_flag(std::span<const Token> tokens,

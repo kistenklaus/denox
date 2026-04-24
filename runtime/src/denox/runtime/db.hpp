@@ -40,7 +40,8 @@ public:
     return std::shared_ptr<Db>(new Db(context, db));
   }
 
-  void bench(const DbBenchOptions &options = {}, diag::Progress progress = {});
+  void bench(const DbBenchOptions &options = {}, diag::Progress progress = {},
+             const diag::Logger &logger = diag::Logger("denox.bench"));
 
 private:
   explicit Db(const ContextHandle &context, const denox::Db &db)

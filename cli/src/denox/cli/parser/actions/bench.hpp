@@ -3,6 +3,7 @@
 #include "denox/cli/parser/artefact.hpp"
 #include "denox/common/ValueSpec.hpp"
 #include "denox/compiler/Options.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/vector.hpp"
 #include "denox/runtime/db.hpp"
@@ -25,4 +26,7 @@ struct BenchAction {
 
   // dnx bench spec. (only valid if target is a onnx or dnx artefact)
   denox::memory::vector<denox::ValueSpec> valueSpecs;
+
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
 };

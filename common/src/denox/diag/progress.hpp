@@ -8,7 +8,7 @@ public:
   Progress(float start = 0.0f, float end = 1.0f) : m_start(start), m_end(end) {}
 
   template <typename... Args>
-  void step(Logger &logger, float progress, fmt::format_string<Args...> fmt,
+  void step(const Logger &logger, float progress, fmt::format_string<Args...> fmt,
             Args &&...args) {
     float rel = m_start * (1 - progress) + m_end * progress;
     const uint32_t percentage = static_cast<uint32_t>(std::round(rel * 100));
@@ -17,7 +17,7 @@ public:
   }
 
   template <typename... Args>
-  void step_inplace(Logger &logger, float progress, bool skip_clear,
+  void step_inplace(const Logger &logger, float progress, bool skip_clear,
                     fmt::format_string<Args...> fmt, Args &&...args) {
     float rel = m_start * (1 - progress) + m_end * progress;
     const uint32_t percentage = static_cast<uint32_t>(std::round(rel * 100));

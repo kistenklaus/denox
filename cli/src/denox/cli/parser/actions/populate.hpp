@@ -1,13 +1,12 @@
 #pragma once
 
-#include "denox/memory/container/optional.hpp"
 #include "denox/cli/parser/artefact.hpp"
 #include "denox/compiler/Options.hpp"
+#include "denox/memory/container/optional.hpp"
 
-struct PopulateAction  {
+struct PopulateAction {
   OnnxArtefact model;
   DbArtefact database;
-
 
   // device info query
   denox::memory::optional<denox::memory::string> deviceName;
@@ -15,4 +14,7 @@ struct PopulateAction  {
 
   // compile options
   denox::compiler::CompileOptions options;
+
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
 };

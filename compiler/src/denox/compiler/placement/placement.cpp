@@ -17,7 +17,7 @@ namespace denox::compiler {
 static constexpr uint64_t u64sential = std::numeric_limits<uint64_t>::max();
 
 MemSchedule placement(const OptSchedule &schedule, diag::Progress progress,
-                      diag::Logger &logger) {
+                      const diag::Logger &logger) {
   MemSchedule out{};
   out.symGraph = schedule.symGraph;
   out.dispatches = schedule.dispatches;

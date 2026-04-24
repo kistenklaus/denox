@@ -18,7 +18,7 @@ static constexpr uint32_t u32sential = std::numeric_limits<uint32_t>::max();
 SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                             [[maybe_unused]] spirv::GlslCompiler *glslCompiler,
                             const CompileOptions &options,
-                            diag::Logger &logger) {
+                            const diag::Logger &logger) {
   assert(glslCompiler != nullptr); // only to make lifetime intent visible
 
   memory::vector<SpvDispatch> dispatches;

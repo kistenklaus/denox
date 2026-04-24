@@ -4,13 +4,15 @@
 #include "denox/device_info/query/query_driver_device_info.hpp"
 
 void populate(PopulateAction &action) {
+  denox::diag::Logger logger("denox.populate", action.logcolors, action.loglevel);
+
   denox::ApiVersion apiVersion = action.apiVersion;
   action.options.deviceInfo =
       denox::query_driver_device_info(apiVersion, action.deviceName);
 
   auto db = denox::Db::open(action.database.endpoint.path());
 
-  denox::populate(db, action.model.data, action.options);
+  denox::populate(db, action.model.data, action.options, logger);
 
   db.checkpoint();
 }

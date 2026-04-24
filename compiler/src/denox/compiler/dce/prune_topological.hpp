@@ -7,6 +7,6 @@
 namespace denox::compiler {
 
 void prune_topological(SuperGraph &supergraph, const ConstModel &model,
-                       diag::Progress progess, diag::Logger &logger);
+                       diag::Progress progess, const diag::Logger &logger);
 
 }

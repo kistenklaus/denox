@@ -2,6 +2,7 @@
 #include "denox/cli/parser/artefact.hpp"
 #include "denox/cli/parser/lex/tokens/token.hpp"
 #include "denox/compiler/Options.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
 #include "denox/memory/container/string.hpp"
@@ -16,9 +17,11 @@ uint32_t parse_spirv_non_semantic_debug_info(std::span<const Token> t, bool *v);
 
 uint32_t parse_spirv_debug_info(std::span<const Token> t, bool *v);
 
-uint32_t parse_verbose(std::span<const Token> t, bool *v);
+uint32_t parse_verbose(std::span<const Token> t, denox::diag::LogLevel *v);
 
-uint32_t parse_quiet(std::span<const Token> t, bool *v);
+uint32_t parse_quiet(std::span<const Token> t, denox::diag::LogLevel *v);
+
+uint32_t parse_color(std::span<const Token> t, bool *v);
 
 uint32_t parse_feature_coopmat(std::span<const Token> t, bool *v);
 

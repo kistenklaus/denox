@@ -18,4 +18,7 @@ struct InferAction {
   // compile options:
   std::optional<DbArtefact> database;
   denox::compiler::CompileOptions options;
+
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
 };

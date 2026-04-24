@@ -7,6 +7,6 @@
 #include "denox/diag/progress.hpp"
 namespace denox::compiler {
 
-MemSchedule placement(const OptSchedule &schedule, diag::Progress progress, diag::Logger& logger);
+MemSchedule placement(const OptSchedule &schedule, diag::Progress progress, const diag::Logger& logger);
 
 }

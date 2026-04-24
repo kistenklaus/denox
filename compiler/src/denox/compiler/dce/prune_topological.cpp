@@ -89,7 +89,7 @@ construct_topological_graph(const denox::compiler::SuperGraph &supergraph) {
 void denox::compiler::prune_topological(SuperGraph &supergraph,
                                         const ConstModel &model,
                                         denox::diag::Progress progress,
-                                        denox::diag::Logger &logger) {
+                                        const denox::diag::Logger &logger) {
 
   progress.step(logger, 0.0f,
                 "{}Selecting minimal-dispatch implementations for multiedges{}",

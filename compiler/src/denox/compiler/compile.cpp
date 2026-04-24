@@ -17,6 +17,7 @@
 #include "denox/compiler/selection/selection.hpp"
 #include "denox/compiler/serialize/serialize.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/diag/progress.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/runtime/db.hpp"
@@ -25,9 +26,7 @@
 denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                const memory::optional<runtime::ContextHandle> ctx,
-               const compiler::CompileOptions &options) {
-
-  diag::Logger logger("denox.compile", true);
+               const compiler::CompileOptions &options, const diag::Logger& logger) {
   diag::Progress progress{};
 
   runtime::ContextHandle context;
@@ -84,7 +83,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
     benchOptions.maxSamples = options.benchOptions.maxSamples;
     benchOptions.saveProgress = options.benchOptions.saveProgress;
     benchOptions.jobs = options.jobs;
-    runtimeDb->bench(benchOptions, progress.sub_progress(0.5f, 0.95f));
+    runtimeDb->bench(benchOptions, progress.sub_progress(0.5f, 0.95f), logger);
   }
 
   compiler::OptSchedule optSchedule = compiler::select_schedule(

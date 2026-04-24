@@ -11,6 +11,6 @@ namespace denox {
 memory::vector<std::byte>
 compile(memory::span<const std::byte> onnx, memory::optional<Db> db,
         memory::optional<denox::runtime::ContextHandle> context,
-        const compiler::CompileOptions &options);
+        const compiler::CompileOptions &options, const diag::Logger &logger);
 
 } // namespace denox

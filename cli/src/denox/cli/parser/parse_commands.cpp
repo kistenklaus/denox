@@ -7,6 +7,7 @@
 #include "denox/device_info/ApiVersion.hpp"
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/invalid_state.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
@@ -70,6 +71,9 @@ Action parse_compile(std::span<const Token> tokens) {
   options.jobs = std::max(std::thread::hardware_concurrency() - 2,
                           std::thread::hardware_concurrency());
 
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
+
   // parse remaining arguments
   uint32_t i = 1;
   while (i < tokens.size()) {
@@ -85,6 +89,19 @@ Action parse_compile(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_verbose(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_quiet(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_color(tail, &logcolors))) {
       i += jump;
       continue;
     }
@@ -250,6 +267,8 @@ Action parse_compile(std::span<const Token> tokens) {
       .apiVersion = apiVersion,
       .database = std::move(database),
       .options = options,
+      .loglevel = loglevel,
+      .logcolors = logcolors,
   };
 }
 
@@ -268,8 +287,7 @@ Action parse_populate(std::span<const Token> tokens) {
 
   const auto &dbToken = tokens.front();
   if (dbToken.kind() != TokenKind::Literal) {
-    throw ParseError(fmt::format(
-        "expected database path as first argument, got {}", dbToken));
+    throw ParseError(fmt::format("expected database path as first argument, got {}", dbToken));
   }
   if (!dbToken.literal().is_path()) {
     throw ParseError(
@@ -304,6 +322,9 @@ Action parse_populate(std::span<const Token> tokens) {
   denox::memory::optional<denox::memory::string> deviceName;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
+
   options.jobs = std::max(std::thread::hardware_concurrency() - 2,
                           std::thread::hardware_concurrency());
 
@@ -333,6 +354,19 @@ Action parse_populate(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_verbose(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_quiet(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_color(tail, &logcolors))) {
       i += jump;
       continue;
     }
@@ -453,6 +487,8 @@ Action parse_populate(std::span<const Token> tokens) {
       .deviceName = deviceName,
       .apiVersion = apiVersion,
       .options = options,
+      .loglevel = loglevel,
+      .logcolors = logcolors,
   };
 }
 
@@ -505,6 +541,9 @@ Action parse_bench(std::span<const Token> tokens) {
   bool help = false;
   bool fusion = true;
 
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
+
   // parse remaining arguments
   uint32_t i = 1;
   while (i < tokens.size()) {
@@ -520,6 +559,19 @@ Action parse_bench(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_verbose(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_quiet(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_color(tail, &logcolors))) {
       i += jump;
       continue;
     }
@@ -676,16 +728,14 @@ Action parse_bench(std::span<const Token> tokens) {
 
   return BenchAction{
       .target = std::move(model),
-
       .deviceName = deviceName,
       .apiVersion = apiVersion,
-
       .benchOptions = dbBenchOptions,
-
       .database = std::move(database),
       .options = options,
-
       .valueSpecs = std::move(valueSpecs),
+      .loglevel = loglevel,
+      .logcolors = logcolors,
   };
 }
 
@@ -729,6 +779,9 @@ Action parse_infer(std::span<const Token> tokens) {
   bool spirv_nonSemanticDebugInfo = false;
   bool spirv_debugInfo = false;
 
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
+
   denox::memory::hash_map<denox::memory::string,
                           denox::compiler::InterfaceTensorDescriptor>
       tensorDescriptors;
@@ -755,6 +808,19 @@ Action parse_infer(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_help(tokens, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_verbose(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_quiet(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_color(tail, &logcolors))) {
       i += jump;
       continue;
     }
@@ -897,6 +963,8 @@ Action parse_infer(std::span<const Token> tokens) {
       .apiVersion = apiVersion,
       .database = std::move(database),
       .options = options,
+      .loglevel = loglevel,
+      .logcolors = logcolors,
   };
 }
 

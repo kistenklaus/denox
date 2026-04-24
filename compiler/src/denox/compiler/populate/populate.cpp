@@ -7,7 +7,7 @@ namespace denox::compiler {
 
 void populate(const compiler::SuperGraph &supergraph, Db &db,
               const SymGraphEval &symeval, diag::Progress progressbar,
-              diag::Logger &logger,
+              const diag::Logger &logger,
               [[maybe_unused]] const CompileOptions &options) {
 
   struct GlslCompilationUnit {

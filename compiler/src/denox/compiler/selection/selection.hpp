@@ -13,6 +13,6 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             const Model &model, const SymGraphEval &symeval,
                             const CompileOptions &options,
                             diag::Progress progress,
-                            diag::Logger &logger);
+                            const diag::Logger &logger);
 
 } // namespace denox::compiler

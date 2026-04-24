@@ -19,9 +19,7 @@
 #include <fmt/format.h>
 
 void denox::populate(Db db, memory::span<const std::byte> onnx,
-                     const compiler::CompileOptions &options) {
-
-  diag::Logger logger("denox.populate", true);
+                     const compiler::CompileOptions &options, const diag::Logger& logger) {
   diag::Progress progress;
 
   spirv::SpirvTools spirvTools(options.deviceInfo);

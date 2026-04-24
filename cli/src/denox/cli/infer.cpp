@@ -11,13 +11,12 @@
 #include <fmt/ostream.h>
 
 void infer(InferAction &action) {
-
   const char *device = nullptr;
   if (action.deviceName) {
     device = action.deviceName->c_str();
   }
 
-  denox::diag::Logger logger("denox.infer", true);
+  denox::diag::Logger logger("denox.infer", action.logcolors, action.loglevel);
 
   const auto ctx = denox::runtime::Context::make(device, action.apiVersion);
   denox::runtime::ModelHandle model;
@@ -39,7 +38,7 @@ void infer(InferAction &action) {
         vk::Instance{context->vkInstance()},
         vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
     auto dnxbuf =
-        denox::compile(action.model.dnx().data, db, context, action.options);
+        denox::compile(action.model.dnx().data, db, context, action.options, logger);
     model = denox::runtime::Model::make(dnxbuf, ctx);
     break;
   }

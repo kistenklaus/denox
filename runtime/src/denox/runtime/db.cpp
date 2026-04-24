@@ -660,12 +660,10 @@ print_progress_report(const denox::Db &db,
 }
 
 void denox::runtime::Db::bench(const DbBenchOptions &options,
-                               diag::Progress progress) {
+                               diag::Progress progress, const diag::Logger& logger) {
   assert(options.minSamples >= 1);
 
   BenchmarkState state = create_benchmark_state(m_context, m_db);
-
-  diag::Logger logger("runtime.bench.db", true);
 
   memory::vector<uint32_t> dispatchIds(m_db.queryAllComputeDispatchIds());
   assert(dispatchIds.size() == state.dispatchTimingInfos.size());

@@ -7,6 +7,9 @@
 #include <vulkan/vulkan.hpp>
 
 void compile(CompileAction &action) {
+
+  denox::diag::Logger logger("denox.compile", action.logcolors, action.loglevel);
+
   const char *deviceName = nullptr;
   if (action.deviceName.has_value()) {
     deviceName = action.deviceName->c_str();
@@ -26,7 +29,7 @@ void compile(CompileAction &action) {
     db = denox::Db::open(action.database->endpoint.path());
   }
 
-  auto dnxbuf = denox::compile(action.input.data, db, context, action.options);
+  auto dnxbuf = denox::compile(action.input.data, db, context, action.options, logger);
 
   switch (action.output.kind()) {
   case IOEndpointKind::Path: {

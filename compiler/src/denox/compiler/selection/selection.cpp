@@ -23,7 +23,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             [[maybe_unused]] const Model &model,
                             const SymGraphEval &symeval,
                             [[maybe_unused]] const CompileOptions &options,
-                            diag::Progress progress, diag::Logger &logger) {
+                            diag::Progress progress, const diag::Logger &logger) {
 
   progress.step(logger, 0.0f, "{}Collecting dispatch latencies {}",
                 logger.green(), logger.reset());

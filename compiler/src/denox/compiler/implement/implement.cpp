@@ -11,7 +11,7 @@ namespace denox::compiler {
 
 SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
                      spirv::GlslCompiler *glslCompiler,
-                     const CompileOptions &options, diag::Logger &logger,
+                     const CompileOptions &options, const diag::Logger &logger,
                      diag::Progress progress) {
 
   const size_t nodeCount = model.graph.nodeCount();

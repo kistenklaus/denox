@@ -8,6 +8,6 @@
 namespace denox {
 
 void populate(Db db, memory::span<const std::byte> onnx,
-              const compiler::CompileOptions &options);
+              const compiler::CompileOptions &options, const diag::Logger& logger);
 
 }

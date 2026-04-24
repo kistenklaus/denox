@@ -9,7 +9,7 @@
 namespace denox::compiler {
 
 void populate(const compiler::SuperGraph &supergraph, Db &db,
-              const SymGraphEval &symeval, diag::Progress progress, diag::Logger &logger,
+              const SymGraphEval &symeval, diag::Progress progress, const diag::Logger &logger,
               const CompileOptions &options);
 
 } // namespace denox::compiler

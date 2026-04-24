@@ -30,6 +30,7 @@ enum class OptionToken {
   Assume,    //
   Verbose,   //
   Quiet,     //
+  Color,    //
   Output,    //
   Input,
   Database, //
@@ -79,6 +80,7 @@ struct fmt::formatter<OptionToken> {
       case OptionToken::BatchSize: name = "batch-size"; break;
       case OptionToken::OptimizationLevel: name = "optimization-level"; break;
       case OptionToken::Jobs: name = "jobs"; break;
+      case OptionToken::Color: name = "color"; break;
     }
 
     return fmt::format_to(ctx.out(), "{}", name);

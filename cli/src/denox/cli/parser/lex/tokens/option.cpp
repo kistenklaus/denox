@@ -106,6 +106,9 @@ std::optional<OptionToken> parse_option(std::string_view str) {
   if (str == "batch-size") {
     return OptionToken::BatchSize;
   }
+  if (str == "color") {
+    return OptionToken::Color;
+  }
 
   return std::nullopt;
 }

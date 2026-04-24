@@ -68,7 +68,6 @@ struct CompileOptions {
   DeviceInfo deviceInfo;
   std::vector<InterfaceTensorDescriptor> interfaceDescriptors;
   DescriptorPolicies descriptorPolicies;
-  diag::LogLevel loglevel;
   OptimizationAssumptions assumptions;
   DebugInfo debugInfo;
   uint32_t optimizationLevel = 3;
