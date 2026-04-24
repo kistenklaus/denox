@@ -39,7 +39,7 @@ struct InstanceBenchmarkResult {
   };
   memory::vector<Timing> timings;
 
-  memory::string report() const;
+  memory::string report(const diag::Logger& logger) const;
 };
 
 class Instance {

@@ -42,7 +42,7 @@ void bench(BenchAction &action) {
     auto ctx = denox::runtime::Context::make(device, action.apiVersion);
     auto model = denox::runtime::Model::make(dnxbuf);
     auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
-    instance->bench().report();
+    instance->bench().report(logger);
     break;
   }
   case ArtefactKind::Dnx: {
@@ -53,7 +53,7 @@ void bench(BenchAction &action) {
     auto ctx = denox::runtime::Context::make(device, action.apiVersion);
     auto model = denox::runtime::Model::make(action.target.dnx().data);
     auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
-    instance->bench().report();
+    instance->bench().report(logger);
     break;
   }
   case ArtefactKind::Database: {

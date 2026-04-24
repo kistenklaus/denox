@@ -286,9 +286,10 @@ runtime::Instance::Instance(const ModelHandle &model,
     for (const auto &spec : specs) {
       if (spec.symbol >= varcount) {
         auto valueNames = model->valueNames();
-        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(), [&](const ValueName &vn) {
-          return vn.value == Sym::Symbol(spec.symbol);
-        });
+        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(),
+                               [&](const ValueName &vn) {
+                                 return vn.value == Sym::Symbol(spec.symbol);
+                               });
         if (it != valueNames.rend()) {
           const ValueName &valueName = *it;
           throw std::runtime_error(fmt::format(
@@ -302,9 +303,10 @@ runtime::Instance::Instance(const ModelHandle &model,
       }
       if (specified[spec.symbol]) {
         auto valueNames = model->valueNames();
-        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(), [&](const ValueName &vn) {
-          return vn.value == Sym::Symbol(spec.symbol);
-        });
+        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(),
+                               [&](const ValueName &vn) {
+                                 return vn.value == Sym::Symbol(spec.symbol);
+                               });
         if (it != valueNames.rend()) {
           const ValueName &valueName = *it;
           logger.warn("Invalid symbol specialization. Symbol \"{}\" is "
@@ -324,22 +326,22 @@ runtime::Instance::Instance(const ModelHandle &model,
     for (Sym::symbol s = 0; s < varcount; ++s) {
       if (!specified[s]) {
         auto valueNames = model->valueNames();
-        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(), [&](const ValueName &vn) {
-          return vn.value == Sym::Symbol(s);
-        });
+        auto it = std::find_if(
+            valueNames.rbegin(), valueNames.rend(),
+            [&](const ValueName &vn) { return vn.value == Sym::Symbol(s); });
         if (it != valueNames.rend()) {
           const ValueName &valueName = *it;
           logger.warn(
               "{}"
-              "WARNING: No value specified for symbol {}. Assigning default value 1024! "
+              "WARNING: No value specified for symbol {}. Assigning default "
+              "value 1024! "
               "\n"
               "  To benchmark the model at a specific resolution, you can \n"
-              "  specify dynamic values (like the inputs spatial dimensions), \n"
+              "  specify dynamic values (like the inputs spatial dimensions), "
+              "\n"
               "  with the --spec flag. For example \"--spec H=1080 W=1920\".\n"
-              "{}"
-              ,
-              logger.yellow(),
-              valueName.name, logger.reset());
+              "{}",
+              logger.yellow(), valueName.name, logger.reset());
           dspecs.push_back(SymSpec{
               .symbol = s,
               .value = 1024,
@@ -347,18 +349,24 @@ runtime::Instance::Instance(const ModelHandle &model,
         } else {
           throw std::runtime_error(fmt::format(
               "WARNING: No value specified for a unnamed symbol!\n"
-              "  The dnx model contains a symbol (dynamic value), which doesn't \n"
-              "  have a name, but is a variable that has to be known at runtime. \n"
+              "  The dnx model contains a symbol (dynamic value), which "
+              "doesn't \n"
+              "  have a name, but is a variable that has to be known at "
+              "runtime. \n"
               "  Often this is the input's spatial resolution. You can give \n"
               "  those values names either during the export process from \n"
-              "  pytorch, but onnxscript often renames dynamic values during the \n"
-              "  export so you might end up with different names for your input \n"
+              "  pytorch, but onnxscript often renames dynamic values during "
+              "the \n"
+              "  export so you might end up with different names for your "
+              "input \n"
               "  width or height. To fix simply specify the name of those \n"
               "  dimensions when you compile the dnx model. \n"
               "  denox compile <...> --shape input=H:W:C \n"
-              "  Here \"input\" is the name of the input in your python script,\n"
+              "  Here \"input\" is the name of the input in your python "
+              "script,\n"
               "  onnxscript doesn't change this and \"H\", \"W\" and \"C\" \n"
-              "  are names for the input tensor dimensions (height, width, channels).",
+              "  are names for the input tensor dimensions (height, width, "
+              "channels).",
               s));
         }
       }
@@ -722,14 +730,9 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
   ctx->endCommandBuffer(cmd);
   ctx->waitIdle();
   ctx->submit(cmd);
-  auto s = std::chrono::high_resolution_clock::now();
   ctx->waitIdle();
-  auto e = std::chrono::high_resolution_clock::now();
   ctx->freeCommandBuffer(cmdPool, cmd);
-  fmt::println(
-      "Host-latency: {}ms",
-      std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(e -
-                                                                           s));
+
   ctx->destroyCommandPool(cmdPool);
   memory::vector<uint64_t> timestamps =
       ctx->getQueryResults(queryPool, previousTimestamp);
@@ -752,7 +755,8 @@ runtime::InstanceBenchmarkResult runtime::Instance::bench() const {
   return InstanceBenchmarkResult{.timings = std::move(out)};
 }
 
-memory::string runtime::InstanceBenchmarkResult::report() const {
+memory::string
+runtime::InstanceBenchmarkResult::report(const diag::Logger &logger) const {
   memory::string out;
   uint64_t totalAccesses = 0;
   float totalDuration = 0;
@@ -773,32 +777,34 @@ memory::string runtime::InstanceBenchmarkResult::report() const {
           static_cast<float>((static_cast<double>(t.flops) /
                               (static_cast<double>(t.latency.count()) * 1e-3)) *
                              1e-12);
-      std::cerr << fmt::format(
-                       "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
-                       "\x1B[90m({:>4} GB/s, {:>2} TFLOPS)\x1B[0m",
-                       t.input, t.name, t.output, int_part, frac_part,
-                       static_cast<uint64_t>(std::round(throughput)),
-                       // t.flops
-                       static_cast<uint64_t>(std::round(compute)))
+      std::cerr << fmt::format("{:>22} {}{:-^40}>{} {:<22} :{:>3}.{:<3}ms "
+                               "{}({:>4} GB/s, {:>2} TFLOPS){}",
+                               t.input, logger.blue(), t.name, logger.reset(),
+                               t.output, int_part, frac_part, logger.gray(),
+                               static_cast<uint64_t>(std::round(throughput)),
+                               // t.flops
+                               static_cast<uint64_t>(std::round(compute)),
+                               logger.reset())
                 << std::endl;
     } else {
-      std::cerr << fmt::format(
-                       "{:>22} \x1B[34m{:-^40}>\x1B[0m {:<22} :{:>3}.{:<3}ms "
-                       "\x1B[90m({:>4} GB/s)\x1B[0m",
-                       t.input, t.name, t.output, int_part, frac_part,
-                       static_cast<uint32_t>(std::round(throughput)))
+      std::cerr << fmt::format("{:>22} {}{:-^40}>{} {:<22} :{:>3}.{:<3}ms "
+                               "{}({:>4} GB/s){}",
+                               t.input, logger.blue(), t.name, logger.reset(),
+                               t.output, int_part, frac_part, logger.gray(),
+                               static_cast<uint32_t>(std::round(throughput)),
+                               logger.reset())
                 << std::endl;
     }
   }
 
-  std::cerr
-      << fmt::format(
-             "\x1B[31m{:>89}  {:.3f}ms\x1B[0m \x1B[90m({:>4} GB/s)\x1B[0m",
-             "Total time :", totalDuration,
-             std::round(
-                 (static_cast<float>(totalAccesses) / (totalDuration * 1e-3f)) *
-                 1e-9f))
-      << std::endl;
+  std::cerr << fmt::format("{}{:>89}  {:.3f}ms{} {}({:>4} GB/s){}",
+                           logger.red(), "Total time :", totalDuration,
+                           logger.reset(), logger.gray(),
+                           std::round((static_cast<float>(totalAccesses) /
+                                       (totalDuration * 1e-3f)) *
+                                      1e-9f),
+                           logger.reset())
+            << std::endl;
   return out;
 }
 
