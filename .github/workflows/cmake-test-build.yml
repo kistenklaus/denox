@@ -43,6 +43,8 @@ jobs:
               python3 \
               python3-pip \
               libvulkan-dev \
+              vulkan-sdk \
+              vulkan-tools \
               vulkan-validationlayers-dev \
               libsqlite3-dev \
               zlib1g-dev
