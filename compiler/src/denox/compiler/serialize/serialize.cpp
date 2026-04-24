@@ -5,14 +5,12 @@
 #include "denox/compiler/compile_shaders/SpvDispatch.hpp"
 #include "denox/compiler/placement/TensorInitalizer.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/logging.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include "flatbuffers/flatbuffer_builder.h"
 #include "flatbuffers/vector.h"
 #include <dnx.h>
 #include <iostream>
-#include <limits>
 #include <utility>
 
 namespace denox::compiler {
@@ -601,6 +599,7 @@ static flatbuffers::Offset<
     flatbuffers::Vector<flatbuffers::Offset<denox::dnx::ValueName>>>
 serialize_value_names(flatbuffers::FlatBufferBuilder &fbb,
                       memory::span<const NamedValue> namedValues) {
+
   memory::vector<flatbuffers::Offset<denox::dnx::ValueName>> offsets(
       namedValues.size());
   for (size_t i = 0; i < namedValues.size(); ++i) {

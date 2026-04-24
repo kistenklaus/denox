@@ -1,8 +1,8 @@
 #include "denox/compiler/assumed_symeval/assumed_symeval.hpp"
-#include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/small_vector.hpp"
 
-static constexpr int64_t DEFAULT_ASSUMPTION = 16;
+// NOTE: large enough such that caching effects cannot be completely ignored
+static constexpr int64_t DEFAULT_ASSUMPTION = 512;
 
 denox::SymGraphEval
 denox::compiler::assumed_symeval(const SymGraph &symGraph,

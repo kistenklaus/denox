@@ -286,10 +286,10 @@ runtime::Instance::Instance(const ModelHandle &model,
     for (const auto &spec : specs) {
       if (spec.symbol >= varcount) {
         auto valueNames = model->valueNames();
-        auto it = std::ranges::find_if(valueNames, [&](const ValueName &vn) {
+        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(), [&](const ValueName &vn) {
           return vn.value == Sym::Symbol(spec.symbol);
         });
-        if (it != valueNames.end()) {
+        if (it != valueNames.rend()) {
           const ValueName &valueName = *it;
           throw std::runtime_error(fmt::format(
               "Invalid symbol specialization. Symbol \"{}\" is not a variable!",
@@ -302,10 +302,10 @@ runtime::Instance::Instance(const ModelHandle &model,
       }
       if (specified[spec.symbol]) {
         auto valueNames = model->valueNames();
-        auto it = std::ranges::find_if(valueNames, [&](const ValueName &vn) {
+        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(), [&](const ValueName &vn) {
           return vn.value == Sym::Symbol(spec.symbol);
         });
-        if (it != valueNames.end()) {
+        if (it != valueNames.rend()) {
           const ValueName &valueName = *it;
           logger.warn("Invalid symbol specialization. Symbol \"{}\" is "
                       "already specialized! Skipping!",
@@ -324,10 +324,10 @@ runtime::Instance::Instance(const ModelHandle &model,
     for (Sym::symbol s = 0; s < varcount; ++s) {
       if (!specified[s]) {
         auto valueNames = model->valueNames();
-        auto it = std::ranges::find_if(valueNames, [&](const ValueName &vn) {
+        auto it = std::find_if(valueNames.rbegin(), valueNames.rend(), [&](const ValueName &vn) {
           return vn.value == Sym::Symbol(s);
         });
-        if (it != valueNames.end()) {
+        if (it != valueNames.rend()) {
           const ValueName &valueName = *it;
           logger.warn(
               "{}"
