@@ -2,7 +2,6 @@
 #include "denox/diag/unreachable.hpp"
 #include <algorithm>
 #include <cassert>
-#include <chrono>
 #include <cstring>
 #include <fmt/format.h>
 #include <fmt/printf.h>
@@ -33,25 +32,6 @@ static uint32_t to_vk_version(ApiVersion v) noexcept {
   }
 }
 
-static ApiVersion from_vk_version(uint32_t v) {
-  if (v >= VK_MAKE_API_VERSION(0, 1, 4, 0)) {
-    return ApiVersion::VULKAN_1_4;
-  }
-  if (v >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
-    return ApiVersion::VULKAN_1_3;
-  }
-  if (v >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
-    return ApiVersion::VULKAN_1_2;
-  }
-  if (v >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-    return ApiVersion::VULKAN_1_1;
-  }
-  if (v >= VK_MAKE_API_VERSION(0, 1, 0, 0)) {
-    return ApiVersion::VULKAN_1_0;
-  }
-  diag::unreachable();
-}
-
 static uint32_t query_loader_api_version() {
   uint32_t version = VK_MAKE_API_VERSION(0, 1, 0, 0);
 
@@ -75,63 +55,17 @@ static uint32_t clamp_instance_api_version_raw(uint32_t requested) {
   return std::min(requested, query_loader_api_version());
 }
 
-static ApiVersion clamp_instance_api_version(ApiVersion requested) {
-  return from_vk_version(
-      clamp_instance_api_version_raw(to_vk_version(requested)));
-}
-
 } // namespace
 
 // #define DENOX_QUITE
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL
-debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-              [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT messageType,
-              const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-              [[maybe_unused]] void *pUserData) {
-  enum class Severity {
-    None,
-    Verbose,
-    Info,
-    Warning,
-    Error,
-  };
-  Severity severity = Severity::None;
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-    severity = Severity::Verbose;
-  }
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
-    severity = Severity::Info;
-  }
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-    severity = Severity::Warning;
-  }
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-    severity = Severity::Error;
-  }
-  // return VK_FALSE;
-  switch (severity) {
-  case Severity::None:
-    fmt::println("[Validation-Layer]: {}", pCallbackData->pMessage);
-    break;
-  case Severity::Verbose:
-    fmt::println("\x1B[37m[Validation-Layer]:\x1B[0m {}",
-                 pCallbackData->pMessage);
-    break;
-  case Severity::Info:
-    fmt::println("\x1B[34m[Validation-Layer]:\x1B[0m {}",
-                 pCallbackData->pMessage);
-    break;
-  case Severity::Warning:
-    fmt::println("\x1B[33m[Validation-Layer]:\x1B[0m\n{}",
-                 pCallbackData->pMessage);
-    break;
-  case Severity::Error:
-    fmt::println("\x1B[31m[Validation-Layer]:\x1B[0m\n{}",
-                 pCallbackData->pMessage);
-    break;
-  }
-
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    [[maybe_unused]] VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+    [[maybe_unused]] void *pUserData) {
+  std::cerr << fmt::format("[Validation-Layer]: {}", pCallbackData->pMessage)
+            << std::endl;
   return VK_FALSE;
 }
 
@@ -156,17 +90,6 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
   if (func != nullptr) {
     func(instance, debugMessenger, pAllocator);
   }
-}
-
-static bool checkLayerSupport(const char *layerName) {
-  uint32_t layerCount;
-  vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-  memory::vector<VkLayerProperties> layers(layerCount);
-  vkEnumerateInstanceLayerProperties(&layerCount, layers.data());
-  return std::ranges::find_if(
-             layers, [layerName](const VkLayerProperties &layer) {
-               return std::strcmp(layer.layerName, layerName) == 0;
-             }) != layers.end();
 }
 
 // ASCII lowercase
@@ -248,7 +171,7 @@ pick_best_compute_queue_family(VkPhysicalDevice phys) {
 }
 
 Context::Context(const char *deviceName, ApiVersion target_env,
-                 bool enableValidationLayer)
+                 const diag::Logger &logger)
     : m_instance(VK_NULL_HANDLE), m_device(VK_NULL_HANDLE),
       m_physicalDevice(VK_NULL_HANDLE), m_queue(VK_NULL_HANDLE) {
 
@@ -321,7 +244,9 @@ Context::Context(const char *deviceName, ApiVersion target_env,
       createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
     }
 
-    if (enableValidationLayer) {
+    bool enableValidationLayer = false;
+    if (logger.level() >= denox::diag::LogLevel::Verbose) {
+      enableValidationLayer = true;
       uint32_t layerCount = 0;
       result = vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
       if (result != VK_SUCCESS) {
@@ -358,7 +283,8 @@ Context::Context(const char *deviceName, ApiVersion target_env,
         debugUtilsMessengerCreateInfo.messageType =
             VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT;
         debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
         debugUtilsMessengerCreateInfo.pUserData = nullptr;
 
@@ -496,7 +422,6 @@ Context::Context(const char *deviceName, ApiVersion target_env,
   bool hasMemoryBudgetExt = false;
   bool hasMemoryPriorityExt = false;
   bool hasAmdDeviceCoherentMemoryExt = false;
-  bool hasExternalMemoryWin32Ext = false;
   uint32_t subgroupSizeControlExtVersion = 0;
 
   for (uint32_t i = 0; i < deviceExtensionCount; ++i) {

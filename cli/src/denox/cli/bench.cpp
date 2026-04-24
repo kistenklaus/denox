@@ -24,7 +24,7 @@ void bench(BenchAction &action) {
       deviceName = action.deviceName->c_str();
     }
     denox::runtime::ContextHandle context =
-        denox::runtime::Context::make(deviceName, action.apiVersion);
+        denox::runtime::Context::make(deviceName, action.apiVersion, logger);
 
     action.options.deviceInfo = denox::query_driver_device_info(
         vk::Instance{context->vkInstance()},
@@ -38,7 +38,7 @@ void bench(BenchAction &action) {
       device = action.deviceName->c_str();
     }
 
-    auto ctx = denox::runtime::Context::make(device, action.apiVersion);
+    auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
     auto model = denox::runtime::Model::make(dnxbuf);
     auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
     instance->bench().report(logger);
@@ -49,7 +49,7 @@ void bench(BenchAction &action) {
     if (action.deviceName) {
       device = action.deviceName->c_str();
     }
-    auto ctx = denox::runtime::Context::make(device, action.apiVersion);
+    auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
     auto model = denox::runtime::Model::make(action.target.dnx().data);
     auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
     instance->bench().report(logger);
@@ -60,7 +60,7 @@ void bench(BenchAction &action) {
     if (action.deviceName) {
       device = action.deviceName->c_str();
     }
-    auto ctx = denox::runtime::Context::make(device, action.apiVersion);
+    auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
     auto db = denox::Db::open(action.target.database().endpoint.path());
     auto rdb = denox::runtime::Db::open(ctx, db);
     rdb->bench(action.benchOptions, {}, logger);

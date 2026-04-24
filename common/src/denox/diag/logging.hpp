@@ -4,6 +4,7 @@
 #include "denox/memory/container/string.hpp"
 #include "denox/memory/container/string_view.hpp"
 #include <fmt/format.h>
+#include <iostream>
 #include <memory>
 
 namespace denox::diag {
@@ -43,8 +44,13 @@ public:
       m_codes->gray = "\x1B[90m";
       m_codes->bold = "\x1B[1m";
       m_codes->reset = "\x1B[0m";
-      m_codes->clear_line = "\r\x1B[K";
-      m_codes->cursor_up = "\x1B[A";
+      if (m_level < denox::diag::LogLevel::Verbose) {
+        m_codes->clear_line = "\r\x1B[K";
+        m_codes->cursor_up = "\x1B[A";
+      } else {
+        m_codes->clear_line = "";
+        m_codes->cursor_up = "";
+      }
     }
   }
 
@@ -62,65 +68,69 @@ public:
   template <typename... Args>
   void trace(fmt::format_string<Args...> fmt, Args &&...args) const {
     if (m_level >= denox::diag::LogLevel::Verbose) {
-      fmt::println(fmt, std::forward<Args>(args)...);
+      std::cerr << fmt::format(fmt, std::forward<Args>(args)...) << std::endl;
     }
   }
 
   template <typename T> void trace(const T &msg) const {
     if (m_level >= denox::diag::LogLevel::Verbose) {
-      fmt::println("{}", msg);
+      std::cerr << fmt::format("{}", msg) << std::endl;
     }
   }
 
   template <typename... Args>
   void debug(fmt::format_string<Args...> fmt, Args &&...args) const {
     if (m_level >= denox::diag::LogLevel::Verbose) {
-      fmt::println(fmt, std::forward<Args>(args)...);
+      std::cerr << fmt::format(fmt, std::forward<Args>(args)...) << std::endl;
     }
   }
 
   template <typename T> void debug(const T &msg) const {
     if (m_level >= denox::diag::LogLevel::Verbose) {
-      fmt::println("{}", msg);
+      std::cerr << fmt::format("{}", msg) << std::endl;
     }
   }
 
   template <typename... Args>
   void info(fmt::format_string<Args...> fmt, Args &&...args) const {
     if (m_level >= denox::diag::LogLevel::Info) {
-      fmt::println(fmt, std::forward<Args>(args)...);
+      std::cerr << fmt::format(fmt, std::forward<Args>(args)...) << std::endl;
     }
   }
 
   template <typename T> void info(const T &msg) const {
     if (m_level >= denox::diag::LogLevel::Info) {
+      std::cerr << fmt::format("{}", msg) << std::endl;
     }
-    fmt::println("{}", msg);
   }
 
   template <typename... Args>
   void warn(fmt::format_string<Args...> fmt, Args &&...args) const {
     if (m_level >= denox::diag::LogLevel::Info) {
-      fmt::println(fmt, std::forward<Args>(args)...);
+      std::cerr << fmt::format(fmt, std::forward<Args>(args)...) << std::endl;
     }
   }
 
   template <typename T> void warn(const T &msg) const {
     if (m_level >= denox::diag::LogLevel::Info) {
-      fmt::println("{}", msg);
+      std::cerr << fmt::format("{}", msg) << std::endl;
     }
   }
 
   template <typename... Args>
   void error(fmt::format_string<Args...> fmt, Args &&...args) const {
-    fmt::println(fmt, std::forward<Args>(args)...);
+    std::cerr << fmt::format(fmt, std::forward<Args>(args)...) << std::endl;
   }
 
   template <typename T> void error(const T &msg) const {
-    fmt::println("{}", msg);
+    std::cerr << fmt::format("{}", msg) << std::endl;
   }
 
-  // private:
+  LogLevel level() const {
+    return m_level;
+  }
+
+private:
   std::shared_ptr<AniCodes> m_codes;
   LogLevel m_level;
 };

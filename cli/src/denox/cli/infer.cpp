@@ -18,7 +18,7 @@ void infer(InferAction &action) {
 
   denox::diag::Logger logger("denox.infer", action.logcolors, action.loglevel);
 
-  const auto ctx = denox::runtime::Context::make(device, action.apiVersion);
+  const auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
   denox::runtime::ModelHandle model;
 
   switch (action.model.kind()) {
@@ -32,7 +32,7 @@ void infer(InferAction &action) {
       deviceName = action.deviceName->c_str();
     }
     denox::runtime::ContextHandle context =
-        denox::runtime::Context::make(deviceName, action.apiVersion);
+        denox::runtime::Context::make(deviceName, action.apiVersion, logger);
 
     action.options.deviceInfo = denox::query_driver_device_info(
         vk::Instance{context->vkInstance()},

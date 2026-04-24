@@ -15,7 +15,7 @@ void compile(CompileAction &action) {
     deviceName = action.deviceName->c_str();
   }
   denox::runtime::ContextHandle context =
-      denox::runtime::Context::make(deviceName, action.apiVersion);
+      denox::runtime::Context::make(deviceName, action.apiVersion, logger);
 
   action.options.deviceInfo = denox::query_driver_device_info(
       vk::Instance{context->vkInstance()},

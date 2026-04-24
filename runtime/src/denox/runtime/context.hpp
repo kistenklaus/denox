@@ -1,5 +1,6 @@
 #pragma once
 #include "denox/device_info/ApiVersion.hpp"
+#include "denox/diag/logging.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/vector.hpp"
 #include <cassert>
@@ -60,9 +61,12 @@ private:
   };
 
 public:
-  static std::shared_ptr<Context> make(const char *deviceName,
-                                       ApiVersion apiVersion) {
-    return std::shared_ptr<Context>(new Context(deviceName, apiVersion));
+  static std::shared_ptr<Context>
+  make(const char *deviceName, ApiVersion apiVersion,
+       const diag::Logger &logger = diag::Logger("denox-context", false,
+                                                 diag::LogLevel::Quite)) {
+    return std::shared_ptr<Context>(
+        new Context(deviceName, apiVersion, logger));
   }
 
   ~Context();
@@ -282,7 +286,7 @@ private:
 #endif
 
   explicit Context(const char *deviceName, ApiVersion target_env,
-                   bool validationLayers = ENABLE_VALIDATION_BY_DEFAULT);
+                   const diag::Logger &logger);
 
 private:
   VkInstance m_instance;
