@@ -175,6 +175,10 @@ Context::Context(const char *deviceName, ApiVersion target_env,
     : m_instance(VK_NULL_HANDLE), m_device(VK_NULL_HANDLE),
       m_physicalDevice(VK_NULL_HANDLE), m_queue(VK_NULL_HANDLE) {
 
+  if (target_env == ApiVersion::VULKAN_1_0) {
+    throw std::runtime_error("denox sadly requires at least vulkan 1.1");
+  }
+
   m_debugMessenger = VK_NULL_HANDLE;
   m_vma = VK_NULL_HANDLE;
   m_support = {};

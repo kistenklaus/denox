@@ -36,6 +36,19 @@ CoopmatProperties query_coopmat_properties(vk::Instance instance,
       return memory::Dtype::F32;
     case vk::ComponentTypeKHR::eFloat64:
       return memory::Dtype::F64;
+    case vk::ComponentTypeKHR::eSint8        :
+    case vk::ComponentTypeKHR::eSint16       :
+    case vk::ComponentTypeKHR::eSint32       :
+    case vk::ComponentTypeKHR::eSint64       :
+    case vk::ComponentTypeKHR::eUint8        :
+    case vk::ComponentTypeKHR::eUint16       :
+    case vk::ComponentTypeKHR::eUint32       :
+    case vk::ComponentTypeKHR::eUint64       :
+    case vk::ComponentTypeKHR::eBfloat16     :
+    case vk::ComponentTypeKHR::eSint8PackedNV:
+    case vk::ComponentTypeKHR::eUint8PackedNV:
+    case vk::ComponentTypeKHR::eFloat8E4M3EXT:
+    case vk::ComponentTypeKHR::eFloat8E5M2EXT:
     default:
       return memory::nullopt;
     }
