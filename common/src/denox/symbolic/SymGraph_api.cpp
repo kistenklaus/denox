@@ -17,6 +17,7 @@ Sym SymGraph::resolve(Sym sym) const {
   }
 }
 
-Sym SymGraph::var() { return Sym::Symbol(create_variable(ExprType::Identity)); }
+Sym SymGraph::var() { 
+  return Sym::Symbol(create_variable(ExprType::Identity)); }
 
 } // namespace denox::compiler

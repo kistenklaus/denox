@@ -85,9 +85,9 @@ TensorHandle Model::conv2d(const TensorHandle &src,
   }
 
   Sym width = m_controlBlock->symGraph.pool(srcTensor.width, kernelSize.x,
-                                            pad.x, stride.x, dilation.x, true);
+                                            pad.x, stride.x, dilation.x);
   Sym height = m_controlBlock->symGraph.pool(srcTensor.height, kernelSize.y,
-                                             pad.y, stride.y, dilation.y, true);
+                                             pad.y, stride.y, dilation.y);
 
   if (autoPad == AutoPadMode::SameUpper || autoPad == AutoPadMode::SameLower) {
     auto &g = m_controlBlock->symGraph;

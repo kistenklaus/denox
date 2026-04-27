@@ -25,7 +25,6 @@ Sym SymGraph::require_affine_sym(ExprType type, Sym lhs, Sym rhs,
   if (!dno && affine.isPureConstant()) {
     return Sym::Const(affine.constant);
   }
-
   auto it = m_affineCache.find(affine);
   if (it == m_affineCache.end()) {
     symbol s = next_sym();

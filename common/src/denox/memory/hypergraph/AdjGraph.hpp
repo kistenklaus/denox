@@ -419,12 +419,59 @@ public:
     std::size_t m_end;
   };
 
+  struct const_node_range {
+  public:
+    const_node_range(const_node_iterator begin, const_node_iterator end)
+        : m_begin(std::move(begin)), m_end(std::move(end)) {}
+    const_node_iterator begin() const { return m_begin; }
+    const_node_iterator end() const { return m_end; }
+
+  private:
+    const_node_iterator m_begin;
+    const_node_iterator m_end;
+  };
+
+  struct node_range {
+  public:
+    node_range(node_iterator begin, node_iterator end)
+        : m_begin(std::move(begin)), m_end(std::move(end)) {}
+    node_iterator begin() { return m_begin; }
+    node_iterator end() { return m_end; }
+
+  private:
+    node_iterator m_begin;
+    node_iterator m_end;
+  };
+
+  struct const_edge_range {
+  public:
+    const_edge_range(const_edge_iterator begin, const_edge_iterator end)
+        : m_begin(std::move(begin)), m_end(std::move(end)) {}
+    const_edge_iterator begin() const { return m_begin; }
+    const_edge_iterator end() const { return m_end; }
+
+  private:
+    const_edge_iterator m_begin;
+    const_edge_iterator m_end;
+  };
+
+  struct edge_range {
+  public:
+    edge_range(edge_iterator begin, edge_iterator end)
+        : m_begin(std::move(begin)), m_end(std::move(end)) {}
+    edge_iterator begin() { return m_begin; }
+    edge_iterator end() { return m_end; }
+
+  private:
+    edge_iterator m_begin;
+    edge_iterator m_end;
+  };
+
   static_assert(std::input_or_output_iterator<const_edge_iterator>);
   static_assert(std::forward_iterator<const_edge_iterator>);
   static_assert(std::sentinel_for<const_edge_iterator, const_edge_iterator>);
 
-  [[nodiscard]] std::ranges::subrange<const_node_iterator>
-  nodes() const noexcept {
+  [[nodiscard]] const_node_range nodes() const noexcept {
     auto it = std::ranges::find_if(m_nodes,
                                    [](const auto &x) { return x.has_value(); });
     if (it == m_nodes.end()) {
@@ -437,7 +484,7 @@ public:
                                        m_nodes.size(), m_nodes.size()}};
   }
 
-  [[nodiscard]] std::ranges::subrange<node_iterator> mut_nodes() noexcept {
+  [[nodiscard]] node_range mut_nodes() noexcept {
     auto it = std::ranges::find_if(m_nodes,
                                    [](const auto &x) { return x.has_value(); });
     if (it == m_nodes.end()) {
@@ -450,8 +497,7 @@ public:
                                  m_nodes.size(), m_nodes.size()}};
   }
 
-  [[nodiscard]] std::ranges::subrange<const_edge_iterator>
-  edges() const noexcept {
+  [[nodiscard]] const_edge_range edges() const noexcept {
     auto it = std::ranges::find_if(m_edges,
                                    [](const auto &x) { return x.has_value(); });
     if (it == m_edges.end()) {
@@ -464,7 +510,7 @@ public:
                                        m_edges.size(), m_edges.size()}};
   }
 
-  [[nodiscard]] std::ranges::subrange<edge_iterator> mut_edges() noexcept {
+  [[nodiscard]] edge_range mut_edges() noexcept {
     auto it = std::ranges::find_if(m_edges,
                                    [](const auto &x) { return x.has_value(); });
     if (it == m_edges.end()) {
