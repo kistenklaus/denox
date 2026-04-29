@@ -93,6 +93,15 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   compiler::MemSchedule memSchedule = compiler::placement(
       optSchedule, progress.sub_progress(0.95f, 0.97f), logger);
 
+  SHA256Builder hasher;
+  for (const auto& dis : memSchedule.dispatches) {
+    // fmt::println("name: {}", dis.info.name);
+    // fmt::println("shader-sha: {}", dis.glsl.fast_sha256());
+    // fmt::println("preamble: \n{}", dis.glsl.getPreamble());
+    hasher.update(memory::span{reinterpret_cast<uint8_t*>(dis.glsl.fast_sha256().h), 8 * sizeof(uint32_t)});
+  }
+  fmt::println("SHADER-HASH: {}", hasher.finalize());
+
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);
 
