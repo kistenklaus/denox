@@ -2,7 +2,6 @@
 
 #include "denox/device_info/ApiVersion.hpp"
 #include "denox/device_info/CoopmatProperties.hpp"
-#include "denox/device_info/LayoutRules.hpp"
 #include "denox/device_info/MemoryModel.hpp"
 #include "denox/device_info/ResourceLimits.hpp"
 #include "denox/device_info/SubgroupProperties.hpp"
@@ -14,7 +13,7 @@ struct DeviceInfo {
   memory::string name;
   ResourceLimits limits;
   SubgroupProperties subgroup;
-  LayoutRules layouts;
+  // LayoutRules layouts;
   MemoryModelProperties memoryModel;
   CoopmatProperties coopmat;
 };

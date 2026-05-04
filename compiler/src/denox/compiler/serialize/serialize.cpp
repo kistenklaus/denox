@@ -2,15 +2,21 @@
 #include "denox/algorithm/align_up.hpp"
 #include "denox/common/Access.hpp"
 #include "denox/common/TensorDataType.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/compiler/compile_shaders/SpvDispatch.hpp"
 #include "denox/compiler/placement/TensorInitalizer.hpp"
+#include "denox/device_info/ApiVersion.hpp"
+#include "denox/device_info/CoopmatProperties.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/diag/unreachable.hpp"
+#include "denox/memory/container/vector.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
 #include "flatbuffers/flatbuffer_builder.h"
 #include "flatbuffers/vector.h"
+#include <algorithm>
 #include <dnx.h>
 #include <iostream>
+#include <limits>
 #include <utility>
 
 namespace denox::compiler {
@@ -28,24 +34,21 @@ serialize_required_features(flatbuffers::FlatBufferBuilder &fbb) {
                                     requiredFeatures.size());
 }
 
-static flatbuffers::Offset<denox::dnx::ModelInfo>
-serialize_model_info(flatbuffers::FlatBufferBuilder &fbb,
-                     const ModelMeta &meta) {
-
-  flatbuffers::Offset<flatbuffers::String> producer = 0;
-  flatbuffers::Offset<flatbuffers::String> producer_version = 0;
-  flatbuffers::Offset<flatbuffers::String> model_version = 0;
-
-  if (meta.producerName) {
-    producer = fbb.CreateString(*meta.producerName);
+static denox::dnx::VulkanApiVersion
+serialize_api_version(ApiVersion apiVersion) {
+  switch (apiVersion) {
+  case ApiVersion::VULKAN_1_0:
+    return denox::dnx::VulkanApiVersion_VULKAN_1_0;
+  case ApiVersion::VULKAN_1_1:
+    return denox::dnx::VulkanApiVersion_VULKAN_1_1;
+  case ApiVersion::VULKAN_1_2:
+    return denox::dnx::VulkanApiVersion_VULKAN_1_2;
+  case ApiVersion::VULKAN_1_3:
+    return denox::dnx::VulkanApiVersion_VULKAN_1_3;
+  case ApiVersion::VULKAN_1_4:
+    return denox::dnx::VulkanApiVersion_VULKAN_1_4;
   }
-  if (meta.producerVersion) {
-    producer_version = fbb.CreateString(*meta.producerVersion);
-  }
-  if (meta.modelVersion) {
-    model_version = fbb.CreateString(*meta.modelVersion);
-  }
-  return dnx::CreateModelInfo(fbb, producer, producer_version, model_version);
+  diag::unreachable();
 }
 
 static denox::dnx::ScalarType serialize_type(memory::Dtype type) {
@@ -66,6 +69,204 @@ static denox::dnx::ScalarType serialize_type(memory::Dtype type) {
     return denox::dnx::ScalarType_I64;
   }
   diag::unreachable();
+}
+
+static flatbuffers::Offset<denox::dnx::CoopmatShape>
+serialize_coopmat_shape(flatbuffers::FlatBufferBuilder &fbb,
+                        const CoopmatShape &shape) {
+  const uint32_t M = shape.M;
+  const uint32_t N = shape.N;
+  const uint32_t K = shape.K;
+  const denox::dnx::ScalarType atype = serialize_type(shape.atype);
+  const denox::dnx::ScalarType btype = serialize_type(shape.atype);
+  const denox::dnx::ScalarType ctype = serialize_type(shape.ctype);
+  const denox::dnx::ScalarType acctype = serialize_type(shape.acctype);
+  const bool saturating = shape.saturatingAccumulation;
+  assert(shape.subgroupScope);
+  return dnx::CreateCoopmatShape(fbb, M, N, K, atype, btype, ctype, acctype,
+                                 saturating);
+}
+
+static flatbuffers::Offset<denox::dnx::DeviceInfo>
+serialize_device_info(flatbuffers::FlatBufferBuilder &fbb,
+                      const DeviceInfo &deviceInfo) {
+
+  const flatbuffers::Offset<flatbuffers::String> device_name =
+      fbb.CreateString(deviceInfo.name);
+  const denox::dnx::VulkanApiVersion api_version =
+      serialize_api_version(deviceInfo.apiVersion);
+  const uint32_t max_compute_workgroup_count_x =
+      deviceInfo.limits.maxComputeWorkGroupCount[0];
+  const uint32_t max_compute_workgroup_count_y =
+      deviceInfo.limits.maxComputeWorkGroupCount[1];
+  const uint32_t max_compute_workgroup_count_z =
+      deviceInfo.limits.maxComputeWorkGroupCount[2];
+  const uint32_t max_compute_workgroup_size_x =
+      deviceInfo.limits.maxComputeWorkGroupSize[0];
+  const uint32_t max_compute_workgroup_size_y =
+      deviceInfo.limits.maxComputeWorkGroupSize[1];
+  const uint32_t max_compute_workgroup_size_z =
+      deviceInfo.limits.maxComputeWorkGroupSize[2];
+  const uint32_t max_compute_workgroup_invocations =
+      deviceInfo.limits.maxComputeWorkGroupInvocations;
+  const uint32_t max_compute_workgroup_subgroups =
+      deviceInfo.subgroup.controlProperties.supported
+          ? deviceInfo.subgroup.controlProperties.maxComputeWorkgroupSubgroups
+          : std::numeric_limits<uint32_t>::max();
+  const uint32_t max_compute_shared_memory =
+      deviceInfo.limits.maxComputeSharedMemory;
+  const uint32_t max_push_constant_size = deviceInfo.limits.maxPushConstantSize;
+  flatbuffers::Offset<flatbuffers::Vector<uint32_t>> supported_subgroup_sizes;
+  if (deviceInfo.subgroup.controlProperties.supported) {
+    supported_subgroup_sizes = fbb.CreateVector<uint32_t>(
+        deviceInfo.subgroup.controlProperties.supportedSubgroupSizes);
+  } else {
+    supported_subgroup_sizes =
+        fbb.CreateVector<uint32_t>(&deviceInfo.subgroup.subgroupSize, 1);
+  }
+  const bool subgroup_basic_ops = deviceInfo.subgroup.supportsBasicOps;
+  const bool subgroup_vote_ops = deviceInfo.subgroup.supportsVoteOps;
+  const bool subgroup_arithmetic_ops =
+      deviceInfo.subgroup.supportsArithmeticOps;
+  const bool subgroup_ballot_ops = deviceInfo.subgroup.supportsBallotOps;
+  const bool subgroup_shuffle_ops = deviceInfo.subgroup.supportsShuffleOps;
+  const bool subgroup_shuffle_relative_ops =
+      deviceInfo.subgroup.supportsShuffleRelativeOps;
+
+  const bool vulkan_memory_model = deviceInfo.memoryModel.vmm;
+  const bool vulkan_memory_model_device_scope =
+      deviceInfo.memoryModel.vmmDeviceScope;
+
+  memory::vector<flatbuffers::Offset<denox::dnx::CoopmatShape>> shapes;
+  if (deviceInfo.coopmat.supported) {
+    shapes.reserve(deviceInfo.coopmat.shapes.size());
+    for (const CoopmatShape &shape : deviceInfo.coopmat.shapes) {
+      shapes.push_back(serialize_coopmat_shape(fbb, shape));
+    }
+  }
+  flatbuffers::Offset<
+      flatbuffers::Vector<flatbuffers::Offset<denox::dnx::CoopmatShape>>>
+      supported_coopmat_shapes = fbb.CreateVector(shapes);
+
+  return denox::dnx::CreateDeviceInfo(
+      fbb, device_name, api_version, max_compute_workgroup_count_x,
+      max_compute_workgroup_count_y, max_compute_workgroup_count_z,
+      max_compute_workgroup_size_x, max_compute_workgroup_size_y,
+      max_compute_workgroup_size_z, max_compute_workgroup_invocations,
+      max_compute_workgroup_subgroups, max_push_constant_size,
+      max_compute_shared_memory, supported_subgroup_sizes, subgroup_basic_ops,
+      subgroup_vote_ops, subgroup_arithmetic_ops, subgroup_ballot_ops,
+      subgroup_shuffle_ops, subgroup_shuffle_relative_ops, vulkan_memory_model,
+      vulkan_memory_model_device_scope, supported_coopmat_shapes);
+}
+
+static flatbuffers::Offset<denox::dnx::DescriptorPolicy>
+serialize_descriptor_policy(flatbuffers::FlatBufferBuilder &fbb,
+                            const DescriptorPolicies &descriptorPolicy) {
+  return dnx::CreateDescriptorPolicy(
+      fbb, descriptorPolicy.inputPolicy.set, descriptorPolicy.outputPolicy.set,
+      descriptorPolicy.paramPolicy.set, descriptorPolicy.readPolicy.set,
+      descriptorPolicy.writePolicy.set);
+}
+
+static flatbuffers::Offset<denox::dnx::CompilationFeatures>
+serialize_compilation_features(flatbuffers::FlatBufferBuilder &fbb,
+                               const Features &features) {
+  return dnx::CreateCompilationFeatures(
+      fbb, features.coopmat, features.enableImplicitConcat,
+      features.enableConvReluFusion, features.enableConcatConvFusion,
+      features.enableUpsampleConvFusion, features.enableConvMaxPoolFusion);
+}
+
+static flatbuffers::Offset<
+    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::Assumption>>>
+serialize_assumptions(
+    flatbuffers::FlatBufferBuilder &fbb,
+    memory::span<const InterfaceTensorDescriptor> interfaceDescriptors,
+    memory::span<const TensorView> tensors) {
+
+  memory::vector<flatbuffers::Offset<denox::dnx::Assumption>> assumptions;
+
+  for (const auto &interfaceDescriptor : interfaceDescriptors) {
+    auto it = std::ranges::find_if(
+        tensors, [&](const TensorView &tensor) noexcept -> bool {
+          if (!tensor.info.name.has_value()) {
+            return false;
+          }
+          return *tensor.info.name == interfaceDescriptor.name;
+        });
+    if (it == tensors.end()) {
+      continue;
+    }
+    const TensorView &tensor = *it;
+    if (interfaceDescriptor.width.has_value() &&
+        tensor.info.width.has_value() && tensor.info.width->isSymbolic()) {
+      const uint32_t sid = static_cast<uint32_t>(tensor.info.width->sym());
+      const uint32_t value = interfaceDescriptor.width.value();
+      assumptions.push_back(dnx::CreateAssumption(fbb, sid, value));
+    }
+    if (interfaceDescriptor.height.has_value() &&
+        tensor.info.height.has_value() && tensor.info.height->isSymbolic()) {
+      const uint32_t sid = static_cast<uint32_t>(tensor.info.height->sym());
+      const uint32_t value = interfaceDescriptor.height.value();
+      assumptions.push_back(dnx::CreateAssumption(fbb, sid, value));
+    }
+    if (interfaceDescriptor.channels.has_value() &&
+        tensor.info.channels.has_value() &&
+        tensor.info.channels->isSymbolic()) {
+      const uint32_t sid = static_cast<uint32_t>(tensor.info.channels->sym());
+      const uint32_t value = interfaceDescriptor.channels.value();
+      assumptions.push_back(dnx::CreateAssumption(fbb, sid, value));
+    }
+  }
+  return fbb.CreateVector(assumptions);
+}
+
+static flatbuffers::Offset<denox::dnx::CompilationInfo>
+serialize_compilation_info(flatbuffers::FlatBufferBuilder &fbb,
+                           const CompileOptions &options,
+                           memory::span<const TensorView> tensors) {
+  flatbuffers::Offset<
+      flatbuffers::Vector<flatbuffers::Offset<denox::dnx::Assumption>>>
+      assumptions =
+          serialize_assumptions(fbb, options.interfaceDescriptors, tensors);
+
+  flatbuffers::Offset<denox::dnx::DescriptorPolicy> descriptor_policy =
+      serialize_descriptor_policy(fbb, options.descriptorPolicies);
+
+  flatbuffers::Offset<denox::dnx::CompilationFeatures> features =
+      serialize_compilation_features(fbb, options.features);
+
+  flatbuffers::Offset<denox::dnx::DeviceInfo> device_info =
+      serialize_device_info(fbb, options.deviceInfo);
+  return dnx::CreateCompilationInfo(fbb, assumptions, descriptor_policy,
+                                    features, device_info);
+}
+
+static flatbuffers::Offset<denox::dnx::ModelInfo>
+serialize_model_info(flatbuffers::FlatBufferBuilder &fbb, const ModelMeta &meta,
+                     const CompileOptions &options,
+                     memory::span<const TensorView> tensors) {
+
+  flatbuffers::Offset<flatbuffers::String> producer = 0;
+  flatbuffers::Offset<flatbuffers::String> producer_version = 0;
+  flatbuffers::Offset<flatbuffers::String> model_version = 0;
+
+  if (meta.producerName) {
+    producer = fbb.CreateString(*meta.producerName);
+  }
+  if (meta.producerVersion) {
+    producer_version = fbb.CreateString(*meta.producerVersion);
+  }
+  if (meta.modelVersion) {
+    model_version = fbb.CreateString(*meta.modelVersion);
+  }
+
+  const flatbuffers::Offset<denox::dnx::CompilationInfo> compilation_info =
+      serialize_compilation_info(fbb, options, tensors);
+
+  return dnx::CreateModelInfo(fbb, producer, producer_version, model_version,
+                              compilation_info);
 }
 
 static denox::dnx::ScalarType serialize_type(TensorDataType type) {
@@ -619,7 +820,8 @@ memory::vector<std::byte> serialize(const compiler::SpvSchedule &schedule,
 
   auto version = serialize_version(dnxVersion);
   auto required_features = serialize_required_features(fbb);
-  auto model_info = serialize_model_info(fbb, model.meta());
+  auto model_info =
+      serialize_model_info(fbb, model.meta(), options, schedule.tensors);
   auto tensors = serialize_tensors(fbb, schedule.tensors);
   auto initializers = serialize_initializers(fbb, schedule.initializers);
   auto inputs = serialize_inputs(fbb, schedule.inputs);

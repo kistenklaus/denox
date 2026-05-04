@@ -5,7 +5,6 @@
 #include "denox/device_info/ResourceLimits.hpp"
 #include "denox/device_info/query/create_query_instance.hpp"
 #include "denox/device_info/query/query_coopmat_properties.hpp"
-#include "denox/device_info/query/query_layout_rules.hpp"
 #include "denox/device_info/query/query_memory_model_properties.hpp"
 #include "denox/device_info/query/query_resource_limits.hpp"
 #include "denox/device_info/query/query_subgroup_properties.hpp"
@@ -39,7 +38,6 @@ DeviceInfo query_driver_device_info(vk::Instance instance,
       query_resource_limits(instance, physicalDevice);
   SubgroupProperties subgroup =
       query_subgroup_properties(instance, physicalDevice, apiVersion);
-  LayoutRules layouts = query_layout_rules(instance, physicalDevice, apiVersion);
   MemoryModelProperties memoryModel =
       query_memory_model_properties(instance, physicalDevice, apiVersion);
   CoopmatProperties coopmat =
@@ -50,7 +48,6 @@ DeviceInfo query_driver_device_info(vk::Instance instance,
       .name = std::move(deviceName),
       .limits = std::move(limits),
       .subgroup = std::move(subgroup),
-      .layouts = std::move(layouts),
       .memoryModel = std::move(memoryModel),
       .coopmat = std::move(coopmat),
   };

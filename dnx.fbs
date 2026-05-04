@@ -154,10 +154,90 @@ enum Version:ushort {
   DNX_VERSION_1_0,
 }
 
+table Assumption {
+  sid:uint32;
+  value:uint32;
+}
+
+table DescriptorPolicy {
+  input_policy:uint32;
+  output_policy:uint32;
+  param_policy:uint32;
+  read_policy:uint32;
+  write_policy:uint32;
+}
+
+
+enum VulkanApiVersion:ushort {
+  VULKAN_1_0,
+  VULKAN_1_1,
+  VULKAN_1_2,
+  VULKAN_1_3,
+  VULKAN_1_4,
+}
+
+table CoopmatShape {
+  m:uint32;
+  n:uint32;
+  k:uint32;
+  atype:ScalarType;
+  btype:ScalarType;
+  ctype:ScalarType;
+  acctype:ScalarType;
+  saturating:bool;
+}
+
+table DeviceInfo { 
+  device_name:string;
+  api_version:VulkanApiVersion;
+  // limits
+  max_compute_workgroup_count_x:uint32;
+  max_compute_workgroup_count_y:uint32;
+  max_compute_workgroup_count_z:uint32;
+  max_compute_workgroup_size_x:uint32;
+  max_compute_workgroup_size_y:uint32;
+  max_compute_workgroup_size_z:uint32;
+  max_compute_workgroup_invocations:uint32;
+  max_compute_workgroup_subgroups:uint32; // optional
+  max_compute_shared_memory:uint32;
+  max_push_constant_size:uint32;
+  // subgroup properties
+  supported_subgroup_sizes:[uint32];
+  subgroup_basic_ops:bool;
+  subgroup_vote_ops:bool;
+  subgroup_arithmetic_ops:bool;
+  subgroup_ballot_ops:bool;
+  subgroup_shuffle_ops:bool;
+  subgroup_shuffle_relative_ops:bool;
+  // memory model
+  vulkan_memory_model:bool;
+  vulkan_memory_model_device_scope:bool;
+  // coopmat
+  supported_coopmat_shapes:[CoopmatShape];
+}
+
+table CompilationFeatures {
+  coopmat:bool;
+  implicit_concat:bool;
+  conv_relu_fusion:bool;
+  concat_conv_fusion:bool;
+  upsample_conv_fusion:bool;
+  conv_pool_fusion:bool;
+}
+
+table CompilationInfo {
+  assumptions:[Assumption];
+  descriptor_policy:DescriptorPolicy;
+  features:CompilationFeatures;
+  device_info:DeviceInfo;
+}
+
+
 table ModelInfo {
   producer:string;
   producer_version:string;
   model_version:string;
+  compilation_info:CompilationInfo;
 }
 
 enum RuntimeFeature:uint {

@@ -4,7 +4,6 @@ add_library(denox_device_info
     src/denox/device_info/query/create_query_instance.cpp
     src/denox/device_info/query/query_coopmat_properties.cpp
     src/denox/device_info/query/query_driver_device_info.cpp
-    src/denox/device_info/query/query_layout_rules.cpp
     src/denox/device_info/query/query_memory_model_properties.cpp
     src/denox/device_info/query/query_resource_limits.cpp
     src/denox/device_info/query/query_subgroup_properties.cpp

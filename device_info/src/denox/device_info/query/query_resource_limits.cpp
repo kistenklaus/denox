@@ -21,16 +21,6 @@ ResourceLimits query_resource_limits([[maybe_unused]] vk::Instance instance,
   limits.maxComputeWorkGroupInvocations =
       deviceLimits.maxComputeWorkGroupInvocations;
   limits.maxComputeSharedMemory = deviceLimits.maxComputeSharedMemorySize;
-  limits.maxPerStageResources = deviceLimits.maxPerStageResources;
-  limits.maxPerStageUniformBuffers =
-      deviceLimits.maxPerStageDescriptorUniformBuffers;
-  limits.maxPerStageStorageBuffers =
-      deviceLimits.maxPerStageDescriptorStorageBuffers;
-  limits.maxPerStageSampledImages =
-      deviceLimits.maxPerStageDescriptorSampledImages;
-  limits.maxPerStageStorageImages =
-      deviceLimits.maxPerStageDescriptorStorageImages;
-  limits.maxPerStageSamplers = deviceLimits.maxPerStageDescriptorSamplers;
   limits.maxPushConstantSize = deviceLimits.maxPushConstantsSize;
 
   return limits;
