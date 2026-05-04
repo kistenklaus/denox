@@ -17,3 +17,5 @@ Action parse_version(std::span<const Token> tokens);
 Action parse_help(std::span<const Token> tokens);
 
 Action parse_dumpcsv(std::span<const Token> tokens);
+
+Action parse_reweight(std::span<const Token> tokens);

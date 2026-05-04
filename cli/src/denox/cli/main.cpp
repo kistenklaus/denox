@@ -6,6 +6,7 @@
 #include "denox/cli/infer.hpp"
 #include "denox/cli/parser/parse.hpp"
 #include "denox/cli/populate.hpp"
+#include "denox/cli/reweight.hpp"
 #include "denox/cli/version.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/io/fs/Path.hpp"
@@ -38,6 +39,9 @@ int main(int argc, char **argv) {
       break;
     case ActionKind::DumpCsv:
       dumpcsv(action.dumpcsv());
+      break;
+    case ActionKind::Reweight:
+      reweight(action.reweight());
       break;
     }
   } catch (const std::exception &e) {

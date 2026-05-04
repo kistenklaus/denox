@@ -6,6 +6,7 @@ enum class HelpScope {
   Compile,
   Infer,
   Populate,
+  Reweight,
 };
 
 struct HelpAction {

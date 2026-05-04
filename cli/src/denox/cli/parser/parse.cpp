@@ -41,7 +41,6 @@ Action parse_argv(int argc, char **argv) {
     }
   }
 
-
   const auto &cmd = first.command();
   switch (cmd) {
   case CommandToken::Compile:
@@ -58,6 +57,8 @@ Action parse_argv(int argc, char **argv) {
     return parse_help(std::span{tokens.begin() + 1, tokens.end()});
   case CommandToken::DumpCsv:
     return parse_dumpcsv(std::span{tokens.begin() + 1, tokens.end()});
+  case CommandToken::Reweight:
+    return parse_reweight(std::span{tokens.begin() + 1, tokens.end()});
   }
   throw std::runtime_error("unreachable");
 }

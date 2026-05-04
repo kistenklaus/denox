@@ -26,6 +26,9 @@ std::optional<CommandToken> parse_command(std::string_view str) {
   if (str == "dumpcsv") {
     return CommandToken::DumpCsv;
   }
+  if (str == "reweight") {
+    return CommandToken::Reweight;
+  }
 
   return std::nullopt;
 }

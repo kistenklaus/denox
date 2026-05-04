@@ -24,6 +24,7 @@ add_executable(denox
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/help.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/infer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/populate.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/reweight.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/version.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/main.cpp

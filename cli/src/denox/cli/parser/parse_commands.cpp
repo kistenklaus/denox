@@ -1,6 +1,7 @@
 #include "denox/cli/parser/parse_commands.hpp"
 #include "denox/cli/io/Pipe.hpp"
 #include "denox/cli/parser/action.hpp"
+#include "denox/cli/parser/actions/reweight.hpp"
 #include "denox/cli/parser/errors.hpp"
 #include "denox/cli/parser/parse_artefact.hpp"
 #include "denox/cli/parser/parse_options.hpp"
@@ -287,7 +288,8 @@ Action parse_populate(std::span<const Token> tokens) {
 
   const auto &dbToken = tokens.front();
   if (dbToken.kind() != TokenKind::Literal) {
-    throw ParseError(fmt::format("expected database path as first argument, got {}", dbToken));
+    throw ParseError(fmt::format(
+        "expected database path as first argument, got {}", dbToken));
   }
   if (!dbToken.literal().is_path()) {
     throw ParseError(
@@ -1018,5 +1020,142 @@ Action parse_dumpcsv(std::span<const Token> tokens) {
   return DumpCsvAction{
       .database = std::move(database),
       .csv = csv,
+  };
+}
+
+Action parse_reweight(std::span<const Token> tokens) {
+  if (tokens.empty()) {
+    throw ParseError("missing position arguments: reference artefact (dnx) and "
+                     "reference model (onnx)");
+  }
+
+  if (parse_help(tokens, nullptr)) {
+    return HelpAction(HelpScope::Reweight);
+  }
+  // denox reweight old.dnx weights.onnx -o new.dnx
+
+  if (tokens.size() < 2) {
+    throw ParseError(fmt::format("reweight expectes two positional arguments"));
+  }
+
+  // --- Parse reference artefact (first positional) ---
+  ArtefactParseResult referenceArtefactResult = parse_artefact(tokens.front());
+  if (referenceArtefactResult.error.has_value()) {
+    switch (*referenceArtefactResult.error) {
+    case ArtefactParseError::NotAnArtefactToken:
+      denox::diag::invalid_state();
+    case ArtefactParseError::PathDoesNotExist:
+      throw ParseError(fmt::format("Path does not exist"));
+    case ArtefactParseError::UnrecognizedFormat:
+      throw ParseError(fmt::format("Unregonized format"));
+    case ArtefactParseError::DatabasePiped:
+      throw ParseError(fmt::format("Databases cannot be piped"));
+    case ArtefactParseError::AmbiguousFormat:
+      throw ParseError(fmt::format("Input format is ambiguous"));
+    }
+  }
+  assert(referenceArtefactResult.artefact.has_value());
+  if (referenceArtefactResult.artefact->kind() != ArtefactKind::Dnx) {
+    throw ParseError(
+        fmt::format("rebind expect a dnx artefact as first argument, got {}",
+                    referenceArtefactResult.artefact->kind()));
+  }
+  DnxArtefact referenceArtefact = referenceArtefactResult.artefact->dnx();
+
+  // --- Parse reference model (second positional) ---
+  ArtefactParseResult referenceModelResult = parse_artefact(tokens[1]);
+  if (referenceModelResult.artefact &&
+      referenceModelResult.artefact->kind() != ArtefactKind::Onnx) {
+    throw ParseError(
+        fmt::format("expected ONNX model as second argument, got {}",
+                    referenceModelResult.artefact->kind()));
+  }
+  if (referenceModelResult.error.has_value()) {
+    switch (*referenceModelResult.error) {
+    case ArtefactParseError::NotAnArtefactToken:
+      denox::diag::invalid_state();
+    case ArtefactParseError::PathDoesNotExist:
+      throw ParseError(fmt::format("Path does not exist"));
+    case ArtefactParseError::UnrecognizedFormat:
+      throw ParseError(fmt::format("Unregonized format"));
+    case ArtefactParseError::DatabasePiped:
+      throw ParseError(fmt::format("Databases cannot be piped"));
+    case ArtefactParseError::AmbiguousFormat:
+      throw ParseError(fmt::format("Input format is ambiguous"));
+    }
+  }
+  OnnxArtefact refmodel = referenceModelResult.artefact->onnx();
+  denox::memory::optional<IOEndpoint> output;
+
+  bool help = false;
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
+
+  // parse remaining arguments
+  uint32_t i = 2;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    // --- positional arguments are not allowed here ---
+    if (tokens[i].kind() == TokenKind::Literal ||
+        tokens[i].kind() == TokenKind::Pipe) {
+      throw ParseError(fmt::format("unexpected positional argument {}",
+                                   describe_token(tokens[i])));
+    }
+    if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_verbose(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_quiet(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_color(tail, &logcolors))) {
+      i += jump;
+      continue;
+    }
+
+    // --- options with arguments ---
+    if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+  if (help) {
+    return HelpAction(HelpScope::Compile);
+  }
+
+  if (!output.has_value()) {
+    throw ParseError(
+        fmt::format("reweight requires \"--output=output.dnx\" argument."));
+  }
+  IOEndpoint out = output.value_or([&]() -> IOEndpoint {
+    switch (refmodel.endpoint.kind()) {
+    case IOEndpointKind::Path:
+      return refmodel.endpoint.path().with_extension("dnx");
+    case IOEndpointKind::Pipe:
+      return denox::io::Path::assets() / "a.dnx";
+    }
+    denox::diag::unreachable();
+  }());
+
+  return ReweightAction{
+      .reference_artefact = std::move(referenceArtefact),
+      .reference_model = std::move(refmodel),
+      .output = *output,
+      .loglevel = loglevel,
+      .logcolors = logcolors,
   };
 }

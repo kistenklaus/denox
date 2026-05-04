@@ -9,7 +9,8 @@ enum class CommandToken {
   Infer,
   Version,
   Help,
-  DumpCsv
+  DumpCsv,
+  Reweight,
 };
 
 std::optional<CommandToken> parse_command(std::string_view str);
@@ -33,7 +34,8 @@ struct fmt::formatter<CommandToken> {
       case CommandToken::Help:      name = "help"; break;
       case CommandToken::Infer:     name = "infer"; break;
       case CommandToken::DumpCsv:   name = "dumpcsv"; break;
-    }
+      case CommandToken::Reweight: name = "reweight"; break;
+      }
 
     return fmt::format_to(ctx.out(), "{}", name);
   }
