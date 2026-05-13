@@ -96,6 +96,7 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
         device_info->max_compute_workgroup_subgroups();
     options.deviceInfo.limits.maxComputeSharedMemory =
         device_info->max_compute_shared_memory();
+
     options.deviceInfo.limits.maxPushConstantSize =
         device_info->max_push_constant_size();
 
@@ -217,7 +218,7 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
         case dnx::ScalarType_U64: {
           uint64_t v;
           std::memcpy(&v, literal->bytes()->data(), sizeof(uint64_t));
-          value = Sym::FConst(static_cast<int64_t>(v));
+          value = Sym::Const(static_cast<int64_t>(v));
           break;
         }
         case dnx::ScalarType_F16:
@@ -266,6 +267,7 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
         break;
       case dnx::TensorFormat_TEX_RG:
         format = TensorFormat::TEX_RG;
+        break;
       case dnx::TensorFormat_TEX_R:
         format = TensorFormat::TEX_R;
         break;
@@ -381,6 +383,8 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
       }
     }
   }
+  // recover optimization level
+  options.optimizationLevel = compilation_info->optimization_level();
 
   return options;
 }

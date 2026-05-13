@@ -230,6 +230,7 @@ table CompilationInfo {
   descriptor_policy:DescriptorPolicy;
   features:CompilationFeatures;
   device_info:DeviceInfo;
+  optimization_level:uint32;
 }
 
 

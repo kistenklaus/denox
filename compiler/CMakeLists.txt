@@ -20,8 +20,6 @@ set(ASSET_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pool/basic_pool.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/slice/memory_slice.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/basic_upsample.configs
-
-
 )
 
 add_custom_target(denox_compiler_shaders ALL)
@@ -139,6 +137,9 @@ add_library(denox_compiler
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/populate.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/reweight.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/recover_options/recover_options.cpp
 )
 
 target_include_directories(denox_compiler

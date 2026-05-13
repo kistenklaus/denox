@@ -115,6 +115,7 @@ serialize_device_info(flatbuffers::FlatBufferBuilder &fbb,
           : std::numeric_limits<uint32_t>::max();
   const uint32_t max_compute_shared_memory =
       deviceInfo.limits.maxComputeSharedMemory;
+
   const uint32_t max_push_constant_size = deviceInfo.limits.maxPushConstantSize;
   flatbuffers::Offset<flatbuffers::Vector<uint32_t>> supported_subgroup_sizes;
   if (deviceInfo.subgroup.controlProperties.supported) {
@@ -153,8 +154,10 @@ serialize_device_info(flatbuffers::FlatBufferBuilder &fbb,
       max_compute_workgroup_count_y, max_compute_workgroup_count_z,
       max_compute_workgroup_size_x, max_compute_workgroup_size_y,
       max_compute_workgroup_size_z, max_compute_workgroup_invocations,
-      max_compute_workgroup_subgroups, max_push_constant_size,
-      max_compute_shared_memory, supported_subgroup_sizes, subgroup_basic_ops,
+      max_compute_workgroup_subgroups, 
+      max_compute_shared_memory, 
+      max_push_constant_size,
+      supported_subgroup_sizes, subgroup_basic_ops,
       subgroup_vote_ops, subgroup_arithmetic_ops, subgroup_ballot_ops,
       subgroup_shuffle_ops, subgroup_shuffle_relative_ops, vulkan_memory_model,
       vulkan_memory_model_device_scope, supported_coopmat_shapes);
@@ -240,7 +243,8 @@ serialize_compilation_info(flatbuffers::FlatBufferBuilder &fbb,
   flatbuffers::Offset<denox::dnx::DeviceInfo> device_info =
       serialize_device_info(fbb, options.deviceInfo);
   return dnx::CreateCompilationInfo(fbb, assumptions, descriptor_policy,
-                                    features, device_info);
+                                    features, device_info,
+                                    options.optimizationLevel);
 }
 
 static flatbuffers::Offset<denox::dnx::ModelInfo>

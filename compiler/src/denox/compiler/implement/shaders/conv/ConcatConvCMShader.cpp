@@ -417,6 +417,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
           (config.b_cm_k % 8 != 0) || (config.cm_n % 8 != 0)) {
         continue;
       }
+
       bool a_shape_supported = false;
       for (const denox::CoopmatShape &shape :
            options.deviceInfo.coopmat.shapes) {
@@ -446,6 +447,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       if (!a_shape_supported || !b_shape_supported) {
         continue;
       }
+
 
       const uint32_t acc_register_estimate =
           (config.cm_m * config.cm_n) / config.subgroupSize;
@@ -500,6 +502,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
         continue; // uneven load balancing between subgroups.
       }
 
+
       const uint32_t A_prefetch_B_SQQ = A_prefetch_B_QQ / config.wg_m;
       const uint32_t B_prefetch_B_SQQ = B_prefetch_B_QQ / config.wg_m;
 
@@ -539,6 +542,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                   // drastically)
       }
 
+
       const uint32_t A_sh_a_size = (config.wg_m * config.cm_m * config.a_cm_k *
                                     config.a_sg_k * config.sg_m) *
                                    2;
@@ -569,6 +573,7 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       if (sh_size > options.deviceInfo.limits.maxComputeSharedMemory) {
         continue;
       }
+
       m_configs.push_back(config);
     }
   }
@@ -1023,13 +1028,13 @@ memory::vector<unsigned int> ConcatConvCMShader::acceptMatch(
     }
 
     if (m_optimizationLevel <= 2) {
-      if (config.a_async != config.b_async) { 
+      if (config.a_async != config.b_async) {
         continue;
       }
       if (config.a_cm_k != config.b_cm_k) {
         continue;
       }
-      if (config.a_sg_k != config.b_sg_k) { 
+      if (config.a_sg_k != config.b_sg_k) {
         continue;
       }
     }
