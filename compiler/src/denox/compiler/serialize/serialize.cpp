@@ -154,10 +154,8 @@ serialize_device_info(flatbuffers::FlatBufferBuilder &fbb,
       max_compute_workgroup_count_y, max_compute_workgroup_count_z,
       max_compute_workgroup_size_x, max_compute_workgroup_size_y,
       max_compute_workgroup_size_z, max_compute_workgroup_invocations,
-      max_compute_workgroup_subgroups, 
-      max_compute_shared_memory, 
-      max_push_constant_size,
-      supported_subgroup_sizes, subgroup_basic_ops,
+      max_compute_workgroup_subgroups, max_compute_shared_memory,
+      max_push_constant_size, supported_subgroup_sizes, subgroup_basic_ops,
       subgroup_vote_ops, subgroup_arithmetic_ops, subgroup_ballot_ops,
       subgroup_shuffle_ops, subgroup_shuffle_relative_ops, vulkan_memory_model,
       vulkan_memory_model_device_scope, supported_coopmat_shapes);
@@ -701,7 +699,9 @@ serialize_dispatches(flatbuffers::FlatBufferBuilder &fbb,
 static flatbuffers::Offset<denox::dnx::ShaderBinary>
 serialize_shader_binary(flatbuffers::FlatBufferBuilder &fbb,
                         const SpirvBinary &binary) {
-  return dnx::CreateShaderBinary(fbb, fbb.CreateVector(binary.spv));
+  const dnx::SHA256 source_hash{binary.source_hash.h};
+  return dnx::CreateShaderBinary(fbb, fbb.CreateVector(binary.spv),
+                                 &source_hash);
 }
 
 static flatbuffers::Offset<

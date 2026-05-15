@@ -153,7 +153,8 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
           return memory::Dtype::F32;
         case dnx::ScalarType_F64:
           return memory::Dtype::F64;
-          break;
+        default:
+          diag::unreachable();
         }
       };
 
@@ -307,6 +308,7 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
         break;
       case dnx::ScalarType_F64:
         dtype = TensorDataType::Float64;
+        break;
       default:
         diag::unreachable();
       }
@@ -334,7 +336,6 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
       throw std::runtime_error("Failed to recover options from dnx artefact. "
                                "Missing debug information.");
     }
-    uint32_t name_acc = 0;
     for (const dnx::Assumption *assumption : *assumptions) {
       Sym::symbol sid = static_cast<Sym::symbol>(assumption->sid());
       uint32_t value = assumption->value();
@@ -378,6 +379,45 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
             desc.height = value;
             found = true;
             break;
+          }
+        }
+      }
+
+      if (!found) {
+        for (const uint32_t outputTensorId : *dnx->outputs()) {
+          const auto *tensor = dnx->tensors()->Get(outputTensorId);
+          auto *info = tensor->info();
+          if (info == nullptr || info->name() == nullptr) {
+            throw std::runtime_error(
+                "Failed to recover options from dnx artefact. "
+                "Missing debug information.");
+          }
+          memory::string name{info->name()->begin(), info->name()->end()};
+          auto it = std::ranges::find_if(
+              options.interfaceDescriptors,
+              [&](const auto &desc) -> bool { return desc.name == name; });
+          assert(it != options.interfaceDescriptors.end());
+          InterfaceTensorDescriptor &desc = *it;
+          if (info->channels_type() == dnx::ScalarSource_symbolic) {
+            const uint32_t csid = info->channels_as_symbolic()->sid();
+            if (csid == sid) {
+              desc.channels = value;
+              break;
+            }
+          }
+          if (info->width_type() == dnx::ScalarSource_symbolic) {
+            const uint32_t wsid = info->width_as_symbolic()->sid();
+            if (wsid == sid) {
+              desc.width = value;
+              break;
+            }
+          }
+          if (info->height_type() == dnx::ScalarSource_symbolic) {
+            const uint32_t hsid = info->height_as_symbolic()->sid();
+            if (hsid == sid) {
+              desc.height = value;
+              break;
+            }
           }
         }
       }

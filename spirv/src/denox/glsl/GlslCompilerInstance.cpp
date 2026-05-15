@@ -5,11 +5,11 @@
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/glsl/GlslPreprocessor.hpp"
 #include "denox/memory/container/vector.hpp"
+#include <SPIRV/GlslangToSpv.h>
+#include <SPIRV/Logger.h>
 #include <glslang/Include/ResourceLimits.h>
 #include <glslang/MachineIndependent/Versions.h>
 #include <glslang/Public/ShaderLang.h>
-#include <SPIRV/GlslangToSpv.h>
-#include <SPIRV/Logger.h>
 #include <iostream>
 #include <spirv-tools/libspirv.h>
 #include <spirv-tools/libspirv.hpp>
@@ -164,7 +164,11 @@ CompilationResult GlslCompilerInstance::compile() const {
               << std::endl;
   }
 
-  SpirvBinary binary{spirv};
+  SpirvBinary binary{
+      .spv = spirv,
+      .source_hash = this->fast_sha256(),
+
+  };
   if (!m_compiler->m_tools->validate(binary)) {
     return CompilationError{
         .stage = CompilationStage::SpirvToolsVal,

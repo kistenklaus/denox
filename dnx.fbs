@@ -250,8 +250,13 @@ table ValueName {
   value: ScalarSource;
 }
 
+struct SHA256 {
+  hash:[uint32:8];
+}
+
 table ShaderBinary {
   spirv:[uint32];
+  source_hash:SHA256;
 }
 
 table Model {

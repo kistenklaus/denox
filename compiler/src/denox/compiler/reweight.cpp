@@ -5,6 +5,7 @@
 #include "denox/compiler/dce/prune_dead_supergraph.hpp"
 #include "denox/compiler/dce/prune_topological.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
+#include "denox/compiler/implement/SuperGraphEdge.hpp"
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/compiler/recover_options/recover_options.hpp"
@@ -13,6 +14,7 @@
 #include "denox/io/fs/FileCache.hpp"
 #include "denox/spirv/SpirvTools.hpp"
 
+#include <cstring>
 #include <fmt/printf.h>
 
 void denox::reweight(memory::span<std::byte> dnx,
@@ -37,13 +39,20 @@ void denox::reweight(memory::span<std::byte> dnx,
       compiler::implement(cmodel, cano.symGraph, &glslCompiler, options, logger,
                           progress.sub_progress(0.0f, 0.2f));
 
-  // if (options.optimizationLevel >= 5) {
-  //   compiler::prune_dead_supergraph(supergraph, cmodel);
-  // } else {
-  //   compiler::prune_topological(supergraph, cmodel,
-  //                               progress.sub_progress(0.21f, 0.28f), logger);
-  // }
+  if (options.optimizationLevel >= 5) {
+    compiler::prune_dead_supergraph(supergraph, cmodel);
+  } else {
+    compiler::prune_topological(supergraph, cmodel,
+                                progress.sub_progress(0.21f, 0.28f), logger);
+  }
 
-  // TODO: keep only supergraph edges, that
-  // exist in the dnx
+  memory::vector<compiler::SuperGraphEdge> redges;
+  // TODO: parse edges from dnx artefact.
+  // NOTE: SuperGraphEdge is not the correct datastructure here.
+
+  fmt::println("edge-count: {}", supergraph.graph.edgeCount());
+  // TODO: keep only supergraph edges, that are in redges.
+  // It's probably fine just to do a linear scan per edge,
+  // kind of slow put probably fast enough.
+  // Could be a bit slow with opt=5, but that is not recommended anyway.
 }
