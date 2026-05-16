@@ -11,6 +11,7 @@
 #include <cstring>
 #include <dnx.h>
 #include <stdexcept>
+#include <type_traits>
 
 namespace denox::compiler {
 
@@ -21,6 +22,7 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
   const uint32_t dnxTensorCount = dnx->tensors()->size();
 
   memory::vector<Sym> dnxSymbols;
+
   SymGraph &symGraph = supergraph.symGraph;
   symGraph.debugDump();
   {
@@ -28,6 +30,7 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
     // 1. Determine what SymGraph symbol dnx symbolic variables correspond to!
     const dnx::SymIR *symir = dnx->sym_ir();
     const uint32_t varCount = symir->var_count();
+    dnxSymbols.reserve(varCount + symir->ops()->size());
     for (uint32_t v = 0; v < varCount; ++v) {
       // 1. Search dnx for input tensor, which has a
       //    dynamic shape with SymbolicSource(sid)
@@ -81,7 +84,7 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
     const uint32_t opCount = symir->ops()->size();
     for (uint32_t o = 0; o < opCount; ++o) {
       const dnx::SymIROp *op = symir->ops()->Get(o);
-      const dnx::SymIROpCode opcode = op->opcode();
+      dnx::SymIROpCode opcode = op->opcode();
 
       Sym lhs;
       if (opcode & dnx::SymIROpCode_LHSC) {
@@ -95,22 +98,29 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
       } else {
         rhs = dnxSymbols[static_cast<size_t>(op->rhs())];
       }
+      using ut = std::underlying_type_t<dnx::SymIROpCode>;
+      opcode = static_cast<dnx::SymIROpCode>((static_cast<ut>(opcode) & ~(static_cast<ut>(dnx::SymIROpCode_LHSC) |
+                           static_cast<ut>(dnx::SymIROpCode_RHSC))));
 
       Sym &out = dnxSymbols.emplace_back();
 
-      if (opcode & dnx::SymIROpCode_ADD) {
+      if (opcode == dnx::SymIROpCode_ADD) {
         out = symGraph.add(lhs, rhs);
-      } else if (opcode & dnx::SymIROpCode_SUB) {
+      } else if (opcode == dnx::SymIROpCode_SUB) {
         out = symGraph.sub(lhs, rhs);
-      } else if (opcode & dnx::SymIROpCode_MUL) {
+      } else if (opcode == dnx::SymIROpCode_MUL) {
         out = symGraph.mul(lhs, rhs);
-      } else if (opcode & dnx::SymIROpCode_DIV) {
-        out = symGraph.div(lhs, rhs, false, false);
-      } else if (opcode & dnx::SymIROpCode_MOD) {
+      } else if (opcode == dnx::SymIROpCode_DIV) {
+        out = symGraph.div(lhs, rhs, false, true);
+        // NOTE: Theoretically modproofs, should actually be fine here, because
+        // we should theoretically only go through paths, that we have already
+        // looked at, thereby modproofs should not blow up memory
+        // but something is definitely not working right now.
+      } else if (opcode == dnx::SymIROpCode_MOD) {
         out = symGraph.mod(lhs, rhs);
-      } else if (opcode & dnx::SymIROpCode_MIN) {
+      } else if (opcode == dnx::SymIROpCode_MIN) {
         out = symGraph.min(lhs, rhs);
-      } else if (opcode & dnx::SymIROpCode_MAX) {
+      } else if (opcode == dnx::SymIROpCode_MAX) {
         out = symGraph.max(lhs, rhs);
       } else {
         diag::invalid_state("Invalid dnx symir");
@@ -178,6 +188,12 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
             continue; // different code
           }
 
+          fmt::println("CANDIDATE:");
+          fmt::println("dnx-name: {}",
+                       dnxDispatch->info()->name()->string_view());
+          fmt::println("    name: {}", *dispatch.info.name);
+          fmt::println("      op: {}", *dispatch.info.operation);
+
           // NOTE: This is where it get's really really difficult!
 
           { // check workgroup count X
@@ -199,11 +215,31 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
                   dnxSymbols[dnxDispatch->workgroup_count_y_as_symbolic()
                                  ->sid()];
               if (dnxSym != dispatch.workgroupCountY) {
-                fmt::println("{} : {}\n!=\n{} : {}", dnxSym, symGraph.to_string(dnxSym),
-                    dispatch.workgroupCountY, symGraph.to_string(dispatch.workgroupCountY));
-                continue; // different workgroupCountY
+                fmt::println("workgroup-count-y:\ndnx: {} : {}\n     {} : {}",
+                             dnxSym, symGraph.to_string(dnxSym),
+                             dispatch.workgroupCountY,
+                             symGraph.to_string(dispatch.workgroupCountY));
+                // continue; // different workgroupCountY
               }
             }
+          }
+
+          fmt::println("dnx push-constants:");
+          const dnx::PushConstant *pc = dnxDispatch->push_constant();
+          const uint32_t pcCount = pc->fields()->size();
+          for (uint32_t p = 0; p < pcCount; ++p) {
+            const dnx::PushConstantField *field =
+                dnxDispatch->push_constant()->fields()->Get(p);
+            if (field->source_type() == dnx::ScalarSource_symbolic) {
+              uint32_t sid = field->source_as_symbolic()->sid();
+              Sym s = dnxSymbols[sid];
+              fmt::println("pc[{}]: {} -> {}", p, s, symGraph.to_string(s));
+            }
+          }
+          fmt::println("push constants:");
+          for (const auto &pc : dispatch.pushConstants) {
+            Sym s = pc.sym();
+            fmt::println("pc[]: {} -> {}", s, symGraph.to_string(s));
           }
 
           // { // check workgroup count Z
