@@ -34,9 +34,13 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
   // Collect unique shader binaries.
   for (size_t i = 0; i < schedule.dispatches.size(); ++i) {
     auto &dispatch = schedule.dispatches[i];
-    SHA256Builder hasher;
-    dispatch.glsl.sha256(hasher);
-    SHA256 hash = hasher.finalize();
+    // SHA256Builder hasher;
+    // dispatch.glsl.sha256(hasher);
+    // SHA256 hash = hasher.finalize();
+    // NOTE: I think this should be equalivalent, but 
+    // if something stops working, this is a good place to take a deeper look!
+    SHA256 hash = dispatch.glsl.fast_sha256();
+
     if (targets.contains(hash)) {
       targets.at(hash).dispatches.push_back(i);
     } else {
@@ -81,6 +85,7 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
     memory::optional<SpirvBinary> cachedBinary = db.query_shader_binary(hash);
     if (cachedBinary.has_value()) {
       binaries[i] = *cachedBinary;
+      assert(binaries[i].source_hash == hash);
     } else {
       units.push_back(GlslCompilationUnit{
           .binaryId = i,
@@ -105,7 +110,6 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                 logger.green(),
                 unit.glsl.getSourcePath().relative_to(io::Path::assets()),
                 logger.reset());
-    // fmt::println("preamble:\n{}", unit.glsl.getPreamble());
 
     SpirvBinary binary = *unit.glsl.compile();
 

@@ -327,6 +327,96 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
           .channels = memory::nullopt,
       });
     }
+
+    assert(dnx->outputs() != nullptr);
+    assert(dnx->tensors() != nullptr);
+    for (uint32_t tid : *dnx->outputs()) {
+      const auto *output = dnx->tensors()->Get(tid);
+      if (output->info() == nullptr || output->info()->name() == nullptr) {
+        throw std::runtime_error("Failed to recover options from dnx artefact. "
+                                 "Missing debug information.");
+      }
+      const auto *info = output->info();
+      TensorFormat format;
+      switch (info->format()) {
+      case dnx::TensorFormat_UNKNOWN:
+        diag::invalid_state();
+      case dnx::TensorFormat_SSBO_HWC:
+        format = TensorFormat::SSBO_HWC;
+        break;
+      case dnx::TensorFormat_SSBO_CHW:
+        format = TensorFormat::SSBO_CHW;
+        break;
+      case dnx::TensorFormat_SSBO_CHWC8:
+        format = TensorFormat::SSBO_CHWC8;
+        break;
+      case dnx::TensorFormat_TEX_RGBA:
+        format = TensorFormat::TEX_RGBA;
+        break;
+      case dnx::TensorFormat_TEX_RGB:
+        format = TensorFormat::TEX_RGB;
+        break;
+      case dnx::TensorFormat_TEX_RG:
+        format = TensorFormat::TEX_RG;
+        break;
+      case dnx::TensorFormat_TEX_R:
+        format = TensorFormat::TEX_R;
+        break;
+      default:
+        diag::unreachable();
+      }
+
+      TensorStorage storage;
+      switch (info->storage()) {
+      case dnx::TensorStorage_StorageBuffer:
+        storage = TensorStorage::StorageBuffer;
+        break;
+      case dnx::TensorStorage_StorageImage:
+        storage = TensorStorage::StorageBuffer;
+        break;
+      case dnx::TensorStorage_SampledStorageImage:
+        storage = TensorStorage::StorageBuffer;
+        break;
+      default:
+        diag::unreachable();
+      }
+
+      TensorDataType dtype;
+      switch (info->type()) {
+      case dnx::ScalarType_I16:
+      case dnx::ScalarType_U16:
+        diag::invalid_state();
+      case dnx::ScalarType_I32:
+      case dnx::ScalarType_U32:
+      case dnx::ScalarType_I64:
+      case dnx::ScalarType_U64:
+      case dnx::ScalarType_F16:
+        dtype = TensorDataType::Float16;
+        break;
+      case dnx::ScalarType_F32:
+        dtype = TensorDataType::Float32;
+        break;
+      case dnx::ScalarType_F64:
+        dtype = TensorDataType::Float64;
+        break;
+      default:
+        diag::unreachable();
+      }
+
+      memory::string name{info->name()->begin(), info->name()->end()};
+      options.interfaceDescriptors.push_back(InterfaceTensorDescriptor{
+          .name = std::move(name),
+          .format = format,
+          .storage = storage,
+          .dtype = dtype,
+          .heightValueName = memory::nullopt,
+          .height = memory::nullopt,
+          .widthValueName = memory::nullopt,
+          .width = memory::nullopt,
+          .channelValueName = memory::nullopt,
+          .channels = memory::nullopt,
+      });
+    }
   }
 
   // partially recover assumptions:

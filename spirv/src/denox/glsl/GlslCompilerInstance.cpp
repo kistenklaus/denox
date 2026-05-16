@@ -19,6 +19,7 @@ namespace denox::spirv {
 
 CompilationResult GlslCompilerInstance::compile() const {
   std::lock_guard lck{*m_mutex};
+  SHA256 hash = fast_sha256();
 
   ::glslang::TShader shader(EShLangCompute);
   shader.setSourceFile(m_sourcePath.cstr());
@@ -166,7 +167,7 @@ CompilationResult GlslCompilerInstance::compile() const {
 
   SpirvBinary binary{
       .spv = spirv,
-      .source_hash = this->fast_sha256(),
+      .source_hash = hash,
 
   };
   if (!m_compiler->m_tools->validate(binary)) {

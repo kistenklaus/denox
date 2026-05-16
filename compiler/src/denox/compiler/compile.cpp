@@ -22,11 +22,13 @@
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/runtime/db.hpp"
 #include "denox/spirv/SpirvTools.hpp"
+#include <dnx.h>
 
 denox::memory::vector<std::byte>
 denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                const memory::optional<runtime::ContextHandle> ctx,
-               const compiler::CompileOptions &options, const diag::Logger& logger) {
+               const compiler::CompileOptions &options,
+               const diag::Logger &logger) {
   diag::Progress progress{};
 
   runtime::ContextHandle context;
@@ -69,6 +71,20 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
                                 progress.sub_progress(0.21f, 0.28f), logger);
   }
 
+  // {
+  //   SHA256Builder hasher;
+  //   for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
+  //     memory::EdgeId eid{e};
+  //     const auto &edge = supergraph.graph.get(eid);
+  //     for (const auto &dispatch : edge.dispatches) {
+  //       SHA256 hash = dispatch.glsl.fast_sha256();
+  //       hasher.update(memory::span{reinterpret_cast<const uint8_t *>(hash.h),
+  //                                  sizeof(uint32_t) * 8});
+  //     }
+  //   }
+  //   SHA256 hash = hasher.finalize();
+  //   fmt::println("edge-hash: {}", hash);
+  // }
 
   SymGraphEval symeval = compiler::assumed_symeval(supergraph.symGraph,
                                                    model.valueNames(), options);
@@ -86,6 +102,8 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
     runtimeDb->bench(benchOptions, progress.sub_progress(0.5f, 0.95f), logger);
   }
 
+  compiler::SuperGraph supergraphCopy = supergraph;
+
   compiler::OptSchedule optSchedule = compiler::select_schedule(
       std::move(supergraph), db, model, symeval, options,
       progress.sub_progress(0.95f, 0.99f), logger);
@@ -94,11 +112,13 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
       optSchedule, progress.sub_progress(0.95f, 0.97f), logger);
 
   SHA256Builder hasher;
-  for (const auto& dis : memSchedule.dispatches) {
+  for (const auto &dis : memSchedule.dispatches) {
     // fmt::println("name: {}", dis.info.name);
     // fmt::println("shader-sha: {}", dis.glsl.fast_sha256());
     // fmt::println("preamble: \n{}", dis.glsl.getPreamble());
-    hasher.update(memory::span{reinterpret_cast<uint8_t*>(dis.glsl.fast_sha256().h), 8 * sizeof(uint32_t)});
+    hasher.update(
+        memory::span{reinterpret_cast<uint8_t *>(dis.glsl.fast_sha256().h),
+                     8 * sizeof(uint32_t)});
   }
   fmt::println("SHADER-HASH: {}", hasher.finalize());
 
@@ -109,6 +129,40 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
       schedule, model, options, progress.sub_progress(0.97f, 0.98f), logger);
   memory::vector<std::byte> dnxbuf =
       compiler::serialize(schedule, sprog, model, options);
+
+  { // small sanity check (TODO remove me later)
+    const dnx::Model* dnx = denox::dnx::GetModel(dnxbuf.data());
+    const uint32_t dispatchCount = dnx->dispatches()->size();
+    for (uint32_t d = 0; d < dispatchCount; ++d) {
+      // foreach dispatch in dnx 
+      //  search for edge with a dispatch, which has the name binary source hash.
+      const dnx::ComputeDispatch* dnxDispatch = dnx->dispatches()->Get(d);
+      const uint32_t dnxBinaryId = dnxDispatch->binary_id();
+      const dnx::ShaderBinary* dnxBinary = dnx->shader_binaries()->Get(dnxBinaryId);
+      SHA256 dnxSourceHash;
+      std::memcpy(dnxSourceHash.h, 
+          dnxBinary->source_hash()->hash()->data(), sizeof(uint32_t) * 8);
+      fmt::println("DNX SourceHash: {}", dnxSourceHash);
+  
+      bool match = false;
+  
+      for (uint32_t e = 0; e < supergraphCopy.graph.edgeCount(); ++e) {
+        const memory::EdgeId eid{e};
+        const auto& edge = supergraphCopy.graph.get(eid);
+        for (const auto& dispatch : edge.dispatches) {
+          SHA256 hash = dispatch.glsl.fast_sha256();
+          if (hash == dnxSourceHash) {
+            match = true;
+          }
+        }
+      }
+      if (match) {
+        fmt::println("dnx dispatch in supergraph");
+      } else {
+        fmt::println("dnx dispatch not found in supergraph");
+      }
+    }
+  }
 
   progress.step(logger, 1.0f, "Build dnx artefact");
   return dnxbuf;

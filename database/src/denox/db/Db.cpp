@@ -156,6 +156,7 @@ Db::query_shader_binary(const SHA256 &srcHash) const {
   SpirvBinary out;
   out.spv.resize(word_count);
   std::memcpy(out.spv.data(), blob.data(), blob.size());
+  out.source_hash = srcHash;
   return out;
 }
 

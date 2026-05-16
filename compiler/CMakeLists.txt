@@ -140,6 +140,8 @@ add_library(denox_compiler
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/reweight.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/recover_options/recover_options.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/select_dnx_edges/select_dnx_edges.cpp
 )
 
 target_include_directories(denox_compiler
