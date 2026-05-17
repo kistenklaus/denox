@@ -1,4 +1,4 @@
-#include "denox/compiler/select_dnx_edges/select_dnx_edges.hpp"
+#include "denox/compiler/reweight_dnx/reweight_dnx.hpp"
 #include "denox/common/SHA256.hpp"
 #include "denox/compiler/implement/ComputeDispatch.hpp"
 #include "denox/compiler/implement/Supergraph.hpp"
@@ -15,8 +15,7 @@
 
 namespace denox::compiler {
 
-SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
-                            SuperGraph &supergraph) {
+void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
 
   const dnx::Model *dnx = dnx::GetModel(dnxBuf.data());
   const uint32_t dnxTensorCount = dnx->tensors()->size();
@@ -98,8 +97,9 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
         rhs = dnxSymbols[static_cast<size_t>(op->rhs())];
       }
       using ut = std::underlying_type_t<dnx::SymIROpCode>;
-      opcode = static_cast<dnx::SymIROpCode>((static_cast<ut>(opcode) & ~(static_cast<ut>(dnx::SymIROpCode_LHSC) |
-                           static_cast<ut>(dnx::SymIROpCode_RHSC))));
+      opcode = static_cast<dnx::SymIROpCode>((
+          static_cast<ut>(opcode) & ~(static_cast<ut>(dnx::SymIROpCode_LHSC) |
+                                      static_cast<ut>(dnx::SymIROpCode_RHSC))));
 
       Sym &out = dnxSymbols.emplace_back();
 

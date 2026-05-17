@@ -10,7 +10,7 @@
 #include "denox/compiler/implement/implement.hpp"
 #include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/compiler/recover_options/recover_options.hpp"
-#include "denox/compiler/select_dnx_edges/select_dnx_edges.hpp"
+#include "denox/compiler/reweight_dnx/reweight_dnx.hpp"
 #include "denox/compiler/specialization/specialization.hpp"
 #include "denox/glsl/GlslCompiler.hpp"
 #include "denox/io/fs/FileCache.hpp"
@@ -70,7 +70,7 @@ void denox::reweight(memory::span<std::byte> dnx,
   // SHA256 hash = hasher.finalize();
   // fmt::println("edge-hash: {}", hash);
 
-  compiler::select_dnx_edges(dnx, supergraph);
+  compiler::reweight_dnx(dnx, supergraph);
 
   // memory::vector<compiler::SuperGraphEdge> redges;
   // TODO: parse edges from dnx artefact.
