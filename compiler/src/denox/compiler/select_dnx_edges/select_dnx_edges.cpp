@@ -26,7 +26,6 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
   SymGraph &symGraph = supergraph.symGraph;
   symGraph.debugDump();
   {
-    fmt::println("symGraph symbol-count: {}", symGraph.symbolCount());
     // 1. Determine what SymGraph symbol dnx symbolic variables correspond to!
     const dnx::SymIR *symir = dnx->sym_ir();
     const uint32_t varCount = symir->var_count();
@@ -111,7 +110,7 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
       } else if (opcode == dnx::SymIROpCode_MUL) {
         out = symGraph.mul(lhs, rhs);
       } else if (opcode == dnx::SymIROpCode_DIV) {
-        out = symGraph.div(lhs, rhs, false, true);
+        out = symGraph.div(lhs, rhs, false, false);
         // NOTE: Theoretically modproofs, should actually be fine here, because
         // we should theoretically only go through paths, that we have already
         // looked at, thereby modproofs should not blow up memory
@@ -127,11 +126,11 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
       }
     }
 
-    for (Sym s : dnxSymbols) {
-      fmt::println("DnxSymbol: {} : {}", s, symGraph.to_string(s));
-    }
+    // for (Sym s : dnxSymbols) {
+    //   fmt::println("DnxSymbol: {} : {}", s, symGraph.to_string(s));
+    // }
 
-    fmt::println("symGraph symbol-count: {}", symGraph.symbolCount());
+    // fmt::println("symGraph symbol-count: {}", symGraph.symbolCount());
   }
 
   memory::dynamic_bitset dnxIsParameter(dnxTensorCount);
@@ -188,11 +187,11 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
             continue; // different code
           }
 
-          fmt::println("CANDIDATE:");
-          fmt::println("dnx-name: {}",
-                       dnxDispatch->info()->name()->string_view());
-          fmt::println("    name: {}", *dispatch.info.name);
-          fmt::println("      op: {}", *dispatch.info.operation);
+          // fmt::println("CANDIDATE:");
+          // fmt::println("dnx-name: {}",
+          //              dnxDispatch->info()->name()->string_view());
+          // fmt::println("    name: {}", *dispatch.info.name);
+          // fmt::println("      op: {}", *dispatch.info.operation);
 
           // NOTE: This is where it get's really really difficult!
 
@@ -205,6 +204,8 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
               if (dnxSym != dispatch.workgroupCountX) {
                 continue; // different workgroupCountX
               }
+            } else {
+              // TODO: constant comparison.
             }
           }
 
@@ -219,28 +220,47 @@ SuperGraph select_dnx_edges(memory::span<const std::byte> dnxBuf,
                              dnxSym, symGraph.to_string(dnxSym),
                              dispatch.workgroupCountY,
                              symGraph.to_string(dispatch.workgroupCountY));
-                // continue; // different workgroupCountY
+                continue; // different workgroupCountY
               }
+            } else {
+              // TODO constant comparison
+            }
+          }
+          { // check workgroup count Z
+            if (dnxDispatch->workgroup_count_z_type() ==
+                dnx::ScalarSource_symbolic) {
+              Sym dnxSym =
+                  dnxSymbols[dnxDispatch->workgroup_count_z_as_symbolic()
+                                 ->sid()];
+              if (dnxSym != dispatch.workgroupCountZ) {
+                fmt::println("workgroup-count-y:\ndnx: {} : {}\n     {} : {}",
+                             dnxSym, symGraph.to_string(dnxSym),
+                             dispatch.workgroupCountZ,
+                             symGraph.to_string(dispatch.workgroupCountZ));
+                continue; // different workgroupCountY
+              }
+            } else {
+              // TODO constant comparison
             }
           }
 
-          fmt::println("dnx push-constants:");
-          const dnx::PushConstant *pc = dnxDispatch->push_constant();
-          const uint32_t pcCount = pc->fields()->size();
-          for (uint32_t p = 0; p < pcCount; ++p) {
-            const dnx::PushConstantField *field =
-                dnxDispatch->push_constant()->fields()->Get(p);
-            if (field->source_type() == dnx::ScalarSource_symbolic) {
-              uint32_t sid = field->source_as_symbolic()->sid();
-              Sym s = dnxSymbols[sid];
-              fmt::println("pc[{}]: {} -> {}", p, s, symGraph.to_string(s));
-            }
-          }
-          fmt::println("push constants:");
-          for (const auto &pc : dispatch.pushConstants) {
-            Sym s = pc.sym();
-            fmt::println("pc[]: {} -> {}", s, symGraph.to_string(s));
-          }
+          // fmt::println("dnx push-constants:");
+          // const dnx::PushConstant *pc = dnxDispatch->push_constant();
+          // const uint32_t pcCount = pc->fields()->size();
+          // for (uint32_t p = 0; p < pcCount; ++p) {
+          //   const dnx::PushConstantField *field =
+          //       dnxDispatch->push_constant()->fields()->Get(p);
+          //   if (field->source_type() == dnx::ScalarSource_symbolic) {
+          //     uint32_t sid = field->source_as_symbolic()->sid();
+          //     Sym s = dnxSymbols[sid];
+          //     fmt::println("pc[{}]: {} -> {}", p, s, symGraph.to_string(s));
+          //   }
+          // }
+          // fmt::println("push constants:");
+          // for (const auto &pc : dispatch.pushConstants) {
+          //   Sym s = pc.sym();
+          //   fmt::println("pc[]: {} -> {}", s, symGraph.to_string(s));
+          // }
 
           // { // check workgroup count Z
           //   if (dnxDispatch->workgroup_count_z_type() ==

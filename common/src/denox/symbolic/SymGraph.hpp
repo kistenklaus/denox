@@ -33,8 +33,8 @@ private:
   using ModSolverHandle = symbolic::details::ModSolverHandle;
   // NOTE: If we ever hit a case where the modsolver is to weak it's time to 
   // tune those and look where exactly the modsolver blows up.
-  static constexpr size_t MAX_MODSOLVER_DEPTH = 16;
-  static constexpr size_t MAX_MODSOLVER_COUNT = 1 << 16; // ~32K
+  static constexpr size_t MAX_MODSOLVER_DEPTH = 32;
+  static constexpr size_t MAX_MODSOLVER_COUNT = 1 << 20; // ~32K
 
 public:
   using symbol = symbolic::details::symbol;
@@ -192,6 +192,9 @@ public:
 
   std::pair<SymIR, SymRemap>
   compile(const memory::span<const symbol> symbols) const;
+
+  std::pair<SymIR, SymRemap>
+  compile2(const memory::span<const symbol> symbols) const;
 
   std::size_t symbolCount() const { return m_expressions.size(); }
 

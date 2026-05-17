@@ -68,7 +68,7 @@ private:
 
 struct SymIR {
   SymIREval eval(memory::span<const SymSpec> specs) const;
-  std::size_t varCount;
+  std::size_t varCount = 0;
   memory::vector<SymIROp> ops;
 };
 

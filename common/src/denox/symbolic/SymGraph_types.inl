@@ -153,7 +153,11 @@ struct NonAffineExprCache {
 
   NonAffineExprCache(const NonAffineExprCache &o)
       : expressions(o.expressions), cache(0, NonAffineExprHash(&expressions),
-                                          NonAffineExprComp(&expressions)) {}
+                                          NonAffineExprComp(&expressions)) {
+    for (const auto &entry : o.cache) {
+      cache.insert(entry);
+    }
+  }
 
   NonAffineExprCache &operator=(const NonAffineExprCache &o) {
     if (this == &o) {

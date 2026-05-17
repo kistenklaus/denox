@@ -45,7 +45,7 @@ add_subdirectory(database)
 add_subdirectory(runtime)
 add_subdirectory(compiler)
 add_subdirectory(cli)
-# add_subdirectory(sandbox)
+add_subdirectory(sandbox)
 
 install(DIRECTORY
     ${CMAKE_BINARY_DIR}/share/denox

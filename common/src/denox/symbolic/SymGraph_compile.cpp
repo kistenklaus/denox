@@ -100,15 +100,15 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
         if (lhs.isConstant() && rhs.isConstant()) {
           constant = emod(lhs.constant(), rhs.constant());
         } else if (lhs.isConstant()) {
-          opcode = SymIROpCode::Div_CS;
+          opcode = SymIROpCode::Mod_CS;
           constant = lhs.constant();
           weight = MOD_CS_WEIGHT;
         } else if (rhs.isConstant()) {
-          opcode = SymIROpCode::Div_SC;
+          opcode = SymIROpCode::Mod_SC;
           constant = rhs.constant();
           weight = MOD_SC_WEIGHT;
         } else {
-          opcode = SymIROpCode::Div_SS;
+          opcode = SymIROpCode::Mod_SS;
           weight = MOD_SS_WEIGHT;
         }
         break;
@@ -617,7 +617,8 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
   }
 
   // assert(adjSupergraph.nodeCount() >= m_expressions.size());
-  memory::ConstGraph<SymValue, SymOp, weight_type> supergraph{std::move(adjSupergraph)};
+  memory::ConstGraph<SymValue, SymOp, weight_type> supergraph{
+      std::move(adjSupergraph)};
   memory::vector<memory::NodeId> vars;
   memory::vector<memory::NodeId> results;
   // Collect variables.
@@ -710,4 +711,395 @@ SymGraph::compile(memory::span<const symbol> symbols) const {
   return std::make_pair(ir, SymRemap(remap));
 }
 
-} // namespace denox::compiler
+std::pair<SymIR, SymRemap>
+SymGraph::compile2(memory::span<const symbol> symbols) const {
+  (void)symbols; // First version: retain everything.
+
+  SymIR ir;
+
+  const std::size_t n = m_expressions.size();
+
+  // original symbol -> IR Sym
+  memory::vector<memory::optional<Sym>> remap(n, memory::nullopt);
+
+  // original symbol -> IR value id
+  memory::vector<memory::optional<std::int64_t>> symToIR(n, memory::nullopt);
+
+  auto map_sym = [&](symbol s) -> std::int64_t {
+    assert(s < n);
+    assert(symToIR[s].has_value());
+    return *symToIR[s];
+  };
+
+  auto map_operand = [&](Sym x) -> Sym {
+    if (x.isConstant()) {
+      return x;
+    }
+    return Sym::Symbol(static_cast<Sym::symbol>(map_sym(x.sym())));
+  };
+
+  auto emit = [&](SymIROp op, symbol original) {
+    const std::int64_t id =
+        static_cast<std::int64_t>(ir.varCount + ir.ops.size());
+
+    ir.ops.push_back(op);
+
+    symToIR[original] = id;
+    remap[original] = Sym::Symbol(static_cast<Sym::symbol>(id));
+  };
+
+  auto make_binary_op = [&](SymIROpCode ss, SymIROpCode sc, SymIROpCode cs,
+                            Sym lhs, Sym rhs) -> SymIROp {
+    lhs = resolve(lhs);
+    rhs = resolve(rhs);
+
+    SymIROp op;
+
+    if (lhs.isSymbolic() && rhs.isSymbolic()) {
+      op.opcode = ss;
+      op.lhs = map_sym(lhs.sym());
+      op.rhs = map_sym(rhs.sym());
+      return op;
+    }
+
+    if (lhs.isSymbolic() && rhs.isConstant()) {
+      op.opcode = sc;
+      op.lhs = map_sym(lhs.sym());
+      op.rhs = rhs.constant();
+      return op;
+    }
+
+    if (lhs.isConstant() && rhs.isSymbolic()) {
+      op.opcode = cs;
+      op.lhs = lhs.constant();
+      op.rhs = map_sym(rhs.sym());
+      return op;
+    }
+
+    // Should normally not be emitted as an op; constants should be remapped
+    // directly below. If this fires, the graph contains an unnecessary op node.
+    assert(false && "constant/constant operation in compile2");
+    return op;
+  };
+
+  auto make_commutative_sc_op = [&](SymIROpCode ss, SymIROpCode sc, Sym lhs,
+                                    Sym rhs) -> SymIROp {
+    lhs = resolve(lhs);
+    rhs = resolve(rhs);
+
+    SymIROp op;
+
+    if (lhs.isSymbolic() && rhs.isSymbolic()) {
+      op.opcode = ss;
+      op.lhs = map_sym(lhs.sym());
+      op.rhs = map_sym(rhs.sym());
+      return op;
+    }
+
+    if (lhs.isSymbolic() && rhs.isConstant()) {
+      op.opcode = sc;
+      op.lhs = map_sym(lhs.sym());
+      op.rhs = rhs.constant();
+      return op;
+    }
+
+    if (lhs.isConstant() && rhs.isSymbolic()) {
+      op.opcode = sc;
+      op.lhs = map_sym(rhs.sym());
+      op.rhs = lhs.constant();
+      return op;
+    }
+
+    assert(false && "constant/constant operation in compile2");
+    return op;
+  };
+
+  // 1. Assign IR ids to all original variables first.
+  //
+  // This matches the existing SymIR convention: variables occupy
+  // [0, ir.varCount).
+  for (symbol s = 0; s < n; ++s) {
+    const Expr &expr = m_expressions[s];
+
+    if (expr.expr == ExprType::Identity) {
+      const std::int64_t id = static_cast<std::int64_t>(ir.varCount++);
+
+      symToIR[s] = id;
+      remap[s] = Sym::Symbol(static_cast<Sym::symbol>(id));
+    }
+  }
+
+  // 2. Emit every non-variable symbol in original symbol order.
+  for (symbol s = 0; s < n; ++s) {
+    const Expr &expr = m_expressions[s];
+
+    switch (expr.expr) {
+    case ExprType::Identity:
+      // Already handled.
+      break;
+
+    case ExprType::Const: {
+      assert(expr.lhs.isConstant());
+      remap[s] = Sym::Const(expr.lhs.constant());
+      // No IR value is created for constants.
+      break;
+    }
+
+    case ExprType::Add: {
+      Sym lhs = resolve(expr.lhs);
+      Sym rhs = resolve(expr.rhs);
+
+      if (lhs.isConstant() && rhs.isConstant()) {
+        remap[s] = Sym::Const(lhs.constant() + rhs.constant());
+        break;
+      }
+
+      emit(make_commutative_sc_op(SymIROpCode::Add_SS, SymIROpCode::Add_SC, lhs,
+                                  rhs),
+           s);
+      break;
+    }
+
+    case ExprType::Sub: {
+      Sym lhs = resolve(expr.lhs);
+      Sym rhs = resolve(expr.rhs);
+
+      if (lhs.isConstant() && rhs.isConstant()) {
+        remap[s] = Sym::Const(lhs.constant() - rhs.constant());
+        break;
+      }
+
+      emit(make_binary_op(SymIROpCode::Sub_SS, SymIROpCode::Sub_SC,
+                          SymIROpCode::Sub_CS, lhs, rhs),
+           s);
+      break;
+    }
+
+    case ExprType::Mul: {
+      Sym lhs = resolve(expr.lhs);
+      Sym rhs = resolve(expr.rhs);
+
+      if (lhs.isConstant() && rhs.isConstant()) {
+        remap[s] = Sym::Const(lhs.constant() * rhs.constant());
+        break;
+      }
+
+      emit(make_commutative_sc_op(SymIROpCode::Mul_SS, SymIROpCode::Mul_SC, lhs,
+                                  rhs),
+           s);
+      break;
+    }
+
+    case ExprType::Div: {
+      Sym lhs = resolve(expr.lhs);
+      Sym rhs = resolve(expr.rhs);
+
+      if (lhs.isConstant() && rhs.isConstant()) {
+        // Existing engine assumes positive rhs for division.
+        remap[s] = Sym::Const(lhs.constant() / rhs.constant());
+        break;
+      }
+
+      emit(make_binary_op(SymIROpCode::Div_SS, SymIROpCode::Div_SC,
+                          SymIROpCode::Div_CS, lhs, rhs),
+           s);
+      break;
+    }
+
+    case ExprType::Mod: {
+      Sym lhs = resolve(expr.lhs);
+      Sym rhs = resolve(expr.rhs);
+
+      if (lhs.isConstant() && rhs.isConstant()) {
+        remap[s] = Sym::Const(emod(lhs.constant(), rhs.constant()));
+        break;
+      }
+
+      emit(make_binary_op(SymIROpCode::Mod_SS, SymIROpCode::Mod_SC,
+                          SymIROpCode::Mod_CS, lhs, rhs),
+           s);
+      break;
+    }
+
+    case ExprType::Min: {
+      Sym lhs = resolve(expr.lhs);
+      Sym rhs = resolve(expr.rhs);
+
+      if (lhs.isConstant() && rhs.isConstant()) {
+        remap[s] = Sym::Const(std::min(lhs.constant(), rhs.constant()));
+        break;
+      }
+
+      emit(make_commutative_sc_op(SymIROpCode::Min_SS, SymIROpCode::Min_SC, lhs,
+                                  rhs),
+           s);
+      break;
+    }
+
+    case ExprType::Max: {
+      Sym lhs = resolve(expr.lhs);
+      Sym rhs = resolve(expr.rhs);
+
+      if (lhs.isConstant() && rhs.isConstant()) {
+        remap[s] = Sym::Const(std::max(lhs.constant(), rhs.constant()));
+        break;
+      }
+
+      emit(make_commutative_sc_op(SymIROpCode::Max_SS, SymIROpCode::Max_SC, lhs,
+                                  rhs),
+           s);
+      break;
+    }
+
+    case ExprType::NonAffine: {
+      const NonAffineExpr &na = m_nonAffineCache.expressions[expr.lhs.sym()];
+
+      switch (na.expr) {
+      case ExprType::Div:
+      case ExprType::Mod: {
+        assert(na.symbols.size() == 2);
+
+        Sym lhs = resolve(na.symbols[0]);
+        Sym rhs = resolve(na.symbols[1]);
+
+        if (lhs.isConstant() && rhs.isConstant()) {
+          if (na.expr == ExprType::Div) {
+            remap[s] = Sym::Const(lhs.constant() / rhs.constant());
+          } else {
+            remap[s] = Sym::Const(emod(lhs.constant(), rhs.constant()));
+          }
+          break;
+        }
+
+        if (na.expr == ExprType::Div) {
+          emit(make_binary_op(SymIROpCode::Div_SS, SymIROpCode::Div_SC,
+                              SymIROpCode::Div_CS, lhs, rhs),
+               s);
+        } else {
+          emit(make_binary_op(SymIROpCode::Mod_SS, SymIROpCode::Mod_SC,
+                              SymIROpCode::Mod_CS, lhs, rhs),
+               s);
+        }
+        break;
+      }
+
+      case ExprType::Mul:
+      case ExprType::Min:
+      case ExprType::Max: {
+        // Important: current SymIR only has binary opcodes. The old compile()
+        // solved this by synthesizing intermediate nodes. compile2 must not do
+        // that if we want replay-only behavior.
+        //
+        // Therefore this first version only supports NonAffine Mul/Min/Max if
+        // the stored node is already binary after resolving constants.
+
+        memory::vector<Sym> args;
+        args.reserve(na.symbols.size());
+
+        value_type K =
+            (na.expr == ExprType::Mul) ? value_type(1) : value_type(0);
+        bool haveConst = false;
+
+        for (Sym a : na.symbols) {
+          a = resolve(a);
+          if (a.isConstant()) {
+            if (na.expr == ExprType::Mul) {
+              K *= a.constant();
+            } else {
+              // For Min/Max constants are not multiplicative. This branch
+              // preserves the old code shape poorly; see note below.
+              haveConst = true;
+              K = a.constant();
+            }
+          } else {
+            args.push_back(a);
+          }
+        }
+
+        SymIROpCode ss;
+        SymIROpCode sc;
+
+        if (na.expr == ExprType::Mul) {
+          ss = SymIROpCode::Mul_SS;
+          sc = SymIROpCode::Mul_SC;
+        } else if (na.expr == ExprType::Min) {
+          ss = SymIROpCode::Min_SS;
+          sc = SymIROpCode::Min_SC;
+        } else {
+          ss = SymIROpCode::Max_SS;
+          sc = SymIROpCode::Max_SC;
+        }
+
+        if (args.empty()) {
+          assert(na.expr == ExprType::Mul);
+          remap[s] = Sym::Const(K);
+          break;
+        }
+
+        if (args.size() == 1) {
+          if (na.expr == ExprType::Mul) {
+            if (K == 1) {
+              remap[s] = map_operand(args[0]);
+            } else {
+              SymIROp op;
+              op.opcode = sc;
+              op.lhs = map_sym(args[0].sym());
+              op.rhs = K;
+              emit(op, s);
+            }
+          } else {
+            assert(haveConst);
+            SymIROp op;
+            op.opcode = sc;
+            op.lhs = map_sym(args[0].sym());
+            op.rhs = K;
+            emit(op, s);
+          }
+          break;
+        }
+
+        if (args.size() == 2 && ((na.expr == ExprType::Mul && K == 1) ||
+                                 (na.expr != ExprType::Mul && !haveConst))) {
+          SymIROp op;
+          op.opcode = ss;
+          op.lhs = map_sym(args[0].sym());
+          op.rhs = map_sym(args[1].sym());
+          emit(op, s);
+          break;
+        }
+
+        // This is the key diagnostic. If this fires, the existing SymIR format
+        // cannot represent this original symbol without synthetic
+        // intermediates or an n-ary opcode.
+        assert(false &&
+               "compile2 cannot replay n-ary NonAffine Mul/Min/Max without "
+               "creating synthetic IR intermediates");
+        break;
+      }
+
+      case ExprType::Identity:
+      case ExprType::NonAffine:
+      case ExprType::Add:
+      case ExprType::Sub:
+      case ExprType::Const:
+        assert(false && "invalid NonAffineExpr");
+        break;
+      }
+
+      break;
+    }
+    }
+  }
+
+#ifndef NDEBUG
+  // Since compile2 retains everything, every original symbol should have a
+  // remap entry. Constants may map to immediate constants.
+  for (symbol s = 0; s < n; ++s) {
+    assert(remap[s].has_value());
+  }
+#endif
+
+  return std::make_pair(ir, SymRemap(remap));
+}
+
+} // namespace denox
