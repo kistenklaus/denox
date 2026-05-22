@@ -24,6 +24,8 @@ struct Tensor {
   Sym size;
   uint16_t alignment;
   TensorInfo info;
+  bool isInput : 1 = false;
+  bool isOutput : 1 = false;
 };
 
 } // namespace denox::compiler

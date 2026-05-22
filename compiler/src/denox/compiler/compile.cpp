@@ -120,7 +120,7 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
         memory::span{reinterpret_cast<uint8_t *>(dis.glsl.fast_sha256().h),
                      8 * sizeof(uint32_t)});
   }
-  fmt::println("SHADER-HASH: {}", hasher.finalize());
+  // fmt::println("SHADER-HASH: {}", hasher.finalize());
 
   compiler::SpvSchedule schedule = compiler::compile_shaders(
       std::move(memSchedule), model, db, &glslCompiler, options, logger);
@@ -130,39 +130,39 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   memory::vector<std::byte> dnxbuf =
       compiler::serialize(schedule, sprog, model, options);
 
-  { // small sanity check (TODO remove me later)
-    const dnx::Model* dnx = denox::dnx::GetModel(dnxbuf.data());
-    const uint32_t dispatchCount = dnx->dispatches()->size();
-    for (uint32_t d = 0; d < dispatchCount; ++d) {
-      // foreach dispatch in dnx 
-      //  search for edge with a dispatch, which has the name binary source hash.
-      const dnx::ComputeDispatch* dnxDispatch = dnx->dispatches()->Get(d);
-      const uint32_t dnxBinaryId = dnxDispatch->binary_id();
-      const dnx::ShaderBinary* dnxBinary = dnx->shader_binaries()->Get(dnxBinaryId);
-      SHA256 dnxSourceHash;
-      std::memcpy(dnxSourceHash.h, 
-          dnxBinary->source_hash()->hash()->data(), sizeof(uint32_t) * 8);
-      fmt::println("DNX SourceHash: {}", dnxSourceHash);
-  
-      bool match = false;
-  
-      for (uint32_t e = 0; e < supergraphCopy.graph.edgeCount(); ++e) {
-        const memory::EdgeId eid{e};
-        const auto& edge = supergraphCopy.graph.get(eid);
-        for (const auto& dispatch : edge.dispatches) {
-          SHA256 hash = dispatch.glsl.fast_sha256();
-          if (hash == dnxSourceHash) {
-            match = true;
-          }
-        }
-      }
-      if (match) {
-        fmt::println("dnx dispatch in supergraph");
-      } else {
-        fmt::println("dnx dispatch not found in supergraph");
-      }
-    }
-  }
+  // { // small sanity check (TODO remove me later)
+  //   const dnx::Model* dnx = denox::dnx::GetModel(dnxbuf.data());
+  //   const uint32_t dispatchCount = dnx->dispatches()->size();
+  //   for (uint32_t d = 0; d < dispatchCount; ++d) {
+  //     // foreach dispatch in dnx 
+  //     //  search for edge with a dispatch, which has the name binary source hash.
+  //     const dnx::ComputeDispatch* dnxDispatch = dnx->dispatches()->Get(d);
+  //     const uint32_t dnxBinaryId = dnxDispatch->binary_id();
+  //     const dnx::ShaderBinary* dnxBinary = dnx->shader_binaries()->Get(dnxBinaryId);
+  //     SHA256 dnxSourceHash;
+  //     std::memcpy(dnxSourceHash.h, 
+  //         dnxBinary->source_hash()->hash()->data(), sizeof(uint32_t) * 8);
+  //     fmt::println("DNX SourceHash: {}", dnxSourceHash);
+  //
+  //     bool match = false;
+  //
+  //     for (uint32_t e = 0; e < supergraphCopy.graph.edgeCount(); ++e) {
+  //       const memory::EdgeId eid{e};
+  //       const auto& edge = supergraphCopy.graph.get(eid);
+  //       for (const auto& dispatch : edge.dispatches) {
+  //         SHA256 hash = dispatch.glsl.fast_sha256();
+  //         if (hash == dnxSourceHash) {
+  //           match = true;
+  //         }
+  //       }
+  //     }
+  //     if (match) {
+  //       fmt::println("dnx dispatch in supergraph");
+  //     } else {
+  //       fmt::println("dnx dispatch not found in supergraph");
+  //     }
+  //   }
+  // }
 
   progress.step(logger, 1.0f, "Build dnx artefact");
   return dnxbuf;

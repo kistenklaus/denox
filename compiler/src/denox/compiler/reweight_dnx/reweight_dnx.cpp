@@ -10,20 +10,86 @@
 #include <algorithm>
 #include <cstring>
 #include <dnx.h>
+#include <limits>
 #include <stdexcept>
 #include <type_traits>
 
 namespace denox::compiler {
 
+static uint64_t parse_literal(const dnx::ScalarLiteral *literal) {
+  switch (literal->dtype()) {
+  case dnx::ScalarType_I16: {
+    int16_t v;
+    std::memcpy(&v, literal->bytes()->data(), sizeof(int16_t));
+    return static_cast<uint64_t>(v);
+  }
+  case dnx::ScalarType_U16: {
+    uint16_t v;
+    std::memcpy(&v, literal->bytes()->data(), sizeof(uint16_t));
+    return static_cast<uint64_t>(v);
+  }
+  case dnx::ScalarType_I32: {
+    int32_t v;
+    std::memcpy(&v, literal->bytes()->data(), sizeof(int32_t));
+    return static_cast<uint64_t>(v);
+  }
+  case dnx::ScalarType_U32: {
+    uint32_t v;
+    std::memcpy(&v, literal->bytes()->data(), sizeof(uint32_t));
+    return static_cast<uint64_t>(v);
+  }
+  case dnx::ScalarType_I64: {
+    int64_t v;
+    std::memcpy(&v, literal->bytes()->data(), sizeof(int64_t));
+    return static_cast<uint64_t>(v);
+  }
+  case dnx::ScalarType_U64: {
+    uint64_t v;
+    std::memcpy(&v, literal->bytes()->data(), sizeof(uint64_t));
+    return static_cast<uint64_t>(v);
+  }
+  case dnx::ScalarType_F16:
+  case dnx::ScalarType_F32:
+  case dnx::ScalarType_F64:
+    return std::numeric_limits<uint64_t>::max();
+  default:
+    diag::unreachable();
+  }
+}
+
+static memory::optional<memory::Dtype>
+parse_dtype(const dnx::ScalarType dtype) {
+  switch (dtype) {
+  case dnx::ScalarType_I16:
+  case dnx::ScalarType_U16:
+    return memory::nullopt;
+  case dnx::ScalarType_I32:
+    return memory::Dtype::I32;
+  case dnx::ScalarType_U32:
+    return memory::Dtype::U32;
+  case dnx::ScalarType_I64:
+    return memory::Dtype::I64;
+  case dnx::ScalarType_U64:
+    return memory::Dtype::U64;
+  case dnx::ScalarType_F16:
+    return memory::Dtype::F16;
+  case dnx::ScalarType_F32:
+    return memory::Dtype::F32;
+  case dnx::ScalarType_F64:
+    return memory::Dtype::F64;
+  default:
+    diag::unreachable();
+  }
+}
+
 void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
 
-  const dnx::Model *dnx = dnx::GetModel(dnxBuf.data());
+  dnx::Model *dnx = dnx::GetMutableModel(dnxBuf.data());
   const uint32_t dnxTensorCount = dnx->tensors()->size();
 
   memory::vector<Sym> dnxSymbols;
 
   SymGraph &symGraph = supergraph.symGraph;
-  symGraph.debugDump();
   {
     // 1. Determine what SymGraph symbol dnx symbolic variables correspond to!
     const dnx::SymIR *symir = dnx->sym_ir();
@@ -125,12 +191,6 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
         diag::invalid_state("Invalid dnx symir");
       }
     }
-
-    // for (Sym s : dnxSymbols) {
-    //   fmt::println("DnxSymbol: {} : {}", s, symGraph.to_string(s));
-    // }
-
-    // fmt::println("symGraph symbol-count: {}", symGraph.symbolCount());
   }
 
   memory::dynamic_bitset dnxIsParameter(dnxTensorCount);
@@ -138,14 +198,18 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
     const dnx::TensorInitializer *init = dnx->initializers()->Get(i);
     dnxIsParameter[init->tensor()] = true;
   }
+  fmt::println("binary-count: {}", dnx->shader_binaries()->size());
+  fmt::println("dispatch-count: {}", dnx->dispatches()->size());
 
   const uint32_t dnxDispatchCount = dnx->dispatches()->size();
   for (uint32_t d = 0; d < dnxDispatchCount; ++d) {
     const dnx::ComputeDispatch *dnxDispatch = dnx->dispatches()->Get(d);
+    fmt::println("\ndispatch-name: {}",
+                 dnxDispatch->info()->name()->string_view());
 
     // Check if the dispatch has parameters
     // (i.e. bindings to tensors, which are referenced by a initializer)
-    bool dnxIsParameterized = false;
+    memory::small_vector<uint32_t, 4> dnxParameterTensorIds;
     const uint32_t setCount = dnxDispatch->bindings()->size();
     for (uint32_t s = 0; s < setCount; ++s) {
       const dnx::DescriptorSetBinding *setBinding =
@@ -155,14 +219,14 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
         const dnx::DescriptorBinding *binding = setBinding->bindings()->Get(b);
         uint32_t tid = binding->tensor();
         if (dnxIsParameter[tid]) {
-          dnxIsParameterized = true;
+          dnxParameterTensorIds.push_back(tid);
         }
       }
     }
-    if (!dnxIsParameterized) {
-      fmt::println("dispatch without parameters was skipped");
+    if (dnxParameterTensorIds.empty()) {
       continue; // dispatches without parameters are uninteressting.
     }
+    fmt::println("still alive");
 
     struct Candidate {
       memory::EdgeId eid;
@@ -172,118 +236,216 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
     memory::small_vector<Candidate, 2> candidates;
     {
       const uint32_t dnxBinaryId = dnxDispatch->binary_id();
+      fmt::println("binary-id: {}", dnxBinaryId);
       const dnx::ShaderBinary *dnxBinary =
           dnx->shader_binaries()->Get(dnxBinaryId);
       SHA256 dnxSourceHash;
       std::memcpy(dnxSourceHash.h, dnxBinary->source_hash()->hash()->data(),
                   sizeof(uint32_t) * 8);
+      fmt::println("DNX-HASH: {}", dnxSourceHash);
       for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
         const memory::EdgeId eid{e};
         const SuperGraphEdge &edge = supergraph.graph.get(eid);
         for (uint32_t did = 0; did < edge.dispatches.size(); ++did) {
           const ComputeDispatch &dispatch = edge.dispatches[did];
           SHA256 sourceHash = dispatch.glsl.fast_sha256();
+          fmt::println("HASH: {}", sourceHash);
           if (sourceHash != dnxSourceHash) {
             continue; // different code
           }
-
-          // fmt::println("CANDIDATE:");
-          // fmt::println("dnx-name: {}",
-          //              dnxDispatch->info()->name()->string_view());
-          // fmt::println("    name: {}", *dispatch.info.name);
-          // fmt::println("      op: {}", *dispatch.info.operation);
-
-          // NOTE: This is where it get's really really difficult!
+          fmt::println("matching hash");
 
           { // check workgroup count X
+            Sym dnxSym;
             if (dnxDispatch->workgroup_count_x_type() ==
                 dnx::ScalarSource_symbolic) {
-              Sym dnxSym =
-                  dnxSymbols[dnxDispatch->workgroup_count_x_as_symbolic()
-                                 ->sid()];
-              if (dnxSym != dispatch.workgroupCountX) {
-                continue; // different workgroupCountX
-              }
+              dnxSym = dnxSymbols[dnxDispatch->workgroup_count_x_as_symbolic()
+                                      ->sid()];
             } else {
-              // TODO: constant comparison.
+              dnxSym = Sym::Const(
+                  parse_literal(dnxDispatch->workgroup_count_x_as_literal()));
+            }
+            if (dnxSym != dispatch.workgroupCountX) {
+              continue; // different workgroupCountX
             }
           }
 
           { // check workgroup count Y
+            Sym dnxSym;
             if (dnxDispatch->workgroup_count_y_type() ==
                 dnx::ScalarSource_symbolic) {
-              Sym dnxSym =
-                  dnxSymbols[dnxDispatch->workgroup_count_y_as_symbolic()
-                                 ->sid()];
-              if (dnxSym != dispatch.workgroupCountY) {
-                fmt::println("workgroup-count-y:\ndnx: {} : {}\n     {} : {}",
-                             dnxSym, symGraph.to_string(dnxSym),
-                             dispatch.workgroupCountY,
-                             symGraph.to_string(dispatch.workgroupCountY));
-                continue; // different workgroupCountY
-              }
+              dnxSym = dnxSymbols[dnxDispatch->workgroup_count_y_as_symbolic()
+                                      ->sid()];
             } else {
-              // TODO constant comparison
+              dnxSym = Sym::Const(
+                  parse_literal(dnxDispatch->workgroup_count_y_as_literal()));
+            }
+            if (dnxSym != dispatch.workgroupCountY) {
+              continue; // different workgroupCountY
             }
           }
           { // check workgroup count Z
+            Sym dnxSym;
             if (dnxDispatch->workgroup_count_z_type() ==
                 dnx::ScalarSource_symbolic) {
-              Sym dnxSym =
-                  dnxSymbols[dnxDispatch->workgroup_count_z_as_symbolic()
-                                 ->sid()];
-              if (dnxSym != dispatch.workgroupCountZ) {
-                fmt::println("workgroup-count-y:\ndnx: {} : {}\n     {} : {}",
-                             dnxSym, symGraph.to_string(dnxSym),
-                             dispatch.workgroupCountZ,
-                             symGraph.to_string(dispatch.workgroupCountZ));
-                continue; // different workgroupCountY
-              }
+              dnxSym = dnxSymbols[dnxDispatch->workgroup_count_z_as_symbolic()
+                                      ->sid()];
             } else {
-              // TODO constant comparison
+              dnxSym = Sym::Const(
+                  parse_literal(dnxDispatch->workgroup_count_z_as_literal()));
+            }
+            if (dnxSym != dispatch.workgroupCountZ) {
+              continue; // different workgroupCountY
             }
           }
 
-          // fmt::println("dnx push-constants:");
-          // const dnx::PushConstant *pc = dnxDispatch->push_constant();
-          // const uint32_t pcCount = pc->fields()->size();
-          // for (uint32_t p = 0; p < pcCount; ++p) {
-          //   const dnx::PushConstantField *field =
-          //       dnxDispatch->push_constant()->fields()->Get(p);
-          //   if (field->source_type() == dnx::ScalarSource_symbolic) {
-          //     uint32_t sid = field->source_as_symbolic()->sid();
-          //     Sym s = dnxSymbols[sid];
-          //     fmt::println("pc[{}]: {} -> {}", p, s, symGraph.to_string(s));
-          //   }
-          // }
-          // fmt::println("push constants:");
-          // for (const auto &pc : dispatch.pushConstants) {
-          //   Sym s = pc.sym();
-          //   fmt::println("pc[]: {} -> {}", s, symGraph.to_string(s));
-          // }
+          const dnx::PushConstant *pc = dnxDispatch->push_constant();
+          const uint32_t pcCount = pc->fields()->size();
+          if (pcCount != dispatch.pushConstants.size()) {
+            continue;
+          }
+          bool match = true;
+          for (uint32_t p = 0; p < pcCount; ++p) {
+            const dnx::PushConstantField *dnxField =
+                dnxDispatch->push_constant()->fields()->Get(p);
+            const auto &field = dispatch.pushConstants[p];
 
-          // { // check workgroup count Z
-          //   if (dnxDispatch->workgroup_count_z_type() ==
-          //       dnx::ScalarSource_symbolic) {
-          //     Sym dnxSym =
-          //         dnxSymbols[dnxDispatch->workgroup_count_z_as_symbolic()
-          //                        ->sid()];
-          //     if (dnxSym != dispatch.workgroupCountZ) {
-          //       continue; // different workgroupCountX
-          //     }
-          //   }
-          // }
+            auto dnxType = parse_dtype(dnxField->dtype());
+            if (!dnxType.has_value()) {
+              match = false;
+              break;
+            }
 
-          // dnxDispatch->workgroup_count_x_as_symbolic();
-          // dispatch.workgroupCountX;
+            if (field.type() != dnxType.value()) {
+              match = false;
+              break;
+            }
+
+            Sym dnxValue;
+            if (dnxField->source_type() == dnx::ScalarSource_symbolic) {
+              dnxValue = dnxSymbols[dnxField->source_as_symbolic()->sid()];
+            } else {
+              dnxValue =
+                  Sym::Const(parse_literal(dnxField->source_as_literal()));
+            }
+            if (field.sym() != dnxValue) {
+              match = false;
+              break;
+            }
+          }
+          if (!match) {
+            continue;
+          }
+
+          // TODO: Parameter check!
+          //  (same shader is used twice with different weights!)
 
           candidates.emplace_back(eid, did);
         }
       }
     }
+
     fmt::println("candidates: {}", candidates.size());
+
+    if (candidates.size() == 0) {
+      diag::invalid_argument("Failed to reweight! Reference ONNX model, does "
+                             "not seem to be compatible with DNX artefact!");
+    } else if (candidates.size() > 1) {
+      diag::invalid_state(
+          "Failed to map dispatch to reconstructed supergraph, "
+          "selection is ambigious!\nTHIS IS A BUG! If you have "
+          "the time please create a github issue, we are happy to fix it.");
+    }
+    const SuperGraphEdge &edge = supergraph.graph.get(candidates.front().eid);
+    const ComputeDispatch &dispatch = edge.dispatches[candidates.front().did];
+
+    for (const uint32_t dnxParamTensorId : dnxParameterTensorIds) {
+      uint32_t set = std::numeric_limits<uint32_t>::max();
+      uint32_t binding = std::numeric_limits<uint32_t>::max();
+
+      // 1. Determine glsl (set,binding) of dnx parameter!
+      {
+        bool found = false;
+        for (uint32_t s = 0; s < dnxDispatch->bindings()->size() && !found;
+             ++s) {
+          const dnx::DescriptorSetBinding *dnxSet =
+              dnxDispatch->bindings()->Get(s);
+          for (uint32_t b = 0; b < dnxSet->bindings()->size(); ++b) {
+            const dnx::DescriptorBinding *dnxBinding =
+                dnxSet->bindings()->Get(b);
+            if (dnxBinding->tensor() == dnxParamTensorId) {
+              set = dnxSet->set();
+              binding = dnxBinding->binding();
+              found = true;
+              break;
+            }
+          }
+        }
+        if (!found) {
+          diag::invalid_state();
+        }
+        assert(found);
+      }
+      // 2. Find corresponding tensor binding in dispatch!
+      TensorId tensorId{};
+      {
+        bool found = false;
+        for (const auto &b : dispatch.bindings) {
+          if (b.binding == binding && b.set == set) {
+            tensorId = b.tensorId;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          diag::invalid_state();
+        }
+      }
+
+      // 3. Get new weight array.
+      memory::vector<std::byte> newWeight;
+      {
+        bool found = false;
+        for (const auto &param : edge.parameters) {
+          if (param.tensorId.index == tensorId.index) {
+            newWeight = param.lazyValue();
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          diag::invalid_state();
+        }
+      }
+
+      // 4. Determine where in the dnx artifact the
+      //    corresponding weights where stored.
+      {
+        bool found = false;
+        for (uint32_t i = 0; i < dnx->initializers()->size(); ++i) {
+          dnx::TensorInitializer *init =
+              dnx->initializers()->GetMutableObject(i);
+          if (init->tensor() == dnxParamTensorId) {
+            if (init->data()->size() != newWeight.size()) {
+              diag::invalid_state();
+            }
+            uint8_t *oldWeight = init->mutable_data()->data();
+            std::memcpy(oldWeight, newWeight.data(), newWeight.size());
+
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          diag::invalid_state();
+        }
+      }
+    }
+
+    fmt::println("param-count: {}", dnxParameterTensorIds.size());
+
+    // Question: Does this dispatch use the parameter!
   }
-  throw std::runtime_error("work-in-progress");
 }
 
 } // namespace denox::compiler

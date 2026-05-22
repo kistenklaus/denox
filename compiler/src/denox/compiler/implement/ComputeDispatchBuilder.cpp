@@ -2,11 +2,9 @@
 #include "denox/compiler/implement/OpImpl.hpp"
 #include "denox/compiler/implement/SuperGraphBuilder.hpp"
 #include "denox/diag/invalid_state.hpp"
-#include "denox/diag/logging.hpp"
 #include "denox/memory/container/small_vector.hpp"
 #include <algorithm>
 #include <iostream>
-#include <memory>
 #include <type_traits>
 
 namespace denox::compiler {
@@ -26,22 +24,11 @@ void ComputeDispatchBuilder::addBinding(memory::string_view set_macro,
   if (!tensorId.has_value()) {
     diag::invalid_state();
   }
-  const bool isInput =
-      access == Access::ReadOnly &&
-      std::ranges::find_if(m_impl->m_superBuilder->m_inputs,
-                           [&](const memory::NodeId &nid) -> bool {
-                             TensorId inputId =
-                                 m_impl->m_superBuilder->m_graph.get(nid);
-                             return inputId.index == tensorId->index;
-                           }) != m_impl->m_superBuilder->m_inputs.end();
-  const bool isOutput =
-      access == Access::WriteOnly &&
-      std::ranges::find_if(m_impl->m_superBuilder->m_outputs,
-                           [&](const memory::NodeId &nid) -> bool {
-                             TensorId outputId =
-                                 m_impl->m_superBuilder->m_graph.get(nid);
-                             return outputId.index == tensorId->index;
-                           }) != m_impl->m_superBuilder->m_outputs.end();
+  const auto& tensor = m_impl->m_superBuilder->m_tensors[tensorId->index];
+
+  const bool isInput = tensor.isInput;
+  const bool isOutput = tensor.isOutput;
+
   const bool isRead = access == Access::ReadOnly;
   const bool isWrite = access == Access::WriteOnly;
   BindingType type;
@@ -68,7 +55,6 @@ void ComputeDispatchBuilder::addBinding(memory::string_view set_macro,
     }
   }
   bool edgeDst = m_impl->m_output == nodeId;
-
 
   m_bindingInfos.push_back(TensorBindingInfo{
       .access = access,
@@ -145,6 +131,9 @@ ComputeDispatchBuilder::~ComputeDispatchBuilder() {
     self().info.input_bindings.emplace();
     self().info.input_bindings->resize(src_count);
   }
+
+  memory::small_vector<std::pair<std::string_view, uint16_t>, 6> definitions;
+
   for (size_t i = 0; i < m_bindingInfos.size(); ++i) {
     const auto &info = m_bindingInfos[i];
     uint32_t set = sets[i];
@@ -156,8 +145,8 @@ ComputeDispatchBuilder::~ComputeDispatchBuilder() {
         .accessFlag = info.access,
         .tensorId = info.tensor,
     });
-    self().glsl.define(info.set_macro, set);
-    self().glsl.define(info.binding_macro, binding);
+    definitions.emplace_back(info.set_macro, set);
+    definitions.emplace_back(info.binding_macro, binding);
 
     if (info.edgeDst) {
       if (!self().info.output_bindings) {
@@ -172,7 +161,10 @@ ComputeDispatchBuilder::~ComputeDispatchBuilder() {
       (*self().info.input_bindings)[static_cast<uint32_t>(info.edgeSrc)] = id;
     }
   }
-
+  std::ranges::stable_sort(definitions);
+  for (const auto &[name, value] : definitions) {
+    self().glsl.define(name, value);
+  }
 }
 
 } // namespace denox::compiler

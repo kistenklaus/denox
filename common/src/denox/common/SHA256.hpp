@@ -24,6 +24,8 @@ struct SHA256Builder {
   SHA256Builder();
 
   void update(std::span<const uint8_t> data);
+  void update(std::span<const std::byte> data);
+
   void update_uint32(uint32_t v);
   void update_uint64(uint64_t v);
 

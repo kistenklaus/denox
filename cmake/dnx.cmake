@@ -13,6 +13,7 @@ add_custom_command(
     COMMAND ${FLATC_COMMAND}
             --cpp
             --no-emit-min-max-enum-values
+            --gen-mutable 
             --filename-suffix ""
             -o ${GENERATED_DIR}
             ${DNX_FBS}

@@ -23,7 +23,8 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             [[maybe_unused]] const Model &model,
                             const SymGraphEval &symeval,
                             [[maybe_unused]] const CompileOptions &options,
-                            diag::Progress progress, const diag::Logger &logger) {
+                            diag::Progress progress,
+                            const diag::Logger &logger) {
 
   progress.step(logger, 0.0f, "{}Collecting dispatch latencies {}",
                 logger.green(), logger.reset());
@@ -159,6 +160,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   weight_type totalWeight = {};
   for (const auto &eid : minSchedule) {
     const auto &edge = constMinCostGraph.get(eid);
+
     totalWeight += constMinCostGraph.weight(eid);
     if (edge.dispatches.empty() && edge.memoryConstrains.empty() &&
         edge.parameters.empty()) {
@@ -186,7 +188,9 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
 
       continue;
     }
+
     for (auto &&d : std::move(edge.dispatches)) {
+      fmt::println("\n\nPREAMBLE:\n{}", d.glsl.getPreamble());
       dispatches.emplace_back(std::move(d));
     }
     for (auto &&c : std::move(edge.memoryConstrains)) {

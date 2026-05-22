@@ -17,8 +17,9 @@ public:
   friend class OpImpl;
   friend class ComputeDispatchBuilder;
 
-  SuperGraphBuilder(const ConstModel &model, SymGraph symGraph, const DescriptorPolicies& descriptorPolicies)
-      : m_symGraph(symGraph), m_descriptorPolicies(descriptorPolicies){
+  SuperGraphBuilder(const ConstModel &model, SymGraph symGraph,
+                    const DescriptorPolicies &descriptorPolicies)
+      : m_symGraph(symGraph), m_descriptorPolicies(descriptorPolicies) {
     const size_t nodeCount = model.graph.nodeCount();
     for (uint32_t n = 0; n < nodeCount; ++n) {
       memory::NodeId nid{n};
@@ -29,6 +30,25 @@ public:
 
     m_inputs.assign(model.inputs.begin(), model.inputs.end());
     m_outputs.assign(model.outputs.begin(), model.outputs.end());
+
+    for (const memory::NodeId input : model.inputs) {
+      m_tensors[m_graph.get(input).index].isInput = true;
+      for (const memory::EdgeId eid : model.graph.outgoing(input)) {
+        if (model.graph.get(eid).tag() == ComputeOpKind::None) {
+          memory::NodeId noopInput = model.graph.dst(eid);
+          m_tensors[m_graph.get(noopInput).index].isInput = true;
+        }
+      }
+    }
+    for (const memory::NodeId output : model.outputs) {
+      m_tensors[m_graph.get(output).index].isOutput = true;
+      for (const memory::EdgeId eid : model.graph.incoming(output)) {
+        if (model.graph.get(eid).tag() == ComputeOpKind::None) {
+          memory::NodeId noopOutput = model.graph.src(eid).front();
+          m_tensors[m_graph.get(noopOutput).index].isOutput = true;
+        }
+      }
+    }
   }
 
   OpImpl beginOp(memory::span<memory::NodeId> inputs, memory::NodeId output) {
@@ -87,6 +107,8 @@ private:
         .size = size,
         .alignment = alignment,
         .info = {},
+        .isInput = false,
+        .isOutput = false,
     };
     uint64_t index = m_tensors.size();
     m_tensors.emplace_back(std::move(tensor));
