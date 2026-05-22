@@ -1,8 +1,7 @@
 #pragma once
 
-#include "denox/db/DbConvergence.hpp"
-#include "denox/memory/container/span.hpp"
 #include "denox/db/DbComputeDispatch.hpp"
+#include "denox/db/DbConvergence.hpp"
 #include "denox/db/DbEnv.hpp"
 #include "denox/db/DbShaderBinary.hpp"
 #include "denox/db/DbTensorBinding.hpp"
@@ -10,9 +9,12 @@
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/span.hpp"
 #include "denox/spirv/SpirvBinary.hpp"
+
 #include <chrono>
 #include <memory>
+#include <mutex>
 
 namespace denox {
 
@@ -94,7 +96,8 @@ public:
   memory::vector<DbDispatchTimingInfo> queryAllDispatchTimingInfos() const;
 
   bool has_shader_binary(const SHA256 &srcHash) const;
-  memory::optional<uint32_t> query_shader_binary_id(const SHA256 &srcHash) const;
+  memory::optional<uint32_t>
+  query_shader_binary_id(const SHA256 &srcHash) const;
 
   memory::hash_map<SHA256, uint32_t> query_in_memory_shader_cache() const;
 
