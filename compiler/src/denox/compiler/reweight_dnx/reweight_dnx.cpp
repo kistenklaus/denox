@@ -193,19 +193,43 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
     }
   }
 
-  memory::dynamic_bitset dnxIsParameter(dnxTensorCount);
+  memory::dynamic_bitset dnxIsParameter(dnxTensorCount, false);
   for (uint32_t i = 0; i < dnx->initializers()->size(); ++i) {
     const dnx::TensorInitializer *init = dnx->initializers()->Get(i);
     dnxIsParameter[init->tensor()] = true;
   }
-  fmt::println("binary-count: {}", dnx->shader_binaries()->size());
-  fmt::println("dispatch-count: {}", dnx->dispatches()->size());
 
-  const uint32_t dnxDispatchCount = dnx->dispatches()->size();
+  memory::dynamic_bitset isLive(supergraph.tensors.size(), false);
+  for (const memory::NodeId input : supergraph.inputs) {
+    TensorId tid = supergraph.graph.get(input);
+    isLive[tid.index] = true;
+  }
+  for (uint64_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
+    const memory::EdgeId eid{e};
+    for (const auto &param : supergraph.graph.get(eid).parameters) {
+      isLive[param.tensorId.index] = true;
+    }
+  }
+
+  struct Candidate {
+    memory::EdgeId eid;
+    uint32_t did; // dispatchID
+  };
+  struct CandidateHash {
+    size_t operator()(const Candidate& candidate) const {
+      return 0;
+    }
+  };
+  struct CandidateComp {
+    bool operator()(const Candidate& lhs, const Candidate& rhs) const {
+      return lhs.eid == rhs.eid && lhs.did == rhs.did;
+    }
+  };
+  memory::hash_set<Candidate, CandidateHash, CandidateComp> used;
+
+      const uint32_t dnxDispatchCount = dnx->dispatches()->size();
   for (uint32_t d = 0; d < dnxDispatchCount; ++d) {
     const dnx::ComputeDispatch *dnxDispatch = dnx->dispatches()->Get(d);
-    fmt::println("\ndispatch-name: {}",
-                 dnxDispatch->info()->name()->string_view());
 
     // Check if the dispatch has parameters
     // (i.e. bindings to tensors, which are referenced by a initializer)
@@ -226,34 +250,31 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
     if (dnxParameterTensorIds.empty()) {
       continue; // dispatches without parameters are uninteressting.
     }
-    fmt::println("still alive");
-
-    struct Candidate {
-      memory::EdgeId eid;
-      uint32_t did; // dispatchID
-    };
 
     memory::small_vector<Candidate, 2> candidates;
     {
       const uint32_t dnxBinaryId = dnxDispatch->binary_id();
-      fmt::println("binary-id: {}", dnxBinaryId);
       const dnx::ShaderBinary *dnxBinary =
           dnx->shader_binaries()->Get(dnxBinaryId);
       SHA256 dnxSourceHash;
       std::memcpy(dnxSourceHash.h, dnxBinary->source_hash()->hash()->data(),
                   sizeof(uint32_t) * 8);
-      fmt::println("DNX-HASH: {}", dnxSourceHash);
       for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
         const memory::EdgeId eid{e};
         const SuperGraphEdge &edge = supergraph.graph.get(eid);
         for (uint32_t did = 0; did < edge.dispatches.size(); ++did) {
           const ComputeDispatch &dispatch = edge.dispatches[did];
           SHA256 sourceHash = dispatch.glsl.fast_sha256();
-          fmt::println("HASH: {}", sourceHash);
           if (sourceHash != dnxSourceHash) {
             continue; // different code
           }
-          fmt::println("matching hash");
+          Candidate candidate{
+            .eid = eid,
+            .did = did,
+          };
+          if (used.contains(candidate)) {
+            continue;;
+          }
 
           { // check workgroup count X
             Sym dnxSym;
@@ -337,15 +358,23 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
             continue;
           }
 
-          // TODO: Parameter check!
-          //  (same shader is used twice with different weights!)
+          bool unalive = false;
+          for (const auto &binding : dispatch.bindings) {
+            if ((binding.accessFlag == Access::ReadOnly ||
+                 binding.accessFlag == Access::ReadWrite) &&
+                !isLive[binding.tensorId.index]) {
+              unalive = true;
+              break;
+            }
+          }
+          if (unalive) {
+            continue;
+          }
 
-          candidates.emplace_back(eid, did);
+          candidates.push_back(candidate);
         }
       }
     }
-
-    fmt::println("candidates: {}", candidates.size());
 
     if (candidates.size() == 0) {
       diag::invalid_argument("Failed to reweight! Reference ONNX model, does "
@@ -358,6 +387,12 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
     }
     const SuperGraphEdge &edge = supergraph.graph.get(candidates.front().eid);
     const ComputeDispatch &dispatch = edge.dispatches[candidates.front().did];
+
+    // make outputs live
+    for (const auto &binding : dispatch.bindings) {
+      isLive[binding.tensorId.index] = true;
+    }
+    used.insert(candidates.front());
 
     for (const uint32_t dnxParamTensorId : dnxParameterTensorIds) {
       uint32_t set = std::numeric_limits<uint32_t>::max();
@@ -441,10 +476,6 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
         }
       }
     }
-
-    fmt::println("param-count: {}", dnxParameterTensorIds.size());
-
-    // Question: Does this dispatch use the parameter!
   }
 }
 

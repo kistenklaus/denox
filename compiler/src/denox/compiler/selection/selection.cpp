@@ -190,7 +190,6 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
     }
 
     for (auto &&d : std::move(edge.dispatches)) {
-      fmt::println("\n\nPREAMBLE:\n{}", d.glsl.getPreamble());
       dispatches.emplace_back(std::move(d));
     }
     for (auto &&c : std::move(edge.memoryConstrains)) {
