@@ -154,11 +154,6 @@ enum Version:ushort {
   DNX_VERSION_1_0,
 }
 
-table Assumption {
-  sid:uint32;
-  value:uint32;
-}
-
 table DescriptorPolicy {
   input_policy:uint32;
   output_policy:uint32;
@@ -226,7 +221,6 @@ table CompilationFeatures {
 }
 
 table CompilationInfo {
-  assumptions:[Assumption];
   descriptor_policy:DescriptorPolicy;
   features:CompilationFeatures;
   device_info:DeviceInfo;

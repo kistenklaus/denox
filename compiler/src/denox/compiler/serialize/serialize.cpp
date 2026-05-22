@@ -179,59 +179,9 @@ serialize_compilation_features(flatbuffers::FlatBufferBuilder &fbb,
       features.enableUpsampleConvFusion, features.enableConvMaxPoolFusion);
 }
 
-static flatbuffers::Offset<
-    flatbuffers::Vector<flatbuffers::Offset<denox::dnx::Assumption>>>
-serialize_assumptions(
-    flatbuffers::FlatBufferBuilder &fbb,
-    memory::span<const InterfaceTensorDescriptor> interfaceDescriptors,
-    memory::span<const TensorView> tensors) {
-
-  memory::vector<flatbuffers::Offset<denox::dnx::Assumption>> assumptions;
-
-  for (const auto &interfaceDescriptor : interfaceDescriptors) {
-    auto it = std::ranges::find_if(
-        tensors, [&](const TensorView &tensor) noexcept -> bool {
-          if (!tensor.info.name.has_value()) {
-            return false;
-          }
-          return *tensor.info.name == interfaceDescriptor.name;
-        });
-    if (it == tensors.end()) {
-      continue;
-    }
-    const TensorView &tensor = *it;
-    if (interfaceDescriptor.width.has_value() &&
-        tensor.info.width.has_value() && tensor.info.width->isSymbolic()) {
-      const uint32_t sid = static_cast<uint32_t>(tensor.info.width->sym());
-      const uint32_t value = interfaceDescriptor.width.value();
-      assumptions.push_back(dnx::CreateAssumption(fbb, sid, value));
-    }
-    if (interfaceDescriptor.height.has_value() &&
-        tensor.info.height.has_value() && tensor.info.height->isSymbolic()) {
-      const uint32_t sid = static_cast<uint32_t>(tensor.info.height->sym());
-      const uint32_t value = interfaceDescriptor.height.value();
-      assumptions.push_back(dnx::CreateAssumption(fbb, sid, value));
-    }
-    if (interfaceDescriptor.channels.has_value() &&
-        tensor.info.channels.has_value() &&
-        tensor.info.channels->isSymbolic()) {
-      const uint32_t sid = static_cast<uint32_t>(tensor.info.channels->sym());
-      const uint32_t value = interfaceDescriptor.channels.value();
-      assumptions.push_back(dnx::CreateAssumption(fbb, sid, value));
-    }
-  }
-  return fbb.CreateVector(assumptions);
-}
-
 static flatbuffers::Offset<denox::dnx::CompilationInfo>
 serialize_compilation_info(flatbuffers::FlatBufferBuilder &fbb,
-                           const CompileOptions &options,
-                           memory::span<const TensorView> tensors) {
-  flatbuffers::Offset<
-      flatbuffers::Vector<flatbuffers::Offset<denox::dnx::Assumption>>>
-      assumptions =
-          serialize_assumptions(fbb, options.interfaceDescriptors, tensors);
-
+                           const CompileOptions &options) {
   flatbuffers::Offset<denox::dnx::DescriptorPolicy> descriptor_policy =
       serialize_descriptor_policy(fbb, options.descriptorPolicies);
 
@@ -240,15 +190,13 @@ serialize_compilation_info(flatbuffers::FlatBufferBuilder &fbb,
 
   flatbuffers::Offset<denox::dnx::DeviceInfo> device_info =
       serialize_device_info(fbb, options.deviceInfo);
-  return dnx::CreateCompilationInfo(fbb, assumptions, descriptor_policy,
-                                    features, device_info,
-                                    options.optimizationLevel);
+  return dnx::CreateCompilationInfo(fbb, descriptor_policy, features,
+                                    device_info, options.optimizationLevel);
 }
 
 static flatbuffers::Offset<denox::dnx::ModelInfo>
 serialize_model_info(flatbuffers::FlatBufferBuilder &fbb, const ModelMeta &meta,
-                     const CompileOptions &options,
-                     memory::span<const TensorView> tensors) {
+                     const CompileOptions &options) {
 
   flatbuffers::Offset<flatbuffers::String> producer = 0;
   flatbuffers::Offset<flatbuffers::String> producer_version = 0;
@@ -265,7 +213,7 @@ serialize_model_info(flatbuffers::FlatBufferBuilder &fbb, const ModelMeta &meta,
   }
 
   const flatbuffers::Offset<denox::dnx::CompilationInfo> compilation_info =
-      serialize_compilation_info(fbb, options, tensors);
+      serialize_compilation_info(fbb, options);
 
   return dnx::CreateModelInfo(fbb, producer, producer_version, model_version,
                               compilation_info);
@@ -824,8 +772,7 @@ memory::vector<std::byte> serialize(const compiler::SpvSchedule &schedule,
 
   auto version = serialize_version(dnxVersion);
   auto required_features = serialize_required_features(fbb);
-  auto model_info =
-      serialize_model_info(fbb, model.meta(), options, schedule.tensors);
+  auto model_info = serialize_model_info(fbb, model.meta(), options);
   auto tensors = serialize_tensors(fbb, schedule.tensors);
   auto initializers = serialize_initializers(fbb, schedule.initializers);
   auto inputs = serialize_inputs(fbb, schedule.inputs);
