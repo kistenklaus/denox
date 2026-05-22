@@ -11,7 +11,6 @@
 #include <cstring>
 #include <dnx.h>
 #include <limits>
-#include <stdexcept>
 #include <type_traits>
 
 namespace denox::compiler {
@@ -216,18 +215,18 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
     uint32_t did; // dispatchID
   };
   struct CandidateHash {
-    size_t operator()(const Candidate& candidate) const {
-      return 0;
+    size_t operator()(const Candidate &candidate) const {
+      return (*candidate.eid << 32ull) ^ static_cast<size_t>(candidate.did);
     }
   };
   struct CandidateComp {
-    bool operator()(const Candidate& lhs, const Candidate& rhs) const {
+    bool operator()(const Candidate &lhs, const Candidate &rhs) const {
       return lhs.eid == rhs.eid && lhs.did == rhs.did;
     }
   };
   memory::hash_set<Candidate, CandidateHash, CandidateComp> used;
 
-      const uint32_t dnxDispatchCount = dnx->dispatches()->size();
+  const uint32_t dnxDispatchCount = dnx->dispatches()->size();
   for (uint32_t d = 0; d < dnxDispatchCount; ++d) {
     const dnx::ComputeDispatch *dnxDispatch = dnx->dispatches()->Get(d);
 
@@ -269,11 +268,12 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
             continue; // different code
           }
           Candidate candidate{
-            .eid = eid,
-            .did = did,
+              .eid = eid,
+              .did = did,
           };
           if (used.contains(candidate)) {
-            continue;;
+            continue;
+            ;
           }
 
           { // check workgroup count X

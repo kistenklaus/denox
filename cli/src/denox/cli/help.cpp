@@ -179,6 +179,14 @@ static constexpr char populate_help[] =
 "                           debug info, use '--spirv-non-semantic-debug-info' to enable\n"
 "                           extra information for profilers.";
 
+static constexpr char reweight_help[] =
+"Usage denox reweight [MODEL] [ONNX] [OPTIONS]\n"
+"Arguments:\n"
+"   [MODEL]                 Path to dnx model\n"
+"   [ONNX]                  Path to onnx model\n"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   -o, --output <file>     place reweighted model into <file>\n";
 
 void help(HelpAction action) {
 
@@ -197,6 +205,9 @@ void help(HelpAction action) {
     break;
   case HelpScope::Populate:
     std::cerr << populate_help << std::endl;
+    break;
+  case HelpScope::Reweight:
+    std::cerr << reweight_help << std::endl;
     break;
   }
 }
