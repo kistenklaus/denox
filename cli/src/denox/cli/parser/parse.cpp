@@ -28,8 +28,8 @@ Action parse_argv(int argc, char **argv) {
                                fmt::format("--{}", first.option()));
 
     case TokenKind::Literal:
-      throw std::runtime_error("expected command, found positional argument '" +
-                               fmt::format("{}", first.literal().view()));
+      throw std::runtime_error("invalid subcommand \"" +
+                               fmt::format("{}", first.literal().view()) + "\"");
 
     case TokenKind::Pipe:
       throw std::runtime_error("expected command, found pipe '-'");
@@ -59,6 +59,8 @@ Action parse_argv(int argc, char **argv) {
     return parse_dumpcsv(std::span{tokens.begin() + 1, tokens.end()});
   case CommandToken::Reweight:
     return parse_reweight(std::span{tokens.begin() + 1, tokens.end()});
+  case CommandToken::QueryDeviceInfo:
+    return parse_query_device_info(std::span{tokens.begin() + 1, tokens.end()});
   }
   throw std::runtime_error("unreachable");
 }

@@ -71,3 +71,4 @@ cmake-debug-build
 *.db-shm
 dist/
 trash/
+*.yaml

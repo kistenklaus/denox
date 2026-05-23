@@ -6,6 +6,7 @@
 #include "denox/cli/infer.hpp"
 #include "denox/cli/parser/parse.hpp"
 #include "denox/cli/populate.hpp"
+#include "denox/cli/query_device_info.hpp"
 #include "denox/cli/reweight.hpp"
 #include "denox/cli/version.hpp"
 #include "denox/diag/not_implemented.hpp"
@@ -42,6 +43,9 @@ int main(int argc, char **argv) {
       break;
     case ActionKind::Reweight:
       reweight(action.reweight());
+      break;
+    case ActionKind::QueryDeviceInfo:
+      query_device_info(action.query_device_info());
       break;
     }
   } catch (const std::exception &e) {

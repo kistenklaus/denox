@@ -29,6 +29,9 @@ std::optional<CommandToken> parse_command(std::string_view str) {
   if (str == "reweight") {
     return CommandToken::Reweight;
   }
+  if (str == "query-device-info" || str == "create-device-info") {
+    return CommandToken::QueryDeviceInfo;
+  }
 
   return std::nullopt;
 }

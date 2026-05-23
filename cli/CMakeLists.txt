@@ -26,8 +26,10 @@ add_executable(denox
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/populate.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/reweight.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/version.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/query_device_info.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/main.cpp
+
 )
 
 
@@ -59,6 +61,7 @@ target_link_libraries(denox
     denox_spirv
     denox_database
     denox_runtime
+    yaml-cpp::yaml-cpp
 )
 
 

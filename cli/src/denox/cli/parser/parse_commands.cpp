@@ -3,6 +3,7 @@
 #include "denox/cli/parser/action.hpp"
 #include "denox/cli/parser/actions/reweight.hpp"
 #include "denox/cli/parser/errors.hpp"
+#include "denox/cli/parser/lex/tokens/token.hpp"
 #include "denox/cli/parser/parse_artefact.hpp"
 #include "denox/cli/parser/parse_options.hpp"
 #include "denox/device_info/ApiVersion.hpp"
@@ -1092,7 +1093,7 @@ Action parse_reweight(std::span<const Token> tokens) {
   bool logcolors = true;
 
   // parse remaining arguments
-  uint32_t i = 2;
+  uint32_t i = 1;
   while (i < tokens.size()) {
     uint32_t jump = 0;
 
@@ -1103,23 +1104,6 @@ Action parse_reweight(std::span<const Token> tokens) {
         tokens[i].kind() == TokenKind::Pipe) {
       throw ParseError(fmt::format("unexpected positional argument {}",
                                    describe_token(tokens[i])));
-    }
-    if ((jump = parse_help(tail, &help))) {
-      i += jump;
-      continue;
-    }
-
-    if ((jump = parse_verbose(tail, &loglevel))) {
-      i += jump;
-      continue;
-    }
-    if ((jump = parse_quiet(tail, &loglevel))) {
-      i += jump;
-      continue;
-    }
-    if ((jump = parse_color(tail, &logcolors))) {
-      i += jump;
-      continue;
     }
 
     // --- options with arguments ---
@@ -1158,4 +1142,58 @@ Action parse_reweight(std::span<const Token> tokens) {
       .loglevel = loglevel,
       .logcolors = logcolors,
   };
+}
+
+Action parse_query_device_info(std::span<const Token> tokens) {
+  if (tokens.empty()) {
+    return QueryDeviceInfo{};
+  }
+
+  if (parse_help(tokens, nullptr)) {
+    return HelpAction(HelpScope::Reweight);
+  }
+  QueryDeviceInfo action;
+  bool help = false;
+
+  uint32_t i = 0;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    if (tokens[i].kind() == TokenKind::Literal) {
+      const auto &lit = tokens[i].literal();
+      action.deviceName = lit.view();
+      i += 1;
+      continue;
+    }
+
+    if (tokens[i].kind() == TokenKind::Pipe) {
+      throw ParseError(fmt::format("unexpected positional argument {}",
+                                   describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_output(tail, &action.output))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_target_env(tail, &action.apiVersion))) {
+      i += jump;
+      continue;
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+  if (help) {
+    return HelpAction{
+        HelpScope::QueryDeviceInfo,
+    };
+  }
+  return action;
 }
