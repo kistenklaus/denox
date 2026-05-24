@@ -10,9 +10,9 @@ struct CoopmatShape {
   // B is KxN
   // C is MxN
   // C = A * B + C (multiply accumulate)
-  std::uint32_t M;
-  std::uint32_t N;
-  std::uint32_t K;
+  uint32_t M;
+  uint32_t N;
+  uint32_t K;
   memory::Dtype atype; 
   memory::Dtype btype;
   memory::Dtype ctype;

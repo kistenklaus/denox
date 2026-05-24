@@ -32,6 +32,9 @@ std::optional<CommandToken> parse_command(std::string_view str) {
   if (str == "query-device-info" || str == "create-device-info") {
     return CommandToken::QueryDeviceInfo;
   }
+  if (str == "merge-device-info" || str == "min-device-info") {
+    return CommandToken::MergeDeviceInfo;
+  }
 
   return std::nullopt;
 }

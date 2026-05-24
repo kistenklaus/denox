@@ -8,6 +8,5 @@
 struct QueryDeviceInfo {
   denox::memory::optional<denox::memory::string> deviceName;
   denox::memory::optional<IOEndpoint> output;
-  denox::ApiVersion apiVersion = 
-    denox::ApiVersion::VULKAN_1_4;
+  denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 };

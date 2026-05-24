@@ -5,9 +5,11 @@
 #include "denox/cli/parser/actions/dumpcsv.hpp"
 #include "denox/cli/parser/actions/help.hpp"
 #include "denox/cli/parser/actions/infer.hpp"
+#include "denox/cli/parser/actions/merge_device_info.hpp"
 #include "denox/cli/parser/actions/populate.hpp"
 #include "denox/cli/parser/actions/query_device_info.hpp"
 #include "denox/cli/parser/actions/reweight.hpp"
+#include "denox/diag/unreachable.hpp"
 
 #include <cassert>
 #include <variant>
@@ -22,6 +24,7 @@ enum class ActionKind {
   DumpCsv,
   Reweight,
   QueryDeviceInfo,
+  MergeDeviceInfo,
 };
 
 class Action {
@@ -41,6 +44,8 @@ public:
   Action(ReweightAction a) noexcept : m_value(std::move(a)) {}
 
   Action(QueryDeviceInfo a) noexcept : m_value(std::move(a)) {}
+
+  Action(MergeDeviceInfo a) noexcept : m_value(std::move(a)) {}
 
   static Action version() noexcept { return Action{VersionTag{}}; }
 
@@ -63,7 +68,9 @@ public:
       return ActionKind::Reweight;
     if (std::holds_alternative<QueryDeviceInfo>(m_value)) 
       return ActionKind::QueryDeviceInfo;
-    std::abort();
+    if (std::holds_alternative<MergeDeviceInfo>(m_value)) 
+      return ActionKind::MergeDeviceInfo;
+    denox::diag::unreachable();
   }
 
   const CompileAction &compile() const noexcept {
@@ -142,6 +149,16 @@ public:
     return std::get<QueryDeviceInfo>(m_value);
   }
 
+  const MergeDeviceInfo &merge_device_info() const noexcept {
+    assert(kind() == ActionKind::MergeDeviceInfo);
+    return std::get<MergeDeviceInfo>(m_value);
+  }
+
+  MergeDeviceInfo &merge_device_info() noexcept {
+    assert(kind() == ActionKind::MergeDeviceInfo);
+    return std::get<MergeDeviceInfo>(m_value);
+  }
+
 private:
   struct VersionTag {};
 
@@ -149,6 +166,7 @@ private:
 
 private:
   std::variant<CompileAction, InferAction, BenchAction, PopulateAction,
-               HelpAction, VersionTag, DumpCsvAction, ReweightAction, QueryDeviceInfo>
+               HelpAction, VersionTag, DumpCsvAction, ReweightAction, QueryDeviceInfo,
+               MergeDeviceInfo>
       m_value;
 };

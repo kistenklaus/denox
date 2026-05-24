@@ -1,4 +1,5 @@
 #include "denox/cli/parser/parse_commands.hpp"
+#include "absl/strings/str_format.h"
 #include "denox/cli/io/Pipe.hpp"
 #include "denox/cli/parser/action.hpp"
 #include "denox/cli/parser/actions/reweight.hpp"
@@ -13,6 +14,7 @@
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
@@ -1125,6 +1127,7 @@ Action parse_reweight(std::span<const Token> tokens) {
     throw ParseError(
         fmt::format("reweight requires \"--output=output.dnx\" argument."));
   }
+
   IOEndpoint out = output.value_or([&]() -> IOEndpoint {
     switch (refmodel.endpoint.kind()) {
     case IOEndpointKind::Path:
@@ -1196,4 +1199,65 @@ Action parse_query_device_info(std::span<const Token> tokens) {
     };
   }
   return action;
+}
+
+Action parse_merge_device_info(std::span<const Token> tokens) {
+  denox::memory::small_vector<IOEndpoint, 2> deviceInfos;
+
+  denox::memory::optional<IOEndpoint> output;
+
+
+  uint32_t i = 0;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    bool help = false;
+    if ((jump = parse_help(tail, &help))) {
+      if (help) {
+        return HelpAction(HelpScope::MergeDeviceInfo);
+      }
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+
+    if (tail.front().kind() == TokenKind::Literal) {
+      const auto &lit = tail.front().literal();
+      if (lit.is_path()) {
+        const auto &path = lit.as_path();
+        if (!path.exists()) {
+          throw std::runtime_error(
+              fmt::format("File \"{}\" does not exist", path));
+        }
+        deviceInfos.push_back(IOEndpoint(path));
+        i += 1;
+        continue;
+      }
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+
+  if (!output.has_value()) {
+    throw ParseError(
+        fmt::format("requires --output=<file> argument"));
+  }
+  if (deviceInfos.size() < 2) {
+    throw ParseError(
+        fmt::format("expected at least 2 positional arguments, got {}", deviceInfos.size()));
+  }
+
+  return Action{MergeDeviceInfo {
+    .device_infos = std::move(deviceInfos),
+    .output = std::move(output.value()),
+  }};
+
 }

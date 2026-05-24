@@ -8,6 +8,7 @@ enum class HelpScope {
   Populate,
   Reweight,
   QueryDeviceInfo,
+  MergeDeviceInfo,
 };
 
 struct HelpAction {

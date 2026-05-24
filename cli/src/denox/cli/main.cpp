@@ -4,12 +4,14 @@
 #include "denox/cli/dumpcsv.hpp"
 #include "denox/cli/help.hpp"
 #include "denox/cli/infer.hpp"
+#include "denox/cli/merge_device_info.hpp"
 #include "denox/cli/parser/parse.hpp"
 #include "denox/cli/populate.hpp"
 #include "denox/cli/query_device_info.hpp"
 #include "denox/cli/reweight.hpp"
 #include "denox/cli/version.hpp"
 #include "denox/diag/not_implemented.hpp"
+#include "denox/diag/unreachable.hpp"
 #include "denox/io/fs/Path.hpp"
 #include <fmt/ostream.h>
 #include <fmt/printf.h>
@@ -47,6 +49,11 @@ int main(int argc, char **argv) {
     case ActionKind::QueryDeviceInfo:
       query_device_info(action.query_device_info());
       break;
+    case ActionKind::MergeDeviceInfo:
+      merge_device_info(action.merge_device_info());
+      break;
+    default:
+      denox::diag::unreachable();
     }
   } catch (const std::exception &e) {
     std::cerr << e.what() << std::endl;
