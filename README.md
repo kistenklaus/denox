@@ -14,7 +14,7 @@ The architecture is described in detail in the accompanying paper, including ben
 ```
 #### Build Instructions
 ```bash
-cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -Bbuild
+cmake -Bbuild
 cmake --build build
 cmake --install build --prefix <install-dst> # optional
 ```
