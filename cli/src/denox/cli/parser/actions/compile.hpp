@@ -5,13 +5,14 @@
 #include "denox/cli/parser/artefact.hpp"
 #include "denox/compiler/Options.hpp"
 #include <optional>
+#include <variant>
 
 struct CompileAction {
   OnnxArtefact input; // must exist
   IOEndpoint output;
 
   // device info query
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion;
 
   // compile options.

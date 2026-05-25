@@ -1,18 +1,15 @@
 #include "query_device_info.hpp"
 #include "denox/cli/device_yml/device_yml.hpp"
 #include "denox/cli/io/OutputStream.hpp"
-#include "denox/device_info/CoopmatProperties.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/io/fs/Path.hpp"
-#include "yaml-cpp/emittermanip.h"
-#include "yaml-cpp/null.h"
 #include <span>
-#include <stdexcept>
 #include <yaml-cpp/yaml.h>
 
 void query_device_info(QueryDeviceInfo &action) {
 
   auto apiVersion = denox::ApiVersion::VULKAN_1_4;
+
   denox::DeviceInfo deviceInfo =
       denox::query_driver_device_info(apiVersion, action.deviceName);
 

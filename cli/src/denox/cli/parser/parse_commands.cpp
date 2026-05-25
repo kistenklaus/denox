@@ -1,5 +1,4 @@
 #include "denox/cli/parser/parse_commands.hpp"
-#include "absl/strings/str_format.h"
 #include "denox/cli/io/Pipe.hpp"
 #include "denox/cli/parser/action.hpp"
 #include "denox/cli/parser/actions/reweight.hpp"
@@ -55,7 +54,8 @@ Action parse_compile(std::span<const Token> tokens) {
   denox::memory::optional<IOEndpoint> output;
   denox::memory::optional<DbArtefact> database;
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   bool spirv_nonSemanticDebugInfo = false;
@@ -131,7 +131,7 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -267,7 +267,7 @@ Action parse_compile(std::span<const Token> tokens) {
   return CompileAction{
       .input = std::move(input),
       .output = out,
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .database = std::move(database),
       .options = options,
@@ -324,7 +324,7 @@ Action parse_populate(std::span<const Token> tokens) {
   }
   OnnxArtefact model = inputRes.artefact->onnx();
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
@@ -386,7 +386,7 @@ Action parse_populate(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -489,7 +489,7 @@ Action parse_populate(std::span<const Token> tokens) {
   return PopulateAction{
       .model = std::move(model),
       .database = std::move(database),
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .options = options,
       .loglevel = loglevel,
@@ -526,7 +526,7 @@ Action parse_bench(std::span<const Token> tokens) {
   denox::memory::optional<IOEndpoint> output;
   denox::memory::optional<DbArtefact> database;
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   denox::runtime::DbBenchOptions dbBenchOptions;
@@ -602,7 +602,7 @@ Action parse_bench(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -733,7 +733,7 @@ Action parse_bench(std::span<const Token> tokens) {
 
   return BenchAction{
       .target = std::move(model),
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .benchOptions = dbBenchOptions,
       .database = std::move(database),
@@ -778,7 +778,7 @@ Action parse_infer(std::span<const Token> tokens) {
   Artefact model = *inputRes.artefact;
   denox::memory::optional<DbArtefact> database;
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   bool spirv_nonSemanticDebugInfo = false;
@@ -851,7 +851,7 @@ Action parse_infer(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -964,7 +964,7 @@ Action parse_infer(std::span<const Token> tokens) {
       .model = std::move(model),
       .input = *input,
       .output = out,
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .database = std::move(database),
       .options = options,
@@ -1206,7 +1206,6 @@ Action parse_merge_device_info(std::span<const Token> tokens) {
 
   denox::memory::optional<IOEndpoint> output;
 
-
   uint32_t i = 0;
   while (i < tokens.size()) {
     uint32_t jump = 0;
@@ -1245,19 +1244,17 @@ Action parse_merge_device_info(std::span<const Token> tokens) {
         fmt::format("invalid option {}", describe_token(tokens[i])));
   }
 
-
   if (!output.has_value()) {
-    throw ParseError(
-        fmt::format("requires --output=<file> argument"));
+    throw ParseError(fmt::format("requires --output=<file> argument"));
   }
   if (deviceInfos.size() < 2) {
     throw ParseError(
-        fmt::format("expected at least 2 positional arguments, got {}", deviceInfos.size()));
+        fmt::format("expected at least 2 positional arguments, got {}",
+                    deviceInfos.size()));
   }
 
-  return Action{MergeDeviceInfo {
-    .device_infos = std::move(deviceInfos),
-    .output = std::move(output.value()),
+  return Action{MergeDeviceInfo{
+      .device_infos = std::move(deviceInfos),
+      .output = std::move(output.value()),
   }};
-
 }

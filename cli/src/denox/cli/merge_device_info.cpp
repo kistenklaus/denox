@@ -16,7 +16,7 @@ static denox::DeviceInfo min_device_info(const denox::DeviceInfo &lhs,
       std::min(static_cast<uint32_t>(lhs.apiVersion),
                static_cast<uint32_t>(rhs.apiVersion)));
 
-  out.name = fmt::format("{}|{}", lhs.name, rhs.name);
+  out.name = "*";
 
   for (std::size_t i = 0; i < 3; ++i) {
     out.limits.maxComputeWorkGroupCount[i] =

@@ -13,7 +13,7 @@ struct BenchAction {
   Artefact target;
 
   // device info query
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion;
 
   // db bench options (only valid if target is a database)

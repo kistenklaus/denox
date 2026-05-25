@@ -185,7 +185,7 @@ uint32_t parse_output(std::span<const Token> tokens,
 
 uint32_t
 parse_device(std::span<const Token> tokens,
-             denox::memory::optional<denox::memory::string> *deviceName) {
+             std::variant<std::monostate, denox::memory::string, IOEndpoint> *device) {
   if (tokens.empty()) {
     return 0;
   }
@@ -208,8 +208,16 @@ parse_device(std::span<const Token> tokens,
     throw std::runtime_error(
         "invalid argument to '--device': expected a device name");
   }
-  if (deviceName != nullptr) {
-    *deviceName = pat.literal().view();
+  if (device) {
+    auto lit = pat.literal();
+    if (lit.is_path()) {
+      auto path = lit.as_path();
+      if (path.exists()) {
+        device->emplace<IOEndpoint>(path);
+        return 2;
+      }
+    }
+    device->emplace<denox::memory::string>(pat.literal().view());
   }
   return 2;
 }

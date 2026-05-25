@@ -11,14 +11,17 @@
 #include <fmt/ostream.h>
 
 void infer(InferAction &action) {
-  const char *device = nullptr;
-  if (action.deviceName) {
-    device = action.deviceName->c_str();
+  const char *deviceName = nullptr;
+  if (std::holds_alternative<IOEndpoint>(action.device)) {
+    throw std::runtime_error("invalid device");
+  } else if (std::holds_alternative<denox::memory::string>(action.device)) {
+    deviceName = std::get<denox::memory::string>(action.device).c_str();
   }
 
   denox::diag::Logger logger("denox.infer", action.logcolors, action.loglevel);
 
-  const auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
+  const auto ctx =
+      denox::runtime::Context::make(deviceName, action.apiVersion, logger);
   denox::runtime::ModelHandle model;
 
   switch (action.model.kind()) {
@@ -27,18 +30,14 @@ void infer(InferAction &action) {
     if (action.database) {
       db = denox::Db::open(action.database->endpoint.path());
     }
-    const char *deviceName = nullptr;
-    if (action.deviceName.has_value()) {
-      deviceName = action.deviceName->c_str();
-    }
     denox::runtime::ContextHandle context =
         denox::runtime::Context::make(deviceName, action.apiVersion, logger);
 
     action.options.deviceInfo = denox::query_driver_device_info(
         vk::Instance{context->vkInstance()},
         vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
-    auto dnxbuf =
-        denox::compile(action.model.dnx().data, db, context, action.options, logger);
+    auto dnxbuf = denox::compile(action.model.dnx().data, db, context,
+                                 action.options, logger);
     model = denox::runtime::Model::make(dnxbuf, ctx);
     break;
   }
