@@ -32,9 +32,9 @@ uint32_t parse_feature_memory_concat(std::span<const Token> t, bool *v);
 uint32_t parse_output(std::span<const Token> tokens,
                       std::optional<IOEndpoint> *out);
 
-uint32_t
-parse_device(std::span<const Token> tokens,
-             denox::memory::optional<denox::memory::string> *deviceName);
+uint32_t parse_device(
+    std::span<const Token> tokens,
+    std::variant<std::monostate, denox::memory::string, IOEndpoint> *device);
 
 uint32_t parse_target_env(std::span<const Token> tokens,
                           denox::ApiVersion *target_env);
@@ -82,13 +82,13 @@ uint32_t parse_min_samples(std::span<const Token> tokens, uint32_t *samples);
 uint32_t parse_max_samples(std::span<const Token> tokens, uint32_t *samples);
 
 uint32_t parse_relative_error(std::span<const Token> tokens,
-                              float* relative_error);
+                              float *relative_error);
 
 uint32_t parse_input(std::span<const Token> tokens,
                      denox::memory::optional<IOEndpoint> *endpoint);
 
 uint32_t parse_optimizationLevel(std::span<const Token> tokens,
-                                uint32_t *optimizationLevel);
+                                 uint32_t *optimizationLevel);
 
 uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs);
 

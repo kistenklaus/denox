@@ -1,4 +1,6 @@
 #include "denox/cli/compile.hpp"
+#include "denox/cli/device_yml/device_yml.hpp"
+#include "denox/cli/io/InputStream.hpp"
 #include "denox/compiler/compile.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/diag/invalid_state.hpp"
@@ -8,18 +10,29 @@
 
 void compile(CompileAction &action) {
 
-  denox::diag::Logger logger("denox.compile", action.logcolors, action.loglevel);
+  denox::diag::Logger logger("denox.compile", action.logcolors,
+                             action.loglevel);
 
-  const char *deviceName = nullptr;
-  if (action.deviceName.has_value()) {
-    deviceName = action.deviceName->c_str();
+  denox::runtime::ContextHandle context;
+
+  if (std::holds_alternative<IOEndpoint>(action.device)) {
+    InputStream istream{std::get<IOEndpoint>(action.device)};
+    denox::memory::vector<std::byte> yml(1 << 20);
+    size_t sz = istream.read(yml);
+    action.options.deviceInfo =
+        deserialize_device_yml(denox::memory::span{yml.data(), sz});
+    const char *deviceName = action.options.deviceInfo.name.c_str();
+    context = denox::runtime::Context::make(
+        deviceName, action.options.deviceInfo.apiVersion);
+  } else if (std::holds_alternative<denox::memory::string>(action.device)) {
+    const char *deviceName =
+        std::get<denox::memory::string>(action.device).c_str();
+    context =
+        denox::runtime::Context::make(deviceName, action.apiVersion, logger);
+    action.options.deviceInfo = denox::query_driver_device_info(
+        vk::Instance{context->vkInstance()},
+        vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
   }
-  denox::runtime::ContextHandle context =
-      denox::runtime::Context::make(deviceName, action.apiVersion, logger);
-
-  action.options.deviceInfo = denox::query_driver_device_info(
-      vk::Instance{context->vkInstance()},
-      vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
 
   denox::memory::optional<denox::Db> db;
   if (action.database) {
@@ -29,7 +42,8 @@ void compile(CompileAction &action) {
     db = denox::Db::open(action.database->endpoint.path());
   }
 
-  auto dnxbuf = denox::compile(action.input.data, db, context, action.options, logger);
+  auto dnxbuf =
+      denox::compile(action.input.data, db, context, action.options, logger);
 
   switch (action.output.kind()) {
   case IOEndpointKind::Path: {

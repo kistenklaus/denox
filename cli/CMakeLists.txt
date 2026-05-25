@@ -18,6 +18,8 @@ add_executable(denox
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/parse_commands.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/parser/parse_options.cpp
 
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/device_yml/device_yml.cpp
+
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/bench.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/compile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/dumpcsv.cpp
@@ -26,8 +28,11 @@ add_executable(denox
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/populate.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/reweight.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/version.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/query_device_info.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/merge_device_info.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/main.cpp
+
 )
 
 
@@ -59,6 +64,7 @@ target_link_libraries(denox
     denox_spirv
     denox_database
     denox_runtime
+    yaml-cpp::yaml-cpp
 )
 
 

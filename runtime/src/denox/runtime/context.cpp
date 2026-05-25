@@ -368,19 +368,6 @@ Context::Context(const char *deviceName, ApiVersion target_env,
             devicePattern));
       }
 
-      if (matches.size() > 1) {
-        std::string list;
-        for (VkPhysicalDevice d : matches) {
-          VkPhysicalDeviceProperties props{};
-          vkGetPhysicalDeviceProperties(d, &props);
-          list += std::string(props.deviceName) + "; ";
-        }
-        throw std::runtime_error(
-            fmt::format("Failed to select physical device: pattern \"{}\" is "
-                        "ambiguous, matches multiple devices: {}",
-                        devicePattern, list));
-      }
-
       m_physicalDevice = matches.front();
     }
   }

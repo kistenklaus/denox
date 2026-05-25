@@ -4,6 +4,8 @@
 #include "denox/runtime/db.hpp"
 #include "denox/runtime/instance.hpp"
 #include "denox/runtime/model.hpp"
+#include <stdexcept>
+#include <variant>
 
 void bench(BenchAction &action) {
 
@@ -20,9 +22,13 @@ void bench(BenchAction &action) {
     }
 
     const char *deviceName = nullptr;
-    if (action.deviceName.has_value()) {
-      deviceName = action.deviceName->c_str();
+    if (std::holds_alternative<IOEndpoint>(action.device)) {
+      throw std::runtime_error("invalid device");
+    } else if (std::holds_alternative<denox::memory::string>(action.device)) {
+      deviceName = std::get<denox::memory::string>(action.device).c_str();
     }
+
+
     denox::runtime::ContextHandle context =
         denox::runtime::Context::make(deviceName, action.apiVersion, logger);
 
@@ -33,35 +39,33 @@ void bench(BenchAction &action) {
     auto dnxbuf =
         denox::compile(action.target.onnx().data, db, context, action.options, logger);
 
-    const char *device = nullptr;
-    if (action.deviceName) {
-      device = action.deviceName->c_str();
-    }
-
-    auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
     auto model = denox::runtime::Model::make(dnxbuf);
     auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
     instance->bench().report(logger);
     break;
   }
   case ArtefactKind::Dnx: {
-    const char *device = nullptr;
-    if (action.deviceName) {
-      device = action.deviceName->c_str();
+    const char *deviceName = nullptr;
+    if (std::holds_alternative<IOEndpoint>(action.device)) {
+      throw std::runtime_error("invalid device");
+    } else if (std::holds_alternative<denox::memory::string>(action.device)) {
+      deviceName = std::get<denox::memory::string>(action.device).c_str();
     }
-    auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
-    auto model = denox::runtime::Model::make(action.target.dnx().data);
+    auto ctx = denox::runtime::Context::make(deviceName, action.apiVersion, logger);
+    auto model = denox::runtime::Model::make(action.target.dnx().data, ctx);
     auto instance = denox::runtime::Instance::make(model, action.valueSpecs, logger);
     instance->bench().report(logger);
     break;
   }
   case ArtefactKind::Database: {
-    const char *device = nullptr;
-    if (action.deviceName) {
-      device = action.deviceName->c_str();
+    const char *deviceName = nullptr;
+    if (std::holds_alternative<IOEndpoint>(action.device)) {
+      throw std::runtime_error("invalid device");
+    } else if (std::holds_alternative<denox::memory::string>(action.device)) {
+      deviceName = std::get<denox::memory::string>(action.device).c_str();
     }
-    auto ctx = denox::runtime::Context::make(device, action.apiVersion, logger);
     auto db = denox::Db::open(action.target.database().endpoint.path());
+    auto ctx = denox::runtime::Context::make(deviceName, action.apiVersion, logger);
     auto rdb = denox::runtime::Db::open(ctx, db);
     rdb->bench(action.benchOptions, {}, logger);
     break;

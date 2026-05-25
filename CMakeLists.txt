@@ -34,6 +34,7 @@ include(cmake/vulkan.cmake)
 include(cmake/glslang.cmake)
 include(cmake/protobuf.cmake)
 include(cmake/png.cmake)
+include(cmake/yaml-cpp.cmake)
 
 # warnings helper
 include(cmake/warnings.cmake)

@@ -5,8 +5,11 @@
 #include "denox/cli/parser/actions/dumpcsv.hpp"
 #include "denox/cli/parser/actions/help.hpp"
 #include "denox/cli/parser/actions/infer.hpp"
+#include "denox/cli/parser/actions/merge_device_info.hpp"
 #include "denox/cli/parser/actions/populate.hpp"
+#include "denox/cli/parser/actions/query_device_info.hpp"
 #include "denox/cli/parser/actions/reweight.hpp"
+#include "denox/diag/unreachable.hpp"
 
 #include <cassert>
 #include <variant>
@@ -20,6 +23,8 @@ enum class ActionKind {
   Version,
   DumpCsv,
   Reweight,
+  QueryDeviceInfo,
+  MergeDeviceInfo,
 };
 
 class Action {
@@ -38,6 +43,10 @@ public:
 
   Action(ReweightAction a) noexcept : m_value(std::move(a)) {}
 
+  Action(QueryDeviceInfo a) noexcept : m_value(std::move(a)) {}
+
+  Action(MergeDeviceInfo a) noexcept : m_value(std::move(a)) {}
+
   static Action version() noexcept { return Action{VersionTag{}}; }
 
   ActionKind kind() const noexcept {
@@ -53,13 +62,15 @@ public:
       return ActionKind::Help;
     if (std::holds_alternative<VersionTag>(m_value))
       return ActionKind::Version;
-    if (std::holds_alternative<DumpCsvAction>(m_value)) {
+    if (std::holds_alternative<DumpCsvAction>(m_value))
       return ActionKind::DumpCsv;
-    }
-    if (std::holds_alternative<ReweightAction>(m_value)) {
+    if (std::holds_alternative<ReweightAction>(m_value))
       return ActionKind::Reweight;
-    }
-    std::abort();
+    if (std::holds_alternative<QueryDeviceInfo>(m_value)) 
+      return ActionKind::QueryDeviceInfo;
+    if (std::holds_alternative<MergeDeviceInfo>(m_value)) 
+      return ActionKind::MergeDeviceInfo;
+    denox::diag::unreachable();
   }
 
   const CompileAction &compile() const noexcept {
@@ -127,6 +138,27 @@ public:
     return std::get<ReweightAction>(m_value);
   }
 
+
+  const QueryDeviceInfo &query_device_info() const noexcept {
+    assert(kind() == ActionKind::QueryDeviceInfo);
+    return std::get<QueryDeviceInfo>(m_value);
+  }
+
+  QueryDeviceInfo &query_device_info() noexcept {
+    assert(kind() == ActionKind::QueryDeviceInfo);
+    return std::get<QueryDeviceInfo>(m_value);
+  }
+
+  const MergeDeviceInfo &merge_device_info() const noexcept {
+    assert(kind() == ActionKind::MergeDeviceInfo);
+    return std::get<MergeDeviceInfo>(m_value);
+  }
+
+  MergeDeviceInfo &merge_device_info() noexcept {
+    assert(kind() == ActionKind::MergeDeviceInfo);
+    return std::get<MergeDeviceInfo>(m_value);
+  }
+
 private:
   struct VersionTag {};
 
@@ -134,6 +166,7 @@ private:
 
 private:
   std::variant<CompileAction, InferAction, BenchAction, PopulateAction,
-               HelpAction, VersionTag, DumpCsvAction, ReweightAction>
+               HelpAction, VersionTag, DumpCsvAction, ReweightAction, QueryDeviceInfo,
+               MergeDeviceInfo>
       m_value;
 };

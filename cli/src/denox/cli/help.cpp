@@ -13,6 +13,9 @@ static constexpr char global_help[] =
 "   populate                populate denox database with onnx model\n"
 "   infer                   infer dnx model\n"
 "   bench                   benchmark dnx model or database\n"
+"   reweight                update weights of compiled dnx artefact\n"
+"   query-device-info       queries local device, and writes device yaml file\n"
+"   merge-device-info       merge device yaml files\n"
 "See 'denox <command> --help' for more information on a specific command";
 
 static constexpr char bench_help[] = 
@@ -188,6 +191,22 @@ static constexpr char reweight_help[] =
 "   -h, --help              show this message\n"
 "   -o, --output <file>     place reweighted model into <file>\n";
 
+static constexpr char query_device_info_help[] =
+"Usage denox query-device-info [DEVICE-REGEX] [OPTIONS]\n"
+"Argument: \n"
+"   [DEVICE-REGEX]          device name regex (e.g. *NVIDIA*)\n"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   -o, --output <file>     place device info yaml into <file>\n";
+
+static constexpr char merge_device_info_help[] = 
+"Usage denox merge-device-info [DEVICE-YAMLS..] [OPTIONS]\n"
+"Argument: \n"
+"   [DEVICE-YAMLS]          list of device info yaml files\n"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   -o, --output <file>     place merged device info yaml into <file>\n";
+
 void help(HelpAction action) {
 
   switch (action.scope) {
@@ -208,6 +227,12 @@ void help(HelpAction action) {
     break;
   case HelpScope::Reweight:
     std::cerr << reweight_help << std::endl;
+    break;
+  case HelpScope::QueryDeviceInfo:
+    std::cerr << query_device_info_help << std::endl;
+    break;
+  case HelpScope::MergeDeviceInfo:
+    std::cerr << merge_device_info_help << std::endl;
     break;
   }
 }

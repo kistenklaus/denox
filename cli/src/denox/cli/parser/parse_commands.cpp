@@ -3,6 +3,7 @@
 #include "denox/cli/parser/action.hpp"
 #include "denox/cli/parser/actions/reweight.hpp"
 #include "denox/cli/parser/errors.hpp"
+#include "denox/cli/parser/lex/tokens/token.hpp"
 #include "denox/cli/parser/parse_artefact.hpp"
 #include "denox/cli/parser/parse_options.hpp"
 #include "denox/device_info/ApiVersion.hpp"
@@ -12,6 +13,7 @@
 #include "denox/diag/unreachable.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include "denox/memory/container/optional.hpp"
+#include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/container/string.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
@@ -52,7 +54,8 @@ Action parse_compile(std::span<const Token> tokens) {
   denox::memory::optional<IOEndpoint> output;
   denox::memory::optional<DbArtefact> database;
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   bool spirv_nonSemanticDebugInfo = false;
@@ -128,7 +131,7 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -264,7 +267,7 @@ Action parse_compile(std::span<const Token> tokens) {
   return CompileAction{
       .input = std::move(input),
       .output = out,
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .database = std::move(database),
       .options = options,
@@ -321,7 +324,7 @@ Action parse_populate(std::span<const Token> tokens) {
   }
   OnnxArtefact model = inputRes.artefact->onnx();
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
@@ -383,7 +386,7 @@ Action parse_populate(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -486,7 +489,7 @@ Action parse_populate(std::span<const Token> tokens) {
   return PopulateAction{
       .model = std::move(model),
       .database = std::move(database),
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .options = options,
       .loglevel = loglevel,
@@ -523,7 +526,7 @@ Action parse_bench(std::span<const Token> tokens) {
   denox::memory::optional<IOEndpoint> output;
   denox::memory::optional<DbArtefact> database;
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   denox::runtime::DbBenchOptions dbBenchOptions;
@@ -599,7 +602,7 @@ Action parse_bench(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -730,7 +733,7 @@ Action parse_bench(std::span<const Token> tokens) {
 
   return BenchAction{
       .target = std::move(model),
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .benchOptions = dbBenchOptions,
       .database = std::move(database),
@@ -775,7 +778,7 @@ Action parse_infer(std::span<const Token> tokens) {
   Artefact model = *inputRes.artefact;
   denox::memory::optional<DbArtefact> database;
   denox::compiler::CompileOptions options{};
-  denox::memory::optional<denox::memory::string> deviceName;
+  std::variant<std::monostate, denox::memory::string, IOEndpoint> device;
   denox::ApiVersion apiVersion = denox::ApiVersion::VULKAN_1_4;
 
   bool spirv_nonSemanticDebugInfo = false;
@@ -848,7 +851,7 @@ Action parse_infer(std::span<const Token> tokens) {
       continue;
     }
 
-    if ((jump = parse_device(tail, &deviceName))) {
+    if ((jump = parse_device(tail, &device))) {
       i += jump;
       continue;
     }
@@ -961,7 +964,7 @@ Action parse_infer(std::span<const Token> tokens) {
       .model = std::move(model),
       .input = *input,
       .output = out,
-      .deviceName = deviceName,
+      .device = device,
       .apiVersion = apiVersion,
       .database = std::move(database),
       .options = options,
@@ -1092,7 +1095,7 @@ Action parse_reweight(std::span<const Token> tokens) {
   bool logcolors = true;
 
   // parse remaining arguments
-  uint32_t i = 2;
+  uint32_t i = 1;
   while (i < tokens.size()) {
     uint32_t jump = 0;
 
@@ -1103,23 +1106,6 @@ Action parse_reweight(std::span<const Token> tokens) {
         tokens[i].kind() == TokenKind::Pipe) {
       throw ParseError(fmt::format("unexpected positional argument {}",
                                    describe_token(tokens[i])));
-    }
-    if ((jump = parse_help(tail, &help))) {
-      i += jump;
-      continue;
-    }
-
-    if ((jump = parse_verbose(tail, &loglevel))) {
-      i += jump;
-      continue;
-    }
-    if ((jump = parse_quiet(tail, &loglevel))) {
-      i += jump;
-      continue;
-    }
-    if ((jump = parse_color(tail, &logcolors))) {
-      i += jump;
-      continue;
     }
 
     // --- options with arguments ---
@@ -1141,6 +1127,7 @@ Action parse_reweight(std::span<const Token> tokens) {
     throw ParseError(
         fmt::format("reweight requires \"--output=output.dnx\" argument."));
   }
+
   IOEndpoint out = output.value_or([&]() -> IOEndpoint {
     switch (refmodel.endpoint.kind()) {
     case IOEndpointKind::Path:
@@ -1158,4 +1145,116 @@ Action parse_reweight(std::span<const Token> tokens) {
       .loglevel = loglevel,
       .logcolors = logcolors,
   };
+}
+
+Action parse_query_device_info(std::span<const Token> tokens) {
+  if (tokens.empty()) {
+    return QueryDeviceInfo{};
+  }
+
+  if (parse_help(tokens, nullptr)) {
+    return HelpAction(HelpScope::Reweight);
+  }
+  QueryDeviceInfo action;
+  bool help = false;
+
+  uint32_t i = 0;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    if (tokens[i].kind() == TokenKind::Literal) {
+      const auto &lit = tokens[i].literal();
+      action.deviceName = lit.view();
+      i += 1;
+      continue;
+    }
+
+    if (tokens[i].kind() == TokenKind::Pipe) {
+      throw ParseError(fmt::format("unexpected positional argument {}",
+                                   describe_token(tokens[i])));
+    }
+
+    if ((jump = parse_output(tail, &action.output))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_target_env(tail, &action.apiVersion))) {
+      i += jump;
+      continue;
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+  if (help) {
+    return HelpAction{
+        HelpScope::QueryDeviceInfo,
+    };
+  }
+  return action;
+}
+
+Action parse_merge_device_info(std::span<const Token> tokens) {
+  denox::memory::small_vector<IOEndpoint, 2> deviceInfos;
+
+  denox::memory::optional<IOEndpoint> output;
+
+  uint32_t i = 0;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    bool help = false;
+    if ((jump = parse_help(tail, &help))) {
+      if (help) {
+        return HelpAction(HelpScope::MergeDeviceInfo);
+      }
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+
+    if (tail.front().kind() == TokenKind::Literal) {
+      const auto &lit = tail.front().literal();
+      if (lit.is_path()) {
+        const auto &path = lit.as_path();
+        if (!path.exists()) {
+          throw std::runtime_error(
+              fmt::format("File \"{}\" does not exist", path));
+        }
+        deviceInfos.push_back(IOEndpoint(path));
+        i += 1;
+        continue;
+      }
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+  if (!output.has_value()) {
+    throw ParseError(fmt::format("requires --output=<file> argument"));
+  }
+  if (deviceInfos.size() < 2) {
+    throw ParseError(
+        fmt::format("expected at least 2 positional arguments, got {}",
+                    deviceInfos.size()));
+  }
+
+  return Action{MergeDeviceInfo{
+      .device_infos = std::move(deviceInfos),
+      .output = std::move(output.value()),
+  }};
 }

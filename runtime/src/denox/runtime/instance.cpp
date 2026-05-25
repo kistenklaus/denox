@@ -34,8 +34,6 @@ create_buffers(const runtime::ModelHandle &model, const SymIREval &symeval) {
 
     uint64_t size = static_cast<uint64_t>(symeval[buffer.size]);
     acc += size;
-    fmt::println("allocate buffer: {}Byte", size);
-
     bool isInput =
         std::ranges::find_if(buffer.tensors, [&](const uint32_t &tensor) {
           return model->tensors()[tensor].isInput;
@@ -61,7 +59,6 @@ create_buffers(const runtime::ModelHandle &model, const SymIREval &symeval) {
 
     buffers[b] = model->context()->createBuffer(size, usage);
   }
-  fmt::println("total-size: {}Byte", acc);
   return buffers;
 }
 
