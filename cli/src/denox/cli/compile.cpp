@@ -32,6 +32,11 @@ void compile(CompileAction &action) {
     action.options.deviceInfo = denox::query_driver_device_info(
         vk::Instance{context->vkInstance()},
         vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
+  } else {
+    context = denox::runtime::Context::make(nullptr, action.apiVersion, logger);
+    action.options.deviceInfo = denox::query_driver_device_info(
+        vk::Instance{context->vkInstance()},
+        vk::PhysicalDevice{context->vkPhysicalDevice()}, action.apiVersion);
   }
 
   denox::memory::optional<denox::Db> db;
