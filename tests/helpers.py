@@ -18,22 +18,56 @@ CLI_PATH = PROJECT_ROOT / "build" / "bin" / "denox"
 
 def run_denox(
     *args,
-    timeout: float = 30.0,
+    timeout: float = 3600,
+    verbose: bool = True,
 ):
     command = [
         str(CLI_PATH),
         *(str(arg) for arg in args),
     ]
 
-    result = subprocess.run(
+    if not verbose:
+        return subprocess.run(
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+
+    process = subprocess.Popen(
         command,
         text=True,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout,
+        stderr=subprocess.STDOUT,
     )
 
-    print(result.stdout, end="")
-    print(result.stderr, end="")
+    output = []
 
-    return result
+    try:
+        assert process.stdout is not None
+
+        for line in process.stdout:
+            print(line, end="")
+            output.append(line)
+
+        returncode = process.wait(timeout=timeout)
+
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, _ = process.communicate()
+
+        if stdout:
+            print(stdout, end="")
+            output.append(stdout)
+
+        raise
+
+    stdout = "".join(output)
+
+    return subprocess.CompletedProcess(
+        args=command,
+        returncode=returncode,
+        stdout=stdout,
+        stderr="",
+    )
