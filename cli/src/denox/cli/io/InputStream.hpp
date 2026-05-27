@@ -3,6 +3,7 @@
 #include "denox/cli/io/IOEndpoint.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/io/fs/File.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <variant>
 class InputStream {
 public:
@@ -26,6 +27,17 @@ public:
       denox::diag::unreachable();
     }
   }
+
+  denox::memory::vector<std::byte> read_all() {
+    if (std::holds_alternative<Pipe>(m_source)) {
+      return std::get<Pipe>(m_source).read_all();
+    } else if (std::holds_alternative<denox::io::File>(m_source)) {
+      return std::get<denox::io::File>(m_source).read_all();
+    } else {
+      denox::diag::unreachable();
+    }
+  }
+
   void read_exact(std::span<std::byte> dst) {
     if (std::holds_alternative<Pipe>(m_source)) {
       std::get<Pipe>(m_source).read_exact(dst);

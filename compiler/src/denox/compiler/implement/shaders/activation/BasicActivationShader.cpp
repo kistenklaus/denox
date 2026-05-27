@@ -28,14 +28,9 @@ BasicActivationShader::BasicActivationShader(spirv::GlslCompiler *compiler,
                                      str.size()));
   std::stringstream ss(str);
 
-  while (!ss.eof()) {
-    Config config;
-    ss >> config.invocC;
-    ss >> config.invocW;
-    ss >> config.invocH;
-    ss >> config.wgC;
-    ss >> config.wgW;
-    ss >> config.wgH;
+  Config config;
+  while (ss >> config.invocC >> config.invocW >> config.invocH >> config.wgC >>
+         config.wgW >> config.wgH) {
 
     if (config.wgC > options.deviceInfo.limits.maxComputeWorkGroupSize[0]) {
       continue;

@@ -17,10 +17,8 @@ void compile(CompileAction &action) {
 
   if (std::holds_alternative<IOEndpoint>(action.device)) {
     InputStream istream{std::get<IOEndpoint>(action.device)};
-    denox::memory::vector<std::byte> yml(1 << 20);
-    size_t sz = istream.read(yml);
-    action.options.deviceInfo =
-        deserialize_device_yml(denox::memory::span{yml.data(), sz});
+    denox::memory::vector<std::byte> yml = istream.read_all();
+    action.options.deviceInfo = deserialize_device_yml(yml);
     const char *deviceName = action.options.deviceInfo.name.c_str();
     context = denox::runtime::Context::make(
         deviceName, action.options.deviceInfo.apiVersion);

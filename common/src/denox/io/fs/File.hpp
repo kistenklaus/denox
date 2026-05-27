@@ -2,6 +2,7 @@
 
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/string.hpp"
+#include "denox/memory/container/vector.hpp"
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -52,6 +53,8 @@ public:
   [[nodiscard]] const Path &path() const noexcept { return m_path; }
   size_type read(std::span<std::byte> dst);
   void read_exact(std::span<std::byte> dst);
+  denox::memory::vector<std::byte> read_all();
+
   size_type write(std::span<const std::byte> src);
   void write_exact(std::span<const std::byte> src);
   bool flush();

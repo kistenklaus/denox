@@ -232,23 +232,6 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
 
     // Check if the dispatch has parameters
     // (i.e. bindings to tensors, which are referenced by a initializer)
-    memory::small_vector<uint32_t, 4> dnxParameterTensorIds;
-    const uint32_t setCount = dnxDispatch->bindings()->size();
-    for (uint32_t s = 0; s < setCount; ++s) {
-      const dnx::DescriptorSetBinding *setBinding =
-          dnxDispatch->bindings()->Get(s);
-      const uint32_t bindingCount = setBinding->bindings()->size();
-      for (uint32_t b = 0; b < bindingCount; ++b) {
-        const dnx::DescriptorBinding *binding = setBinding->bindings()->Get(b);
-        uint32_t tid = binding->tensor();
-        if (dnxIsParameter[tid]) {
-          dnxParameterTensorIds.push_back(tid);
-        }
-      }
-    }
-    if (dnxParameterTensorIds.empty()) {
-      continue; // dispatches without parameters are uninteressting.
-    }
 
     memory::small_vector<Candidate, 2> candidates;
     {
@@ -273,8 +256,8 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
           };
           if (used.contains(candidate)) {
             continue;
-            ;
           }
+
 
           { // check workgroup count X
             Sym dnxSym;
@@ -358,6 +341,7 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
             continue;
           }
 
+
           bool unalive = false;
           for (const auto &binding : dispatch.bindings) {
             if ((binding.accessFlag == Access::ReadOnly ||
@@ -380,6 +364,11 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
       diag::invalid_argument("Failed to reweight! Reference ONNX model, does "
                              "not seem to be compatible with DNX artefact!");
     } else if (candidates.size() > 1) {
+      // for (const auto& can : candidates) {
+      //   const SuperGraphEdge& edge = supergraph.graph.get(can.eid);
+      //   const ComputeDispatch& dispatch = edge.dispatches[candidates.front().did];
+      // }
+
       diag::invalid_state(
           "Failed to map dispatch to reconstructed supergraph, "
           "selection is ambigious!\nTHIS IS A BUG! If you have "
@@ -393,6 +382,21 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
       isLive[binding.tensorId.index] = true;
     }
     used.insert(candidates.front());
+
+    memory::small_vector<uint32_t, 4> dnxParameterTensorIds;
+    const uint32_t setCount = dnxDispatch->bindings()->size();
+    for (uint32_t s = 0; s < setCount; ++s) {
+      const dnx::DescriptorSetBinding *setBinding =
+          dnxDispatch->bindings()->Get(s);
+      const uint32_t bindingCount = setBinding->bindings()->size();
+      for (uint32_t b = 0; b < bindingCount; ++b) {
+        const dnx::DescriptorBinding *binding = setBinding->bindings()->Get(b);
+        uint32_t tid = binding->tensor();
+        if (dnxIsParameter[tid]) {
+          dnxParameterTensorIds.push_back(tid);
+        }
+      }
+    }
 
     for (const uint32_t dnxParamTensorId : dnxParameterTensorIds) {
       uint32_t set = std::numeric_limits<uint32_t>::max();

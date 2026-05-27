@@ -168,18 +168,10 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
         reinterpret_cast<std::byte *>(str.data()), str.size()));
     std::stringstream ss(str);
 
-    while (!ss.eof()) {
-      DirectConvConfig config;
-      ss >> config.invoc_m;
-      ss >> config.invoc_k;
-      ss >> config.invoc_n;
-      ss >> config.sg_m;
-      ss >> config.sg_k;
-      ss >> config.sg_n;
-      ss >> config.wg_m;
-      ss >> config.wg_n;
-      ss >> config.async;
-      ss >> config.subgroupSize;
+    DirectConvConfig config;
+    while (ss >> config.invoc_m >> config.invoc_k >> config.invoc_n >>
+           config.sg_m >> config.sg_k >> config.sg_n >> config.wg_m >>
+           config.wg_n >> config.async >> config.subgroupSize) {
 
       if (config.subgroupSize >
           options.deviceInfo.limits.maxComputeWorkGroupSize[0]) {
@@ -238,8 +230,10 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
       }
 
       const uint32_t VECS_PER_INVOC =
-          (config.invoc_n * config.invoc_m + 2 * config.subgroupSize - 1) / (2 * config.subgroupSize);
-      const uint32_t acc_regs = config.sg_n * config.sg_m * VECS_PER_INVOC * 4; // uvec4
+          (config.invoc_n * config.invoc_m + 2 * config.subgroupSize - 1) /
+          (2 * config.subgroupSize);
+      const uint32_t acc_regs =
+          config.sg_n * config.sg_m * VECS_PER_INVOC * 4; // uvec4
 
       if (acc_regs > 128) {
         continue;

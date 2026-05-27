@@ -156,15 +156,11 @@ static denox::DeviceInfo min_device_info(const denox::DeviceInfo &lhs,
 void merge_device_info(MergeDeviceInfo &action) {
   assert(action.device_infos.size() >= 2);
 
-  static constexpr size_t MAX_YAML_FILE_SIZE = 1 << 20; // 1MB
-  denox::memory::vector<std::byte> yamlCache(MAX_YAML_FILE_SIZE);
-
   denox::memory::vector<denox::DeviceInfo> deviceInfos;
   deviceInfos.resize(action.device_infos.size());
   for (size_t i = 0; i < deviceInfos.size(); ++i) {
     InputStream istream{action.device_infos[i]};
-    size_t sz = istream.read(yamlCache);
-    denox::memory::span yaml{yamlCache.begin(), sz};
+    denox::memory::vector<std::byte> yaml = istream.read_all();
     deviceInfos[i] = deserialize_device_yml(yaml);
   }
 

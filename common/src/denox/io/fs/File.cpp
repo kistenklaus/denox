@@ -60,6 +60,12 @@ void File::read_exact(memory::span<std::byte> dst) {
     remaining -= n;
   }
 }
+denox::memory::vector<std::byte> File::read_all() {
+  size_t sz = size();
+  denox::memory::vector<std::byte> data(sz);
+  read_exact(data);
+  return data;
+}
 
 size_t File::write(memory::span<const std::byte> src) {
   std::error_code ec;
@@ -147,7 +153,7 @@ bool File::open_ec(const Path &p, OpenMode mode, std::error_code &ec) {
 }
 
 size_t File::read_ec(memory::span<std::byte> dst,
-                              std::error_code &ec) noexcept {
+                     std::error_code &ec) noexcept {
   if (!m_file) {
     ec = std::make_error_code(std::errc::bad_file_descriptor);
     return 0;
@@ -163,7 +169,7 @@ size_t File::read_ec(memory::span<std::byte> dst,
 }
 
 size_t File::write_ec(memory::span<const std::byte> src,
-                               std::error_code &ec) noexcept {
+                      std::error_code &ec) noexcept {
   if (!m_file) {
     ec = std::make_error_code(std::errc::bad_file_descriptor);
     return 0;

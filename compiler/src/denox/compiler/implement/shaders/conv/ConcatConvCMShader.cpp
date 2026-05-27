@@ -365,21 +365,11 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
         reinterpret_cast<std::byte *>(str.data()), str.size()));
     std::stringstream ss(str);
 
-    while (!ss.eof()) {
-      ConcatConvConfig config;
-      ss >> config.cm_m;
-      ss >> config.a_cm_k;
-      ss >> config.b_cm_k;
-      ss >> config.cm_n;
-      ss >> config.sg_m;
-      ss >> config.a_sg_k;
-      ss >> config.b_sg_k;
-      ss >> config.sg_n;
-      ss >> config.wg_m;
-      ss >> config.wg_n;
-      ss >> config.a_async;
-      ss >> config.b_async;
-      ss >> config.subgroupSize;
+    ConcatConvConfig config;
+    while (ss >> config.cm_m >> config.a_cm_k >> config.b_cm_k >> config.cm_n >>
+           config.sg_m >> config.a_sg_k >> config.b_sg_k >> config.sg_n >>
+           config.wg_m >> config.wg_n >> config.a_async >> config.b_async >>
+           config.subgroupSize) {
 
       // trivial workgroup size checks (should basically never fail)
       if (config.subgroupSize >
@@ -448,7 +438,6 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
         continue;
       }
 
-
       const uint32_t acc_register_estimate =
           (config.cm_m * config.cm_n) / config.subgroupSize;
 
@@ -502,7 +491,6 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
         continue; // uneven load balancing between subgroups.
       }
 
-
       const uint32_t A_prefetch_B_SQQ = A_prefetch_B_QQ / config.wg_m;
       const uint32_t B_prefetch_B_SQQ = B_prefetch_B_QQ / config.wg_m;
 
@@ -541,7 +529,6 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
                   // because optimizers might reduce this
                   // drastically)
       }
-
 
       const uint32_t A_sh_a_size = (config.wg_m * config.cm_m * config.a_cm_k *
                                     config.a_sg_k * config.sg_m) *
