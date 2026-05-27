@@ -20,7 +20,6 @@ docker run --rm -t \
         pkg-config \
         git \
         ca-certificates \
-        libsqlite3-dev \
         zlib1g-dev \
         libvulkan-dev
 
@@ -36,6 +35,7 @@ docker run --rm -t \
     cmake -S /work -B /tmp/build -G Ninja \
       -DCMAKE_BUILD_TYPE=Release \
       -DDENOX_STATIC_LIBSTDCPP=ON \
+      -DDENOX_STATIC_SQLITE3=ON \
       -DDENOX_ENABLE_NVML_CLOCKCTRL=OFF \
       -DDENOX_SAN=OFF \
       -DBUILD_TESTING=OFF

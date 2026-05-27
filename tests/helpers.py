@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 import subprocess
 
 
@@ -13,7 +14,18 @@ def find_project_root(start: Path | None = None) -> Path:
 
 
 PROJECT_ROOT = find_project_root()
-CLI_PATH = PROJECT_ROOT / "build" / "bin" / "denox"
+
+
+def find_denox_cli() -> Path:
+    path_cli = shutil.which("denox")
+
+    if path_cli is not None:
+        return Path(path_cli).resolve()
+
+    return PROJECT_ROOT / "build" / "bin" / "denox"
+
+
+CLI_PATH = find_denox_cli()
 
 
 def run_denox(

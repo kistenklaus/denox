@@ -9,6 +9,10 @@ option(DENOX_ENABLE_NVML_CLOCKCTRL "Enables / Disables NVML clockctrl, this some
 
 option(DENOX_STATIC_LIBSTDCPP "Enables statically linking libstdc++. Can improve ABI stability of produced binary" OFF)
 
+option(DENOX_STATIC_SQLITE3 "Download SQLite amalgamation and link it statically" ON)
+
+# option(DENOX_STATIC_SQLITE "Download SQLite amalgamation and link it statically" ON)
+
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
         $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>:-fdiagnostics-color=always>

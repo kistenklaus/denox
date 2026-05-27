@@ -44,6 +44,12 @@ if (DENOX_UNITY_BUILD)
   set_target_properties(denox PROPERTIES UNITY_BUILD ON)
 endif()
 
+set_target_properties(denox
+    PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY
+            "${CMAKE_BINARY_DIR}/bin"
+)
+
 foreach(cfg DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     set_target_properties(denox PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY_${cfg} ${CMAKE_BINARY_DIR}/bin
