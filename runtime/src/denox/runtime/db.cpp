@@ -660,7 +660,8 @@ print_progress_report(const denox::Db &db,
 }
 
 void denox::runtime::Db::bench(const DbBenchOptions &options,
-                               diag::Progress progress, const diag::Logger& logger) {
+                               diag::Progress progress,
+                               const diag::Logger &logger) {
   assert(options.minSamples >= 1);
 
   BenchmarkState state = create_benchmark_state(m_context, m_db);
@@ -725,6 +726,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
         uint32_t stage = 0;
         while (!token.stop_requested()) {
           emptyEpochs.acquire();
+
           if (epoch_is_live[stage]) {
             epoch_is_live[stage].store(false); // <- don't access me anymore
             for (uint32_t target : epochs[stage].targets) {
@@ -874,9 +876,7 @@ void denox::runtime::Db::bench(const DbBenchOptions &options,
 
   std::stop_token main_token = stop.get_token();
   while (!main_token.stop_requested()) {
-
     constructedEpochs.acquire();
-
     emptyResults.acquire();
 
     if (!epoch_is_live[stage].load()) {

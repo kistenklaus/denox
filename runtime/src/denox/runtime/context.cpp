@@ -943,12 +943,15 @@ void Context::destroyBuffer(const Buffer &buffer) {
   assert(buffer.allocation != VK_NULL_HANDLE);
   vmaDestroyBuffer(m_vma, buffer.vkbuffer, buffer.allocation);
 }
+
 VkDescriptorSetLayout Context::createDescriptorSetLayout(
     memory::span<const VkDescriptorSetLayoutBinding> bindings) {
   VkDescriptorSetLayoutCreateInfo layoutInfo;
   std::memset(&layoutInfo, 0, sizeof(VkDescriptorSetLayoutCreateInfo));
   layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  layoutInfo.pBindings = bindings.data();
+  layoutInfo.pBindings = bindings.empty()
+      ? nullptr
+      : bindings.data();
   layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 
   VkDescriptorSetLayout layout;
@@ -961,6 +964,7 @@ VkDescriptorSetLayout Context::createDescriptorSetLayout(
   }
   return layout;
 }
+
 void Context::destroyDescriptorSetLayout(VkDescriptorSetLayout layout) {
   assert(layout != VK_NULL_HANDLE);
   vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
@@ -970,7 +974,6 @@ VkPipelineLayout Context::createPipelineLayout(
     memory::span<const VkDescriptorSetLayout> descriptorLayouts,
     uint32_t pushConstantRange) {
   VkPipelineLayoutCreateInfo layoutInfo{};
-  std::memset(&layoutInfo, 0, sizeof(VkPipelineLayoutCreateInfo));
   layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   layoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorLayouts.size());
   layoutInfo.pSetLayouts = descriptorLayouts.data();
@@ -993,6 +996,7 @@ VkPipelineLayout Context::createPipelineLayout(
   }
   return layout;
 }
+
 void Context::destroyPipelineLayout(VkPipelineLayout layout) {
   assert(layout != VK_NULL_HANDLE);
   vkDestroyPipelineLayout(m_device, layout, nullptr);

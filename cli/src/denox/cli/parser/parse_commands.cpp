@@ -1095,7 +1095,7 @@ Action parse_reweight(std::span<const Token> tokens) {
   bool logcolors = true;
 
   // parse remaining arguments
-  uint32_t i = 1;
+  uint32_t i = 2;
   while (i < tokens.size()) {
     uint32_t jump = 0;
 
@@ -1110,6 +1110,11 @@ Action parse_reweight(std::span<const Token> tokens) {
 
     // --- options with arguments ---
     if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+    
+    if ((jump = parse_help(tail, &help))) {
       i += jump;
       continue;
     }

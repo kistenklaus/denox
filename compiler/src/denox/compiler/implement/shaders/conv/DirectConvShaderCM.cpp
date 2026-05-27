@@ -241,18 +241,10 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
         reinterpret_cast<std::byte *>(str.data()), str.size()));
     std::stringstream ss(str);
 
-    while (!ss.eof()) {
-      DirectConvConfigCM config;
-      ss >> config.cm_m;
-      ss >> config.cm_k;
-      ss >> config.cm_n;
-      ss >> config.sg_m;
-      ss >> config.sg_k;
-      ss >> config.sg_n;
-      ss >> config.wg_m;
-      ss >> config.wg_n;
-      ss >> config.async;
-      ss >> config.subgroupSize;
+    DirectConvConfigCM config;
+    while (ss >> config.cm_m >> config.cm_k >> config.cm_n >> config.sg_m >>
+           config.sg_k >> config.sg_n >> config.wg_m >> config.wg_n >>
+           config.async >> config.subgroupSize) {
 
       // trivial workgroup size checks (should basically never fail)
       if (config.subgroupSize >
