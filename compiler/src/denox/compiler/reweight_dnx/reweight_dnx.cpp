@@ -1,6 +1,7 @@
 #include "denox/compiler/reweight_dnx/reweight_dnx.hpp"
 #include "denox/common/SHA256.hpp"
 #include "denox/compiler/implement/ComputeDispatch.hpp"
+#include "denox/compiler/implement/MemoryConstrain.hpp"
 #include "denox/compiler/implement/Supergraph.hpp"
 #include "denox/diag/invalid_argument.hpp"
 #include "denox/diag/invalid_state.hpp"
@@ -8,10 +9,12 @@
 #include "denox/memory/container/dynamic_bitset.hpp"
 #include "denox/memory/container/hashmap.hpp"
 #include <algorithm>
+#include <cassert>
 #include <cstring>
 #include <dnx.h>
 #include <limits>
 #include <type_traits>
+#include <vulkan/vulkan_core.h>
 
 namespace denox::compiler {
 
@@ -199,15 +202,17 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
   }
 
   memory::dynamic_bitset isLive(supergraph.tensors.size(), false);
-  for (const memory::NodeId input : supergraph.inputs) {
-    TensorId tid = supergraph.graph.get(input);
-    isLive[tid.index] = true;
-  }
   for (uint64_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
     const memory::EdgeId eid{e};
     for (const auto &param : supergraph.graph.get(eid).parameters) {
       isLive[param.tensorId.index] = true;
+      // fmt::println("{} is param", param.tensorId.index);
     }
+  }
+  for (const memory::NodeId input : supergraph.inputs) {
+    TensorId tid = supergraph.graph.get(input);
+    // fmt::println("{} is input", tid.index);
+    isLive[tid.index] = true;
   }
 
   struct Candidate {
@@ -227,8 +232,63 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
   memory::hash_set<Candidate, CandidateHash, CandidateComp> used;
 
   const uint32_t dnxDispatchCount = dnx->dispatches()->size();
+
+  struct ReadWriteStats {
+    uint32_t reads = 0;
+    uint32_t writes = 0;
+  };
+
+  memory::vector<ReadWriteStats> readWrites(dnxTensorCount, ReadWriteStats{});
   for (uint32_t d = 0; d < dnxDispatchCount; ++d) {
     const dnx::ComputeDispatch *dnxDispatch = dnx->dispatches()->Get(d);
+    for (uint32_t s = 0; s < dnxDispatch->bindings()->size(); ++s) {
+      const auto *dnxSet = dnxDispatch->bindings()->Get(s);
+      for (uint32_t b = 0; b < dnxSet->bindings()->size(); ++b) {
+        const auto *dnxBinding = dnxSet->bindings()->Get(b);
+        const uint32_t tid = dnxBinding->tensor();
+        switch (dnxBinding->access()) {
+        case dnx::Access_ReadOnly:
+          readWrites[tid].reads += 1;
+          break;
+        case dnx::Access_WriteOnly:
+          readWrites[tid].writes += 1;
+          break;
+        case dnx::Access_ReadWrite:
+          readWrites[tid].reads += 1;
+          readWrites[tid].writes += 1;
+          break;
+        }
+      }
+    }
+  }
+
+  struct MemoryConstrainScoreboard {
+    MemoryImplicitConcatConstrain constrain;
+    bool src0Written = false;
+    bool src1Written = false;
+  };
+
+  memory::vector<MemoryConstrainScoreboard> memoryConstrainScoreboards;
+  for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
+    memory::EdgeId eid{e};
+    const SuperGraphEdge &edge = supergraph.graph.get(eid);
+    for (const auto &c : edge.memoryConstrains) {
+      memoryConstrainScoreboards.push_back(MemoryConstrainScoreboard{
+          .constrain = c,
+          .src0Written = false,
+          .src1Written = false,
+      });
+    }
+  }
+  // for (const auto &c : memoryConstrainScoreboards) {
+  //   fmt::println("CONSTRAIN: {} | {} = {}", c.constrain.src0, c.constrain.src1,
+  //                c.constrain.dst);
+  // }
+
+  for (uint32_t d = 0; d < dnxDispatchCount; ++d) {
+    const dnx::ComputeDispatch *dnxDispatch = dnx->dispatches()->Get(d);
+    // fmt::println("dnx-dispatch: {}",
+    //              dnxDispatch->info()->name()->string_view());
 
     // Check if the dispatch has parameters
     // (i.e. bindings to tensors, which are referenced by a initializer)
@@ -257,7 +317,6 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
           if (used.contains(candidate)) {
             continue;
           }
-
 
           { // check workgroup count X
             Sym dnxSym;
@@ -341,12 +400,12 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
             continue;
           }
 
-
           bool unalive = false;
           for (const auto &binding : dispatch.bindings) {
             if ((binding.accessFlag == Access::ReadOnly ||
                  binding.accessFlag == Access::ReadWrite) &&
                 !isLive[binding.tensorId.index]) {
+              // fmt::println("skipped: {} was unalive", binding.tensorId.index);
               unalive = true;
               break;
             }
@@ -364,23 +423,131 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
       diag::invalid_argument("Failed to reweight! Reference ONNX model, does "
                              "not seem to be compatible with DNX artefact!");
     } else if (candidates.size() > 1) {
-      // for (const auto& can : candidates) {
-      //   const SuperGraphEdge& edge = supergraph.graph.get(can.eid);
-      //   const ComputeDispatch& dispatch = edge.dispatches[candidates.front().did];
+      // NOTE: This is not a issue iff.
+      // 1) non of the candidates have any parameters.
+      // 2) all candidates have identical tensor bindings.
+      bool anyHasParameter = false;
+      for (const auto &can : candidates) {
+        const SuperGraphEdge &edge = supergraph.graph.get(can.eid);
+        // const ComputeDispatch& dispatch =
+        // edge.dispatches[candidates.front().did];
+        if (!edge.parameters.empty()) {
+          anyHasParameter = true;
+          break;
+        }
+      }
+      bool matchingBindings = true;
+      Candidate ref = candidates.front();
+      const SuperGraphEdge &refEdge = supergraph.graph.get(ref.eid);
+      const ComputeDispatch &refDispatch = refEdge.dispatches[ref.did];
+      for (uint32_t i = 1; i < candidates.size(); ++i) {
+        const auto &can = candidates[i];
+        const auto& edge = supergraph.graph.get(can.eid);
+        const auto& dispatch = edge.dispatches[can.did];
+        
+        if (dispatch.bindings.size() != refDispatch.bindings.size()) {
+          matchingBindings = false;
+          break;
+        }
+        for (uint32_t b = 0; b < dispatch.bindings.size(); ++b) {
+          if (!(dispatch.bindings[b].tensorId.index == refDispatch.bindings[b].tensorId.index
+              && dispatch.bindings[b].accessFlag == refDispatch.bindings[b].accessFlag) ){
+            matchingBindings = false;
+            break;
+          }
+        }
+        if (!matchingBindings) {
+          break;
+        }
+      }
+
+      // for (const auto &can : candidates) {
+      //   const SuperGraphEdge &edge = supergraph.graph.get(can.eid);
+      //   const ComputeDispatch &dispatch = edge.dispatches[can.did];
+      //   fmt::println("config = {}", dispatch.info.config.value());
       // }
 
-      diag::invalid_state(
-          "Failed to map dispatch to reconstructed supergraph, "
-          "selection is ambigious!\nTHIS IS A BUG! If you have "
-          "the time please create a github issue, we are happy to fix it.");
+      if (anyHasParameter || !matchingBindings) {
+        diag::invalid_state(
+            "Failed to map dispatch to reconstructed supergraph, "
+            "selection is ambigious!\nTHIS IS A BUG! If you have "
+            "the time please create a github issue, we are happy to fix it.");
+      }
     }
     const SuperGraphEdge &edge = supergraph.graph.get(candidates.front().eid);
     const ComputeDispatch &dispatch = edge.dispatches[candidates.front().did];
 
     // make outputs live
     for (const auto &binding : dispatch.bindings) {
-      isLive[binding.tensorId.index] = true;
+      if (binding.accessFlag == Access::WriteOnly) {
+        isLive[binding.tensorId.index] = true;
+        // fmt::println("{} is live", binding.tensorId.index);
+
+        for (auto &s : memoryConstrainScoreboards) {
+          bool dirty = false;
+          if (s.constrain.src0.index == binding.tensorId.index &&
+              !s.src0Written) {
+            s.src0Written = true;
+            dirty = true;
+            // fmt::println("CONSTRAIN: {} | {} = {}   src0 satified",
+            //              s.constrain.src0, s.constrain.src1, s.constrain.dst);
+          }
+          if (s.constrain.src1.index == binding.tensorId.index &&
+              !s.src1Written) {
+            s.src1Written = true;
+            dirty = true;
+            // fmt::println("CONSTRAIN: {} | {} = {}   src1 satified",
+            //              s.constrain.src0, s.constrain.src1, s.constrain.dst);
+          }
+          if (dirty && s.src0Written && s.src1Written) {
+            // fmt::println("CONSTRAIN: {} | {} = {}   fully satified",
+            //              s.constrain.src0, s.constrain.src1, s.constrain.dst);
+            isLive[s.constrain.dst.index] = true;
+            // fmt::println("{} is live", s.constrain.dst.index);
+          }
+        }
+      }
     }
+
+    // update read writes
+    for (uint32_t s = 0; s < dnxDispatch->bindings()->size(); ++s) {
+      const auto *dnxSet = dnxDispatch->bindings()->Get(s);
+      for (uint32_t b = 0; b < dnxSet->bindings()->size(); ++b) {
+        const auto *dnxBinding = dnxSet->bindings()->Get(b);
+        const uint32_t dnxTensor = dnxBinding->tensor();
+        switch (dnxBinding->access()) {
+        case dnx::Access_ReadOnly:
+          assert(readWrites[dnxTensor].reads > 0);
+          readWrites[dnxTensor].reads -= 1;
+          break;
+        case dnx::Access_WriteOnly:
+          assert(readWrites[dnxTensor].writes > 0);
+          readWrites[dnxTensor].writes -= 1;
+          break;
+        case dnx::Access_ReadWrite:
+          assert(readWrites[dnxTensor].reads > 0);
+          assert(readWrites[dnxTensor].writes > 0);
+          readWrites[dnxTensor].reads -= 1;
+          readWrites[dnxTensor].writes -= 1;
+          break;
+        }
+
+        if (readWrites[dnxTensor].reads == 0) {
+          // tensor will never be read again, unalive it.
+          const auto it = std::ranges::find_if(
+              dispatch.bindings, [&](const TensorBinding &binding) -> bool {
+                return binding.set == dnxSet->set() &&
+                       binding.binding == dnxBinding->binding();
+              });
+          assert(it != dispatch.bindings.end());
+          // fmt::println("{} is unalive", it->tensorId.index);
+          isLive[it->tensorId.index] = false;
+          // assert(it->accessFlag != Access::WriteOnly);
+          // fmt::println("tensor read last time");
+        }
+      }
+    }
+
     used.insert(candidates.front());
 
     memory::small_vector<uint32_t, 4> dnxParameterTensorIds;

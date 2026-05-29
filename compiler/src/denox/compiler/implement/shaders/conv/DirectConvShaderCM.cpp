@@ -520,7 +520,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     in->matchValue(tensorSupported);
     out->matchValue(tensorSupported);
 
-    m_upsample_conv_pattern = static_cast<uint32_t>(m_patternHandles.size());
+    m_upsample_conv_activation_pattern =
+        static_cast<uint32_t>(m_patternHandles.size());
     m_patternHandles.emplace_back(in, upsample, conv, acti, memory::nullopt,
                                   out, out);
     m_capabilities.patterns.emplace_back(std::move(upsample_conv_relu_pattern),

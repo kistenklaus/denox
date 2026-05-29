@@ -249,7 +249,6 @@ create_epoch(const runtime::ContextHandle &ctx, const denox::Db &db,
 
   std::atomic<uint64_t> work_acc = 0;
 
-  // auto s = std::chrono::high_resolution_clock::now();
   std::vector<std::thread> threads(jobs);
   for (size_t tid = 0; tid < threads.size(); ++tid) {
     threads[tid] = std::thread([&, tid]() {
@@ -322,7 +321,6 @@ create_epoch(const runtime::ContextHandle &ctx, const denox::Db &db,
     threads[i].join();
   }
 
-  // auto s2 = std::chrono::high_resolution_clock::now();
   memory::vector<VkPipeline> pipelines;
   memory::vector<VkPipelineLayout> pipelineLayouts;
   memory::vector<VkDescriptorSetLayout> descriptorSetLayouts;
@@ -356,16 +354,9 @@ create_epoch(const runtime::ContextHandle &ctx, const denox::Db &db,
   VkDescriptorPool descriptorPool =
       ctx->createDescriptorPool(maxSets, descriptorPoolSizes);
 
-  // std::chrono::duration<float, std::milli> queryLatency;
 
   for (uint32_t x = 0; x < targets.size(); ++x) {
-    // const uint32_t target = targets[x];
-    // auto q = std::chrono::high_resolution_clock::now();
     const auto &dbdispatch = computeDispatches[x];
-    // auto a = std::chrono::duration_cast<std::chrono::duration<float,
-    // std::milli>>(
-    //     std::chrono::high_resolution_clock::now() - q);
-    // queryLatency += a;
 
     auto &dispatch = dispatches[x];
     uint32_t setCount =

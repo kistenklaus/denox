@@ -223,7 +223,7 @@ class OIDNNet(nn.Module):
 
         return x
 register_model(OIDNNet(3,3, True))
-register_model(OIDNNet(3,3, False))
+# register_model(OIDNNet(3,3, False))
 
 
 

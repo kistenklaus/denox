@@ -58,6 +58,10 @@ CopyTransformShader::CopyTransformShader(spirv::GlslCompiler *compiler,
       }
       m_configs.push_back(config);
     }
+    if (m_configs.size() > 256) {
+      throw std::runtime_error(
+          "Too many copy-transform configs for 8-bit encoding");
+    }
   }
 
   const auto supportedTensor = [](const TensorInstance &tensor) {
