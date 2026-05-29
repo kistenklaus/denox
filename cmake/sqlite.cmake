@@ -16,6 +16,7 @@ if(DENOX_STATIC_SQLITE3)
         sqlite3_amalgamation
         URL "https://www.sqlite.org/2026/sqlite-amalgamation-3530100.zip"
         URL_HASH "SHA3_256=3c07136e4f6b5dd0c395be86455014039597bc65b6851f7111e88f71b6e06114"
+        GIT_PROGRESS TRUE
         ${DENOX_SQLITE_FETCHCONTENT_ARGS}
     )
 
