@@ -12,7 +12,9 @@ The architecture is described in detail in the accompanying paper, including ben
 ```bibtex
 @article ....
 ```
-#### Build Instructions
+#### Installing
+The [latest release](https://github.com/kistenklaus/denox/releases/latest) is kept stable and is the recommended version to use.<br>
+Building from source is also possible, but the main branch may occasionally fail to build.
 ```bash
 cmake -Bbuild
 cmake --build build
