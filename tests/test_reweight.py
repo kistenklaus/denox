@@ -124,11 +124,6 @@ def test_reweight_with_shape_type_and_format(cache_dir, tmp_path):
                 rtol=1e-1,
                 atol=1e-1,
             )
-        output = run_denox(
-            "bench", reweighted_path,
-            "--spec", "H=512", "W=512",
-            verbose=True,
-        )
 
 
 def test_reweight_nofusion(cache_dir, tmp_path):

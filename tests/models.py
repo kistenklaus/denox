@@ -222,9 +222,174 @@ class OIDNNet(nn.Module):
         x = self.dec_conv0(x)  # dec_conv0
 
         return x
+
 register_model(OIDNNet(3,3, True))
-# register_model(OIDNNet(3,3, False))
+register_model(OIDNNet(3,3, False))
+
+class ManyConv(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.input_channels = 3
+        self.output_channels = 3
+        self.ch = 32
+
+        self.alignment = 1
+
+        self.conv0 = nn.Conv2d(
+            self.input_channels,
+            self.ch,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
+
+        self.conv1a = nn.Conv2d(
+            self.ch,
+            self.ch,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
+        self.conv1b = nn.Conv2d(
+            self.ch,
+            self.ch,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
+
+        self.conv2a = nn.Conv2d(
+            self.ch,
+            self.ch,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
+
+        self.conv2b = nn.Conv2d(
+            self.ch,
+            self.ch,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
+
+        self.conv3 = nn.Conv2d(
+            self.ch,
+            self.output_channels,
+            3,
+            padding="same",
+            padding_mode="zeros",
+            bias=True,
+            dtype=torch.float16,
+        )
 
 
+    def forward(self, input):
+        x = F.relu(self.conv0(input))
+        x = F.relu(self.conv1a(x))
+        x = F.relu(self.conv1b(x))
+        x = F.relu(self.conv2a(x))
+        x = F.relu(self.conv2b(x))
+        x = F.relu(self.conv3(x))
+        return x
+
+register_model(ManyConv())
+
+class YetAnotherUNet(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.input_channels = 3
+        # pm = 'reflect' # not implemented you suckers
+        pm = "zeros"
+        self.enc0 = nn.Conv2d(
+            self.input_channels, 32, 3, padding="same", padding_mode=pm
+        )
+        self.enc1 = nn.Conv2d(32, 48, 3, padding="same", padding_mode=pm)
+        self.enc2 = nn.Conv2d(48, 64, 3, padding="same", padding_mode=pm)
+        self.enc3 = nn.Conv2d(64, 80, 3, padding="same", padding_mode=pm)
+        self.enc4 = nn.Conv2d(80, 112, 3, padding="same", padding_mode=pm)
+        self.enc5 = nn.Conv2d(112, 112, 3, padding="same", padding_mode=pm)
+
+        # self.extr = nn.Conv2d(32, 32, 3, padding='same', padding_mode=pm)
+
+        self.dec0 = nn.Conv2d(112 + 112, 112, 3, padding="same", padding_mode=pm)
+        self.con0 = nn.Conv2d(112, 112, 3, padding="same", padding_mode=pm)
+        self.dec1 = nn.Conv2d(112 + 80, 80, 3, padding="same", padding_mode=pm)
+        self.con1 = nn.Conv2d(80, 80, 3, padding="same", padding_mode=pm)
+        self.dec2 = nn.Conv2d(80 + 64, 64, 3, padding="same", padding_mode=pm)
+        self.con2 = nn.Conv2d(64, 64, 3, padding="same", padding_mode=pm)
+        self.dec3 = nn.Conv2d(64 + 48, 48, 3, padding="same", padding_mode=pm)
+        self.con3 = nn.Conv2d(48, 48, 3, padding="same", padding_mode=pm)
+        self.dec4 = nn.Conv2d(48 + 32, 16, 3, padding="same", padding_mode=pm)
+        self.con4 = nn.Conv2d(16, 16, 3, padding="same", padding_mode=pm)
+        self.dec5 = nn.Conv2d(
+            16 + self.input_channels, 12, 3, padding="same", padding_mode=pm
+        )
+        self.con5 = nn.Conv2d(12, 12, 3, padding="same", padding_mode=pm)
+        # self.dec5 = nn.Conv2d(12+32, 12, 3, padding='same', padding_mode=pm)
+
+        # as much as i hate it, these extra convolutions seem to contribute quite a bit to image sharpness/overall fidelity.
+        # potentially a more clever upsampling/convolution directly there would make the architecture more lightweight.
+
+        # self.con0a = nn.Conv2d(101, 101, 3, padding='same', padding_mode=pm)
+        # self.con1a = nn.Conv2d(76, 76, 3, padding='same', padding_mode=pm)
+        # self.con2a = nn.Conv2d(57, 57, 3, padding='same', padding_mode=pm)
+        # self.con3a = nn.Conv2d(43, 43, 3, padding='same', padding_mode=pm)
+        # self.con4a = nn.Conv2d(16, 16, 3, padding='same', padding_mode=pm)
+        # self.con5a = nn.Conv2d(12, 12, 3, padding='same', padding_mode=pm)
+
+        self.pool = nn.MaxPool2d(2, 2)
+        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
+
+        self.conv_out = nn.Conv2d(12,3,3,padding="same", padding_mode=pm)
+
+        self.alignment = 64
+
+    def forward(self, input):
+        extr = F.relu(self.enc0(input))
+        x_128 = self.pool(extr)  # self.pool(F.relu(self.extr(extr)))
+        # x_128 = self.pool(F.relu(self.enc0(I)))
+        x_64 = self.pool(F.relu(self.enc1(x_128)))
+        x_32 = self.pool(F.relu(self.enc2(x_64)))
+        x_16 = self.pool(F.relu(self.enc3(x_32)))
+        x_8 = self.pool(F.relu(self.enc4(x_16)))
+        x_4 = self.pool(F.relu(self.enc5(x_8)))
+
+        x = F.relu(self.dec0(torch.cat([self.upsample(x_4), x_8], 1)))
+        x = F.relu(self.con0(x))
+        # x     = F.relu(self.con0a(x))
+        # x     = F.relu(self.dec1(torch.cat([self.upsample(x_8), x_16],  1)))
+        x = F.relu(self.dec1(torch.cat([self.upsample(x), x_16], 1)))
+        x = F.relu(self.con1(x))
+        # x     = F.relu(self.con1a(x))
+        x = F.relu(self.dec2(torch.cat([self.upsample(x), x_32], 1)))
+        x = F.relu(self.con2(x))
+        # x     = F.relu(self.con2a(x))
+        x = F.relu(self.dec3(torch.cat([self.upsample(x), x_64], 1)))
+        x = F.relu(self.con3(x))
+        # x     = F.relu(self.con3a(x))
+        x = F.relu(self.dec4(torch.cat([self.upsample(x), x_128], 1)))
+        # x     = F.relu(self.dec5(torch.cat([self.upsample(x),   extr],  1)))
+        x = F.relu(self.con4(x))
+        # x     = F.relu(self.con4a(x))
+        x = F.relu(self.dec5(torch.cat([self.upsample(x), input], 1)))
+        x = F.relu(self.con5(x))
+        # x     = F.relu(self.con5a(x))
+
+        return self.conv_out(x)
+
+register_model(YetAnotherUNet())
 
 
