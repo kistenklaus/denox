@@ -35,3 +35,8 @@ cmake --install build --prefix <install-dst> # optional
 - [Getting Started](docs/GettingStarted.md)
 - [The DNX Format](docs/DNX.md)
 
+#### License
+The project is licensed under the GPLv3. <br>
+Get in touch if you are interested in a different licensing model.<br>
+You can reach us either via mail (karl.sassie@student.kit.edu).
+
