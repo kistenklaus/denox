@@ -19,6 +19,7 @@
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <stdexcept>
 
 Action parse_compile(std::span<const Token> tokens) {
   if (tokens.empty()) {
@@ -1113,7 +1114,7 @@ Action parse_reweight(std::span<const Token> tokens) {
       i += jump;
       continue;
     }
-    
+
     if ((jump = parse_help(tail, &help))) {
       i += jump;
       continue;
@@ -1262,4 +1263,87 @@ Action parse_merge_device_info(std::span<const Token> tokens) {
       .device_infos = std::move(deviceInfos),
       .output = std::move(output.value()),
   }};
+}
+
+Action parse_dump(std::span<const Token> tokens) {
+
+  if (tokens.empty()) {
+    throw std::runtime_error(
+        "Missing positional argument: expected dnx artefact");
+  }
+
+  ArtefactParseResult result = parse_artefact(tokens.front());
+  if (result.error.has_value()) {
+    switch (*result.error) {
+    case ArtefactParseError::NotAnArtefactToken:
+      denox::diag::invalid_state();
+    case ArtefactParseError::PathDoesNotExist:
+      throw ParseError(fmt::format("Path does not exist"));
+    case ArtefactParseError::UnrecognizedFormat:
+      throw ParseError(fmt::format("Unregonized format"));
+    case ArtefactParseError::DatabasePiped:
+      throw ParseError(fmt::format("Databases cannot be piped"));
+    case ArtefactParseError::AmbiguousFormat:
+      throw ParseError(fmt::format("Input format is ambiguous"));
+    }
+  }
+  assert(result.artefact.has_value());
+  if (result.artefact->kind() != ArtefactKind::Dnx) {
+    throw ParseError(
+        fmt::format("dump expect a dnx artefact as first argument, got {}",
+                    result.artefact->kind()));
+  }
+  DnxArtefact dnx = result.artefact->dnx();
+  std::optional<IOEndpoint> output;
+  denox::diag::LogLevel loglevel = denox::diag::LogLevel::Info;
+  bool logcolors = true;
+  bool help = false;
+
+  uint32_t i = 1;
+  while (i < tokens.size()) {
+    uint32_t jump = 0;
+    auto tail = denox::memory::span{tokens.begin() + i, tokens.end()};
+
+    if (tail.front().kind() == TokenKind::Literal ||
+        tail.front().kind() == TokenKind::Pipe) {
+      throw ParseError(fmt::format("unexpected positional argument {}",
+                                   describe_token(tokens[i])));
+    }
+
+    // --- options with arguments ---
+    if ((jump = parse_output(tail, &output))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_help(tail, &help))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_quiet(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_color(tail, &logcolors))) {
+      i += jump;
+      continue;
+    }
+
+    // --- nothing matched ---
+    throw ParseError(
+        fmt::format("invalid option {}", describe_token(tokens[i])));
+  }
+
+  if (help) {
+    return HelpAction{
+        HelpScope::Dump,
+    };
+  }
+
+  return DumpAction{
+      .dnx = std::move(dnx),
+      .output = output.value_or(Pipe{}),
+      .loglevel = loglevel,
+      .logcolors = logcolors,
+  };
 }

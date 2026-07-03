@@ -1,6 +1,7 @@
 #pragma once
 #include "denox/common/PushConstant.hpp"
 #include "denox/compiler/implement/TensorBinding.hpp"
+#include "denox/device_info/CoopmatProperties.hpp"
 #include "denox/glsl/GlslCompilerInstance.hpp"
 #include "denox/io/fs/Path.hpp"
 #include "denox/memory/container/optional.hpp"
@@ -20,7 +21,7 @@ struct ComputeDispatchInfo {
 
   memory::optional<Sym> flops;
 
-  memory::optional<bool> coopmat;
+  [[deprecated]] memory::optional<bool> coopmat;
 
   memory::optional<memory::small_vector<uint32_t, 2>> input_bindings;
   memory::optional<memory::small_vector<uint32_t, 2>> output_bindings;
@@ -28,6 +29,8 @@ struct ComputeDispatchInfo {
 
 struct ComputeDispatchRequirements {
   memory::optional<uint32_t> fixedSubgroupSize;
+  memory::vector<CoopmatShape> coopmatShapes;
+  memory::optional<size_t> sharedMemory;
 };
 
 struct ComputeDispatch {

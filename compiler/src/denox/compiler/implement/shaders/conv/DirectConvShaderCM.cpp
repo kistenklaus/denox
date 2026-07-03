@@ -1284,7 +1284,27 @@ void DirectConvShaderCM::implement(
                       conv->padding.x, conv->padding.y));
     }
   }
-  dispatch.usesCoopmat(true);
+
+  dispatch.useCoopmatShape(CoopmatShape{
+      .M = config.cm_m,
+      .N = config.cm_n,
+      .K = config.cm_k,
+      .atype = memory::Dtype::F16,
+      .btype = memory::Dtype::F16,
+      .ctype = memory::Dtype::F16,
+      .acctype = memory::Dtype::F16,
+      .saturatingAccumulation = true,
+      .subgroupScope = true,
+  });
+  {
+    const uint32_t sh_a_size = (config.wg_m * config.cm_m * config.cm_k * config.sg_k * config.sg_m) * 2;
+    const uint32_t sh_b_size = (config.wg_n * config.cm_k * config.cm_n * config.sg_k * config.sg_n) * 2;
+    const uint32_t sh_out_size = config.wg_m * config.wg_n * config.sg_m * config.sg_n * config.cm_m * config.cm_n * 2;
+    const uint32_t sh_size = std::max(sh_a_size + sh_b_size, sh_out_size);
+    dispatch.setSharedMemory(sh_size);
+  }
+
+  // dispatch.usesCoopmat(true);
   dispatch.setName(name());
   dispatch.setSourcePath(m_srcPath);
 

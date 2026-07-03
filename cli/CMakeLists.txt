@@ -22,6 +22,7 @@ add_executable(denox
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/bench.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/compile.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/dump.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/dumpcsv.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/help.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/infer.cpp

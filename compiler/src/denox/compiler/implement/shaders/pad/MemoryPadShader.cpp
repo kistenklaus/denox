@@ -292,7 +292,7 @@ void MemoryPadShader::implement(
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
   dispatch.setFlops(Sym::Const(0));
-  dispatch.usesCoopmat(false);
+  // dispatch.usesCoopmat(false);
 }
 memory::string MemoryPadShader::name() const { return "memory-pad"; }
 } // namespace denox::compiler::shaders

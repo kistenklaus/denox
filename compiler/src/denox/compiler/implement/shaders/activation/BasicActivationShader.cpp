@@ -309,7 +309,7 @@ void BasicActivationShader::implement(
   dispatch.setConfig(fmt::format(
       "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}", config.invocC,
       config.invocW, config.invocW, config.wgC, config.wgW, config.wgH));
-  dispatch.usesCoopmat(false);
+  // dispatch.usesCoopmat(false);
 
   switch (acti.func.kind()) {
   case ActivationFunctionKind::ReLU:

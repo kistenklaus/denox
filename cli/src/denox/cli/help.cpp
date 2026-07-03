@@ -110,7 +110,7 @@ static constexpr char compile_help[] =
 static constexpr char infer_help[] = 
 "Usage denox infer [MODEL] [OPTIONS]\n"
 "Arguments:\n"
-"   [MODEL]                 Path to dnx model"
+"   [MODEL]                 Path to dnx model\n"
 "Options:\n"
 "   -h, --help              show this message\n"
 "   --target-env            select vulkan target environment\n"
@@ -207,6 +207,14 @@ static constexpr char merge_device_info_help[] =
 "   -h, --help              show this message\n"
 "   -o, --output <file>     place merged device info yaml into <file>\n";
 
+static constexpr char dump_help[] = 
+"Usage denox dump [DNX] [OPTIONS]\n"
+"Argument: \n"
+"   [MODEL]                 Path to dnx model\n"
+"Options:\n"
+"   -h, --help              show this message\n"
+"   -o, --output <file>     dump dump into <file>\n";
+
 void help(HelpAction action) {
 
   switch (action.scope) {
@@ -233,6 +241,9 @@ void help(HelpAction action) {
     break;
   case HelpScope::MergeDeviceInfo:
     std::cerr << merge_device_info_help << std::endl;
+    break;
+  case HelpScope::Dump:
+    std::cerr << dump_help << std::endl;
     break;
   }
 }

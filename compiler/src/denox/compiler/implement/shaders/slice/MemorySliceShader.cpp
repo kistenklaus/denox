@@ -280,7 +280,7 @@ void MemorySliceShader::implement(
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
   dispatch.setFlops(Sym::Const(0));
-  dispatch.usesCoopmat(false);
+  // dispatch.usesCoopmat(false);
 }
 
 memory::string MemorySliceShader::name() const { return "memory-slice"; }

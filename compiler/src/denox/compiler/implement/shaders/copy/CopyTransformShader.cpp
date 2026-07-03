@@ -376,7 +376,7 @@ void CopyTransformShader::implement(
       copySrc0Dispatch.setMemoryWrites(writes);
 
       copySrc0Dispatch.setFlops(Sym::Const(0));
-      copySrc0Dispatch.usesCoopmat(false);
+      // copySrc0Dispatch.usesCoopmat(false);
 
       // r[0:3,:,:]=x
       copySrc0Dispatch.setOperation(
@@ -425,7 +425,7 @@ void CopyTransformShader::implement(
       copySrc1Dispatch.setMemoryReads(reads);
       copySrc1Dispatch.setMemoryWrites(writes);
       copySrc1Dispatch.setFlops(Sym::Const(0));
-      copySrc1Dispatch.usesCoopmat(false);
+      // copySrc1Dispatch.usesCoopmat(false);
 
       // r[64:67]=x
       copySrc1Dispatch.setOperation(fmt::format("r[{}:{},:,:]=x", src0Channels,

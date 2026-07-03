@@ -13,6 +13,7 @@ enum class CommandToken {
   Reweight,
   QueryDeviceInfo,
   MergeDeviceInfo,
+  Dump,
 };
 
 std::optional<CommandToken> parse_command(std::string_view str);
@@ -39,7 +40,8 @@ struct fmt::formatter<CommandToken> {
       case CommandToken::Reweight: name = "reweight"; break;
       case CommandToken::QueryDeviceInfo: name = "query-device-info"; break;
       case CommandToken::MergeDeviceInfo: name = "merge-device-info"; break;
-      }
+      case CommandToken::Dump: name = "dump"; break; 
+    }
 
     return fmt::format_to(ctx.out(), "{}", name);
   }

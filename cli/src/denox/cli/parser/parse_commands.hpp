@@ -23,3 +23,5 @@ Action parse_reweight(std::span<const Token> tokens);
 Action parse_query_device_info(std::span<const Token> tokens);
 
 Action parse_merge_device_info(std::span<const Token> tokens);
+
+Action parse_dump(std::span<const Token> tokens);

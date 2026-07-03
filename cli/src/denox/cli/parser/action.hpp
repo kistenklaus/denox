@@ -2,6 +2,7 @@
 
 #include "denox/cli/parser/actions/bench.hpp"
 #include "denox/cli/parser/actions/compile.hpp"
+#include "denox/cli/parser/actions/dump.hpp"
 #include "denox/cli/parser/actions/dumpcsv.hpp"
 #include "denox/cli/parser/actions/help.hpp"
 #include "denox/cli/parser/actions/infer.hpp"
@@ -25,6 +26,7 @@ enum class ActionKind {
   Reweight,
   QueryDeviceInfo,
   MergeDeviceInfo,
+  Dump,
 };
 
 class Action {
@@ -47,6 +49,8 @@ public:
 
   Action(MergeDeviceInfo a) noexcept : m_value(std::move(a)) {}
 
+  Action(DumpAction a) noexcept : m_value(std::move(a)) {}
+
   static Action version() noexcept { return Action{VersionTag{}}; }
 
   ActionKind kind() const noexcept {
@@ -66,10 +70,12 @@ public:
       return ActionKind::DumpCsv;
     if (std::holds_alternative<ReweightAction>(m_value))
       return ActionKind::Reweight;
-    if (std::holds_alternative<QueryDeviceInfo>(m_value)) 
+    if (std::holds_alternative<QueryDeviceInfo>(m_value))
       return ActionKind::QueryDeviceInfo;
-    if (std::holds_alternative<MergeDeviceInfo>(m_value)) 
+    if (std::holds_alternative<MergeDeviceInfo>(m_value))
       return ActionKind::MergeDeviceInfo;
+    if (std::holds_alternative<DumpAction>(m_value))
+      return ActionKind::Dump;
     denox::diag::unreachable();
   }
 
@@ -138,7 +144,6 @@ public:
     return std::get<ReweightAction>(m_value);
   }
 
-
   const QueryDeviceInfo &query_device_info() const noexcept {
     assert(kind() == ActionKind::QueryDeviceInfo);
     return std::get<QueryDeviceInfo>(m_value);
@@ -159,6 +164,16 @@ public:
     return std::get<MergeDeviceInfo>(m_value);
   }
 
+  const DumpAction &dump() const noexcept {
+    assert(kind() == ActionKind::Dump);
+    return std::get<DumpAction>(m_value);
+  }
+
+  DumpAction &dump() noexcept {
+    assert(kind() == ActionKind::Dump);
+    return std::get<DumpAction>(m_value);
+  }
+
 private:
   struct VersionTag {};
 
@@ -166,7 +181,7 @@ private:
 
 private:
   std::variant<CompileAction, InferAction, BenchAction, PopulateAction,
-               HelpAction, VersionTag, DumpCsvAction, ReweightAction, QueryDeviceInfo,
-               MergeDeviceInfo>
+               HelpAction, VersionTag, DumpCsvAction, ReweightAction,
+               QueryDeviceInfo, MergeDeviceInfo, DumpAction>
       m_value;
 };

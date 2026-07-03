@@ -290,7 +290,7 @@ void BasicUpsampleShader::implement(
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
   dispatch.setFlops(Sym::Const(0));
-  dispatch.usesCoopmat(false);
+  // dispatch.usesCoopmat(false);
 }
 memory::string BasicUpsampleShader::name() const { return "basic-upsample"; }
 } // namespace denox::compiler::shaders

@@ -67,6 +67,8 @@ table DispatchInfo {
 
 table ComputeDispatchRequirements {
   fixed_subgroup_size:uint32; // <- 0 indicates none
+  required_coopmat_shapes:[CoopmatShape];
+  required_shared_memory:uint32;
 }
 
 table ComputeDispatch {
@@ -225,6 +227,7 @@ table CompilationInfo {
   features:CompilationFeatures;
   device_info:DeviceInfo;
   optimization_level:uint32;
+  denox_commit_hash:string;
 }
 
 

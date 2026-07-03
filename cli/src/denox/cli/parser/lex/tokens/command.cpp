@@ -35,6 +35,9 @@ std::optional<CommandToken> parse_command(std::string_view str) {
   if (str == "merge-device-info" || str == "min-device-info") {
     return CommandToken::MergeDeviceInfo;
   }
+  if (str == "dump") {
+    return CommandToken::Dump;
+  }
 
   return std::nullopt;
 }

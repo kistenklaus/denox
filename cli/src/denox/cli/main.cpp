@@ -1,6 +1,7 @@
 #include "alloc/monotone_alloc.hpp"
 #include "denox/cli/bench.hpp"
 #include "denox/cli/compile.hpp"
+#include "denox/cli/dump.hpp"
 #include "denox/cli/dumpcsv.hpp"
 #include "denox/cli/help.hpp"
 #include "denox/cli/infer.hpp"
@@ -51,6 +52,9 @@ int main(int argc, char **argv) {
       break;
     case ActionKind::MergeDeviceInfo:
       merge_device_info(action.merge_device_info());
+      break;
+    case ActionKind::Dump:
+      dump_dnx(action.dump());
       break;
     default:
       denox::diag::unreachable();

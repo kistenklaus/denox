@@ -2,6 +2,7 @@
 #include "denox/algorithm/align_up.hpp"
 #include "denox/common/Access.hpp"
 #include "denox/common/TensorDataType.hpp"
+#include "denox/common/commit_hash.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/compile_shaders/SpvDispatch.hpp"
 #include "denox/compiler/placement/TensorInitalizer.hpp"
@@ -190,8 +191,10 @@ serialize_compilation_info(flatbuffers::FlatBufferBuilder &fbb,
 
   flatbuffers::Offset<denox::dnx::DeviceInfo> device_info =
       serialize_device_info(fbb, options.deviceInfo);
+
   return dnx::CreateCompilationInfo(fbb, descriptor_policy, features,
-                                    device_info, options.optimizationLevel);
+                                    device_info, options.optimizationLevel,
+                                    fbb.CreateString(denox::commit_hash()));
 }
 
 static flatbuffers::Offset<denox::dnx::ModelInfo>
@@ -570,7 +573,8 @@ serialize_dispatch_info(flatbuffers::FlatBufferBuilder &fbb,
     name = fbb.CreateString(*info.name);
   }
   if (info.srcPath) {
-    src_path = fbb.CreateString(info.srcPath->str());
+    auto src = info.srcPath->relative_to(io::Path::assets());
+    src_path = fbb.CreateString(src.str());
   }
   if (info.memoryReads) {
     auto [type, ptr] =
@@ -601,12 +605,16 @@ static flatbuffers::Offset<denox::dnx::ComputeDispatchRequirements>
 serialize_dispatch_requirements(
     flatbuffers::FlatBufferBuilder &fbb,
     const ComputeDispatchRequirements &requirements) {
-  if (requirements.fixedSubgroupSize.has_value()) {
-    return dnx::CreateComputeDispatchRequirements(
-        fbb, *requirements.fixedSubgroupSize);
-  } else {
-    return {};
+
+  memory::vector<flatbuffers::Offset<denox::dnx::CoopmatShape>> shapes;
+  for (uint32_t i = 0; i < requirements.coopmatShapes.size(); ++i) {
+    shapes.push_back(serialize_coopmat_shape(fbb, requirements.coopmatShapes[i]));
   }
+  auto required_coopmat_shapes = fbb.CreateVector(shapes);
+
+  return dnx::CreateComputeDispatchRequirements(
+      fbb, requirements.fixedSubgroupSize.value_or(0), required_coopmat_shapes,
+      static_cast<uint32_t>(requirements.sharedMemory.value_or(0)));
 }
 
 static flatbuffers::Offset<denox::dnx::ComputeDispatch>

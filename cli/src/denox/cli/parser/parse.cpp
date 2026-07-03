@@ -63,6 +63,9 @@ Action parse_argv(int argc, char **argv) {
     return parse_query_device_info(std::span{tokens.begin() + 1, tokens.end()});
   case CommandToken::MergeDeviceInfo:
     return parse_merge_device_info(std::span{tokens.begin() + 1, tokens.end()});
+  case CommandToken::Dump:
+    return parse_dump(std::span{tokens.begin() + 1, tokens.end()});
   }
+
   throw std::runtime_error("unreachable");
 }

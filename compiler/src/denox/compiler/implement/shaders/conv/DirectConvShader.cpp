@@ -703,7 +703,7 @@ void DirectConvShader::implement(
         conv->W->shape().s, conv->W->shape().r, conv->B != nullptr,
         conv->stride.x, conv->stride.y, conv->padding.x, conv->padding.y));
   }
-  dispatch.usesCoopmat(false);
+  // dispatch.usesCoopmat(false);
   dispatch.setName(name());
   dispatch.setSourcePath(m_srcPath);
   dispatch.setConfig(fmt::format("INVOC_M={}#INVOC_K={}#INVOC_N={}#SG_M={}#SG_"

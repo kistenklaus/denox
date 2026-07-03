@@ -27,7 +27,7 @@ public:
   void setName(memory::string_view name) { self().info.name = name; }
   void setConfig(memory::string config) { self().info.config = config; }
   void setOperation(memory::string op) { self().info.operation = op; }
-  void usesCoopmat(bool b) { self().info.coopmat = b; }
+  // [[deprecated]] void usesCoopmat(bool b) { self().info.coopmat = b; }
 
   void setSourcePath(const io::Path &path) { self().info.srcPath = path; }
   void setMemoryReads(Sym reads) { self().info.memoryReads = reads; }
@@ -37,6 +37,14 @@ public:
 
   void setFixedSubgroupSize(uint32_t subgroupSize) {
     self().requirements.fixedSubgroupSize = subgroupSize;
+  }
+
+  void useCoopmatShape(CoopmatShape shape) {
+    self().requirements.coopmatShapes.emplace_back(shape);
+  }
+
+  void setSharedMemory(size_t sh_size) {
+    self().requirements.sharedMemory = sh_size;
   }
 
   ~ComputeDispatchBuilder();
