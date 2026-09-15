@@ -62,6 +62,40 @@ uint32_t parse_spirv_debug_info(std::span<const Token> t, bool *v) {
   return parse_bool_flag(t, OptionToken::SpirvDebugInfo, v, "spirv-debug-info");
 }
 
+uint32_t
+parse_spirv_address_mode(std::span<const Token> tokens,
+                         denox::compiler::SpirvAddressMode *addressMode) {
+  if (tokens.empty()) {
+    return 0;
+  }
+  auto& head = tokens.front();
+  if (head.kind() != TokenKind::Option) {
+    return 0;
+  }
+  const auto& option = head.option();
+  if (option != OptionToken::SpirvAddressMode) {
+    return 0;
+  }
+  if (tokens.size() < 2) {
+    throw std::runtime_error("option '--spirv-address-mode' requires an argument");
+  }
+  const auto& pat = tokens[1]; 
+  if (pat.kind() == TokenKind::Option || pat.kind() == TokenKind::Command) {
+    throw std::runtime_error("option '--spirv-address-mode' requires an argument");
+  }
+  if (pat.kind() != TokenKind::Literal) {
+    throw std::runtime_error("invalid argument to '--spirv-address-mode': expected descriptor_set|buffer_reference|descriptor_heap");
+  }
+  const auto& lit = pat.literal();
+  if (!lit.is_spirv_address_mode()) {
+    throw std::runtime_error("invalid argument to '--spirv-address-mode': expected descriptor_set|buffer_reference|descriptor_heap");
+  }
+  if (addressMode) {
+    *addressMode = lit.as_spirv_address_mode();
+  }
+  return 2;
+}
+
 uint32_t parse_verbose(std::span<const Token> t, denox::diag::LogLevel *v) {
   bool flag;
   uint32_t skip = parse_bool_flag(t, OptionToken::Verbose, &flag, "verbose");

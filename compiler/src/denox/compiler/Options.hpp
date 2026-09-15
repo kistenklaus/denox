@@ -25,6 +25,8 @@ struct DescriptorPolicy {
   uint32_t set = 0;
 };
 
+
+
 struct DescriptorPolicies {
   // policy is selected in order, i.e. first check input then output and so on.
   DescriptorPolicy inputPolicy;
@@ -47,9 +49,16 @@ struct InterfaceTensorDescriptor {
   std::optional<uint32_t> channels;
 };
 
+enum class SpirvAddressMode {
+  descriptor_set,
+  buffer_reference,
+  descriptor_heap,
+};
+
 struct SpirvOptions {
   spirv::SpirvDebugInfoLevel debugInfo = spirv::SpirvDebugInfoLevel::Strip;
   bool optimize = true;
+  SpirvAddressMode addressMode = SpirvAddressMode::descriptor_set;
 };
 
 struct OptimizationAssumptions {

@@ -4,6 +4,7 @@
 #include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/common/TensorStorage.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/device_info/ApiVersion.hpp"
 #include "denox/io/fs/Path.hpp"
 #include <cassert>
@@ -56,6 +57,13 @@ public:
     return *l;
   }
 
+  bool is_spirv_address_mode() const noexcept {
+    return parse_spirv_address_mode().has_value();
+  }
+  denox::compiler::SpirvAddressMode as_spirv_address_mode() const noexcept {
+    return *parse_spirv_address_mode();
+  }
+
   bool is_dtype() const noexcept { return parse_dtype().has_value(); }
   denox::TensorDataType as_dtype() const {
     auto dt = parse_dtype();
@@ -95,6 +103,9 @@ private:
   std::optional<float> parse_float() const noexcept;
 
   std::optional<denox::ApiVersion> parse_target_env() const noexcept;
+
+  std::optional<denox::compiler::SpirvAddressMode>
+  parse_spirv_address_mode() const noexcept;
 
   static char to_lower_ascii(char c) noexcept;
 

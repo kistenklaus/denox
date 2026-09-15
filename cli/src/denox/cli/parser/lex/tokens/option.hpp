@@ -7,6 +7,7 @@
 enum class OptionToken {
   SpirvOptimize,             //
   SpirvNonSemanticDebugInfo, //
+  SpirvAddressMode,
   SpirvDebugInfo,            //
   FeatureCoopmat,            //
   FeatureFusion,             //
@@ -56,6 +57,7 @@ struct fmt::formatter<OptionToken> {
     switch (opt) {
       case OptionToken::SpirvOptimize: name = "spirv-optimize"; break;
       case OptionToken::SpirvNonSemanticDebugInfo: name = "spirv-non-semantic-debug-info"; break;
+      case OptionToken::SpirvAddressMode: name = "spirv-address-mode"; break;
       case OptionToken::SpirvDebugInfo: name = "spirv-debug-info"; break;
       case OptionToken::FeatureCoopmat: name = "feature-coopmat"; break;
       case OptionToken::FeatureFusion: name = "feature-fusion"; break;

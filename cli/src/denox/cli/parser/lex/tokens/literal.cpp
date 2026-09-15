@@ -1,5 +1,6 @@
 #include "denox/cli/parser/lex/tokens/literal.hpp"
 #include "denox/common/TensorFormat.hpp"
+#include "denox/compiler/Options.hpp"
 #include "denox/device_info/ApiVersion.hpp"
 #include <charconv>
 #include <optional>
@@ -58,6 +59,22 @@ LiteralToken::parse_target_env() const noexcept {
 
   return std::nullopt;
 }
+
+std::optional<denox::compiler::SpirvAddressMode>
+LiteralToken::parse_spirv_address_mode() const noexcept {
+  std::string_view sv = view();
+  if (sv == "descriptor_set" || sv == "descriptor-set") {
+    return denox::compiler::SpirvAddressMode::descriptor_set;
+  }
+  if (sv == "buffer_reference" || sv == "buffer-reference") {
+    return denox::compiler::SpirvAddressMode::buffer_reference;
+  }
+  if (sv == "descriptor_heap" || sv == "descriptor-heap") {
+    return denox::compiler::SpirvAddressMode::descriptor_heap;
+  }
+  return std::nullopt;
+}
+
 char LiteralToken::to_lower_ascii(char c) noexcept {
   return (c >= 'A' && c <= 'Z') ? (c + ('a' - 'A')) : c;
 }

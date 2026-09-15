@@ -153,6 +153,11 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_spirv_address_mode(tail, &options.spirv.addressMode))) {
+      i += jump;
+      continue;
+    }
+
     if ((jump = parse_optimizationLevel(tail, &options.optimizationLevel))) {
       i += jump;
       continue;
@@ -407,6 +412,10 @@ Action parse_populate(std::span<const Token> tokens) {
       i += jump;
       continue;
     }
+    if ((jump = parse_spirv_address_mode(tail, &options.spirv.addressMode))) {
+      i += jump;
+      continue;
+    }
 
     if ((jump = parse_optimizationLevel(tail, &options.optimizationLevel))) {
       i += jump;
@@ -630,6 +639,11 @@ Action parse_bench(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_spirv_debug_info(tail, &spirv_debugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_address_mode(tail, &options.spirv.addressMode))) {
       i += jump;
       continue;
     }
@@ -884,6 +898,11 @@ Action parse_infer(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_spirv_debug_info(tail, &spirv_debugInfo))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_spirv_address_mode(tail, &options.spirv.addressMode))) {
       i += jump;
       continue;
     }

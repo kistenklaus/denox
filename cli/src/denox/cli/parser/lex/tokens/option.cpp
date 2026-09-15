@@ -11,6 +11,9 @@ std::optional<OptionToken> parse_option(std::string_view str) {
   if (str == "spirv-non-semantic-debug-info") {
     return OptionToken::SpirvNonSemanticDebugInfo;
   }
+  if (str == "spirv-address-mode") {
+    return OptionToken::SpirvAddressMode;
+  }
   if (str == "spirv-debug-info") {
     return OptionToken::SpirvDebugInfo;
   }
