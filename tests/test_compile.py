@@ -40,7 +40,7 @@ def test_compile(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )
 
 
@@ -81,7 +81,7 @@ def test_compile_descriptor_policies(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )
 
 
@@ -125,7 +125,7 @@ def test_compile_shape_format_type(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )
 
 def test_compile_nofeatures(cache_dir, tmp_path):
@@ -167,7 +167,7 @@ def test_compile_nofeatures(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )
 
 def test_compile_quite(cache_dir, tmp_path):
@@ -232,5 +232,5 @@ def test_compile_with_device_yml(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )

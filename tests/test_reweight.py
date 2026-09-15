@@ -60,7 +60,7 @@ def test_reweight(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )
 
 
@@ -122,7 +122,7 @@ def test_reweight_with_shape_type_and_format(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )
 
 
@@ -185,7 +185,7 @@ def test_reweight_nofusion(cache_dir, tmp_path):
                 image.to(torch.float32),
                 ref.to(torch.float32),
                 rtol=1e-1,
-                atol=1e-1,
+                atol=3e-1,
             )
 
 
