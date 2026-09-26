@@ -268,6 +268,11 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
     bool src1Written = false;
   };
 
+  // supergraph tensor last written to each dnx tensor, disambiguates
+  // equally shaped alternatives
+  memory::vector<memory::optional<uint64_t>> dnxTensorSource(dnxTensorCount,
+                                                             memory::nullopt);
+
   memory::vector<MemoryConstrainScoreboard> memoryConstrainScoreboards;
   for (uint32_t e = 0; e < supergraph.graph.edgeCount(); ++e) {
     memory::EdgeId eid{e};
@@ -414,6 +419,32 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
             continue;
           }
 
+          bool wrongSource = false;
+          for (const auto &binding : dispatch.bindings) {
+            if (binding.accessFlag == Access::WriteOnly) {
+              continue;
+            }
+            for (uint32_t s = 0; s < dnxDispatch->bindings()->size(); ++s) {
+              const auto *dnxSet = dnxDispatch->bindings()->Get(s);
+              if (dnxSet->set() != binding.set) {
+                continue;
+              }
+              for (uint32_t b = 0; b < dnxSet->bindings()->size(); ++b) {
+                const auto *dnxBinding = dnxSet->bindings()->Get(b);
+                if (dnxBinding->binding() != binding.binding) {
+                  continue;
+                }
+                const auto &source = dnxTensorSource[dnxBinding->tensor()];
+                if (source.has_value() && *source != binding.tensorId.index) {
+                  wrongSource = true;
+                }
+              }
+            }
+          }
+          if (wrongSource) {
+            continue;
+          }
+
           candidates.push_back(candidate);
         }
       }
@@ -544,6 +575,24 @@ void reweight_dnx(memory::span<std::byte> dnxBuf, SuperGraph &supergraph) {
           isLive[it->tensorId.index] = false;
           // assert(it->accessFlag != Access::WriteOnly);
           // fmt::println("tensor read last time");
+        }
+      }
+    }
+
+    for (const auto &binding : dispatch.bindings) {
+      if (binding.accessFlag == Access::ReadOnly) {
+        continue;
+      }
+      for (uint32_t s = 0; s < dnxDispatch->bindings()->size(); ++s) {
+        const auto *dnxSet = dnxDispatch->bindings()->Get(s);
+        if (dnxSet->set() != binding.set) {
+          continue;
+        }
+        for (uint32_t b = 0; b < dnxSet->bindings()->size(); ++b) {
+          const auto *dnxBinding = dnxSet->bindings()->Get(b);
+          if (dnxBinding->binding() == binding.binding) {
+            dnxTensorSource[dnxBinding->tensor()] = binding.tensorId.index;
+          }
         }
       }
     }

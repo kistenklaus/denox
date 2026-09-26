@@ -1,7 +1,8 @@
 from helpers import run_denox
-from models import export_model
+from models import export_model, YetAnotherUNet
 from images import create_random_png
 from inference import onnx_infer, load_output_image
+import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -88,7 +89,7 @@ def compile_model(cache_dir, onnx_path, dnx_path, *flags):
     return output
 
 
-def check_infer(onnx, dnx_path, tmp_path):
+def check_infer(onnx, dnx_path, tmp_path, atol=1e-2):
     input_path = tmp_path / "input.png"
     output_path = tmp_path / "output.png"
     create_random_png(input_path, 1920, 1080)
@@ -106,7 +107,7 @@ def check_infer(onnx, dnx_path, tmp_path):
         image.to(torch.float32),
         ref.to(torch.float32),
         rtol=1e-1,
-        atol=1e-2,
+        atol=atol,
     )
 
 
@@ -120,3 +121,30 @@ def test_compile_max_search_states(cache_dir, tmp_path):
                            "--max-search-states", "0")
     assert "exceeded 0 states" in output.stdout
     check_infer(onnx, dnx_path, tmp_path)
+
+
+# YetAnotherUNet fits the default budget, its minimum-dispatch schedule is not
+# the greedy one
+@pytest.mark.parametrize("model", [NestedUNet, YetAnotherUNet])
+def test_reweight_max_search_states(cache_dir, tmp_path, model):
+    onnx_path = tmp_path / "net.onnx"
+    new_onnx_path = tmp_path / "new_net.onnx"
+    dnx_path = tmp_path / "net.dnx"
+    reweighted_path = tmp_path / "rnet.dnx"
+    torch.manual_seed(0)
+    export_model(model()).save(onnx_path)
+    output = compile_model(cache_dir, onnx_path, dnx_path,
+                           "--max-search-states", "0")
+    assert "exceeded 0 states" in output.stdout
+
+    torch.manual_seed(1)
+    new_onnx = export_model(model())
+    new_onnx.save(new_onnx_path)
+    output = run_denox(
+        "reweight", dnx_path, new_onnx_path,
+        "-o", reweighted_path,
+        timeout=600,
+        verbose=True,
+    )
+    assert output.returncode == 0
+    check_infer(new_onnx, reweighted_path, tmp_path, atol=1e-1)
