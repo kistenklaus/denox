@@ -58,7 +58,7 @@ struct ModelBufferBarrier {
   VkPipelineStageFlags dstStage;
   VkAccessFlags srcAccess;
   VkAccessFlags dstAccess;
-  std::uint32_t tensorId;
+  std::uint32_t bufferId;
 };
 
 struct ModelImageMemoryBarrier {

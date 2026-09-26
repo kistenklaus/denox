@@ -258,8 +258,8 @@ enum class TensorState {
 };
 
 static std::optional<runtime::ModelBarrier>
-generate_pipeline_barrier([[maybe_unused]] const dnx::Model *dnx,
-                          std::vector<TensorState> &tensorStates,
+generate_pipeline_barrier(const dnx::Model *dnx,
+                          std::vector<TensorState> &bufferStates,
                           const dnx::ComputeDispatch *dispatch) {
 
   enum HazardType : int { None = 0, RAW = 1, WAW = 2, WAR = 4 };
@@ -271,7 +271,10 @@ generate_pipeline_barrier([[maybe_unused]] const dnx::Model *dnx,
     for (std::size_t b = 0; b < set->bindings()->size(); ++b) {
       const dnx::DescriptorBinding *binding =
           set->bindings()->Get(static_cast<unsigned int>(b));
-      TensorState currentState = tensorStates[binding->tensor()];
+      // tensors may alias the same buffer (implicit concat)
+      const uint32_t bufferId =
+          dnx->tensors()->Get(binding->tensor())->buffer();
+      TensorState currentState = bufferStates[bufferId];
       dnx::Access access = binding->access();
       HazardType hazard = None;
       TensorState nextState;
@@ -339,10 +342,10 @@ generate_pipeline_barrier([[maybe_unused]] const dnx::Model *dnx,
           barrier.srcAccess |= VK_ACCESS_SHADER_WRITE_BIT;
           barrier.dstAccess |= VK_ACCESS_SHADER_WRITE_BIT;
         }
-        barrier.tensorId = binding->tensor();
+        barrier.bufferId = bufferId;
         bufferBarriers.push_back(barrier);
       }
-      tensorStates[binding->tensor()] = nextState;
+      bufferStates[bufferId] = nextState;
     }
   }
   if (bufferBarriers.empty()) {
@@ -385,7 +388,7 @@ parse_cmds(const ContextHandle &context, const dnx::Model *dnx) {
 
   ModelDescriptorPoolRequirements descriptorPoolRequirements{};
   memory::vector<ModelCmd> cmds;
-  memory::vector<TensorState> tensorStates(dnx->tensors()->size(),
+  memory::vector<TensorState> bufferStates(dnx->buffers()->size(),
                                            TensorState::Undefined);
   for (size_t d = 0; d < dnx->dispatches()->size(); ++d) {
     const dnx::ComputeDispatch *dispatch =
@@ -393,7 +396,7 @@ parse_cmds(const ContextHandle &context, const dnx::Model *dnx) {
     ModelDispatch modelDispatch = create_model_dispatch(context, dnx, dispatch);
 
     if (std::optional<ModelBarrier> barrier =
-            generate_pipeline_barrier(dnx, tensorStates, dispatch)) {
+            generate_pipeline_barrier(dnx, bufferStates, dispatch)) {
       cmds.emplace_back(*barrier);
     }
     cmds.emplace_back(modelDispatch);
