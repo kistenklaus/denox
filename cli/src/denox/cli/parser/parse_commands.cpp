@@ -158,6 +158,11 @@ Action parse_compile(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_max_search_states(tail, &options.maxSearchStates))) {
+      i += jump;
+      continue;
+    }
+
     if ((jump = parse_feature_coopmat(tail, &options.features.coopmat))) {
       i += jump;
       continue;
@@ -404,6 +409,11 @@ Action parse_populate(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_optimizationLevel(tail, &options.optimizationLevel))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_max_search_states(tail, &options.maxSearchStates))) {
       i += jump;
       continue;
     }
@@ -691,6 +701,11 @@ Action parse_bench(std::span<const Token> tokens) {
     }
 
     if ((jump = parse_batch_size(tail, &dbBenchOptions.batchSize))) {
+      i += jump;
+      continue;
+    }
+
+    if ((jump = parse_max_search_states(tail, &options.maxSearchStates))) {
       i += jump;
       continue;
     }

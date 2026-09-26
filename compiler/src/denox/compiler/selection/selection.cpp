@@ -22,7 +22,7 @@ static constexpr weight_type INF_WEIGHT = weight_type(3600000000); // 1h
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             [[maybe_unused]] const Model &model,
                             const SymGraphEval &symeval,
-                            [[maybe_unused]] const CompileOptions &options,
+                            const CompileOptions &options,
                             diag::Progress progress,
                             const diag::Logger &logger) {
   ZoneScopedN("select_schedule");
@@ -146,7 +146,11 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                                        supergraph.inputs, supergraph.outputs,
                                        maxStates, &truncated);
   if (truncated) {
-    fmt::println("truncated");
+    logger.warn(fmt::format("{}WARNING: Schedule search exceeded {} states, "
+                            "selected schedule may be suboptimal "
+                            "(see --max-search-states){}",
+                            logger.yellow(), options.maxSearchStates,
+                            logger.reset()));
   }
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(
       std::move(minimumCostSubgraph));

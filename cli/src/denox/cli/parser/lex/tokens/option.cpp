@@ -98,6 +98,9 @@ std::optional<OptionToken> parse_option(std::string_view str) {
       str == "optimizationLevel" || str == "O") {
     return OptionToken::OptimizationLevel;
   }
+  if (str == "max-search-states") {
+    return OptionToken::MaxSearchStates;
+  }
 
   if (str == "j" || str == "jobs") {
     return OptionToken::Jobs;

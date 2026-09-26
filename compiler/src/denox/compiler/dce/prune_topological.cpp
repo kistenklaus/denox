@@ -90,6 +90,7 @@ construct_topological_graph(const denox::compiler::SuperGraph &supergraph) {
 
 void denox::compiler::prune_topological(SuperGraph &supergraph,
                                         const ConstModel &model,
+                                        std::size_t maxSearchStates,
                                         denox::diag::Progress progress,
                                         const denox::diag::Logger &logger) {
   ZoneScopedN("prune_topological");
@@ -115,7 +116,13 @@ void denox::compiler::prune_topological(SuperGraph &supergraph,
   }
 
   if (all_minimum_cost_subgraphs.edgeCount() == 0) {
-    failed_to_implement(supergraph, model);
+    failed_to_implement(supergraph, model, maxSearchStates);
+  }
+  if (truncated) {
+    logger.warn(fmt::format("{}WARNING: Minimum-dispatch search exceeded {} "
+                            "states, result may be suboptimal "
+                            "(see --max-search-states){}",
+                            logger.yellow(), maxSearchStates, logger.reset()));
   }
 
   progress.step(

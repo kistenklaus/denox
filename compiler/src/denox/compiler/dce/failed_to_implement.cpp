@@ -4,7 +4,8 @@
 #include <stdexcept>
 
 void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
-                                          const ConstModel &model) {
+                                          const ConstModel &model,
+                                          std::size_t maxSearchStates) {
 
   // ===== Explaination of the algorithmic idea ========
   // Problem:
@@ -49,9 +50,11 @@ void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
 
   memory::ConstGraph<Phantom, memory::EdgeId, uint32_t> graph{
       std::move(agraph)};
+  bool exceededMaxSearchStates = false;
   memory::AdjGraph<Phantom, memory::EdgeId, uint32_t> aminimum_cost_subgraph =
       algorithm::minimum_cost_subgraph(graph, supergraph.inputs,
-                                       supergraph.outputs);
+                                       supergraph.outputs, maxSearchStates,
+                                       &exceededMaxSearchStates);
   memory::ConstGraph<Phantom, memory::EdgeId, uint32_t> minimum_cost_subgraph{
       std::move(aminimum_cost_subgraph)};
 
@@ -186,5 +189,11 @@ void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
   }
   msg.pop_back(); // pop last '\n' line break
 
-  throw FailedToImplement{msg};
+  std::string note;
+  if (exceededMaxSearchStates) {
+    note = fmt::format(" (the search exceeded {} states, the list may be "
+                       "longer than necessary)",
+                       maxSearchStates);
+  }
+  throw FailedToImplement{msg, note};
 }

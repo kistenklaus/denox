@@ -71,6 +71,7 @@ struct CompileOptions {
   OptimizationAssumptions assumptions;
   DebugInfo debugInfo;
   uint32_t optimizationLevel = 3;
+  std::size_t maxSearchStates = 16000000;
 
   uint32_t jobs = 1;
 

@@ -37,7 +37,11 @@ static constexpr char bench_help[] =
 "                           significantly longer execution.\n"
 "\n"
 "   --spec                  specialize named values of dnx model.\n"
-"                           (for example: 'W=1080 H=1920')" ;
+"                           (for example: 'W=1080 H=1920')\n"
+"\n"
+"   --max-search-states     maximum number of states of the schedule search\n"
+"                           (default 16000000, ~200 bytes each), beyond it\n"
+"                           the result may be suboptimal." ;
 
 
 static constexpr char compile_help[] =
@@ -81,6 +85,9 @@ static constexpr char compile_help[] =
 "   --assume                specifies assumed values of named variables.\n"
 "                           for example: H=1080 W=1920, assumptions are used \n"
 "                           to select the best performing compute shaders.\n"
+"   --max-search-states     maximum number of states of the schedule search\n"
+"                           (default 16000000, ~200 bytes each), beyond it\n"
+"                           the result may be suboptimal.\n"
 "Features:\n"
 "   --fcoopmat,             Enables compute shaders, which use cooperative\n"
 "   --feature-coopmat       matries, if not specified support is queried from\n"
@@ -156,6 +163,9 @@ static constexpr char populate_help[] =
 "   --assume                specifies assumed values of named variables.\n"
 "                           for example: H=1080 W=1920, assumptions are used \n"
 "                           to select the best performing compute shaders.\n"
+"   --max-search-states     maximum number of states of the schedule search\n"
+"                           (default 16000000, ~200 bytes each), beyond it\n"
+"                           the result may be suboptimal.\n"
 "Features:\n"
 "   --fcoopmat,             Enables compute shaders, which use cooperative\n"
 "   --feature-coopmat       matries, if not specified support is queried from\n"

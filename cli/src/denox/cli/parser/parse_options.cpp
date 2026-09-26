@@ -849,6 +849,35 @@ uint32_t parse_optimizationLevel(std::span<const Token> tokens,
   return 2;
 }
 
+uint32_t parse_max_search_states(std::span<const Token> tokens,
+                                 std::size_t *maxSearchStates) {
+  if (tokens.empty()) {
+    return 0;
+  }
+  const auto &head = tokens.front();
+  if (head.kind() != TokenKind::Option) {
+    return 0;
+  }
+  if (head.option() != OptionToken::MaxSearchStates) {
+    return 0;
+  }
+  if (tokens.size() < 2) {
+    throw ParseError("option '--max-search-states' expects one integral");
+  }
+  const auto &token = tokens[1];
+  if (token.kind() != TokenKind::Literal) {
+    throw ParseError("option '--max-search-states' expects one integral");
+  }
+  const auto &lit = token.literal();
+  if (!lit.is_unsigned_int()) {
+    throw ParseError("option '--max-search-states' expects one integral");
+  }
+  if (maxSearchStates) {
+    *maxSearchStates = static_cast<std::size_t>(lit.as_unsigned_int());
+  }
+  return 2;
+}
+
 uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs) {
 
   if (tokens.empty()) {
