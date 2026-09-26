@@ -52,15 +52,14 @@ memory::vector<Tensor> average_pool(
           "AveragePool: ceil_mode!=0 not supported.");
   }
 
-  // count_include_pad: must be 0 (exclude pad) for now
+  // count_include_pad: checked against padding below
+  bool countIncludePad = false;
   if (auto it = attributes.find("count_include_pad"); it != attributes.end()) {
     if (!it->second.isInt())
       throw std::runtime_error(fmt::format(
           "AveragePool \"{}\": count_include_pad must be int, got {}.",
           nodeName, it->second.kindName()));
-    if (it->second.i() != 0)
-      throw std::runtime_error(
-          "AveragePool: count_include_pad=1 not supported.");
+    countIncludePad = it->second.i() != 0;
   }
 
   // Reject unexpected MaxPool-only attribute if present
@@ -146,6 +145,10 @@ memory::vector<Tensor> average_pool(
           nodeName, v.size()));
     }
   }
+
+  if (countIncludePad && padding != memory::uvec2(0, 0))
+    throw std::runtime_error(
+        "AveragePool: count_include_pad=1 not supported with padding.");
 
   // Backend call — fix dilation to (1,1) for AveragePool
   const memory::uvec2 dilation(1, 1);

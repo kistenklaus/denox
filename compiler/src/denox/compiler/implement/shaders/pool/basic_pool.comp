@@ -19,6 +19,21 @@ layout(push_constant) uniform PushConstant {
   uint H;
 } pc;
 
+#ifdef POOL_AVG
+#define acc_t float
+#define acc2_t vec2
+#define POOL_INIT 0.0
+#define POOL_ACC(acc, x) ((acc) + (x))
+#define POOL_RESULT(acc) ((acc) * (1.0 / float(KERNEL_X * KERNEL_Y)))
+#else
+#define acc_t float16_t
+#define acc2_t f16vec2
+// -inf.
+#define POOL_INIT uint16BitsToFloat16(uint16_t(0xFC00))
+#define POOL_ACC(acc, x) max(acc, x)
+#define POOL_RESULT(acc) (acc)
+#endif
+
 const uint TILE_C = WG_C * INVOC_C;
 const uint TILE_H = WG_H * INVOC_H;
 const uint TILE_W = WG_W * INVOC_W;
@@ -57,7 +72,7 @@ void main() {
           break;
         }
         const uint oo = oh * W2 * CH + ow * CH + c;
-        float16_t acc = uint16BitsToFloat16(uint16_t(0xFC00)); // -inf.
+        acc_t acc = acc_t(POOL_INIT);
         for (uint r = 0; r < KERNEL_Y; ++r) {
           const uint ih = oh * KERNEL_Y + r;
           if (ih >= H) {
@@ -71,10 +86,10 @@ void main() {
             const uint io = ih * W * CH + iw * CH + c;
             uint16_t v = input_tensor_blob[io];
             float16_t x = uint16BitsToFloat16(v);
-            acc = max(acc, x);
+            acc = POOL_ACC(acc, acc_t(x));
           }
         }
-        uint16_t v = float16BitsToUint16(acc);
+        uint16_t v = float16BitsToUint16(float16_t(POOL_RESULT(acc)));
         // uint16_t v = float16BitsToUint16(float16_t(oh));
         output_tensor_blob[oo] = v;
       }
@@ -117,11 +132,9 @@ void main() {
         }
         const uint oo = oh * W2 * CH8 + ow * CH8 + c8;
 
-        const float16_t NegInf = uint16BitsToFloat16(uint16_t(0xFC00));
-
-        f16vec2 acc[4];
+        acc2_t acc[4];
         for (uint x = 0; x < 4; ++x) {
-          acc[x] = f16vec2(NegInf, NegInf);
+          acc[x] = acc2_t(POOL_INIT);
         }
         for (uint r = 0; r < KERNEL_Y; ++r) {
           const uint ih = oh * KERNEL_Y + r;
@@ -135,17 +148,17 @@ void main() {
             }
             const uint io = ih * W * CH8 + iw * CH8 + c8;
             uvec4 v = input_tensor_blob[io];
-            acc[0] = max(acc[0], unpackFloat2x16(v.x));
-            acc[1] = max(acc[1], unpackFloat2x16(v.y));
-            acc[2] = max(acc[2], unpackFloat2x16(v.z));
-            acc[3] = max(acc[3], unpackFloat2x16(v.w));
+            acc[0] = POOL_ACC(acc[0], acc2_t(unpackFloat2x16(v.x)));
+            acc[1] = POOL_ACC(acc[1], acc2_t(unpackFloat2x16(v.y)));
+            acc[2] = POOL_ACC(acc[2], acc2_t(unpackFloat2x16(v.z)));
+            acc[3] = POOL_ACC(acc[3], acc2_t(unpackFloat2x16(v.w)));
           }
         }
         uvec4 v = uvec4(
-            packFloat2x16(acc[0]),
-            packFloat2x16(acc[1]),
-            packFloat2x16(acc[2]),
-            packFloat2x16(acc[3])
+            packFloat2x16(f16vec2(POOL_RESULT(acc[0]))),
+            packFloat2x16(f16vec2(POOL_RESULT(acc[1]))),
+            packFloat2x16(f16vec2(POOL_RESULT(acc[2]))),
+            packFloat2x16(f16vec2(POOL_RESULT(acc[3])))
           );
         output_tensor_blob[oo] = v;
       }
@@ -189,10 +202,9 @@ void main() {
         }
         const uint oo = c8 * W2 * H2 + oh * W2 + ow;
 
-        const float16_t NegInf = uint16BitsToFloat16(uint16_t(0xFC00));
-        f16vec2 acc[4];
+        acc2_t acc[4];
         for (uint x = 0; x < 4; ++x) {
-          acc[x] = f16vec2(NegInf, NegInf);
+          acc[x] = acc2_t(POOL_INIT);
         }
 
         for (uint r = 0; r < KERNEL_Y; ++r) {
@@ -207,18 +219,18 @@ void main() {
             }
             const uint io = c8 * W * H + ih * W + iw;
             uvec4 v = input_tensor_blob[io];
-            acc[0] = max(acc[0], unpackFloat2x16(v.x));
-            acc[1] = max(acc[1], unpackFloat2x16(v.y));
-            acc[2] = max(acc[2], unpackFloat2x16(v.z));
-            acc[3] = max(acc[3], unpackFloat2x16(v.w));
+            acc[0] = POOL_ACC(acc[0], acc2_t(unpackFloat2x16(v.x)));
+            acc[1] = POOL_ACC(acc[1], acc2_t(unpackFloat2x16(v.y)));
+            acc[2] = POOL_ACC(acc[2], acc2_t(unpackFloat2x16(v.z)));
+            acc[3] = POOL_ACC(acc[3], acc2_t(unpackFloat2x16(v.w)));
           }
         }
 
         uvec4 v = uvec4(
-            packFloat2x16(acc[0]),
-            packFloat2x16(acc[1]),
-            packFloat2x16(acc[2]),
-            packFloat2x16(acc[3])
+            packFloat2x16(f16vec2(POOL_RESULT(acc[0]))),
+            packFloat2x16(f16vec2(POOL_RESULT(acc[1]))),
+            packFloat2x16(f16vec2(POOL_RESULT(acc[2]))),
+            packFloat2x16(f16vec2(POOL_RESULT(acc[3])))
           );
         output_tensor_blob[oo] = v;
       }
