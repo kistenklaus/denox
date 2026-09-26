@@ -1055,8 +1055,6 @@ void DirectConvShaderCM::implement(
 
     assert(convOut.channels.constant() % 8 == 0);
 
-    assert(in.width == W);
-    assert(in.height == H);
     assert(symGraph.mul(out.width, 2) == W);
     assert(symGraph.mul(out.height, 2) == H);
 
@@ -1121,6 +1119,10 @@ void DirectConvShaderCM::implement(
     dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
 
+  const Sym inW = symGraph.mul(in.width, scalingFactor);
+  const Sym inH = symGraph.mul(in.height, scalingFactor);
+  dispatch.addPushConstant(PushConstant::Dynamic(inW, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(inH, memory::Dtype::U32));
   dispatch.addPushConstant(PushConstant::Dynamic(W, memory::Dtype::U32));
   dispatch.addPushConstant(PushConstant::Dynamic(H, memory::Dtype::U32));
 

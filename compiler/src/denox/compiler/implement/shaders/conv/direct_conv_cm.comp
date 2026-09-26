@@ -58,6 +58,8 @@ layout(set = BIAS_SET, binding = BIAS_BINDING, std430) readonly buffer bias_buf 
 layout(push_constant) uniform PushConstant {
   uint IN_W;
   uint IN_H;
+  uint OUT_W;
+  uint OUT_H;
 } pc;
 
 // shared uvec4 sh_input[WG_M][SG_M * SG_K * CM_M * CM_K / 4];
@@ -1284,10 +1286,10 @@ void main() {
     for (uint sgm = 0; sgm < SG_M; ++sgm) {
       const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgm * (SG_N * CM_M * CM_N / (VSTYPE_SIZE / ATYPE_SIZE));
       const uint y = wgxy.y + sgmi * SG_M + sgm;
-      if (y >= pc.IN_H) {
+      if (y >= pc.OUT_H) {
         break;
       }
-      const uint gy = y * pc.IN_W * OUT_CH;
+      const uint gy = y * pc.OUT_W * OUT_CH;
       for (uint sgij = gl_SubgroupInvocationID; sgij < (CM_M8 * CM_N * SG_N); sgij += SG_SIZE) {
         const uint sgn = sgij / CM_M8;
         const uint zn = wgni + sgni * (CM_N * SG_N) + sgn;
@@ -1301,7 +1303,7 @@ void main() {
           u16vec2 vy = unpackUint2x16(v.y);
           u16vec2 vz = unpackUint2x16(v.z);
           u16vec2 vw = unpackUint2x16(v.w);
-          if (int(zx + 8) <= pc.IN_W) {
+          if (int(zx + 8) <= pc.OUT_W) {
             output_tensor_blob[go] = vx.x;
             output_tensor_blob[go + OUT_CH] = vx.y;
             output_tensor_blob[go + 2 * OUT_CH] = vy.x;
@@ -1311,28 +1313,28 @@ void main() {
             output_tensor_blob[go + 6 * OUT_CH] = vw.x;
             output_tensor_blob[go + 7 * OUT_CH] = vw.y;
           } else {
-            if (zx < pc.IN_W) {
+            if (zx < pc.OUT_W) {
               output_tensor_blob[go] = vx.x;
             }
-            if ((zx + 1) < pc.IN_W) {
+            if ((zx + 1) < pc.OUT_W) {
               output_tensor_blob[go + OUT_CH] = vx.y;
             }
-            if ((zx + 2) < pc.IN_W) {
+            if ((zx + 2) < pc.OUT_W) {
               output_tensor_blob[go + 2 * OUT_CH] = vy.x;
             }
-            if ((zx + 3) < pc.IN_W) {
+            if ((zx + 3) < pc.OUT_W) {
               output_tensor_blob[go + 3 * OUT_CH] = vy.y;
             }
-            if ((zx + 4) < pc.IN_W) {
+            if ((zx + 4) < pc.OUT_W) {
               output_tensor_blob[go + 4 * OUT_CH] = vz.x;
             }
-            if ((zx + 5) < pc.IN_W) {
+            if ((zx + 5) < pc.OUT_W) {
               output_tensor_blob[go + 5 * OUT_CH] = vz.y;
             }
-            if ((zx + 6) < pc.IN_W) {
+            if ((zx + 6) < pc.OUT_W) {
               output_tensor_blob[go + 6 * OUT_CH] = vw.x;
             }
-            if ((zx + 7) < pc.IN_W) {
+            if ((zx + 7) < pc.OUT_W) {
               output_tensor_blob[go + 7 * OUT_CH] = vw.y;
             }
           }
@@ -1442,11 +1444,11 @@ void main() {
     if ((y & 1) != 0u) {
       continue;
     }
-    if (y + 1u >= pc.IN_H) {
+    if (y + 1u >= pc.OUT_H) {
       continue;
     }
     const uint py = y / 2;
-    const uint pooledW = pc.IN_W / 2;
+    const uint pooledW = pc.OUT_W / 2;
     const uint gy8p = py * pooledW * OUT_CH8;
 
     for (uint q = gl_SubgroupInvocationID; q < QQ; q += SG_SIZE) {
@@ -1470,7 +1472,7 @@ void main() {
       if ((zx & 1) != 0u) {
         continue;
       }
-      if (zx + 1 >= pc.IN_W) {
+      if (zx + 1 >= pc.OUT_W) {
         continue;
       }
 
@@ -1522,10 +1524,10 @@ void main() {
     const uint QQ = (CM_N8 * CM_M * SG_N);
     const uint o = SH_OUT_OFFSET + sgi * SH_OUT_SG_SIZE8 + sgm * QQ;
     const uint y = wgxy.y + sgmi * SG_M + sgm;
-    if (y >= pc.IN_H) {
+    if (y >= pc.OUT_H) {
       continue;
     }
-    const uint gy8 = y * pc.IN_W * OUT_CH8;
+    const uint gy8 = y * pc.OUT_W * OUT_CH8;
     //
     // Writeback SG_N x (CM_N * CM_M) tile.
     //
@@ -1539,7 +1541,7 @@ void main() {
 
       // const uint32_t mock = 0x63CE63CE;
       // const uint32_t mock = CM_M8;
-      if (zn8 < OUT_CH8 && zx < pc.IN_W) {
+      if (zn8 < OUT_CH8 && zx < pc.OUT_W) {
         const uvec4 v = sh_buf[o + q];
         output_tensor_blob[gy8 + zx * OUT_CH8 + zn8] = v;
       }
@@ -1620,8 +1622,8 @@ void main() {
   const uint ROWP = CM_Mp * CM_N8;
   const uint QQp = SG_Mp * ROWP;
 
-  const uint POOLED_W = pc.IN_W >> 1u;
-  const uint POOLED_H = pc.IN_H >> 1u;
+  const uint POOLED_W = pc.OUT_W >> 1u;
+  const uint POOLED_H = pc.OUT_H >> 1u;
   const uint POOLED_HW = POOLED_W * POOLED_H;
 
   for (uint sgzn = 0; sgzn < SG_N; sgzn++) {
@@ -1645,8 +1647,8 @@ void main() {
       const uint x = wgxy.x + ix;
       const uint y = wgxy.y + sgmi * SG_M + sgzm;
 
-      if (x + 1u >= pc.IN_W) continue;
-      if (y + 1u >= pc.IN_H) continue;
+      if (x + 1u >= pc.OUT_W) continue;
+      if (y + 1u >= pc.OUT_H) continue;
 
       const uint base = sgzm * ROW + ix * CM_N8 + zn8;
       const uint q00 = base;
@@ -1685,7 +1687,7 @@ void main() {
     const uint wgni8 = wgni / (OSTYPE_SIZE / ATYPE_SIZE);
     // global channel offset (uvec4)
     const uint sgn = wgni8 + (CM_N8 * SG_N) * sgni + sgzn * CM_N8;
-    const uint IN_HW = pc.IN_W * pc.IN_H;
+    const uint IN_HW = pc.OUT_W * pc.OUT_H;
 
     for (uint q = gl_SubgroupInvocationID; q < QQ; q += SG_SIZE) {
       const uint sgzm = q / (CM_N8 * CM_M);
@@ -1696,9 +1698,9 @@ void main() {
 
       const uint y = wgxy.y + sgmi * SG_M + sgzm;
 
-      if (n8 < OUT_CH8 && y < pc.IN_H && sgx < pc.IN_W) {
+      if (n8 < OUT_CH8 && y < pc.OUT_H && sgx < pc.OUT_W) {
         uvec4 v = sh_buf[o + q];
-        output_tensor_blob[n8 * IN_HW + y * pc.IN_W + sgx] = v;
+        output_tensor_blob[n8 * IN_HW + y * pc.OUT_W + sgx] = v;
       }
     }
   }
