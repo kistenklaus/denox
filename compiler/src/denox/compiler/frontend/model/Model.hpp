@@ -53,6 +53,8 @@ public:
 
   TensorHandle concat(const TensorHandle &src0, const TensorHandle &src1) const;
 
+  TensorHandle add(const TensorHandle &src0, const TensorHandle &src1) const;
+
   TensorHandle pad(const TensorHandle &src0, Sym left, Sym right, Sym top,
                    Sym bottom, PaddingMode mode) const;
 

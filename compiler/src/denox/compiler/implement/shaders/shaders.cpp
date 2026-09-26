@@ -1,5 +1,6 @@
 #include "denox/compiler/implement/shaders/shaders.hpp"
 #include "denox/compiler/implement/shaders/activation/BasicActivationShader.hpp"
+#include "denox/compiler/implement/shaders/add/BasicAddShader.hpp"
 #include "denox/compiler/implement/shaders/conv/ConcatConvCMShader.hpp"
 #include "denox/compiler/implement/shaders/conv/DirectConvShader.hpp"
 #include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
@@ -49,6 +50,9 @@ get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options) {
 
   shaders.push_back(std::make_unique<compiler::shaders::BasicActivationShader>(
       compiler, options));
+
+  shaders.push_back(
+      std::make_unique<compiler::shaders::BasicAddShader>(compiler, options));
 
   return shaders;
 }

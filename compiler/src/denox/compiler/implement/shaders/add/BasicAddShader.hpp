@@ -1,0 +1,66 @@
+#pragma once
+
+#include "denox/algorithm/pattern_matching/GraphPattern.hpp"
+#include "denox/compiler/Options.hpp"
+#include "denox/compiler/implement/shaders/IShader.hpp"
+#include "denox/compiler/specialization/TensorInstance.hpp"
+#include "denox/glsl/GlslCompiler.hpp"
+
+namespace denox::compiler::shaders {
+
+class BasicAddShader : public IShader {
+public:
+  struct Config {
+    uint32_t invocC;
+    uint32_t invocW;
+    uint32_t invocH;
+    uint32_t wgC;
+    uint32_t wgW;
+    uint32_t wgH;
+  };
+  using Pattern = algorithm::GraphPattern<TensorInstance, ComputeOp>;
+
+  BasicAddShader(spirv::GlslCompiler *compiler, const CompileOptions &options);
+
+  const ShaderCapabilities &capabilities() const final override {
+    return m_capabilities;
+  }
+
+  memory::vector<unsigned int>
+  acceptMatch(const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+              unsigned int pattern,
+              const algorithm::ConstGraphMatch<TensorInstance, ComputeOp>
+                  &match) const final override;
+
+  void
+  implement(OpImpl &impl,
+            const memory::ConstGraph<TensorInstance, ComputeOp> &opGraph,
+            unsigned int pattern, unsigned int config,
+            const algorithm::ConstGraphMatch<TensorInstance, ComputeOp> &match,
+            SymGraph &symGraph) const final override;
+
+  memory::string name() const final override;
+
+private:
+  struct Handles {
+    Pattern::NP in0;
+    Pattern::NP in1;
+    memory::optional<Pattern::EP> acti;
+    Pattern::NP out;
+  };
+
+private:
+  spirv::GlslCompiler *m_compiler;
+
+  ShaderCapabilities m_capabilities;
+  memory::vector<Handles> m_patternHandles;
+  io::Path m_srcPath =
+      io::Path::assets() /
+      "compiler/src/denox/compiler/implement/shaders/add/basic_add.comp";
+
+  memory::vector<Config> m_configs;
+
+  uint32_t m_optimizationLevel;
+};
+
+} // namespace denox::compiler::shaders
