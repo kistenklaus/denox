@@ -374,13 +374,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     }
     return true;
   };
-  // strides are not implemented
   const auto convSupported = [](const ComputeOp &op) -> bool {
-    if (op.tag() != ComputeOpKind::Conv) {
-      return false;
-    }
-    const auto &conv = op.conv();
-    return conv->stride.x == 1 && conv->stride.y == 1;
+    return op.tag() == ComputeOpKind::Conv;
   };
 
   {
