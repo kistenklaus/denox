@@ -23,10 +23,71 @@ const uint TILE_C = WG_C * INVOC_C;
 const uint TILE_H = WG_H * INVOC_H;
 const uint TILE_W = WG_W * INVOC_W;
 
+#if defined(FILTER_BILINEAR)
+struct Tap {
+    uint i0;
+    uint i1;
+    float t;
+};
+
+float bilinear_scale(uint n) {
+#if defined(ALIGN_CORNERS)
+    return n > 1 ? float(n - 1) / float(n * SCALING_FACTOR - 1) : 0.0;
+#else
+    return 1.0 / float(SCALING_FACTOR);
+#endif
+}
+
+Tap bilinear_tap(uint o, uint n, float scale) {
+#if defined(ALIGN_CORNERS)
+    const float x = float(o) * scale;
+#else
+    const float x = max((float(o) + 0.5) * scale - 0.5, 0.0);
+#endif
+    const uint i0 = min(uint(x), n - 1);
+    return Tap(i0, min(i0 + 1, n - 1), x - float(i0));
+}
+
+uint16_t bilinear_blend(uint16_t a, uint16_t b, uint16_t c, uint16_t d,
+                        Tap h, Tap w) {
+    const float top = mix(float(uint16BitsToHalf(a)),
+                          float(uint16BitsToHalf(b)), w.t);
+    const float bottom = mix(float(uint16BitsToHalf(c)),
+                             float(uint16BitsToHalf(d)), w.t);
+    return halfBitsToUint16(float16_t(mix(top, bottom, h.t)));
+}
+
+uvec4 bilinear_blend(uvec4 a, uvec4 b, uvec4 c, uvec4 d, Tap h, Tap w) {
+    uvec4 r;
+    [[unroll]] for (uint i = 0; i < 4; ++i) {
+        const vec2 top = mix(unpackHalf2x16(a[i]), unpackHalf2x16(b[i]), w.t);
+        const vec2 bottom = mix(unpackHalf2x16(c[i]), unpackHalf2x16(d[i]), w.t);
+        r[i] = packHalf2x16(mix(top, bottom, h.t));
+    }
+    return r;
+}
+
+#define TAP(x, x2, n, scale) const Tap x = bilinear_tap(x2, n, scale)
+#define SAMPLE(SRC) \
+    bilinear_blend(input_tensor_blob[SRC(h.i0, w.i0)], \
+                   input_tensor_blob[SRC(h.i0, w.i1)], \
+                   input_tensor_blob[SRC(h.i1, w.i0)], \
+                   input_tensor_blob[SRC(h.i1, w.i1)], h, w)
+#else
+#define TAP(x, x2, n, scale) const uint x = x2 / SCALING_FACTOR
+#define SAMPLE(SRC) input_tensor_blob[SRC(h, w)]
+#endif
+
 layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
 void main() {
+    #if defined(FILTER_BILINEAR)
+    const float scale_h = bilinear_scale(pc.H);
+    const float scale_w = bilinear_scale(pc.W);
+    #endif
+
     #if defined(IN_LAYOUT_HWC) && defined(OUT_LAYOUT_HWC)
     // => istype: uint16_t, ostype: uint16_t, atype: float16_t
+    #define SRC(y, x) ((y * W + x) * CH + c)
 
     const uint wgc0 = gl_WorkGroupID.x * TILE_C;
     const uint wgw0 = gl_WorkGroupID.y * TILE_W;
@@ -46,28 +107,28 @@ void main() {
         if (h2 >= H2) {
             break;
         }
-        const uint h = h2 / SCALING_FACTOR;
+        TAP(h, h2, H, scale_h);
 
         for (uint zw = 0; zw < INVOC_W; ++zw) {
             const uint w2 = w20 + zw * WG_W;
             if (w2 >= W2) {
                 break;
             }
-            const uint w = w2 / SCALING_FACTOR;
+            TAP(w, w2, W, scale_w);
 
-            const uint src_o = (h * W + w) * CH;
             const uint dst_o = (h2 * W2 + w2) * CH;
             for (uint zc = 0; zc < INVOC_C; ++zc) {
                 const uint c = c0 + zc * WG_C;
                 if (c >= CH) {
                     break;
                 }
-                output_tensor_blob[dst_o + c] = input_tensor_blob[src_o + c];
+                output_tensor_blob[dst_o + c] = SAMPLE(SRC);
             }
         }
     }
 
     #elif defined(IN_LAYOUT_HWC8) && defined(OUT_LAYOUT_HWC8)
+    #define SRC(y, x) (y * W * CH8 + x * CH8 + c8)
     const uint TILE_C8 = TILE_C / 8;
     const uint INVOC_C8 = INVOC_C / 8;
     const uint CH8 = CH / 8;
@@ -92,7 +153,7 @@ void main() {
             break;
         }
 
-        const uint h = h2 / SCALING_FACTOR;
+        TAP(h, h2, H, scale_h);
 
         #pragma unroll
         for (uint zw = 0; zw < INVOC_W; ++zw) {
@@ -100,21 +161,21 @@ void main() {
             if (w2 >= W2) {
                 break;
             }
-            const uint w = w2 / SCALING_FACTOR;
+            TAP(w, w2, W, scale_w);
 
             #pragma unroll
             for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
                 const uint c8 = c08 + zc8 * WG_C;
                 if (c8 < CH8) {
-                    const uint src_o = h * W * CH8 + w * CH8 + c8;
                     const uint dst_o = h2 * W2 * CH8 + w2 * CH8 + c8;
-                    output_tensor_blob[dst_o] = input_tensor_blob[src_o];
+                    output_tensor_blob[dst_o] = SAMPLE(SRC);
                 }
             }
         }
     }
 
     #elif defined(IN_LAYOUT_CHWC8) && defined(OUT_LAYOUT_CHWC8)
+    #define SRC(y, x) (c8 * W * H + y * W + x)
 
     const uint TILE_C8 = TILE_C / 8;
     const uint INVOC_C8 = INVOC_C / 8;
@@ -144,18 +205,17 @@ void main() {
             if (h2 >= H2) {
                 break;
             }
-            const uint h = h2 / SCALING_FACTOR;
+            TAP(h, h2, H, scale_h);
             for (uint zw = 0; zw < INVOC_W; ++zw) {
                 const uint w2 = w20 + zw * WG_W;
                 if (w2 >= W2) {
                     break;
                 }
-                const uint w = w2 / SCALING_FACTOR;
+                TAP(w, w2, W, scale_w);
 
-                const uint src_o = c8 * W * H + h * W + w;
                 const uint dst_o = c8 * W2 * H2 + h2 * W2 + w2;
 
-                output_tensor_blob[dst_o] = input_tensor_blob[src_o];
+                output_tensor_blob[dst_o] = SAMPLE(SRC);
             }
         }
     }

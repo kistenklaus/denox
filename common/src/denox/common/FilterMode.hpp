@@ -5,7 +5,9 @@
 namespace denox {
 
 enum class FilterMode {
-  Nearest,
+  Nearest,              // asymmetric
+  Bilinear,             // half_pixel
+  BilinearAlignCorners, // align_corners
 };
 
 }
@@ -19,6 +21,12 @@ template <> struct fmt::formatter<denox::FilterMode> {
     switch (mode) {
     case denox::FilterMode::Nearest:
       name = "nearest";
+      break;
+    case denox::FilterMode::Bilinear:
+      name = "bilinear";
+      break;
+    case denox::FilterMode::BilinearAlignCorners:
+      name = "bilinear-align-corners";
       break;
     }
     return fmt::format_to(ctx.out(), "{}", name);

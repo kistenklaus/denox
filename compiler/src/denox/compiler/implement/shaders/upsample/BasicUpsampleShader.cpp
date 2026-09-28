@@ -76,10 +76,13 @@ BasicUpsampleShader::BasicUpsampleShader(spirv::GlslCompiler *compiler,
         return false;
       }
       const auto &upsample = op.upsample();
-      if (upsample.mode != FilterMode::Nearest) {
-        return false;
+      switch (upsample.mode) {
+      case FilterMode::Nearest:
+      case FilterMode::Bilinear:
+      case FilterMode::BilinearAlignCorners:
+        return true;
       }
-      return true;
+      return false;
     });
     m_patternHandles.emplace_back(in, std::move(upsample), out);
     m_capabilities.patterns.emplace_back(std::move(upsamplePattern),
@@ -179,6 +182,7 @@ static spirv::GlslCompilerInstance
 basic_upsample_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
                        TensorFormat inputFormat, TensorFormat outputFormat,
                        unsigned int channels, unsigned int scalingFactor,
+                       FilterMode mode,
                        const BasicUpsampleShader::Config &config) {
   auto shader = compiler->read(srcPath);
   shader.enableDenoxPreprocessor();
@@ -227,6 +231,17 @@ basic_upsample_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
 
   shader.define("CH", channels);
   shader.define("SCALING_FACTOR", scalingFactor);
+  switch (mode) {
+  case FilterMode::Nearest:
+    break;
+  case FilterMode::Bilinear:
+    shader.define("FILTER_BILINEAR");
+    break;
+  case FilterMode::BilinearAlignCorners:
+    shader.define("FILTER_BILINEAR");
+    shader.define("ALIGN_CORNERS");
+    break;
+  }
   return shader;
 }
 
@@ -259,7 +274,7 @@ void BasicUpsampleShader::implement(
   Config config = m_configs[configKey];
   auto shader =
       basic_upsample_compile(m_compiler, m_srcPath, in.format, out.format, C,
-                             upsample.scalingFactor, config);
+                             upsample.scalingFactor, upsample.mode, config);
 
   std::uint32_t tileX = config.invocC * config.wgC;
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -276,8 +291,8 @@ void BasicUpsampleShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.width));
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.setName(name());
-  dispatch.setOperation(fmt::format("upsample(x,scale_factor={},mode=nearest)",
-                                    upsample.scalingFactor));
+  dispatch.setOperation(fmt::format("upsample(x,scale_factor={},mode={})",
+                                    upsample.scalingFactor, upsample.mode));
   dispatch.setConfig(fmt::format(
       "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}", config.invocC,
       config.invocW, config.invocH, config.wgC, config.wgW, config.wgH));
@@ -289,7 +304,11 @@ void BasicUpsampleShader::implement(
 
   dispatch.setMemoryReads(reads);
   dispatch.setMemoryWrites(writes);
-  dispatch.setFlops(Sym::Const(0));
+  if (upsample.mode == FilterMode::Nearest) {
+    dispatch.setFlops(Sym::Const(0));
+  } else {
+    dispatch.setFlops(symGraph.mul(out.width, out.height, 8 * C));
+  }
   // dispatch.usesCoopmat(false);
 }
 memory::string BasicUpsampleShader::name() const { return "basic-upsample"; }

@@ -1,5 +1,6 @@
 #include "denox/compiler/implement/shaders/conv/ConcatConvCMShader.hpp"
 #include "denox/common/ActivationFunction.hpp"
+#include "denox/common/FilterMode.hpp"
 #include "denox/common/TensorDataType.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
@@ -685,6 +686,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       if (upsample.scalingFactor != 2) {
         return false;
       }
+      if (upsample.mode != FilterMode::Nearest) {
+        return false;
+      }
       return true;
     });
 
@@ -732,6 +736,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       }
       const auto &upsample = op.upsample();
       if (upsample.scalingFactor != 2) {
+        return false;
+      }
+      if (upsample.mode != FilterMode::Nearest) {
         return false;
       }
       return true;
@@ -788,6 +795,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       }
       const auto &upsample = op.upsample();
       if (upsample.scalingFactor != 2) {
+        return false;
+      }
+      if (upsample.mode != FilterMode::Nearest) {
         return false;
       }
       return true;
@@ -850,6 +860,9 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
       }
       const auto &upsample = op.upsample();
       if (upsample.scalingFactor != 2) {
+        return false;
+      }
+      if (upsample.mode != FilterMode::Nearest) {
         return false;
       }
       return true;

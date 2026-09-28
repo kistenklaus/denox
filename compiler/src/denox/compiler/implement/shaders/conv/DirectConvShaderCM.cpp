@@ -1,5 +1,6 @@
 #include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
 #include "denox/common/ActivationFunction.hpp"
+#include "denox/common/FilterMode.hpp"
 #include "denox/common/PoolFunction.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/Options.hpp"
@@ -452,7 +453,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Upsample) {
         return false;
       }
-      return op.upsample().scalingFactor == 2;
+      return op.upsample().scalingFactor == 2 &&
+             op.upsample().mode == FilterMode::Nearest;
     });
 
     conv->matchRank(1);
@@ -492,7 +494,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
       if (op.tag() != ComputeOpKind::Upsample) {
         return false;
       }
-      return op.upsample().scalingFactor == 2;
+      return op.upsample().scalingFactor == 2 &&
+             op.upsample().mode == FilterMode::Nearest;
     });
 
     conv->matchRank(1);

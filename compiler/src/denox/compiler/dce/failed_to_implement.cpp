@@ -135,6 +135,16 @@ void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
         with =
             fmt::format("{{scaling_factor={}}}", op.upsample().scalingFactor);
         break;
+      case FilterMode::Bilinear:
+        opString = "bilinear-upsample";
+        with =
+            fmt::format("{{scaling_factor={}}}", op.upsample().scalingFactor);
+        break;
+      case FilterMode::BilinearAlignCorners:
+        opString = "bilinear-upsample";
+        with = fmt::format("{{scaling_factor={}, align_corners=true}}",
+                           op.upsample().scalingFactor);
+        break;
       }
       break;
     case ComputeOpKind::Pool:

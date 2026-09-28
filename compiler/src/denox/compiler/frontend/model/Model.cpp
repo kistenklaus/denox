@@ -398,6 +398,12 @@ memory::string Model::to_string() const {
       case FilterMode::Nearest:
         str.append("      - mode: Nearest\n");
         break;
+      case FilterMode::Bilinear:
+        str.append("      - mode: Bilinear\n");
+        break;
+      case FilterMode::BilinearAlignCorners:
+        str.append("      - mode: BilinearAlignCorners\n");
+        break;
       }
       str.append(
           fmt::format("      - scaling-factor: {}\n", upsample.scalingFactor));
