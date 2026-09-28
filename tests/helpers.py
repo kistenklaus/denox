@@ -7,7 +7,8 @@ def find_project_root(start: Path | None = None) -> Path:
     path = (start or Path(__file__)).resolve()
 
     for parent in [path, *path.parents]:
-        if (parent / ".git").is_dir():
+        # .git is a file in git worktrees
+        if (parent / ".git").exists():
             return parent
 
     raise RuntimeError("Could not find project root containing .git")
