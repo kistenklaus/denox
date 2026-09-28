@@ -374,22 +374,21 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     }
     return true;
   };
+  // strides are not implemented
+  const auto convSupported = [](const ComputeOp &op) -> bool {
+    if (op.tag() != ComputeOpKind::Conv) {
+      return false;
+    }
+    const auto &conv = op.conv();
+    return conv->stride.x == 1 && conv->stride.y == 1;
+  };
 
   {
     Pattern conv_pattern;
     auto in = conv_pattern.matchNode();
     auto conv = in->matchOutgoing();
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      return true;
-      // const auto &conv = op.conv();
-      // return conv->stride.x == 1 && conv->stride.y == 1 &&
-      //        conv->padding.x == 1 && conv->padding.y == 1 &&
-      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
     auto out = conv->matchDst();
 
     in->matchValue(tensorSupported);
@@ -410,16 +409,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     auto out = relu->matchDst();
 
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      return true;
-      // const auto &conv = op.conv();
-      // return conv->stride.x == 1 && conv->stride.y == 1 &&
-      //        conv->padding.x == 1 && conv->padding.y == 1 &&
-      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
     relu->matchRank(1);
     relu->matchValue([](const ComputeOp &op) {
       if (op.tag() != ComputeOpKind::Activation) {
@@ -456,16 +446,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     });
 
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      return true;
-      // const auto &conv = op.conv();
-      // return conv->stride.x == 1 && conv->stride.y == 1 &&
-      //        conv->padding.x == 1 && conv->padding.y == 1 &&
-      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
 
     in->matchValue(tensorSupported);
     out->matchValue(tensorSupported);
@@ -496,16 +477,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     });
 
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      return true;
-      // const auto &conv = op.conv();
-      // return conv->stride.x == 1 && conv->stride.y == 1 &&
-      //        conv->padding.x == 1 && conv->padding.y == 1 &&
-      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
 
     acti->matchRank(1);
     acti->matchValue([](const ComputeOp &op) -> bool {
@@ -551,16 +523,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     });
 
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      return true;
-      // const auto &conv = op.conv();
-      // return conv->stride.x == 1 && conv->stride.y == 1 &&
-      //        conv->padding.x == 1 && conv->padding.y == 1 &&
-      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
 
     in->matchValue(tensorSupported);
     out->matchValue([](const TensorInstance &tensor) -> bool {
@@ -601,16 +564,7 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     auto out = pool->matchDst();
 
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      return true;
-      // const auto &conv = op.conv();
-      // return conv->stride.x == 1 && conv->stride.y == 1 &&
-      //        conv->padding.x == 1 && conv->padding.y == 1 &&
-      //        conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
     relu->matchRank(1);
     relu->matchValue([](const ComputeOp &op) {
       if (op.tag() != ComputeOpKind::Activation) {
@@ -1023,8 +977,8 @@ void DirectConvShaderCM::implement(
   const ComputeOpConv &conv = op.conv();
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
   uint32_t K = static_cast<uint32_t>(out.channels.constant());
-  const Sym W = convOut.width;
-  const Sym H = convOut.height;
+  const Sym outW = convOut.width;
+  const Sym outH = convOut.height;
 
   memory::optional<ActivationFunction> activationFunction;
 
@@ -1055,8 +1009,6 @@ void DirectConvShaderCM::implement(
 
     assert(convOut.channels.constant() % 8 == 0);
 
-    assert(in.width == W);
-    assert(in.height == H);
     assert(symGraph.mul(out.width, 2) == W);
     assert(symGraph.mul(out.height, 2) == H);
 
@@ -1079,8 +1031,8 @@ void DirectConvShaderCM::implement(
   std::uint32_t ytile = config.sg_m * config.wg_m;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, ctile, false, false);
-  Sym workgroupCountY = symGraph.cdiv(W, xtile, false, false);
-  Sym workgroupCountZ = symGraph.cdiv(H, ytile, false, false);
+  Sym workgroupCountY = symGraph.cdiv(outW, xtile, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(outH, ytile, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -1121,8 +1073,12 @@ void DirectConvShaderCM::implement(
     dispatch.addParamBinding("BIAS_SET", "BIAS_BINDING", *biasTensorId);
   }
 
-  dispatch.addPushConstant(PushConstant::Dynamic(W, memory::Dtype::U32));
-  dispatch.addPushConstant(PushConstant::Dynamic(H, memory::Dtype::U32));
+  const Sym inW = symGraph.mul(in.width, scalingFactor);
+  const Sym inH = symGraph.mul(in.height, scalingFactor);
+  dispatch.addPushConstant(PushConstant::Dynamic(inW, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(inH, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(outW, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(outH, memory::Dtype::U32));
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.width, in.height), C * size_of(in.type));
@@ -1138,7 +1094,7 @@ void DirectConvShaderCM::implement(
   dispatch.setMemoryWrites(writes);
 
   Sym flops =
-      symGraph.mul(symGraph.mul(W, H),
+      symGraph.mul(symGraph.mul(outW, outH),
                    2ull * C * K * conv->W->shape().r * conv->W->shape().s);
   dispatch.setFlops(flops);
 
