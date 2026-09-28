@@ -1012,8 +1012,8 @@ void DirectConvShaderCM::implement(
 
     assert(convOut.channels.constant() % 8 == 0);
 
-    assert(symGraph.mul(out.width, 2) == W);
-    assert(symGraph.mul(out.height, 2) == H);
+    assert(symGraph.mul(out.width, 2) == outW);
+    assert(symGraph.mul(out.height, 2) == outH);
 
     assert(config.sg_m % 2 == 0);
     assert((config.sg_m * config.wg_m) % 2 == 0);
