@@ -251,15 +251,15 @@ create_model_dispatch(const runtime::ContextHandle &ctx, const dnx::Model *dnx,
   };
 }
 
-enum class TensorState {
+enum class BufferState {
   Undefined,
   ComputeWrite,
   ComputeRead,
 };
 
 static std::optional<runtime::ModelBarrier>
-generate_pipeline_barrier([[maybe_unused]] const dnx::Model *dnx,
-                          std::vector<TensorState> &tensorStates,
+generate_pipeline_barrier(const dnx::Model *dnx,
+                          std::vector<BufferState> &bufferStates,
                           const dnx::ComputeDispatch *dispatch) {
 
   enum HazardType : int { None = 0, RAW = 1, WAW = 2, WAR = 4 };
@@ -271,52 +271,55 @@ generate_pipeline_barrier([[maybe_unused]] const dnx::Model *dnx,
     for (std::size_t b = 0; b < set->bindings()->size(); ++b) {
       const dnx::DescriptorBinding *binding =
           set->bindings()->Get(static_cast<unsigned int>(b));
-      TensorState currentState = tensorStates[binding->tensor()];
+      // tensors may alias the same buffer (implicit concat)
+      const uint32_t bufferId =
+          dnx->tensors()->Get(binding->tensor())->buffer();
+      BufferState currentState = bufferStates[bufferId];
       dnx::Access access = binding->access();
       HazardType hazard = None;
-      TensorState nextState;
+      BufferState nextState;
       switch (currentState) {
-      case TensorState::Undefined:
+      case BufferState::Undefined:
         switch (access) {
         case dnx::Access_ReadOnly:
-          nextState = TensorState::ComputeRead;
+          nextState = BufferState::ComputeRead;
           break;
         case dnx::Access_WriteOnly:
         case dnx::Access_ReadWrite:
-          nextState = TensorState::ComputeWrite;
+          nextState = BufferState::ComputeWrite;
           break;
         }
         break;
-      case TensorState::ComputeWrite:
+      case BufferState::ComputeWrite:
         switch (access) {
         case dnx::Access_ReadOnly:
           hazard = static_cast<HazardType>(hazard | RAW);
-          nextState = TensorState::ComputeRead;
+          nextState = BufferState::ComputeRead;
           break;
         case dnx::Access_WriteOnly:
           hazard = static_cast<HazardType>(hazard | WAW);
-          nextState = TensorState::ComputeWrite;
+          nextState = BufferState::ComputeWrite;
           break;
         case dnx::Access_ReadWrite:
           hazard = static_cast<HazardType>(hazard | RAW);
           hazard = static_cast<HazardType>(hazard | WAW);
-          nextState = TensorState::ComputeWrite;
+          nextState = BufferState::ComputeWrite;
           break;
         }
         break;
-      case TensorState::ComputeRead:
+      case BufferState::ComputeRead:
         switch (access) {
         case dnx::Access_ReadOnly:
-          nextState = TensorState::ComputeRead;
+          nextState = BufferState::ComputeRead;
           break;
         case dnx::Access_WriteOnly:
           hazard = static_cast<HazardType>(hazard | WAR);
-          nextState = TensorState::ComputeWrite;
+          nextState = BufferState::ComputeWrite;
           break;
         case dnx::Access_ReadWrite:
           hazard = static_cast<HazardType>(hazard | WAR);
           hazard = static_cast<HazardType>(hazard | WAW);
-          nextState = TensorState::ComputeWrite;
+          nextState = BufferState::ComputeWrite;
           break;
         }
         break;
@@ -339,10 +342,10 @@ generate_pipeline_barrier([[maybe_unused]] const dnx::Model *dnx,
           barrier.srcAccess |= VK_ACCESS_SHADER_WRITE_BIT;
           barrier.dstAccess |= VK_ACCESS_SHADER_WRITE_BIT;
         }
-        barrier.tensorId = binding->tensor();
+        barrier.bufferId = bufferId;
         bufferBarriers.push_back(barrier);
       }
-      tensorStates[binding->tensor()] = nextState;
+      bufferStates[bufferId] = nextState;
     }
   }
   if (bufferBarriers.empty()) {
@@ -385,15 +388,15 @@ parse_cmds(const ContextHandle &context, const dnx::Model *dnx) {
 
   ModelDescriptorPoolRequirements descriptorPoolRequirements{};
   memory::vector<ModelCmd> cmds;
-  memory::vector<TensorState> tensorStates(dnx->tensors()->size(),
-                                           TensorState::Undefined);
+  memory::vector<BufferState> bufferStates(dnx->buffers()->size(),
+                                           BufferState::Undefined);
   for (size_t d = 0; d < dnx->dispatches()->size(); ++d) {
     const dnx::ComputeDispatch *dispatch =
         dnx->dispatches()->Get(static_cast<unsigned int>(d));
     ModelDispatch modelDispatch = create_model_dispatch(context, dnx, dispatch);
 
     if (std::optional<ModelBarrier> barrier =
-            generate_pipeline_barrier(dnx, tensorStates, dispatch)) {
+            generate_pipeline_barrier(dnx, bufferStates, dispatch)) {
       cmds.emplace_back(*barrier);
     }
     cmds.emplace_back(modelDispatch);

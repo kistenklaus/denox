@@ -143,12 +143,7 @@ create_cmds(const runtime::ModelHandle &model, const SymIREval &symeval,
         const runtime::ModelBufferBarrier &bufferBarrier =
             barrier.bufferBarriers[b];
 
-        const runtime::ModelTensor &tensor =
-            model->tensors()[bufferBarrier.tensorId];
-        uint64_t offset = static_cast<uint64_t>(symeval[tensor.offset]);
-        uint64_t size = static_cast<uint64_t>(symeval[tensor.size]);
-
-        const runtime::Buffer &buffer = buffers[tensor.buffer];
+        const runtime::Buffer &buffer = buffers[bufferBarrier.bufferId];
 
         VkBufferMemoryBarrier &out = instanceBarrier.bufferBarrier[b];
         out.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -158,8 +153,8 @@ create_cmds(const runtime::ModelHandle &model, const SymIREval &symeval,
         out.srcQueueFamilyIndex = ctx->getQueueFamily();
         out.dstQueueFamilyIndex = ctx->getQueueFamily();
         out.buffer = buffer.vkbuffer;
-        out.offset = offset;
-        out.size = size;
+        out.offset = 0;
+        out.size = VK_WHOLE_SIZE;
       }
       cmds.emplace_back(instanceBarrier);
     } else if (std::holds_alternative<runtime::ModelDispatch>(cmd)) {
