@@ -11,9 +11,9 @@ import torch.nn.functional as F
 MODELS: list[torch.onnx.ONNXProgram] = []
 
 
-def register_model(
+def export_model(
     model: nn.Module
-) -> None:
+) -> torch.onnx.ONNXProgram:
     input_channels = int(model.input_channels)
 
     input_height = getattr(model, "input_height", None)
@@ -108,7 +108,13 @@ def register_model(
     if program is None:
         raise Error("Failed to export")
 
-    MODELS.append(program)
+    return program
+
+
+def register_model(
+    model: nn.Module
+) -> None:
+    MODELS.append(export_model(model))
 
 
 class OIDNNet(nn.Module):
@@ -393,3 +399,70 @@ class YetAnotherUNet(nn.Module):
 register_model(YetAnotherUNet())
 
 
+class BilinearUpsampleNet(nn.Module):
+    def __init__(self, channels: int, scale_factor: int, align_corners: bool):
+        super().__init__()
+        self.input_channels = 3
+        self.scale_factor = scale_factor
+        self.align_corners = align_corners
+        self.conv0 = nn.Conv2d(3, channels, 3, padding="same")
+        self.conv1 = nn.Conv2d(channels, 3, 3, padding="same")
+        with torch.no_grad():
+            self.conv1.bias.add_(0.5)
+
+    def forward(self, input):
+        x = F.relu(self.conv0(input))
+        x = F.interpolate(
+            x,
+            scale_factor=self.scale_factor,
+            mode="bilinear",
+            align_corners=self.align_corners,
+        )
+        return self.conv1(x)
+
+
+class ResizeUNet(nn.Module):
+    def __init__(self, mode: str, use_size: bool = False):
+        super().__init__()
+        self.input_channels = 3
+        self.mode = mode
+        self.use_size = use_size
+        if use_size:
+            self.input_height = 96
+            self.input_width = 160
+        else:
+            self.alignment = 4
+        self.enc0 = nn.Conv2d(3, 16, 3, padding="same")
+        self.enc1 = nn.Conv2d(16, 32, 3, padding="same")
+        self.enc2 = nn.Conv2d(32, 32, 3, padding="same")
+        self.dec1 = nn.Conv2d(64, 16, 3, padding="same")
+        self.dec0 = nn.Conv2d(32, 16, 3, padding="same")
+        self.conv_out = nn.Conv2d(16, 3, 3, padding="same")
+        with torch.no_grad():
+            self.conv_out.weight.mul_(4)
+            self.conv_out.bias.add_(0.5)
+
+    def upsample_like(self, x, skip):
+        if self.use_size:
+            return F.interpolate(x, size=skip.shape[2:], mode=self.mode)
+        return F.interpolate(x, scale_factor=2, mode=self.mode)
+
+    def forward(self, input):
+        x0 = F.relu(self.enc0(input))
+        x1 = F.relu(self.enc1(F.max_pool2d(x0, 2)))
+        x = F.relu(self.enc2(F.max_pool2d(x1, 2)))
+        x = F.relu(self.dec1(torch.cat([self.upsample_like(x, x1), x1], 1)))
+        x = F.relu(self.dec0(torch.cat([self.upsample_like(x, x0), x0], 1)))
+        return self.conv_out(x)
+
+
+RESIZE_MODELS: list[torch.onnx.ONNXProgram] = [
+    export_model(BilinearUpsampleNet(16, 2, False)),
+    export_model(BilinearUpsampleNet(16, 2, True)),
+    export_model(BilinearUpsampleNet(5, 3, False)),
+    export_model(BilinearUpsampleNet(5, 3, True)),
+    export_model(ResizeUNet("nearest", use_size=True)),
+    export_model(ResizeUNet("bilinear", use_size=True)),
+    export_model(ResizeUNet("bilinear")),
+]
+MODELS.append(RESIZE_MODELS[-1])
