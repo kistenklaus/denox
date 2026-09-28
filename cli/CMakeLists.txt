@@ -4,6 +4,10 @@ add_executable(denox
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/alloc/monotone_alloc.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/io/Pipe.cpp
+
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/npy/NpyInputStream.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/npy/NpyOutputStream.cpp
+
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/png/PngInputStream.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/cli/png/PngOutputStream.cpp
 

@@ -9,7 +9,7 @@
 #include <stdexcept>
 
 denox::memory::optional<denox::memory::ActivationTensor>
-PngInputStream::read_image(denox::memory::Dtype dtype) {
+PngInputStream::read_image() {
   using denox::memory::Dtype;
 
   std::byte sig[8];
@@ -76,6 +76,8 @@ PngInputStream::read_image(denox::memory::Dtype dtype) {
     png_destroy_read_struct(&png, &info, nullptr);
     throw std::runtime_error("Expected RGB PNG after normalization");
   }
+
+  const auto dtype = denox::memory::Dtype::F16;
 
   denox::memory::ActivationDescriptor desc{
       .shape = {width, height, channels},

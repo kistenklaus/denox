@@ -1,8 +1,12 @@
 #include "denox/cli/infer.hpp"
 #include "denox/cli/io/InputStream.hpp"
 #include "denox/cli/io/OutputStream.hpp"
+#include "denox/cli/npy/NpyInputStream.hpp"
+#include "denox/cli/npy/NpyOutputStream.hpp"
 #include "denox/cli/png/PngInputStream.hpp"
 #include "denox/cli/png/PngOutputStream.hpp"
+#include "denox/common/TensorDataType.hpp"
+#include "denox/common/TensorStorage.hpp"
 #include "denox/compiler/compile.hpp"
 #include "denox/device_info/query/query_driver_device_info.hpp"
 #include "denox/diag/invalid_state.hpp"
@@ -52,11 +56,62 @@ void infer(InferAction &action) {
   IOEndpoint input = action.input;
   IOEndpoint output = action.output;
 
+  bool outputPng = false;
+  if (output.kind() == IOEndpointKind::Path &&
+      output.path().extension() == ".png") {
+    outputPng = true;
+  }
+  bool outputNpy = false;
+  if (output.kind() == IOEndpointKind::Path &&
+      output.path().extension() == ".npy") {
+    outputNpy = true;
+  }
+
   InputStream inputStream(input);
+
   OutputStream outputStream(output);
 
   assert(model->inputs().size() == 1);
   assert(model->outputs().size() == 1);
+
+  const auto &modelInput = model->tensors()[model->inputs().front()];
+  const denox::TensorFormat inputFormat = *modelInput.format;
+  denox::memory::ActivationLayout inputLayout =
+      denox::memory::ActivationLayout::HWC;
+  switch (inputFormat) {
+  case denox::TensorFormat::Optimal:
+    throw std::runtime_error("invalid input format");
+  case denox::TensorFormat::SSBO_HWC:
+    inputLayout = denox::memory::ActivationLayout::HWC;
+    break;
+  case denox::TensorFormat::SSBO_CHW:
+    inputLayout = denox::memory::ActivationLayout::CHW;
+    break;
+  case denox::TensorFormat::SSBO_CHWC8:
+    inputLayout = denox::memory::ActivationLayout::CHWC8;
+    break;
+  case denox::TensorFormat::TEX_RGBA:
+  case denox::TensorFormat::TEX_RGB:
+  case denox::TensorFormat::TEX_RG:
+  case denox::TensorFormat::TEX_R:
+    throw std::runtime_error("texture formats are not supported!");
+  }
+
+  const denox::TensorDataType inputTensorDtype = *modelInput.dtype;
+  denox::memory::Dtype inputDtype;
+  switch (inputTensorDtype) {
+  case denox::TensorDataType::Auto:
+    throw std::runtime_error("invalid input dtype");
+  case denox::TensorDataType::Float16:
+    inputDtype = denox::memory::Dtype::F16;
+    break;
+  case denox::TensorDataType::Float32:
+    inputDtype = denox::memory::Dtype::F32;
+    break;
+  case denox::TensorDataType::Float64:
+    inputDtype = denox::memory::Dtype::F64;
+    break;
+  }
 
   struct InstanceCache {
     denox::memory::vector<denox::SymSpec> spec;
@@ -64,30 +119,42 @@ void infer(InferAction &action) {
   };
   denox::memory::optional<InstanceCache> instanceCache;
 
-  while (!inputStream.eof()) {
-
+  while (true) {
     denox::memory::optional<denox::memory::ActivationTensor> parsed;
-    parsed = PngInputStream{&inputStream}.read_image(denox::memory::Dtype::F16);
-    bool isPng = parsed.has_value();
+    const auto prefix = inputStream.peek(8);
+    if (prefix.empty()) {
+      break; // EOF.
+    }
+    if (prefix.size() < 8) {
+      throw std::runtime_error("Truncated input");
+    }
+
+    uint64_t magic;
+    std::memcpy(&magic, prefix.data(), sizeof(magic));
+
+    if (PngInputStream::is_png(magic)) {
+      parsed =
+          PngInputStream{&inputStream}.read_image();
+    } else if (NpyInputStream::is_npy(magic)) {
+      parsed =
+          NpyInputStream{&inputStream}.read_tensor();
+    } else {
+      throw std::runtime_error("invalid input");
+    }
 
     if (!parsed) {
-      // possibly fallback to raw HWC or something (unless eof ofcause)
-      // TODO alternative ways of loading the tensor
+      throw std::runtime_error("Decoder returned EOF after a valid signature");
     }
 
-    if (!parsed.has_value()) {
-      break;
-    }
-
-    const denox::memory::ActivationTensor &image = *parsed;
+    const denox::memory::ActivationTensor &inTensor = *parsed;
 
     denox::memory::ActivationDescriptor desc{
-        {image.shape().w, image.shape().h, image.shape().c},
-        denox::memory::ActivationLayout::HWC,
-        denox::memory::Dtype::F16,
+        {inTensor.shape().w, inTensor.shape().h, inTensor.shape().c},
+        inputLayout,
+        inputDtype,
     };
 
-    const denox::memory::ActivationTensor tensor{desc, image};
+    const denox::memory::ActivationTensor tensor{desc, inTensor};
 
     auto input = model->tensors()[model->inputs().front()];
     assert(input.width.has_value());
@@ -152,14 +219,20 @@ void infer(InferAction &action) {
 
     auto outdesc = instance->getOutputDesc(0);
 
-    denox::memory::ActivationTensor output{outdesc};
-    void *outputData = static_cast<void *>(output.data());
+    denox::memory::ActivationTensor outputTensor{outdesc};
+    void *outputData = static_cast<void *>(outputTensor.data());
     void **pOutput = &outputData;
 
     instance->infer(pInput, pOutput);
 
-    if (isPng) {
-      PngOutputStream{&outputStream}.write_image(output);
+    if (outputPng || (output.kind() == IOEndpointKind::Pipe &&
+                      PngInputStream::is_png(magic))) {
+      PngOutputStream{&outputStream}.write_image(outputTensor);
+    } else if (outputNpy || (output.kind() == IOEndpointKind::Pipe &&
+                             NpyInputStream::is_npy(magic))) {
+      NpyOutputStream{&outputStream}.write_tensor(outputTensor);
+    } else {
+      throw std::runtime_error("invalid state !");
     }
   }
 }

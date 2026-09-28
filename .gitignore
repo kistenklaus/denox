@@ -72,3 +72,4 @@ cmake-debug-build
 dist/
 trash/
 *.yaml
+*.npy
