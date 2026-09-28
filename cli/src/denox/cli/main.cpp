@@ -11,6 +11,7 @@
 #include "denox/cli/query_device_info.hpp"
 #include "denox/cli/reweight.hpp"
 #include "denox/cli/version.hpp"
+#include "denox/compiler/dce/failed_to_implement.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/diag/unreachable.hpp"
 #include "denox/io/fs/Path.hpp"
@@ -59,9 +60,12 @@ int main(int argc, char **argv) {
     default:
       denox::diag::unreachable();
     }
-  } catch (const std::exception &e) {
+  } catch (denox::compiler::FailedToImplement &e) {
     std::cerr << e.what() << std::endl;
     return 1;
+  } catch (const std::exception &e) {
+    std::cerr << e.what() << std::endl;
+    return -1;
   }
 
   mono_free_all();

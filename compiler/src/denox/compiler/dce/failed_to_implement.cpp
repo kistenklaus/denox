@@ -173,7 +173,5 @@ void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
   }
   msg.pop_back(); // pop last '\n' line break
 
-  throw std::runtime_error(fmt::format(
-      "Failed to implement at least one of the following operations:\n{}",
-      msg));
+  throw FailedToImplement{msg};
 }
