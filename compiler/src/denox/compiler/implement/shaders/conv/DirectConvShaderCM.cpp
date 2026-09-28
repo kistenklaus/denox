@@ -977,8 +977,8 @@ void DirectConvShaderCM::implement(
   const ComputeOpConv &conv = op.conv();
   uint32_t C = static_cast<uint32_t>(in.channels.constant());
   uint32_t K = static_cast<uint32_t>(out.channels.constant());
-  const Sym W = convOut.width;
-  const Sym H = convOut.height;
+  const Sym outW = convOut.width;
+  const Sym outH = convOut.height;
 
   memory::optional<ActivationFunction> activationFunction;
 
@@ -1031,8 +1031,8 @@ void DirectConvShaderCM::implement(
   std::uint32_t ytile = config.sg_m * config.wg_m;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, ctile, false, false);
-  Sym workgroupCountY = symGraph.cdiv(W, xtile, false, false);
-  Sym workgroupCountZ = symGraph.cdiv(H, ytile, false, false);
+  Sym workgroupCountY = symGraph.cdiv(outW, xtile, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(outH, ytile, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -1077,8 +1077,8 @@ void DirectConvShaderCM::implement(
   const Sym inH = symGraph.mul(in.height, scalingFactor);
   dispatch.addPushConstant(PushConstant::Dynamic(inW, memory::Dtype::U32));
   dispatch.addPushConstant(PushConstant::Dynamic(inH, memory::Dtype::U32));
-  dispatch.addPushConstant(PushConstant::Dynamic(W, memory::Dtype::U32));
-  dispatch.addPushConstant(PushConstant::Dynamic(H, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(outW, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(outH, memory::Dtype::U32));
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.width, in.height), C * size_of(in.type));
@@ -1094,7 +1094,7 @@ void DirectConvShaderCM::implement(
   dispatch.setMemoryWrites(writes);
 
   Sym flops =
-      symGraph.mul(symGraph.mul(W, H),
+      symGraph.mul(symGraph.mul(outW, outH),
                    2ull * C * K * conv->W->shape().r * conv->W->shape().s);
   dispatch.setFlops(flops);
 
