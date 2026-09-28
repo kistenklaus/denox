@@ -21,7 +21,13 @@ class ConcatNet(nn.Module):
         return self.conv2(torch.cat((self.conv1(y), y), 1))
 
 
-@pytest.mark.parametrize("flags", [[], ["--fmemcat=false"]])
+@pytest.mark.parametrize("flags", [
+    [], 
+    ["--fmemcat=false"], 
+    # to avoid concat+conv and make sure implicit-concat actually get's used.
+    # --ffusion=false, doesn't disable memcat, but does disable concat+conv.
+    ["--ffusion=false"], 
+])
 def test_implicit_concat(tmp_path, flags):
     onnx_path = tmp_path / "net.onnx"
     dnx_path = tmp_path / "net.dnx"
