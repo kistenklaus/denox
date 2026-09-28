@@ -72,6 +72,12 @@ void main() {
                 const uint wi = uint(clamp(int(wo) - int(PAD_LEFT), int(0), int(IN_W - 1)));
 
                 if (ho < OUT_H && wo < OUT_W && c < CH) {
+                    #ifdef PAD_ZERO
+                    if (ho - PAD_TOP >= IN_H || wo - PAD_LEFT >= IN_W) {
+                        output_tensor_blob[ho * OUT_W * CH + wo * CH + c] = ostype(0);
+                        continue;
+                    }
+                    #endif
                     output_tensor_blob[ho * OUT_W * CH + wo * CH + c] =
                         input_tensor_blob[hi * IN_W * CH + wi * CH + c];
                 }
@@ -120,6 +126,12 @@ void main() {
 
                 const uint c8 = c08 + zc8 * WG_C;
                 if (ho < OUT_H && wo < OUT_W && c8 < CH8) {
+                    #ifdef PAD_ZERO
+                    if (ho - PAD_TOP >= IN_H || wo - PAD_LEFT >= IN_W) {
+                        output_tensor_blob[ho * OUT_W * CH8 + wo * CH8 + c8] = ostype(0);
+                        continue;
+                    }
+                    #endif
                     output_tensor_blob[ho * OUT_W * CH8 + wo * CH8 + c8] =
                         input_tensor_blob[hi * IN_W * CH8 + wi * CH8 + c8];
                 }

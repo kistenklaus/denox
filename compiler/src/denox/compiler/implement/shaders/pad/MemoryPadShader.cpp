@@ -1,4 +1,5 @@
 #include "denox/compiler/implement/shaders/pad/MemoryPadShader.hpp"
+#include "denox/common/PaddingMode.hpp"
 #include "denox/common/TensorDataType.hpp"
 #include "denox/compiler/Options.hpp"
 #include "denox/diag/invalid_state.hpp"
@@ -175,10 +176,13 @@ memory::vector<unsigned int> MemoryPadShader::acceptMatch(
 static spirv::GlslCompilerInstance
 memory_pad_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
                    TensorFormat inputFormat, TensorFormat outputFormat,
-                   unsigned int channels,
+                   unsigned int channels, PaddingMode mode,
                    const MemoryPadShader::Config &config) {
   auto shader = compiler->read(srcPath);
   shader.define("CH", channels);
+  if (mode == PaddingMode::Zero) {
+    shader.define("PAD_ZERO");
+  }
 
   if (inputFormat == TensorFormat::SSBO_HWC &&
       outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0) &&
@@ -244,7 +248,7 @@ void MemoryPadShader::implement(
 
   Config config = m_configs[configKey];
   auto shader = memory_pad_compile(m_compiler, m_srcPath, in.format, out.format,
-                                   C, config);
+                                   C, pad->mode, config);
 
   std::uint32_t tileX = config.invocC * config.wgC;
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -277,14 +281,15 @@ void MemoryPadShader::implement(
       "INVOC_C={}#INVOC_W={}#INVOC_H={}#WG_C={}#WG_W={}#WG_H={}", config.invocC,
       config.invocW, config.invocH, config.wgC, config.wgW, config.wgH));
   dispatch.setOperation(fmt::format(
-      "pad(x,({},{},{},{}),mode=replicate)",
+      "pad(x,({},{},{},{}),mode={})",
       pad->left.isConstant() ? fmt::format("{}", pad->left.constant())
                              : "<dyn>",
       pad->right.isConstant() ? fmt::format("{}", pad->right.constant())
                               : "<dyn>",
       pad->top.isConstant() ? fmt::format("{}", pad->top.constant()) : "<dyn>",
       pad->bottom.isConstant() ? fmt::format("{}", pad->bottom.constant())
-                               : "<dyn>"));
+                               : "<dyn>",
+      pad->mode));
   dispatch.setSourcePath(m_srcPath);
 
   Sym reads = symGraph.mul(in.width, in.height, C * size_of(in.type));
