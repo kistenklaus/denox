@@ -295,8 +295,8 @@ void main() {
     // CM_M subtile, because we assume that CM_M % 8! (Bye bye Intel)
     // This implies that the (r,s,c) column index is uniform for a invocation!
     // This makes out of bounds checks sigificantly easier as
-    // x = wgxy.x + s + zm - PADDING_X, where zm is the index within the CM_M subtile.
-    // y = wgxy.y + r + sgmi * SG_M + sgm - PADDING_Y,
+    // x = (wgxy.x + zm) * STRIDE_X + s - PADDING_X, where zm is the index within the CM_M subtile.
+    // y = (wgxy.y + sgmi * SG_M + sgm) * STRIDE_Y + r - PADDING_Y,
     //      where sgmi subgroup m index and sgm is the subgroup-subtile m index.
 
     // NOTE: Invocation access iQQ elements with a stride of CM_M between in invocations (with 2byte accesses)
@@ -335,40 +335,40 @@ void main() {
 
         // NOTE: We abuse uint underflow here, as because we use zero padding anyway and
         // we only have to detect if we are out of bound not where we went out of bound.
-        const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+        const uint zy = (wgxy.y + sgmi * SG_M + sgm) * STRIDE_Y + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
 
-        const uint zx = wgxy.x + zs + zm8 * 8 - PADDING_X; // x-pixel position <- non-uniform across 16byte access.
+        const uint zx = (wgxy.x + zm8 * 8) * STRIDE_X + zs - PADDING_X; // x-pixel position <- non-uniform across 16byte access.
 
         if (zy < pc.IN_H && zk < KERNEL_X * KERNEL_Y * IN_CH) {
           // NOTE: Because we abuse uint underflow we additionally have to check zx < pc.IN_W.
           const uint o = zy * (pc.IN_W * IN_CH) + zx * IN_CH + zc;
-          if ((zx < pc.IN_W && zx + 7 < pc.IN_W)) {
+          if ((zx < pc.IN_W && zx + 7 * STRIDE_X < pc.IN_W)) {
             // NOTE: Fastpath no branching required.
-            uint16_t a = input_tensor_blob[o + 0 * IN_CH];
-            uint16_t b = input_tensor_blob[o + 1 * IN_CH];
+            uint16_t a = input_tensor_blob[o + 0 * STRIDE_X * IN_CH];
+            uint16_t b = input_tensor_blob[o + 1 * STRIDE_X * IN_CH];
             uint ab = packUint2x16(u16vec2(a, b));
-            uint16_t c = input_tensor_blob[o + 2 * IN_CH];
-            uint16_t d = input_tensor_blob[o + 3 * IN_CH];
+            uint16_t c = input_tensor_blob[o + 2 * STRIDE_X * IN_CH];
+            uint16_t d = input_tensor_blob[o + 3 * STRIDE_X * IN_CH];
             uint cd = packUint2x16(u16vec2(c, d));
-            uint16_t e = input_tensor_blob[o + 4 * IN_CH];
-            uint16_t f = input_tensor_blob[o + 5 * IN_CH];
+            uint16_t e = input_tensor_blob[o + 4 * STRIDE_X * IN_CH];
+            uint16_t f = input_tensor_blob[o + 5 * STRIDE_X * IN_CH];
             uint ef = packUint2x16(u16vec2(e, f));
-            uint16_t g = input_tensor_blob[o + 6 * IN_CH];
-            uint16_t h = input_tensor_blob[o + 7 * IN_CH];
+            uint16_t g = input_tensor_blob[o + 6 * STRIDE_X * IN_CH];
+            uint16_t h = input_tensor_blob[o + 7 * STRIDE_X * IN_CH];
             uint gh = packUint2x16(u16vec2(g, h));
             v = uvec4(ab, cd, ef, gh);
           } else {
-            uint16_t a = (zx + 0) < pc.IN_W ? input_tensor_blob[o + 0 * IN_CH] : uint16_t(0);
-            uint16_t b = (zx + 1) < pc.IN_W ? input_tensor_blob[o + 1 * IN_CH] : uint16_t(0);
+            uint16_t a = (zx + 0 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 0 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t b = (zx + 1 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 1 * STRIDE_X * IN_CH] : uint16_t(0);
             uint ab = packUint2x16(u16vec2(a, b));
-            uint16_t c = (zx + 2) < pc.IN_W ? input_tensor_blob[o + 2 * IN_CH] : uint16_t(0);
-            uint16_t d = (zx + 3) < pc.IN_W ? input_tensor_blob[o + 3 * IN_CH] : uint16_t(0);
+            uint16_t c = (zx + 2 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 2 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t d = (zx + 3 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 3 * STRIDE_X * IN_CH] : uint16_t(0);
             uint cd = packUint2x16(u16vec2(c, d));
-            uint16_t e = (zx + 4) < pc.IN_W ? input_tensor_blob[o + 4 * IN_CH] : uint16_t(0);
-            uint16_t f = (zx + 5) < pc.IN_W ? input_tensor_blob[o + 5 * IN_CH] : uint16_t(0);
+            uint16_t e = (zx + 4 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 4 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t f = (zx + 5 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 5 * STRIDE_X * IN_CH] : uint16_t(0);
             uint ef = packUint2x16(u16vec2(e, f));
-            uint16_t g = (zx + 6) < pc.IN_W ? input_tensor_blob[o + 6 * IN_CH] : uint16_t(0);
-            uint16_t h = (zx + 7) < pc.IN_W ? input_tensor_blob[o + 7 * IN_CH] : uint16_t(0);
+            uint16_t g = (zx + 6 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 6 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t h = (zx + 7 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 7 * STRIDE_X * IN_CH] : uint16_t(0);
             uint gh = packUint2x16(u16vec2(g, h));
             v = uvec4(ab, cd, ef, gh);
           }
@@ -403,9 +403,9 @@ void main() {
 
         // NOTE: We abuse uint underflow here, as because we use zero padding anyway and
         // we only have to detect if we are out of bound not where we went out of bound.
-        const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+        const uint zy = (wgxy.y + sgmi * SG_M + sgm) * STRIDE_Y + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
 
-        const uint zx = wgxy.x + zs + zm8 * 8 - PADDING_X; // x-pixel position <- non-uniform across 16byte access.
+        const uint zx = (wgxy.x + zm8 * 8) * STRIDE_X + zs - PADDING_X; // x-pixel position <- non-uniform across 16byte access.
 
         if (zy < pc.IN_H && zk < KERNEL_X * KERNEL_Y * IN_CH) {
           const uint sy = zy / SCALING_FACTOR;
@@ -413,17 +413,17 @@ void main() {
           if (sy < sH) {
 
             // fastpath condition: all 8 output x in-bounds
-            if (zx < pc.IN_W && (zx + 7) < pc.IN_W) {
+            if (zx < pc.IN_W && (zx + 7 * STRIDE_X) < pc.IN_W) {
               const uint row = sy * (sW * IN_CH);
 
-              uint16_t a = input_tensor_blob[row + ((zx + 0) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t b = input_tensor_blob[row + ((zx + 1) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t c = input_tensor_blob[row + ((zx + 2) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t d = input_tensor_blob[row + ((zx + 3) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t e = input_tensor_blob[row + ((zx + 4) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t f = input_tensor_blob[row + ((zx + 5) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t g = input_tensor_blob[row + ((zx + 6) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t h = input_tensor_blob[row + ((zx + 7) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t a = input_tensor_blob[row + ((zx + 0 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t b = input_tensor_blob[row + ((zx + 1 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t c = input_tensor_blob[row + ((zx + 2 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t d = input_tensor_blob[row + ((zx + 3 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t e = input_tensor_blob[row + ((zx + 4 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t f = input_tensor_blob[row + ((zx + 5 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t g = input_tensor_blob[row + ((zx + 6 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t h = input_tensor_blob[row + ((zx + 7 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
 
               v = uvec4(
                   packUint2x16(u16vec2(a, b)),
@@ -435,14 +435,14 @@ void main() {
               // slowpath: per-lane output x bounds + per-lane source x bounds
               const uint row = sy * (sW * IN_CH);
 
-              uint16_t a = ((zx + 0) < pc.IN_W) ? input_tensor_blob[row + ((zx + 0) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t b = ((zx + 1) < pc.IN_W) ? input_tensor_blob[row + ((zx + 1) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t c = ((zx + 2) < pc.IN_W) ? input_tensor_blob[row + ((zx + 2) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t d = ((zx + 3) < pc.IN_W) ? input_tensor_blob[row + ((zx + 3) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t e = ((zx + 4) < pc.IN_W) ? input_tensor_blob[row + ((zx + 4) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t f = ((zx + 5) < pc.IN_W) ? input_tensor_blob[row + ((zx + 5) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t g = ((zx + 6) < pc.IN_W) ? input_tensor_blob[row + ((zx + 6) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t h = ((zx + 7) < pc.IN_W) ? input_tensor_blob[row + ((zx + 7) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t a = ((zx + 0 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 0 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t b = ((zx + 1 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 1 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t c = ((zx + 2 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 2 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t d = ((zx + 3 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 3 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t e = ((zx + 4 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 4 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t f = ((zx + 5 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 5 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t g = ((zx + 6 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 6 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t h = ((zx + 7 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 7 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
 
               v = uvec4(
                   packUint2x16(u16vec2(a, b)),
@@ -538,8 +538,8 @@ void main() {
           const uint zr = zrs / KERNEL_X;
           const uint zs = zrs % KERNEL_X;
 
-          const uint zx = wgxy.x + zs + zm - PADDING_X;
-          const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+          const uint zx = (wgxy.x + zm) * STRIDE_X + zs - PADDING_X;
+          const uint zy = (wgxy.y + sgmi * SG_M + sgm) * STRIDE_Y + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
 
           if (zx < pc.IN_W && zy < pc.IN_H && zc8 < IN_CH8) {
             const uint o = (zy / SCALING_FACTOR) * ((pc.IN_W / SCALING_FACTOR) * IN_CH8)
@@ -642,8 +642,8 @@ void main() {
         const uint zr = zrs / KERNEL_X;
         const uint zs = zrs % KERNEL_X;
 
-        const uint zx = wgxy.x + zs + zm - PADDING_X;
-        const uint zy = wgxy.y + sgmi * SG_M + sgm + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
+        const uint zx = (wgxy.x + zm) * STRIDE_X + zs - PADDING_X;
+        const uint zy = (wgxy.y + sgmi * SG_M + sgm) * STRIDE_Y + zr - PADDING_Y; // y-pixel position <- uniform across 16byte access.
 
         if (zx < pc.IN_W && zy < pc.IN_H && zc8 < IN_CH8) {
           const uint o = zc8 * ((pc.IN_W / SCALING_FACTOR) * (pc.IN_H / SCALING_FACTOR)) + (zy / SCALING_FACTOR) * (pc.IN_W / SCALING_FACTOR) + (zx / SCALING_FACTOR);
