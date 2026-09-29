@@ -466,3 +466,79 @@ RESIZE_MODELS: list[torch.onnx.ONNXProgram] = [
     export_model(ResizeUNet("bilinear")),
 ]
 MODELS.append(RESIZE_MODELS[-1])
+
+
+def conv(in_channels, out_channels, kernel_size=3, stride=1):
+    return nn.Conv2d(in_channels, out_channels, kernel_size, stride, kernel_size // 2)
+
+
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride):
+        super().__init__()
+        self.stride = stride
+        self.conv0 = conv(in_channels, out_channels, 3, stride)
+        self.conv1 = conv(out_channels, out_channels)
+        self.short = None
+        if stride != 1 or in_channels != out_channels:
+            self.short = conv(in_channels, out_channels, 1)
+
+    def forward(self, x):
+        y = self.conv1(F.relu(self.conv0(x)))
+        if self.short is not None:
+            if self.stride > 1:
+                x = F.avg_pool2d(x, self.stride)
+            x = self.short(x)
+        return F.relu(y + x)
+
+
+class SegNet(nn.Module):
+    def __init__(self, in_channels, out_channels, size):
+        super().__init__()
+        self.input_channels = in_channels
+        self.input_height = size
+        self.input_width = size
+        enc = (32, 64, 128, 256, 512)
+        dec = (128, 96, 64, 32)
+        self.enc0 = conv(in_channels, enc[0], 3, 2)
+        self.enc1 = conv(enc[0], enc[0])
+        self.stages = nn.ModuleList(
+            nn.Sequential(ResBlock(i, o, 1 if k == 0 else 2), ResBlock(o, o, 1))
+            for k, (i, o) in enumerate(zip(enc[:-1], enc[1:]))
+        )
+        self.bins = [size // 32 // b for b in (1, 2, 4)]
+        self.ppm = nn.ModuleList(conv(enc[-1], dec[0] // 4, 1) for _ in self.bins)
+        self.ppm_out = nn.ModuleList(
+            conv(c, dec[0]) for c in [enc[-1]] + [dec[0] // 4] * len(self.bins)
+        )
+        self.dec = nn.ModuleList(
+            conv(i + s, o) for i, s, o in zip(dec[:1] + dec[:-1], enc[-2::-1], dec)
+        )
+        self.conv_out = conv(dec[-1], out_channels, 1)
+        with torch.no_grad():
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    m.weight.mul_(2)
+
+    def forward(self, input):
+        x = F.relu(self.enc1(F.relu(self.enc0(input))))
+        skips = [x]
+        x = F.max_pool2d(x, 2)
+        for stage in self.stages:
+            x = stage(x)
+            skips.append(x)
+        y = self.ppm_out[0](x)
+        for k, ppm, out in zip(self.bins, self.ppm, self.ppm_out[1:]):
+            p = F.relu(ppm(F.avg_pool2d(x, k)))
+            y = y + out(F.interpolate(p, scale_factor=k, mode="bilinear"))
+        x = F.relu(y)
+        for dec, skip in zip(self.dec, skips[-2::-1]):
+            x = F.interpolate(x, scale_factor=2, mode="bilinear")
+            x = F.relu(dec(torch.cat([x, skip], 1)))
+        return self.conv_out(x)
+
+
+torch.manual_seed(0)
+SEGNET_MODELS: list[torch.onnx.ONNXProgram] = [
+    export_model(SegNet(8, 1, 512)),
+    export_model(SegNet(3, 10, 384)),
+]
