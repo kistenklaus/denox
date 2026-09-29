@@ -103,3 +103,17 @@ def run_strided_conv(tmp_path, model, h, w, flags=()):
     image = load_output_image(onnx, output_path)
     assert image.shape == ref.shape
     torch.testing.assert_close(image.double(), ref, rtol=0, atol=0.02)
+
+@pytest.mark.parametrize("kernel, stride, padding, C, K", [
+    (3, (2, 1), 1, 16, 32),
+    (3, (2, 3), 1, 16, 32),  
+    (5, (2, 1), 1, 16, 32),
+    (5, (2, 3), 1, 16, 32),  
+    (3, (2, 1), 1, 10, 10),
+    (3, (2, 3), 1, 10, 10),  
+    (5, (2, 1), 1, 10, 10),
+    (5, (2, 3), 1, 10, 10),  
+])
+def test_conv_stride_asymmetric(tmp_path, kernel, stride, padding, C, K):
+    model = StridedConv(C, K, kernel, stride, padding, False)
+    run_strided_conv(tmp_path, model, 41, 50)
