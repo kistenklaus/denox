@@ -30,8 +30,13 @@ class AvgPool(nn.Module):
 
 @pytest.mark.parametrize("channels", [0, 12, 16])
 @pytest.mark.parametrize("kernel, h, w", [
-    (2, 12, 12), (3, 12, 12), (6, 12, 12), (12, 12, 12),
-    (2, 37, 45), (3, 64, 64),
+    (2, 12, 12), 
+    (3, 12, 12), 
+    (6, 12, 12), 
+    (12, 12, 12),
+    (2, 37, 45), 
+    (3, 64, 64),
+    ((2,3), 12, 12), 
 ])
 def test_avg_pool(cache_dir, tmp_path, kernel, channels, h, w):
     onnx_path = tmp_path / "net.onnx"
