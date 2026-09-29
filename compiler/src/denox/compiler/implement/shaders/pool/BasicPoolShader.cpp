@@ -76,9 +76,6 @@ BasicPoolShader::BasicPoolShader(spirv::GlslCompiler *compiler,
         return false;
       }
       const auto &pool = op.pool();
-      if (pool->func != PoolFunction::Max) {
-        return false;
-      }
       if (pool->stride != pool->kernelSize) {
         return false;
       }
@@ -179,10 +176,20 @@ memory::vector<unsigned int> BasicPoolShader::acceptMatch(
 static spirv::GlslCompilerInstance
 basic_pool_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
                    TensorFormat inputFormat, TensorFormat outputFormat,
-                   unsigned int channels, memory::uvec2 kernelSize,
-                   memory::uvec2 stride, memory::uvec2 padding,
+                   unsigned int channels, PoolFunction func,
+                   memory::uvec2 kernelSize, memory::uvec2 stride,
+                   memory::uvec2 padding,
                    const BasicPoolShader::Config &config) {
   auto shader = compiler->read(srcPath);
+
+  switch (func) {
+  case PoolFunction::Max:
+    shader.define("POOL_MAX");
+    break;
+  case PoolFunction::Avg:
+    shader.define("POOL_AVG");
+    break;
+  }
 
   if (inputFormat == TensorFormat::SSBO_HWC &&
       outputFormat == TensorFormat::SSBO_HWC && (channels % 8 == 0) &&
@@ -259,7 +266,8 @@ void BasicPoolShader::implement(
 
   auto shader =
       basic_pool_compile(m_compiler, m_srcPath, in.format, out.format, C,
-                         pool->kernelSize, pool->stride, pool->padding, config);
+                         pool->func, pool->kernelSize, pool->stride,
+                         pool->padding, config);
 
   std::uint32_t tileX = config.invocC * config.wgC;
   std::uint32_t tileY = config.invocW * config.wgW;
@@ -277,8 +285,9 @@ void BasicPoolShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.height));
   dispatch.setName(name());
   dispatch.setOperation(
-      fmt::format("max_pool2d(x,kernel_size=({},{}),stride=({"
+      fmt::format("{}_pool2d(x,kernel_size=({},{}),stride=({"
                   "},{}),padding=({},{}),dialation=1,ceil_mode=false)",
+                  pool->func == PoolFunction::Avg ? "avg" : "max",
                   pool->kernelSize.x, pool->kernelSize.y, pool->stride.x,
                   pool->stride.y, pool->padding.x, pool->padding.y));
   dispatch.setConfig(fmt::format(
