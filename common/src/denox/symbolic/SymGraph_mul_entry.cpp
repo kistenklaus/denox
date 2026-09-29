@@ -1,4 +1,5 @@
 #include "denox/symbolic/SymGraph.hpp"
+#include <tracy/Tracy.hpp>
 
 namespace denox {
 
@@ -15,6 +16,7 @@ Sym SymGraph::mul_xx(const Sym lhs, const Sym rhs, const bool dno) {
 }
 
 Sym SymGraph::mul_ss(symbol lhs, symbol rhs, bool dno) {
+  ZoneScopedN("SymGraph::mul_ss");
   const auto &a = m_expressions[lhs];
   const auto &b = m_expressions[rhs];
 
@@ -28,6 +30,7 @@ Sym SymGraph::mul_ss(symbol lhs, symbol rhs, bool dno) {
 }
 
 Sym SymGraph::mul_sc(symbol lhs, value_type rhs, bool dno) {
+  ZoneScopedN("SymGraph::mul_sc");
   const auto &a = m_expressions[lhs];
 
   auto [Q, R] = modsolve_mul_only_exact(a.affine, Sym::Const(rhs));
@@ -40,6 +43,7 @@ Sym SymGraph::mul_sc(symbol lhs, value_type rhs, bool dno) {
 }
 
 Sym SymGraph::mul_cc(value_type lhs, value_type rhs, bool dno) {
+  ZoneScopedN("SymGraph::mul_cc");
   AffineExpr affine{.coef = {}, .constant = lhs * rhs};
   return require_affine_sym(ExprType::Mul, Sym::Const(lhs), Sym::Const(rhs),
                             affine, dno);

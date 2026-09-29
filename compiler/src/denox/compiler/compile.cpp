@@ -32,12 +32,12 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
   diag::Progress progress{};
 
   runtime::ContextHandle context;
-  if (ctx) {
-    context = *ctx;
-  } else {
-    context = runtime::Context::make(options.deviceInfo.name.c_str(),
-                                     options.deviceInfo.apiVersion);
-  }
+    if (ctx) {
+      context = *ctx;
+    } else {
+      context = runtime::Context::make(options.deviceInfo.name.c_str(),
+                                       options.deviceInfo.apiVersion);
+    }
   Db db = [&]() -> Db {
     if (odb.has_value()) {
       return *odb;
@@ -103,7 +103,6 @@ denox::compile(memory::span<const std::byte> onnx, memory::optional<Db> odb,
       schedule, model, options, progress.sub_progress(0.97f, 0.98f), logger);
   memory::vector<std::byte> dnxbuf =
       compiler::serialize(schedule, sprog, model, options);
-
 
   progress.step(logger, 1.0f, "Build dnx artefact");
   return dnxbuf;

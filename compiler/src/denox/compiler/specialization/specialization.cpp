@@ -7,6 +7,7 @@
 #include "denox/memory/container/small_vector.hpp"
 #include "denox/memory/container/span.hpp"
 #include "denox/memory/hypergraph/NullWeight.hpp"
+#include <tracy/Tracy.hpp>
 
 namespace denox::compiler {
 
@@ -181,6 +182,7 @@ static SpecModel::Graph::NodeHandle specialize_input(
 }
 
 SpecModel specialize(const CanoModel &model, const Lifetimes &lifetimes) {
+  ZoneScopedN("specialize");
   SpecModel spec;
 
   memory::hash_map<std::uint64_t, std::vector<SpecModel::Graph::NodeHandle>>

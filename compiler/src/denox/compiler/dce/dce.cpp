@@ -7,11 +7,13 @@
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include "denox/memory/hypergraph/NullWeight.hpp"
 #include <iostream>
+#include <tracy/Tracy.hpp>
 #include <utility>
 
 namespace denox::compiler {
 
 ConstModel dce(const SpecModel &model) {
+  ZoneScopedN("dce");
   memory::AdjGraph<TensorInstance, ComputeOp> adj;
   using LinkedGraph = SpecModel::Graph;
   using NodeHandle = LinkedGraph::NodeHandle;

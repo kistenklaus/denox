@@ -13,6 +13,7 @@ SuperGraph implement(const ConstModel &model, const SymGraph &symGraphRef,
                      spirv::GlslCompiler *glslCompiler,
                      const CompileOptions &options, const diag::Logger &logger,
                      diag::Progress progress) {
+  ZoneScopedN("implement");
 
   const size_t nodeCount = model.graph.nodeCount();
   SuperGraphBuilder supergraphBuilder(model, symGraphRef,

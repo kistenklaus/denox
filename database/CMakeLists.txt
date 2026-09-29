@@ -20,6 +20,8 @@ target_link_libraries(denox_database
     denox_common
     denox_spirv
     SQLite::SQLite3
+  PRIVATE
+    denox::tracy
 )
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")

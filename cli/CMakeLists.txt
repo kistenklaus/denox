@@ -76,6 +76,7 @@ target_link_libraries(denox
     denox_database
     denox_runtime
     yaml-cpp::yaml-cpp
+    denox::tracy
 )
 
 

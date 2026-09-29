@@ -39,6 +39,8 @@ include(cmake/protobuf.cmake)
 include(cmake/png.cmake)
 include(cmake/yaml-cpp.cmake)
 
+include(cmake/tracy.cmake)
+
 # warnings helper
 include(cmake/warnings.cmake)
 

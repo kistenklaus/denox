@@ -653,6 +653,7 @@ print_progress_report(const denox::Db &db,
 void denox::runtime::Db::bench(const DbBenchOptions &options,
                                diag::Progress progress,
                                const diag::Logger &logger) {
+  ZoneScopedN("Db::bench");
   assert(options.minSamples >= 1);
 
   BenchmarkState state = create_benchmark_state(m_context, m_db);

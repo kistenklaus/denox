@@ -11,10 +11,12 @@
 #include "denox/symbolic/SymGraph.hpp"
 #include <fmt/format.h>
 #include <stdexcept>
+#include <tracy/Tracy.hpp>
 
 namespace denox::compiler {
 
 CanoModel canonicalize(const Model &model) {
+  ZoneScopedN("canonicalize");
   // 1. Build LinkedGraph
   using LinkedGraph = memory::LinkedGraph<TensorDescriptor, ComputeOp>;
   auto [mapping, graph] = LinkedGraph::from(model.graph());

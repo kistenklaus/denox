@@ -10,6 +10,7 @@ namespace denox::compiler {
 SymProgram compile_symbols(SpvSchedule &schedule, const Model &model,
                            [[maybe_unused]] const CompileOptions &options,
                            diag::Progress progress, const diag::Logger &logger) {
+  ZoneScopedN("compile_symbols");
 
   progress.step(logger, 0.0f, "{}Building SymIR{}", logger.green(),
                 logger.reset());

@@ -8,6 +8,7 @@ denox::SymGraphEval
 denox::compiler::assumed_symeval(const SymGraph &symGraph,
                                  memory::span<const NamedValue> valueNames,
                                  const CompileOptions &options) {
+  ZoneScopedN("assumed_symeval");
   memory::small_vector<SymSpec, 4> symSpecs;
 
   for (const auto &assumption : options.assumptions.valueAssumptions) {

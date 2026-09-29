@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <tracy/Tracy.hpp>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -65,6 +66,7 @@ public:
   make(const char *deviceName, ApiVersion apiVersion,
        const diag::Logger &logger = diag::Logger("denox-context", false,
                                                  diag::LogLevel::Quite)) {
+    ZoneScopedN("Context::make");
     return std::shared_ptr<Context>(
         new Context(deviceName, apiVersion, logger));
   }

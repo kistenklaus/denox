@@ -2,6 +2,7 @@
 #include "denox/algorithm/align_up.hpp"
 #include "denox/diag/progress.hpp"
 #include <limits>
+#include <tracy/Tracy.hpp>
 
 namespace denox::compiler {
 
@@ -9,6 +10,7 @@ void populate(const compiler::SuperGraph &supergraph, Db &db,
               const SymGraphEval &symeval, diag::Progress progressbar,
               const diag::Logger &logger,
               [[maybe_unused]] const CompileOptions &options) {
+  ZoneScopedN("populate")
 
   struct GlslCompilationUnit {
     const spirv::GlslCompilerInstance* glsl;

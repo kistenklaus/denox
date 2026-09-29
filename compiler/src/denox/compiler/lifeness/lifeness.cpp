@@ -1,9 +1,11 @@
 #include "denox/compiler/lifeness/lifeness.hpp"
 #include "denox/memory/container/dynamic_bitset.hpp"
+#include <tracy/Tracy.hpp>
 
 namespace denox::compiler {
 
 Lifetimes lifeness(const CanoModel &model) {
+  ZoneScopedN("lifeness");
   using Graph = CanoModel::Graph;
   const Graph &g = model.graph;
 

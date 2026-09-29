@@ -1,4 +1,5 @@
 #include "denox/symbolic/SymGraph.hpp"
+#include <tracy/Tracy.hpp>
 
 namespace denox {
 
@@ -14,6 +15,7 @@ Sym SymGraph::div_xx(Sym lhs, Sym rhs, bool dno, bool modproofs) {
   }
 }
 Sym SymGraph::div_ss(symbol lhs, symbol rhs, bool dno, bool modproofs) {
+  ZoneScopedN("SymGraph::div_ss");
   const auto &a = m_expressions[lhs];
   const auto &b = m_expressions[rhs];
   denox::memory::optional<AffineExpr> affine = affine_div(a.affine, b.affine);
@@ -25,6 +27,7 @@ Sym SymGraph::div_ss(symbol lhs, symbol rhs, bool dno, bool modproofs) {
   }
 }
 Sym SymGraph::div_sc(symbol lhs, value_type rhs, bool dno, bool modproofs) {
+  ZoneScopedN("SymGraph::div_sc");
   const auto &a = m_expressions[lhs];
   denox::memory::optional<AffineExpr> affine = affine_div(a.affine, rhs);
   if (affine.has_value()) {
@@ -35,6 +38,7 @@ Sym SymGraph::div_sc(symbol lhs, value_type rhs, bool dno, bool modproofs) {
   }
 }
 Sym SymGraph::div_cs(value_type lhs, symbol rhs, bool dno, bool modproofs) {
+  ZoneScopedN("SymGraph::div_cs");
   if (lhs == 0) {
     AffineExpr affine;
     affine.constant = 0;
@@ -45,6 +49,7 @@ Sym SymGraph::div_cs(value_type lhs, symbol rhs, bool dno, bool modproofs) {
   }
 }
 Sym SymGraph::div_cc(value_type lhs, value_type rhs, bool dno) {
+  ZoneScopedN("SymGraph::div_cc");
   AffineExpr affine;
   assert(rhs > 0);
   affine.constant = lhs / rhs;

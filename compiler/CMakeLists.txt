@@ -156,6 +156,7 @@ target_link_libraries(denox_compiler
   PRIVATE
     denox_dnx
     denox_onnx
+    denox::tracy
   PUBLIC 
     denox_common
     denox_spirv

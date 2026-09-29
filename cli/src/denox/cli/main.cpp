@@ -18,8 +18,16 @@
 #include <fmt/ostream.h>
 #include <fmt/printf.h>
 #include <iostream>
+#include <tracy/Tracy.hpp>
 
 int main(int argc, char **argv) {
+   #ifdef DENOX_TRACY
+    fmt::println("waiting for tracy");
+    while (!TracyIsConnected) {
+      std::this_thread::yield();
+    }
+    fmt::println("tracy connected");
+  #endif 
   try {
     auto action = parse_argv(argc, argv);
 

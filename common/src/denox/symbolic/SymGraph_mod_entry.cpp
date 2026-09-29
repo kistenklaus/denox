@@ -1,4 +1,5 @@
 #include "denox/symbolic/SymGraph.hpp"
+#include <tracy/Tracy.hpp>
 
 namespace denox {
 
@@ -14,6 +15,7 @@ Sym SymGraph::mod_xx(Sym lhs, Sym rhs, bool dno) {
   }
 }
 Sym SymGraph::mod_ss(symbol lhs, symbol rhs, bool dno) {
+  ZoneScopedN("SymGraph::mod_ss");
   const auto &a = m_expressions[lhs];
   const auto &b = m_expressions[rhs];
   denox::memory::optional<AffineExpr> affine = affine_mod(a.affine, b.affine);
@@ -25,6 +27,7 @@ Sym SymGraph::mod_ss(symbol lhs, symbol rhs, bool dno) {
   }
 }
 Sym SymGraph::mod_sc(symbol lhs, value_type rhs, bool dno) {
+  ZoneScopedN("SymGraph::mod_sc");
   assert(rhs > 0);
   const auto &a = m_expressions[lhs];
   denox::memory::optional<value_type> mod = affine_mod(a.affine, rhs);
@@ -35,6 +38,7 @@ Sym SymGraph::mod_sc(symbol lhs, value_type rhs, bool dno) {
   }
 }
 Sym SymGraph::mod_cs(value_type lhs, symbol rhs, bool dno) {
+  ZoneScopedN("SymGraph::mod_cs");
   if (lhs == 0) {
     AffineExpr affine;
     affine.constant = 0;
@@ -45,6 +49,7 @@ Sym SymGraph::mod_cs(value_type lhs, symbol rhs, bool dno) {
   }
 }
 Sym SymGraph::mod_cc(value_type lhs, value_type rhs, bool dno) {
+  ZoneScopedN("SymGraph::mod_cc");
   AffineExpr affine;
   assert(rhs > 0);
   affine.constant = lhs % rhs;

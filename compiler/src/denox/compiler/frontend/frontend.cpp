@@ -3,10 +3,12 @@
 #include "denox/compiler/Options.hpp"
 #include "denox/compiler/frontend/onnx/onnx.hpp"
 #include <algorithm>
+#include <tracy/Tracy.hpp>
 
 denox::compiler::Model
 denox::compiler::frontend(memory::span<const std::byte> raw,
                           const CompileOptions &options) {
+  ZoneScopedN("frontend");
   Model model = denox::onnx::read(raw, options);
 
   const auto inputNames = model.getInputNames();

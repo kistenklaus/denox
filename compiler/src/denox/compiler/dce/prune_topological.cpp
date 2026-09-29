@@ -7,6 +7,7 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
+#include <tracy/Tracy.hpp>
 
 static denox::memory::ConstGraph<denox::memory::NodeId,
                                  denox::memory::vector<denox::memory::EdgeId>,
@@ -90,6 +91,7 @@ void denox::compiler::prune_topological(SuperGraph &supergraph,
                                         const ConstModel &model,
                                         denox::diag::Progress progress,
                                         const denox::diag::Logger &logger) {
+  ZoneScopedN("prune_topological");
 
   progress.step(logger, 0.0f,
                 "{}Selecting minimal-dispatch implementations for multiedges{}",
@@ -122,6 +124,7 @@ void denox::compiler::prune_topological(SuperGraph &supergraph,
   memory::AdjGraph<TensorId, SuperGraphEdge> subgraph;
 
   for (uint32_t e = 0; e < all_minimum_cost_subgraphs.edgeCount(); ++e) {
+    ZoneScopedN("foo");
     memory::EdgeId eid{e};
     const auto &multiedge = all_minimum_cost_subgraphs.get(eid);
     assert(!multiedge.empty());

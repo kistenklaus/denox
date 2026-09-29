@@ -12,6 +12,7 @@
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include "denox/memory/hypergraph/NodeId.hpp"
 #include <algorithm>
+#include <tracy/Tracy.hpp>
 #include <unordered_set>
 
 namespace denox::algorithm {
@@ -19,9 +20,10 @@ namespace denox::algorithm {
 template <typename V, typename E, typename W>
 memory::AdjGraph<V, E, W>
 all_minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
-                       memory::span<const memory::NodeId> inputs,
-                       memory::span<const memory::NodeId> outputs,
-                       const W eps = {}) {
+                           memory::span<const memory::NodeId> inputs,
+                           memory::span<const memory::NodeId> outputs,
+                           const W eps = {}) {
+  ZoneScopedN("algorithm::all_minimum_cost_subgraph");
   // SVO optimization tuning parameters generally don't matter at all.
   static constexpr size_t SMALL_N = 512;
   static constexpr size_t SMALL_FRONTIER = 4;
@@ -31,8 +33,11 @@ all_minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   const size_t N = graph.nodeCount();
   const size_t M = graph.edgeCount();
 
-  memory::vector<memory::NodeId> topologicalOrder =
-      algorithm::topologicalSort(graph);
+  memory::vector<memory::NodeId> topologicalOrder;
+  {
+    ZoneScopedN("algorithm::topologicalSort");
+    topologicalOrder = algorithm::topologicalSort(graph);
+  }
 
   memory::dynamic_bitset isInput(N, false);
   for (memory::NodeId nid : inputs) {
@@ -46,6 +51,7 @@ all_minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   //  NOTE: h(v) is a lower bound of the optimal cost to derive v.
   memory::vector<memory::optional<W>> h(N, memory::nullopt);
   {
+    ZoneScopedN("precompute-vertex-cost-heuristic");
     for (memory::NodeId v : topologicalOrder) {
       if (isInput[*v]) {
         h[*v] = W{};
@@ -81,6 +87,7 @@ all_minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   //   of all of it's sources.
   memory::vector<memory::optional<W>> he(M, memory::nullopt);
   {
+    ZoneScopedN("precompute-edge-cost-heuristic");
     for (uint64_t i = 0; i < M; ++i) {
       memory::EdgeId eid{i};
       memory::optional<W> max_src = memory::nullopt;
@@ -104,6 +111,7 @@ all_minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   memory::vector<memory::small_dynamic_bitset<SMALL_N>> ancestors(
       N, memory::small_dynamic_bitset<SMALL_N>{N, false});
   {
+    ZoneScopedN("precompute-anchestor-bitset");
     // DP in topo order
     for (memory::NodeId v : topologicalOrder) {
       auto incoming = graph.incoming(v);
@@ -225,6 +233,7 @@ all_minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   };
 
   auto recusive_solve = [&](auto &&self) -> memory::optional<W> {
+    ZoneScopedN("recursion");
     // Termination condition: if open is empty
     // all upstream dependencies have been resolved and we now that
     // we have found a valid subgraph!
@@ -347,7 +356,11 @@ all_minimum_cost_subgraphs(const memory::ConstGraph<V, E, W> &graph,
   // Where the fun stuff is happening, the actual NP algorithm!
   // NOTE: recursion depth is max the size of the minimum-cost-subgraph,
   //   so generally we should be safe from StackOverflows here.
-  memory::optional<W> root_cost = recusive_solve(recusive_solve);
+  memory::optional<W> root_cost;
+  {
+    ZoneScopedN("recursive-solve");
+    root_cost = recusive_solve(recusive_solve);
+  }
   if (!root_cost) {
     // There exist no subgraph which contains inputs and output!
     // Return empty graph!

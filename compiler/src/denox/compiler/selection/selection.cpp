@@ -25,6 +25,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             [[maybe_unused]] const CompileOptions &options,
                             diag::Progress progress,
                             const diag::Logger &logger) {
+  ZoneScopedN("select_schedule");
 
   progress.step(logger, 0.0f, "{}Collecting dispatch latencies {}",
                 logger.green(), logger.reset());

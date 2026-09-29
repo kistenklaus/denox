@@ -11,6 +11,7 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <tracy/Tracy.hpp>
 
 namespace denox::compiler {
 
@@ -18,6 +19,7 @@ static constexpr uint64_t u64sential = std::numeric_limits<uint64_t>::max();
 
 MemSchedule placement(const OptSchedule &schedule, diag::Progress progress,
                       const diag::Logger &logger) {
+  ZoneScopedN("placement");
   MemSchedule out{};
   out.symGraph = schedule.symGraph;
   out.dispatches = schedule.dispatches;

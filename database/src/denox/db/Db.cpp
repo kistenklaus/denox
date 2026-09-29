@@ -1,10 +1,12 @@
 #include "denox/db/Db.hpp"
+#include <tracy/Tracy.hpp>
 
 namespace denox {
 
 static constexpr int DB_VERSION = 1;
 
 Db Db::open(const io::Path &path) {
+  ZoneScopedN("Db::open");
   sqlite::Db db = sqlite::Db::open(path);
   int version = 1;
   {

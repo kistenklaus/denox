@@ -10,6 +10,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <limits>
+#include <tracy/Tracy.hpp>
 
 namespace denox::compiler {
 
@@ -19,6 +20,7 @@ SpvSchedule compile_shaders(MemSchedule &&schedule, const Model &model, Db &db,
                             [[maybe_unused]] spirv::GlslCompiler *glslCompiler,
                             const CompileOptions &options,
                             const diag::Logger &logger) {
+  ZoneScopedN("compile_shaders");
   assert(glslCompiler != nullptr); // only to make lifetime intent visible
 
   memory::vector<SpvDispatch> dispatches;

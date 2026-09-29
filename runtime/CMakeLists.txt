@@ -50,6 +50,8 @@ PUBLIC
   denox_spirv
   denox_common
   denox_database
+PRIVATE
+  denox::tracy
 )
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")

@@ -7,9 +7,11 @@
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include <stdexcept>
+#include <tracy/Tracy.hpp>
 #include <utility>
 
 void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph, const ConstModel& model) {
+  ZoneScopedN("prune_dead_supergraph");
 
   auto &graph = supergraph.graph;
   const size_t N = graph.nodeCount();
