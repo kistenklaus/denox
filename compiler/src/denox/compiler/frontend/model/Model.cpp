@@ -206,6 +206,34 @@ TensorHandle Model::concat(const TensorHandle &src0,
   return TensorHandle{dstId, m_controlBlock.get()};
 }
 
+TensorHandle Model::add(const TensorHandle &src0,
+                        const TensorHandle &src1) const {
+  memory::NodeId src0Id = src0.m_nodeId;
+  auto src0Node = m_controlBlock->hypergraph.get(src0Id);
+
+  memory::NodeId src1Id = src1.m_nodeId;
+  auto src1Node = m_controlBlock->hypergraph.get(src1Id);
+
+  auto &g = m_controlBlock->symGraph;
+  if (g.resolve(src0Node.width) != g.resolve(src1Node.width) ||
+      g.resolve(src0Node.height) != g.resolve(src1Node.height) ||
+      g.resolve(src0Node.channels) != g.resolve(src1Node.channels)) {
+    throw std::runtime_error(
+        "Model::add: Failed to prove that both arguments have the same "
+        "shape.\ndenox only supports elementwise add of tensors with "
+        "provably equal extents and channels (no broadcasting).");
+  }
+
+  memory::NodeId dstId = m_controlBlock->hypergraph.addNode(TensorDescriptor{
+      src0Node.width, src0Node.height, src0Node.channels,
+      TensorStorage::Optimal, TensorFormat::Optimal, TensorDataType::Auto});
+
+  m_controlBlock->hypergraph.addEdge(src0Id, src1Id, dstId,
+                                     ComputeOp{ComputeOpAdd{}});
+
+  return TensorHandle{dstId, m_controlBlock.get()};
+}
+
 TensorHandle Model::pad(const TensorHandle &src0, Sym left, Sym right, Sym top,
                         Sym bottom, PaddingMode mode) const {
 
@@ -457,6 +485,10 @@ memory::string Model::to_string() const {
       str.append(
           fmt::format("      - bottom:     {}\n",
                       m_controlBlock->symGraph.to_string(slice->bottom)));
+      break;
+    }
+    case ComputeOpKind::Add: {
+      str.append(fmt::format("    Add: {}\n", inout));
       break;
     }
     }

@@ -2,6 +2,7 @@
 ### Copy shaders into build directory
 set(ASSET_FILES 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/basic_activation.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/add/basic_add.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv_cm.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/concat_conv_cm.comp
@@ -12,6 +13,7 @@ set(ASSET_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/basic_upsample.comp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/basic_activation.configs
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/add/basic_add.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv_cm.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/concat_conv_cm.configs
@@ -111,6 +113,7 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/shaders.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/noop/NoOp.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/BasicActivationShader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/add/BasicAddShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/ConcatConvCMShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/DirectConvShaderCM.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/DirectConvShader.cpp

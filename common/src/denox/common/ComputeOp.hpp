@@ -1,6 +1,7 @@
 #pragma once
 
 #include "denox/common/ops/ComputeOpActivation.hpp"
+#include "denox/common/ops/ComputeOpAdd.hpp"
 #include "denox/common/ops/ComputeOpConcat.hpp"
 #include "denox/common/ops/ComputeOpConv.hpp"
 #include "denox/common/ops/ComputeOpPad.hpp"
@@ -21,6 +22,7 @@ enum class ComputeOpKind {
   Concat,
   Pad,
   Slice,
+  Add,
 };
 
 class Model;
@@ -43,6 +45,8 @@ public:
 
   ComputeOp(ComputeOpSlice slice) : m_var(std::move(slice)) {}
 
+  ComputeOp(ComputeOpAdd add) : m_var(std::move(add)) {}
+
   ComputeOpKind tag() const {
     switch (m_var.index()) {
     case 0:
@@ -61,6 +65,8 @@ public:
       return ComputeOpKind::Pad;
     case 7:
       return ComputeOpKind::Slice;
+    case 8:
+      return ComputeOpKind::Add;
     default:
       std::abort();
     }
@@ -136,11 +142,21 @@ public:
     return std::get<ComputeOpSlice>(m_var);
   }
 
+  const ComputeOpAdd &add() const {
+    assert(std::holds_alternative<ComputeOpAdd>(m_var));
+    return std::get<ComputeOpAdd>(m_var);
+  }
+
+  ComputeOpAdd &add() {
+    assert(std::holds_alternative<ComputeOpAdd>(m_var));
+    return std::get<ComputeOpAdd>(m_var);
+  }
+
 private:
   using Variant =
       std::variant<std::monostate, ComputeOpConv, ComputeOpActivation,
                    ComputeOpUpsample, ComputeOpPool, ComputeOpConcat,
-                   ComputeOpPad, ComputeOpSlice>;
+                   ComputeOpPad, ComputeOpSlice, ComputeOpAdd>;
 
   Variant m_var;
 };
@@ -178,6 +194,9 @@ template <> struct fmt::formatter<denox::ComputeOp> {
 
     case ComputeOpKind::Slice:
       return fmt::format_to(ctx.out(), "Slice{}", op.slice());
+
+    case ComputeOpKind::Add:
+      return fmt::format_to(ctx.out(), "Add");
     }
 
     std::abort(); // unreachable

@@ -174,6 +174,9 @@ void denox::compiler::failed_to_implement(const SuperGraph &supergraph,
     case ComputeOpKind::Slice:
       opString = "slice";
       break;
+    case ComputeOpKind::Add:
+      opString = "add";
+      break;
     }
 
     msg += fmt::format("{:>25} {:-^50} {}\n", srcString, opString, dstString);

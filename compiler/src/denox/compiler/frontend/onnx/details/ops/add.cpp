@@ -24,10 +24,20 @@ add(ImportState &state, memory::span<const memory::optional<Tensor>> inputs,
   const Tensor &aT = *inputs[0];
   const Tensor &bT = *inputs[1];
 
-  // Runtime tensors not supported here
+  if (aT.isDevice() && bT.isDevice()) {
+    const DeviceTensor &a = aT.device();
+    const DeviceTensor &b = bT.device();
+    if (a.rank() != b.rank())
+      throw std::runtime_error(fmt::format(
+          "Add \"{}\": runtime tensors must have the same rank.", nodeName));
+    compiler::TensorHandle outHandle = state.output.add(a.handle(), b.handle());
+    DeviceTensor outDev(a.rank(), std::move(outHandle));
+    return {Tensor::Device(std::move(outDev))};
+  }
   if (aT.isDevice() || bT.isDevice())
     throw std::runtime_error(fmt::format(
-        "Add \"{}\": runtime tensors not supported.", nodeName));
+        "Add \"{}\": adding a constant to a runtime tensor is not supported.",
+        nodeName));
 
   const HostTensor &a0 = aT.host();
   const HostTensor &b0 = bT.host();

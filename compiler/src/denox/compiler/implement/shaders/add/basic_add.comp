@@ -1,0 +1,153 @@
+#version 460
+
+#extension GL_EXT_control_flow_attributes : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_shader_16bit_storage                   : require
+
+layout(set = INPUT0_SET, binding = INPUT0_BINDING, std430) readonly buffer input0_buf {
+    istype input0_tensor_blob[];
+};
+
+layout(set = INPUT1_SET, binding = INPUT1_BINDING, std430) readonly buffer input1_buf {
+    istype input1_tensor_blob[];
+};
+
+layout(set = OUTPUT_SET, binding = OUTPUT_BINDING, std430) writeonly buffer output_buf {
+    ostype output_tensor_blob[];
+};
+
+layout(push_constant) uniform PushConstant {
+    uint W;
+    uint H;
+} pc;
+
+const uint TILE_C = WG_C * INVOC_C;
+const uint TILE_H = WG_H * INVOC_H;
+const uint TILE_W = WG_W * INVOC_W;
+
+float16_t add(uint16_t a, uint16_t b) {
+    const float16_t v = uint16BitsToFloat16(a) + uint16BitsToFloat16(b);
+    #if defined(ACTIVATION_NONE)
+    return v;
+    #elif defined(ACTIVATION_ReLU)
+    return max(v, float16_t(0));
+    #elif defined(ACTIVATION_LeakyReLU)
+    return max(v, float16_t(ACTIVATION_LeakyReLU_alpha) * v);
+    #else
+    NOT_IMPLEMENTED;
+    #endif
+}
+
+uint add2(uint a, uint b) {
+    const u16vec2 a2 = unpackUint2x16(a);
+    const u16vec2 b2 = unpackUint2x16(b);
+    return packUint2x16(u16vec2(float16BitsToUint16(add(a2.x, b2.x)),
+                                float16BitsToUint16(add(a2.y, b2.y))));
+}
+
+uvec4 add8(uvec4 a, uvec4 b) {
+    return uvec4(add2(a.x, b.x), add2(a.y, b.y), add2(a.z, b.z), add2(a.w, b.w));
+}
+
+layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
+void main() {
+    #if defined(LAYOUT_HWC)
+    // => istype: uint16_t, ostype: uint16_t
+
+    const uint wgc0 = gl_WorkGroupID.x * TILE_C;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c0 = wgc0 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+
+    for (uint zh = 0; zh < INVOC_H; ++zh) {
+        for (uint zw = 0; zw < INVOC_W; ++zw) {
+            for (uint zc = 0; zc < INVOC_C; ++zc) {
+                const uint h = h0 + zh * WG_H;
+                const uint w = w0 + zw * WG_W;
+                const uint c = c0 + zc * WG_C;
+                if (h < H && w < W && c < CH) {
+                    const uint o = h * W * CH + w * CH + c;
+                    output_tensor_blob[o] = float16BitsToUint16(
+                        add(input0_tensor_blob[o], input1_tensor_blob[o]));
+                }
+            }
+        }
+    }
+
+    #elif defined(LAYOUT_HWC8)
+    const uint TILE_C8 = TILE_C / 8;
+    const uint INVOC_C8 = INVOC_C / 8;
+    const uint CH8 = CH / 8;
+
+    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c08 = wgc08 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+
+    for (uint zh = 0; zh < INVOC_H; ++zh) {
+        for (uint zw = 0; zw < INVOC_W; ++zw) {
+            for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+                const uint h = h0 + zh * WG_H;
+                const uint w = w0 + zw * WG_W;
+                const uint c8 = c08 + zc8 * WG_C;
+                if (h < H && w < W && c8 < CH8) {
+                    const uint o = h * W * CH8 + w * CH8 + c8;
+                    output_tensor_blob[o] = add8(input0_tensor_blob[o], input1_tensor_blob[o]);
+                }
+            }
+        }
+    }
+
+    #elif defined(LAYOUT_CHWC8)
+    const uint TILE_C8 = TILE_C / 8;
+    const uint INVOC_C8 = INVOC_C / 8;
+    const uint CH8 = CH / 8;
+
+    const uint wgc08 = gl_WorkGroupID.x * TILE_C8;
+    const uint wgw0 = gl_WorkGroupID.y * TILE_W;
+    const uint wgh0 = gl_WorkGroupID.z * TILE_H;
+
+    const uint c08 = wgc08 + gl_LocalInvocationID.x;
+    const uint w0 = wgw0 + gl_LocalInvocationID.y;
+    const uint h0 = wgh0 + gl_LocalInvocationID.z;
+
+    const uint H = pc.H;
+    const uint W = pc.W;
+    for (uint zc8 = 0; zc8 < INVOC_C8; ++zc8) {
+        const uint c8 = c08 + zc8 * WG_C;
+        if (c8 >= CH8) {
+            break;
+        }
+        for (uint zh = 0; zh < INVOC_H; ++zh) {
+            const uint h = h0 + zh * WG_H;
+            if (h >= H) {
+                break;
+            }
+            for (uint zw = 0; zw < INVOC_W; ++zw) {
+                const uint w = w0 + zw * WG_W;
+                if (w < W) {
+                    const uint o = c8 * W * H + h * W + w;
+                    output_tensor_blob[o] = add8(input0_tensor_blob[o], input1_tensor_blob[o]);
+                }
+            }
+        }
+    }
+
+    #else
+    NOT_IMPLEMENTED;
+    #endif
+}
