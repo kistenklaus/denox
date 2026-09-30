@@ -164,7 +164,7 @@ static constexpr char populate_help[] =
 "                           for example: H=1080 W=1920, assumptions are used \n"
 "                           to select the best performing compute shaders.\n"
 "   --max-search-states     maximum number of states of the schedule search\n"
-"                           (default 16000000, ~200 bytes each), beyond it\n"
+"                           (default 4096), beyond it\n"
 "                           the result may be suboptimal.\n"
 "Features:\n"
 "   --fcoopmat,             Enables compute shaders, which use cooperative\n"

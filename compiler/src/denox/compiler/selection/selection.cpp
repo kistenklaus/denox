@@ -138,13 +138,12 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   progress.step(logger, 0.3f, "{}Selecting minimum-cost dispatch schedule{}",
                 logger.green(), logger.reset());
 
-  static constexpr size_t maxStates = 1ull << 28;
   // static constexpr size_t maxStates = 4096;
   bool truncated = false;
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
       algorithm::minimum_cost_subgraph(constWeightedSupergraph,
                                        supergraph.inputs, supergraph.outputs,
-                                       maxStates, &truncated);
+                                       options.maxSearchStates, &truncated);
   if (truncated) {
     logger.warn(fmt::format("{}WARNING: Schedule search exceeded {} states, "
                             "selected schedule may be suboptimal "
