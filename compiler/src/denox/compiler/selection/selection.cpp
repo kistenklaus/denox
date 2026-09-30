@@ -5,6 +5,7 @@
 #include "denox/algorithm/topological_edge_sort.hpp"
 #include "denox/common/TensorFormat.hpp"
 #include "denox/compiler/implement/MemoryConstrain.hpp"
+#include "denox/compiler/selection/cache_aware_dispatch_order.hpp"
 #include "denox/diag/logging.hpp"
 #include "denox/diag/not_implemented.hpp"
 #include "denox/diag/progress.hpp"
@@ -158,7 +159,7 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                 logger.green(), logger.reset());
 
   memory::vector<memory::EdgeId> minSchedule =
-      algorithm::topological_sort_edges(constMinCostGraph);
+      selection::cache_aware_dispatch_order(constMinCostGraph);
 
   // simple union find.
   memory::vector<uint64_t> tensorUf(supergraph.tensors.size());

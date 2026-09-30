@@ -124,7 +124,7 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/upsample/BasicUpsampleShader.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/selection/selection.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/selection/selection.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/selection/cache_aware_dispatch_order.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/placement/placement.cpp
 
