@@ -5,6 +5,7 @@
 
 namespace denox::compiler {
 
-void prune_dead_supergraph(SuperGraph &supergraph, const ConstModel& model);
+void prune_dead_supergraph(SuperGraph &supergraph, const ConstModel &model,
+                           std::size_t maxSearchStates);
 
 }

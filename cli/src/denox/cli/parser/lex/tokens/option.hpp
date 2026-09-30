@@ -36,6 +36,7 @@ enum class OptionToken {
   Database, //
 
   OptimizationLevel,
+  MaxSearchStates,
   Jobs,
 };
 
@@ -79,6 +80,7 @@ struct fmt::formatter<OptionToken> {
       case OptionToken::RelativeError: name = "relative-error"; break;
       case OptionToken::BatchSize: name = "batch-size"; break;
       case OptionToken::OptimizationLevel: name = "optimization-level"; break;
+      case OptionToken::MaxSearchStates: name = "max-search-states"; break;
       case OptionToken::Jobs: name = "jobs"; break;
       case OptionToken::Color: name = "color"; break;
     }

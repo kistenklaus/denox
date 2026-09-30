@@ -23,6 +23,8 @@
 
 namespace denox::algorithm {
 
+// Once more than maxStates states are memoized, each remaining state only
+// follows the first of its edges (ordered by he) that leads to a solution.
 template <typename V, typename E, typename W>
 memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
     const memory::ConstGraph<V, E, W> &graph,

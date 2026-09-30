@@ -37,9 +37,10 @@ void denox::populate(Db db, memory::span<const std::byte> onnx,
                           progress.sub_progress(0, 0.1f));
 
   if (options.optimizationLevel >= 5) {
-    compiler::prune_dead_supergraph(supergraph, cmodel);
+    compiler::prune_dead_supergraph(supergraph, cmodel,
+                                    options.maxSearchStates);
   } else {
-    compiler::prune_topological(supergraph, cmodel,
+    compiler::prune_topological(supergraph, cmodel, options.maxSearchStates,
                                 progress.sub_progress(0.21f, 0.28f), logger);
   }
 

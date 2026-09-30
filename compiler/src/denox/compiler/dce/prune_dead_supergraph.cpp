@@ -10,7 +10,9 @@
 #include <tracy/Tracy.hpp>
 #include <utility>
 
-void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph, const ConstModel& model) {
+void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph,
+                                            const ConstModel &model,
+                                            std::size_t maxSearchStates) {
   ZoneScopedN("prune_dead_supergraph");
 
   auto &graph = supergraph.graph;
@@ -146,7 +148,7 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph, const ConstM
     assert(nid != memory::NodeId{});
     nid = nodeRemap[*nid];
     if (!nid) {
-      failed_to_implement(supergraph, model);
+      failed_to_implement(supergraph, model, maxSearchStates);
     }
   }
   for (auto &nid : supergraph.outputs) {

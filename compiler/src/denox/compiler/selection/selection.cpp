@@ -22,7 +22,7 @@ static constexpr weight_type INF_WEIGHT = weight_type(3600000000); // 1h
 OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             [[maybe_unused]] const Model &model,
                             const SymGraphEval &symeval,
-                            [[maybe_unused]] const CompileOptions &options,
+                            const CompileOptions &options,
                             diag::Progress progress,
                             const diag::Logger &logger) {
   ZoneScopedN("select_schedule");
@@ -138,15 +138,18 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
   progress.step(logger, 0.3f, "{}Selecting minimum-cost dispatch schedule{}",
                 logger.green(), logger.reset());
 
-  static constexpr size_t maxStates = 1ull << 28;
   // static constexpr size_t maxStates = 4096;
   bool truncated = false;
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
       algorithm::minimum_cost_subgraph(constWeightedSupergraph,
                                        supergraph.inputs, supergraph.outputs,
-                                       maxStates, &truncated);
+                                       options.maxSearchStates, &truncated);
   if (truncated) {
-    fmt::println("truncated");
+    logger.warn(fmt::format("{}WARNING: Schedule search exceeded {} states, "
+                            "selected schedule may be suboptimal "
+                            "(see --max-search-states){}",
+                            logger.yellow(), options.maxSearchStates,
+                            logger.reset()));
   }
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(
       std::move(minimumCostSubgraph));

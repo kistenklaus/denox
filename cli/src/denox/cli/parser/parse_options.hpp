@@ -90,6 +90,9 @@ uint32_t parse_input(std::span<const Token> tokens,
 uint32_t parse_optimizationLevel(std::span<const Token> tokens,
                                  uint32_t *optimizationLevel);
 
+uint32_t parse_max_search_states(std::span<const Token> tokens,
+                                 std::size_t *maxSearchStates);
+
 uint32_t parse_jobs(std::span<const Token> tokens, uint32_t *jobs);
 
 uint32_t parse_batch_size(std::span<const Token> tokens, uint32_t *batchSize);

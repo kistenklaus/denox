@@ -7,6 +7,7 @@
 namespace denox::compiler {
 
 void prune_topological(SuperGraph &supergraph, const ConstModel &model,
-                       diag::Progress progess, const diag::Logger &logger);
+                       std::size_t maxSearchStates, diag::Progress progess,
+                       const diag::Logger &logger);
 
 }

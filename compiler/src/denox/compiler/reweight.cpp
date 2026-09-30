@@ -4,7 +4,6 @@
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/dce/dce.hpp"
 #include "denox/compiler/dce/prune_dead_supergraph.hpp"
-#include "denox/compiler/dce/prune_topological.hpp"
 #include "denox/compiler/frontend/frontend.hpp"
 #include "denox/compiler/implement/SuperGraphEdge.hpp"
 #include "denox/compiler/implement/implement.hpp"
@@ -44,12 +43,8 @@ void denox::reweight(memory::span<std::byte> dnx,
       compiler::implement(cmodel, cano.symGraph, &glslCompiler, options, logger,
                           progress.sub_progress(0.0f, 0.2f));
 
-  if (options.optimizationLevel >= 5) {
-    compiler::prune_dead_supergraph(supergraph, cmodel);
-  } else {
-    compiler::prune_topological(supergraph, cmodel,
-                                progress.sub_progress(0.21f, 0.28f), logger);
-  }
+  // the dnx may not use a minimum-dispatch schedule (--max-search-states)
+  compiler::prune_dead_supergraph(supergraph, cmodel, options.maxSearchStates);
 
   compiler::reweight_dnx(dnx, supergraph);
 
