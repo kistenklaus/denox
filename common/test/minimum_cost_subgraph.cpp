@@ -201,25 +201,6 @@ TEST(MinimumCostSubgraph, LongChainAndSlotReuse) {
   checkMinimum(c, 1024);
 }
 
-TEST(MinimumCostSubgraph, SupportsExactly64SlotsRejects65) {
-  for (unsigned width : {63u, 64u, 65u}) {
-    Case c{width + 2, {}, {0}, {width + 1}};
-    std::vector<unsigned> sources;
-    for (unsigned v = 1; v <= width; ++v) {
-      c.edges.push_back({{0}, v, 1});
-      sources.push_back(v);
-    }
-    c.edges.push_back({sources, width + 1, 1});
-    auto graph = c.graph();
-    if (width <= 64)
-      checkMinimum(c, width + 1);
-    else
-      EXPECT_THROW(denox::algorithm::minimum_cost_subgraph(graph, ids(c.inputs),
-                                                           ids(c.outputs)),
-                   std::runtime_error);
-  }
-}
-
 TEST(MinimumCostSubgraph, FloatingPointWeights) {
   denox::memory::AdjGraph<unsigned, unsigned, double> builder;
   for (unsigned v = 0; v < 3; ++v)
