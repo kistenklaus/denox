@@ -40,6 +40,8 @@ include(cmake/png.cmake)
 include(cmake/yaml-cpp.cmake)
 
 include(cmake/tracy.cmake)
+include(cmake/googletest.cmake)
+include(cmake/googlebench.cmake)
 
 # warnings helper
 include(cmake/warnings.cmake)

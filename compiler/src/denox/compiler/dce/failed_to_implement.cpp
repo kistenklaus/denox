@@ -1,5 +1,5 @@
 #include "denox/compiler/dce/failed_to_implement.hpp"
-#include "denox/algorithm/minimum_const_subgraph.hpp"
+#include "denox/algorithm/minimum_cost_subgraph.hpp"
 #include "denox/compiler/dce/ConstModel.hpp"
 #include <stdexcept>
 

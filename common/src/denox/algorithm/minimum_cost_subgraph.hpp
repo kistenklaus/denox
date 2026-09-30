@@ -4,14 +4,11 @@
 #include "denox/algorithm/popcount.hpp"
 #include "denox/diag/invalid_state.hpp"
 #include "denox/memory/container/small_dynamic_bitset.hpp"
-#include "denox/memory/container/uint128.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
 #include <algorithm>
-#include <bit>
 #include <cassert>
 #include <cstddef>
-#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <optional>
@@ -24,16 +21,17 @@
 namespace denox::algorithm {
 
 template <typename V, typename E, typename W>
-memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
-    const memory::ConstGraph<V, E, W> &graph,
-    memory::span<const memory::NodeId> inputs,
-    memory::span<const memory::NodeId> outputs,
-    size_t max_states = std::numeric_limits<size_t>::max(),
-    bool *truncated = nullptr) {
-  ZoneScopedN("algorithm::all_minimum_cost_subgraphs2");
+memory::AdjGraph<V, E, W>
+minimum_cost_subgraph(const memory::ConstGraph<V, E, W> &graph,
+                      memory::span<const memory::NodeId> inputs,
+                      memory::span<const memory::NodeId> outputs,
+                      size_t max_states = std::numeric_limits<size_t>::max(),
+                      bool *truncated = nullptr) {
+  ZoneScopedN("algorithm::minimum_cost_subgraph2");
   if (truncated) {
     *truncated = false;
   }
+
   const size_t n = graph.nodeCount();
   memory::small_dynamic_bitset<1> isInput(n, false);
   memory::small_dynamic_bitset<1> isOutput(n, false);
@@ -125,18 +123,19 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
       peak_frontier = std::max(peak_frontier, frontier_size);
     }
   }
-  if (order.size() != n)
-    diag::invalid_state("all_minimum_cost_subgraphs: graph contains a cycle");
+
   using frontier_t = memory::uint128;
 
-  if (peak_frontier >= sizeof(frontier_t) * 8) {
+  if (order.size() != n) {
+    diag::invalid_state("minimum_cost_subgraph: graph contains a cycle");
+  }
+  if (peak_frontier > sizeof(frontier_t) * 8) {
     // NOTE: If this fails before throwing the implementation away consider
     // replacing frontier_t with larger bitset like uint128_t, for some
     // networks, large frontier may be acceptable, but it's unlikely.
-    diag::invalid_state(fmt::format(
-        "Model contains has graph frontier larger than {}, current solver will "
-        "take longer than heat death to complete",
-        sizeof(frontier_t) * 8));
+    diag::invalid_state(
+        fmt::format("minimum_cost_subgraph: frontier exceeds {} slots",
+                    sizeof(frontier_t) * 8));
   }
 
   // h[v] is a lower bound on the cost of deriving v from the inputs.
@@ -157,9 +156,6 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
         continue;
       }
       for (auto edge : graph.incoming(v)) {
-        if (graph.src(edge).empty()) {
-          continue;
-        }
         W source_cost{};
         bool reachable = true;
         for (auto u : graph.src(edge)) {
@@ -197,35 +193,33 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
   for (size_t i = 0; i < n; ++i) {
     result.addNode(graph.get(memory::NodeId{i}));
   }
+
   if (!remaining_output_cost[0]) {
     return result;
   }
 
+  // Slots live from first processed consumer through the tensor's own step.
+  // Clear the retiring tensor's bit before adding sources that reuse its slot.
   const size_t no_slot = static_cast<size_t>(-1);
-  std::vector<size_t> slots(n, no_slot);
-  {
-    // index compression for node indicies.
-    // Because peak_frontier < 64, we can represent the frontier as uint64_t
-    std::vector<size_t> free_slots;
-    size_t slot_count = 0;
-    for (auto v : order) {
-      if (slots[*v] != no_slot) {
-        free_slots.push_back(slots[*v]);
+  std::vector<size_t> slots(n, no_slot), free_slots;
+  size_t slot_count = 0;
+  for (auto v : order) {
+    if (slots[*v] != no_slot) {
+      free_slots.push_back(slots[*v]);
+    }
+    for (auto u : dependencies[*v]) {
+      if (slots[u] != no_slot) {
+        continue;
       }
-      for (auto u : dependencies[*v]) {
-        if (slots[u] != no_slot) {
-          continue;
-        }
-        if (free_slots.empty()) {
-          slots[u] = slot_count++;
-        } else {
-          slots[u] = free_slots.back();
-          free_slots.pop_back();
-        }
+      if (free_slots.empty()) {
+        slots[u] = slot_count++;
+      } else {
+        slots[u] = free_slots.back();
+        free_slots.pop_back();
       }
     }
-    assert(slot_count == peak_frontier);
   }
+  assert(slot_count == peak_frontier);
 
   struct Transition {
     size_t predecessor;
@@ -234,7 +228,7 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
 
   struct State {
     W cost;
-    std::vector<Transition> predecessors;
+    Transition predecessor;
   };
   // Frontier keys are only needed for the current/next layer. Older layers
   // retain costs and transition indices, not copies of their frontier sets.
@@ -244,7 +238,8 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
 
   current.emplace(0, 0);
   std::vector<std::vector<State>> layers(1);
-  layers.back().push_back(State{W{}, {}});
+  layers.back().push_back(State{W{}, {0, memory::EdgeId{}}});
+
   frontier_t feasible_frontier = 0;
   std::vector<std::optional<W>> slot_cost(peak_frontier);
   size_t layer_index = 0;
@@ -330,23 +325,21 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
             ranked.insert(rank(frontier, cost));
           }
           state.cost = cost;
-          state.predecessors.clear();
-          state.predecessors.push_back({predecessor, edge});
-        } else if (cost == state.cost) {
-          state.predecessors.push_back({predecessor, edge});
+          state.predecessor = {predecessor, edge};
         }
         return;
       }
       size_t index = states.size();
       if (max_states && next.size() == max_states) {
-        // == BEAM search!
         // Exact layers pay no ranking cost until the first actual overflow.
         if (!beam_active) {
-          for (const auto &[mask, slot] : next)
+          for (const auto &[mask, slot] : next) {
             ranked.insert(rank(mask, states[slot].cost));
+          }
           beam_active = true;
         }
-        // Even a discarded tie may contain a distinct globally optimal edge.
+        // Discarding any distinct state conservatively loses the exactness
+        // guarantee.
         if (truncated) {
           *truncated = true;
         }
@@ -358,9 +351,9 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
         index = next.at(discarded);
         next.erase(discarded);
         ranked.erase(worst);
-        states[index] = State{cost, {{predecessor, edge}}};
+        states[index] = State{cost, {predecessor, edge}};
       } else {
-        states.push_back(State{cost, {{predecessor, edge}}});
+        states.push_back(State{cost, {predecessor, edge}});
       }
       next.emplace(frontier, index);
       if (beam_active) {
@@ -391,13 +384,9 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
       size_t mask_index = 0;
       for (auto edge : graph.incoming(v)) {
         const size_t this_mask = mask_index++;
-        if (graph.src(edge).empty()) {
-          continue;
-        }
         if (std::any_of(graph.src(edge).begin(), graph.src(edge).end(),
-                        [&](auto u) { return !h[*u]; })) {
+                        [&](auto u) { return !h[*u]; }))
           continue;
-        }
         assert(!(graph.weight(edge) < W{}));
         frontier_t dependencies = remaining;
         dependencies |= source_masks[this_mask];
@@ -418,22 +407,13 @@ memory::AdjGraph<V, E, W> all_minimum_cost_subgraphs(
   }
   memory::small_dynamic_bitset<1> selected(graph.edgeCount(), false);
 
-  std::vector<size_t> active{terminal->second};
+  size_t index = terminal->second;
   for (size_t layer = layers.size() - 1; layer > 0; --layer) {
-    memory::small_dynamic_bitset<1> visited(layers[layer - 1].size(), false);
-    std::vector<size_t> previous;
-    for (auto index : active) {
-      for (const auto &transition : layers[layer][index].predecessors) {
-        if (transition.edge) {
-          selected.set(*transition.edge);
-        }
-        if (!visited[transition.predecessor]) {
-          visited.set(transition.predecessor);
-          previous.push_back(transition.predecessor);
-        }
-      }
+    const auto &transition = layers[layer][index].predecessor;
+    if (transition.edge) {
+      selected.set(*transition.edge);
     }
-    active = std::move(previous);
+    index = transition.predecessor;
   }
   for (size_t i = 0; i < selected.size(); ++i) {
     if (!selected[i]) {

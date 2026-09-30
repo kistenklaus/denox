@@ -21,7 +21,7 @@ public:
 
   static constexpr size_type word_bits = 64;
   static constexpr size_type npos = std::numeric_limits<size_type>::max();
-  static constexpr size_type small_words = (Small + word_bits - 1) / word_bits;
+  static constexpr size_type small_words = Small / word_bits + (Small % word_bits != 0);
 
   small_dynamic_bitset() noexcept { init_empty(); }
 
@@ -62,62 +62,32 @@ public:
 
   void clear() noexcept { resize(0); }
 
+  // Retain heap capacity on shrink; regrowth within that capacity does not
+  // allocate. Newly exposed bits are initialized even if old storage is reused.
   void resize(size_type bit_count, bool value = false) {
     const size_type new_words = words_for_bits(bit_count);
-
-    // Reallocate if needed
-    if (needs_heap(new_words)) {
-      if (!m_heap || new_words != m_words || m_storage != storage_kind::heap) {
-        // allocate new heap buffer
-        word_type* new_buf = static_cast<word_type*>(std::malloc(new_words * sizeof(word_type)));
-        if (!new_buf) std::abort();
-
-        // initialize
-        std::fill_n(new_buf, new_words, word_type{0});
-
-        // copy old content
-        const size_type copy_words = std::min(m_words, new_words);
-        if (copy_words > 0) {
-          std::memcpy(new_buf, data(), copy_words * sizeof(word_type));
-        }
-
-        // free old heap if any
-        if (m_storage == storage_kind::heap && m_heap) {
-          std::free(m_heap);
-          m_heap = nullptr;
-        }
-
-        m_heap = new_buf;
-        m_storage = storage_kind::heap;
-      }
-    } else {
-      // Switch to small storage if necessary
-      if (m_storage == storage_kind::heap) {
-        // copy from heap to small, then free heap
-        const size_type copy_words = std::min(m_words, new_words);
-        std::fill_n(m_small, small_words, word_type{0});
-        if (copy_words > 0) {
-          std::memcpy(m_small, m_heap, copy_words * sizeof(word_type));
-        }
-        std::free(m_heap);
-        m_heap = nullptr;
-        m_storage = storage_kind::small;
-      }
-      // Ensure words beyond new_words are cleared in small buffer
-      if (m_storage == storage_kind::small) {
-        for (size_type i = new_words; i < small_words; ++i) m_small[i] = 0;
-      }
+    if (needs_heap(new_words) && new_words > m_capacity) {
+      // Geometric growth, capped at the largest representable bit count.
+      const size_type max_words = words_for_bits(npos);
+      const size_type grown = m_capacity > max_words / 2
+                                 ? max_words : m_capacity * 2;
+      const size_type capacity = std::max(new_words, grown);
+      word_type* new_buf = static_cast<word_type*>(std::malloc(capacity * sizeof(word_type)));
+      if (!new_buf) std::abort();
+      if (m_words) std::memcpy(new_buf, data(), m_words * sizeof(word_type));
+      if (m_storage == storage_kind::heap) std::free(m_heap);
+      m_heap = new_buf;
+      m_capacity = capacity;
+      m_storage = storage_kind::heap;
     }
 
-    // If growing and value==true, set new bits.
+    if (new_words > m_words)
+      std::fill_n(data() + m_words, new_words - m_words, word_type{0});
+
     const size_type old_bits = m_bits;
     m_bits = bit_count;
     m_words = new_words;
-
-    if (bit_count > old_bits && value) {
-      set_range(old_bits, bit_count);
-    }
-
+    if (bit_count > old_bits && value) set_range(old_bits, bit_count);
     trim_tail_bits();
   }
 
@@ -334,13 +304,14 @@ private:
 
   size_type m_bits = 0;
   size_type m_words = 0;
+  size_type m_capacity = small_words; // Storage words, independent of logical size.
   storage_kind m_storage = storage_kind::small;
 
   word_type m_small[small_words > 0 ? small_words : 1]{}; // Small==0 still compiles
   word_type* m_heap = nullptr;
 
   static constexpr size_type words_for_bits(size_type bits) noexcept {
-    return (bits + word_bits - 1) / word_bits;
+    return bits / word_bits + (bits % word_bits != 0);
   }
 
   static constexpr bool needs_heap(size_type words) noexcept {
@@ -357,6 +328,7 @@ private:
   void init_empty() noexcept {
     m_bits = 0;
     m_words = 0;
+    m_capacity = small_words;
     m_storage = storage_kind::small;
     m_heap = nullptr;
     if constexpr (small_words > 0) {
@@ -371,6 +343,7 @@ private:
     }
     m_bits = 0;
     m_words = 0;
+    m_capacity = small_words;
     m_storage = storage_kind::small;
   }
 
@@ -382,6 +355,7 @@ private:
   void move_from(small_dynamic_bitset&& other) noexcept {
     m_bits = other.m_bits;
     m_words = other.m_words;
+    m_capacity = other.m_capacity;
     m_storage = other.m_storage;
 
     if (other.m_storage == storage_kind::small) {
@@ -416,7 +390,7 @@ private:
       ++i;
     }
 
-    while (i + word_bits <= to_bit) {
+    while (to_bit - i >= word_bits) {
       data()[i / word_bits] = ~word_type{0};
       i += word_bits;
     }

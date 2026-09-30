@@ -92,3 +92,7 @@ configure_file(
     @ONLY
 )
 target_include_directories(denox_common PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
+
+add_subdirectory(test)
+add_subdirectory(bench)

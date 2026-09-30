@@ -1,6 +1,6 @@
 #include "denox/compiler/selection/selection.hpp"
 #include "denox/algorithm/align_up.hpp"
-#include "denox/algorithm/minimum_const_subgraph.hpp"
+#include "denox/algorithm/minimum_cost_subgraph.hpp"
 #include "denox/algorithm/prune_dominated_edges.hpp"
 #include "denox/algorithm/topological_edge_sort.hpp"
 #include "denox/common/TensorFormat.hpp"
@@ -137,9 +137,17 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
 
   progress.step(logger, 0.3f, "{}Selecting minimum-cost dispatch schedule{}",
                 logger.green(), logger.reset());
+
+  static constexpr size_t maxStates = 1ull << 28;
+  // static constexpr size_t maxStates = 4096;
+  bool truncated = false;
   memory::AdjGraph<TensorId, SuperGraphEdge, weight_type> minimumCostSubgraph =
       algorithm::minimum_cost_subgraph(constWeightedSupergraph,
-                                       supergraph.inputs, supergraph.outputs);
+                                       supergraph.inputs, supergraph.outputs,
+                                       maxStates, &truncated);
+  if (truncated) {
+    fmt::println("truncated");
+  }
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(
       std::move(minimumCostSubgraph));
 

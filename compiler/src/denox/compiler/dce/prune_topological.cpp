@@ -7,6 +7,7 @@
 #include "denox/memory/container/vector.hpp"
 #include "denox/memory/hypergraph/AdjGraph.hpp"
 #include "denox/memory/hypergraph/ConstGraph.hpp"
+#include <limits>
 #include <tracy/Tracy.hpp>
 
 static denox::memory::ConstGraph<denox::memory::NodeId,
@@ -105,8 +106,13 @@ void denox::compiler::prune_topological(SuperGraph &supergraph,
       "{}Eliminating dispatches not in the minimum-dispatch subgraphs{}",
       logger.green(), logger.reset());
 
+  constexpr size_t maxStates = 1ull << 28;
+  bool truncated = false;
   auto all_minimum_cost_subgraphs = algorithm::all_minimum_cost_subgraphs(
-      tgraph, supergraph.inputs, supergraph.outputs);
+      tgraph, supergraph.inputs, supergraph.outputs, maxStates, &truncated);
+  if (truncated) {
+    fmt::println("truncated");
+  }
 
   if (all_minimum_cost_subgraphs.edgeCount() == 0) {
     failed_to_implement(supergraph, model);
@@ -124,7 +130,6 @@ void denox::compiler::prune_topological(SuperGraph &supergraph,
   memory::AdjGraph<TensorId, SuperGraphEdge> subgraph;
 
   for (uint32_t e = 0; e < all_minimum_cost_subgraphs.edgeCount(); ++e) {
-    ZoneScopedN("foo");
     memory::EdgeId eid{e};
     const auto &multiedge = all_minimum_cost_subgraphs.get(eid);
     assert(!multiedge.empty());
