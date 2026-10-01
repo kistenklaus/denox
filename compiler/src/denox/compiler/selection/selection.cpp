@@ -14,6 +14,7 @@
 #include "denox/symbolic/SymGraphEval.hpp"
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <stdexcept>
 
 namespace denox::compiler {
 
@@ -182,8 +183,37 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
       auto srctid =
           constMinCostGraph.get(constMinCostGraph.src(eid).front()).index;
       auto dsttid = constMinCostGraph.get(constMinCostGraph.dst(eid)).index;
+      while (tensorUf[srctid] != srctid) {
+        srctid = tensorUf[srctid];
+      }
+      while (tensorUf[dsttid] != dsttid) {
+        dsttid = tensorUf[dsttid];
+      }
+      if (srctid == dsttid) {
+        continue;
+      }
       const auto &src = supergraph.tensors[srctid];
       const auto &dst = supergraph.tensors[dsttid];
+      const bool sameLayout = src.info.format == dst.info.format ||
+                              src.info.format == TensorFormat::Optimal ||
+                              dst.info.format == TensorFormat::Optimal;
+      const bool eightChannelLayout =
+          src.info.channels.has_value() && dst.info.channels.has_value() &&
+          src.info.channels->isConstant() && dst.info.channels->isConstant() &&
+          src.info.channels->constant() == 8 &&
+          dst.info.channels->constant() == 8 &&
+          ((src.info.format == TensorFormat::SSBO_HWC &&
+            dst.info.format == TensorFormat::SSBO_CHWC8) ||
+           (src.info.format == TensorFormat::SSBO_CHWC8 &&
+            dst.info.format == TensorFormat::SSBO_HWC));
+      if (src.size != dst.size || src.info.type != dst.info.type ||
+          (src.info.storage != dst.info.storage &&
+           src.info.storage != TensorStorage::Optimal &&
+           dst.info.storage != TensorStorage::Optimal) ||
+          (!sameLayout && !eightChannelLayout)) {
+        throw std::runtime_error(
+            "Selected no-op aliases incompatible tensor representations");
+      }
       bool srcIsOpt = src.info.storage == TensorStorage::Optimal ||
                       src.info.format == TensorFormat::Optimal;
       bool dstIsOpt = dst.info.storage == TensorStorage::Optimal ||
@@ -198,6 +228,12 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
       if (!srcIsOpt && dstIsOpt) {
         tensorUf[dsttid] = srctid;
       }
+      if (!srcIsOpt && !dstIsOpt) {
+        tensorUf[dsttid] = srctid;
+      }
+      const auto root = tensorUf[srctid];
+      supergraph.tensors[root].alignment =
+          std::max(src.alignment, dst.alignment);
 
       continue;
     }
@@ -217,6 +253,15 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                             "dispatches. Selected schedule is "
                             "most likely suboptimal!{}",
                             logger.yellow(), logger.reset()));
+  }
+
+  // Resolve transitive aliases before rebinding dispatches, parameters and I/O.
+  for (size_t i = 0; i < tensorUf.size(); ++i) {
+    uint64_t root = i;
+    while (tensorUf[root] != root) {
+      root = tensorUf[root];
+    }
+    tensorUf[i] = root;
   }
 
   memory::vector<memory::optional<uint64_t>> tensorRemap(

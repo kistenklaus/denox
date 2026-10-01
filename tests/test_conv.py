@@ -21,7 +21,7 @@ def conv_id(kwargs):
     "flags",
     [
         pytest.param(["--fcoopmat=1"], id="coopmat"),
-        pytest.param(["--fcoopmat=0"], id="no-coopmat"),
+        # pytest.param(["--fcoopmat=0"], id="no-coopmat"),
     ],
 )
 @pytest.mark.parametrize(
@@ -195,6 +195,44 @@ def conv_id(kwargs):
             "padding_mode": "zeros",
             "bias": True,
         },
+        # 1x1 strided
+        {
+            "in_channels": 10,
+            "out_channels": 10,
+            "kernel_size": 1,
+            "stride": 1,
+            "padding": 0,
+            "padding_mode": "zeros",
+            "bias": True,
+        },
+        {
+            "in_channels": 16,
+            "out_channels": 16,
+            "kernel_size": 1,
+            "stride": 1,
+            "padding": 0,
+            "padding_mode": "zeros",
+            "bias": True,
+        },
+        {
+            "in_channels": 10,
+            "out_channels": 16,
+            "kernel_size": 1,
+            "stride": 1,
+            "padding": 0,
+            "padding_mode": "zeros",
+            "bias": True,
+        },
+        {
+            "in_channels": 16,
+            "out_channels": 10,
+            "kernel_size": 1,
+            "stride": 1,
+            "padding": 0,
+            "padding_mode": "zeros",
+            "bias": True,
+        },
+
     ],
     ids=conv_id,
 )

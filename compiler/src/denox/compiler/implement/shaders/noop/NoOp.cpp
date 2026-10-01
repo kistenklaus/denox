@@ -16,7 +16,7 @@ NoOp::NoOp() {
         [](const ComputeOp &op) { return op.tag() == ComputeOpKind::None; });
 
     m_handles.in = in;
-    m_handles.out = in;
+    m_handles.out = out;
     m_capabilities.patterns.push_back(ShaderOp{std::move(pattern),
                                                std::move(in),
                                                std::move(out)});

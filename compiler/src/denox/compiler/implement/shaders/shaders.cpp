@@ -2,6 +2,7 @@
 #include "denox/compiler/implement/shaders/activation/BasicActivationShader.hpp"
 #include "denox/compiler/implement/shaders/add/BasicAddShader.hpp"
 #include "denox/compiler/implement/shaders/conv/ConcatConvCMShader.hpp"
+#include "denox/compiler/implement/shaders/conv/ConvConvAddCMShader.hpp"
 #include "denox/compiler/implement/shaders/conv/DirectConvShader.hpp"
 #include "denox/compiler/implement/shaders/conv/DirectConvShaderCM.hpp"
 #include "denox/compiler/implement/shaders/copy/CopyTransformShader.hpp"
@@ -26,6 +27,9 @@ get_all_shaders(spirv::GlslCompiler *compiler, const CompileOptions &options) {
   shaders.push_back(std::move(direct_conv_cm));
 
   shaders.push_back(std::make_unique<compiler::shaders::ConcatConvCMShader>(
+      compiler, options));
+
+  shaders.push_back(std::make_unique<compiler::shaders::ConvConvAddCMShader>(
       compiler, options));
 
   if (!cm_supported) {

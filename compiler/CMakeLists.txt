@@ -6,6 +6,7 @@ set(ASSET_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv_cm.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/concat_conv_cm.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/conv_conv_add_cm.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/copy/copy_transform.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pad/memory_pad.comp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pool/basic_pool.comp
@@ -17,6 +18,7 @@ set(ASSET_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/direct_conv_cm.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/concat_conv_cm.configs
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/conv_conv_add_cm.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/copy/copy_transform.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pad/memory_pad.configs
   ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/pool/basic_pool.configs
@@ -115,6 +117,7 @@ add_library(denox_compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/activation/BasicActivationShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/add/BasicAddShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/ConcatConvCMShader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/ConvConvAddCMShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/DirectConvShaderCM.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/conv/DirectConvShader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/denox/compiler/implement/shaders/copy/CopyTransformShader.cpp
