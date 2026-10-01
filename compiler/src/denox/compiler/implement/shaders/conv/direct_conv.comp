@@ -42,6 +42,8 @@ layout(set = BIAS_SET, binding = BIAS_BINDING, std430) readonly buffer bias_buf 
 layout(push_constant) uniform PushConstant {
   uint IN_W;
   uint IN_H;
+  uint OUT_W;
+  uint OUT_H;
 } pc;
 
 const uint WG_SIZE = SG_SIZE * SG_COUNT;
@@ -79,7 +81,7 @@ void main() {
   const uvec3 wgi = gl_WorkGroupID.xyz;
   const uint sgi = gl_SubgroupID;
 
-  // workgroup input tile (x,y) offset.
+  // workgroup output tile (x,y) offset.
   const uvec2 wgxy = uvec2(wgi.y * WG_TILE_X, wgi.z * WG_TILE_Y);
   const uint wgni = WG_TILE_N * wgi.x;
 
@@ -203,9 +205,9 @@ void main() {
             const uint out_x = wgxy.x + xLocal;
             uvec4 v = uvec4(0);
 
-            if (out_x < pc.IN_W && out_y < pc.IN_H) {
-              const uint in_y = out_y + zr - PADDING_Y;
-              const uint in_x = out_x + zs - PADDING_X;
+            if (out_x < pc.OUT_W && out_y < pc.OUT_H) {
+              const uint in_y = out_y * STRIDE_Y + zr - PADDING_Y;
+              const uint in_x = out_x * STRIDE_X + zs - PADDING_X;
 
               if (in_y < pc.IN_H && in_x < pc.IN_W) {
                 const uint c0 = zc8 * 8u;
@@ -299,8 +301,8 @@ void main() {
         const uint zs = zrs - zr * KERNEL_X;
 
         // Spatial bounds / padding handling.
-        const uint in_y = out_y + zr - PADDING_Y;
-        const uint in_x = out_x + zs - PADDING_X;
+        const uint in_y = out_y * STRIDE_Y + zr - PADDING_Y;
+        const uint in_x = out_x * STRIDE_X + zs - PADDING_X;
 
         if (in_y < pc.IN_H && in_x < pc.IN_W) {
           // HWC8 global index: [y][x][c8]
@@ -366,8 +368,8 @@ void main() {
         const uint zs = zrs - zr * KERNEL_X;
 
         // Apply spatial padding. (uint underflow is intended.)
-        const uint in_y = out_y + zr - PADDING_Y;
-        const uint in_x = out_x + zs - PADDING_X;
+        const uint in_y = out_y * STRIDE_Y + zr - PADDING_Y;
+        const uint in_x = out_x * STRIDE_X + zs - PADDING_X;
 
         if (in_y < pc.IN_H && in_x < pc.IN_W) {
           // CHWC8 global index: [c8][y][x]
@@ -601,9 +603,9 @@ void main() {
 
     for (uint zm = 0; zm < SG_M; ++zm) {
       const uint y = wgxy.y + sgmi * SG_M + zm;
-      if (y >= pc.IN_H) break;
+      if (y >= pc.OUT_H) break;
 
-      const uint gy = y * pc.IN_W * OUT_CH;
+      const uint gy = y * pc.OUT_W * OUT_CH;
 
       for (uint zn = 0; zn < SG_N; ++zn) {
         const uint base_c = wgni + (sgni * SG_N + zn) * INVOC_N;
@@ -615,7 +617,7 @@ void main() {
           const uint n8 = idx % INVOC_N8; // 0..INVOC_N8-1
 
           const uint zx = wgxy.x + x;
-          if (zx >= pc.IN_W) continue;
+          if (zx >= pc.OUT_W) continue;
 
           const uint c0 = base_c + n8 * W; // scalar channel index of lane's 8-wide block
           if (c0 >= OUT_CH) continue;
@@ -667,9 +669,9 @@ void main() {
 
     for (uint zm = 0; zm < SG_M; ++zm) {
       const uint y = wgxy.y + sgmi * SG_M + zm;
-      if (y >= pc.IN_H) break;
+      if (y >= pc.OUT_H) break;
 
-      const uint gy8 = y * pc.IN_W * OUT_CH8;
+      const uint gy8 = y * pc.OUT_W * OUT_CH8;
 
       for (uint zn = 0; zn < SG_N; ++zn) {
         // scalar channel base for this zn tile
@@ -682,7 +684,7 @@ void main() {
           const uint n8 = idx % INVOC_N8; // 0..INVOC_N8-1
 
           const uint zx = wgxy.x + x;
-          if (zx >= pc.IN_W) continue;
+          if (zx >= pc.OUT_W) continue;
 
           const uint c8 = base_c8 + n8;
           if (c8 >= OUT_CH8) continue; // should only matter on the last channel tile
@@ -700,11 +702,11 @@ void main() {
     const uint W = (VSTYPE_SIZE / ATYPE_SIZE); // 8 for uvec4 + f16
     const uint INVOC_N8 = INVOC_N / W;
     const uint OUT_CH8 = OUT_CH / W;
-    const uint IN_HW = pc.IN_W * pc.IN_H;
+    const uint OUT_HW = pc.OUT_W * pc.OUT_H;
 
     for (uint zm = 0; zm < SG_M; ++zm) {
       const uint y = wgxy.y + sgmi * SG_M + zm;
-      if (y >= pc.IN_H) break;
+      if (y >= pc.OUT_H) break;
 
       for (uint zn = 0; zn < SG_N; ++zn) {
         // vector-channel base (c8) for this (wg, sg, zn) tile
@@ -717,13 +719,13 @@ void main() {
           const uint n8 = idx % INVOC_N8; // 0..INVOC_N8-1
 
           const uint gx = wgxy.x + x;
-          if (gx >= pc.IN_W) continue;
+          if (gx >= pc.OUT_W) continue;
 
           const uint c8 = base_c8 + n8;
           // Per your assumption: OUT_CH divisible by 8. This check is only needed for the last tile in N.
           if (c8 >= OUT_CH8) continue;
 
-          output_tensor_blob[c8 * IN_HW + y * pc.IN_W + gx] = sum[zn][zm][i];
+          output_tensor_blob[c8 * OUT_HW + y * pc.OUT_W + gx] = sum[zn][zm][i];
         }
       }
     }

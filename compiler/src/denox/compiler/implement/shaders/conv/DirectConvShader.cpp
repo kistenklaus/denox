@@ -258,21 +258,16 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     }
     return true;
   };
+  const auto convSupported = [](const ComputeOp& op) {
+    return op.tag() == ComputeOpKind::Conv;
+  };
 
   {
     Pattern conv_pattern;
     auto in = conv_pattern.matchNode();
     auto conv = in->matchOutgoing();
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
     auto out = conv->matchDst();
 
     in->matchValue(tensorSupported);
@@ -291,15 +286,7 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     auto out = relu->matchDst();
 
     conv->matchRank(1);
-    conv->matchValue([](const ComputeOp &op) -> bool {
-      if (op.tag() != ComputeOpKind::Conv) {
-        return false;
-      }
-      const auto &conv = op.conv();
-      return conv->stride.x == 1 && conv->stride.y == 1 &&
-             conv->padding.x == 1 && conv->padding.y == 1 &&
-             conv->W->shape().r == 3 && conv->W->shape().s == 3;
-    });
+    conv->matchValue(convSupported);
     relu->matchRank(1);
     relu->matchValue([](const ComputeOp &op) {
       if (op.tag() != ComputeOpKind::Activation) {
@@ -604,8 +591,8 @@ void DirectConvShader::implement(
   std::uint32_t tileZ = config.sg_m * config.wg_m;
 
   Sym workgroupCountX = symGraph.cdiv(out.channels, tileX, false, false);
-  Sym workgroupCountY = symGraph.cdiv(in.width, tileY, false, false);
-  Sym workgroupCountZ = symGraph.cdiv(in.height, tileZ, false, false);
+  Sym workgroupCountY = symGraph.cdiv(out.width, tileY, false, false);
+  Sym workgroupCountZ = symGraph.cdiv(out.height, tileZ, false, false);
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
@@ -649,6 +636,9 @@ void DirectConvShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.width, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.height, memory::Dtype::U32));
+  dispatch.addPushConstant(PushConstant::Dynamic(out.width, memory::Dtype::U32));
+  dispatch.addPushConstant(
+      PushConstant::Dynamic(out.height, memory::Dtype::U32));
 
   Sym inreads =
       symGraph.mul(symGraph.mul(in.width, in.height), C * size_of(in.type));

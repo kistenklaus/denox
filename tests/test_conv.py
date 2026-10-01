@@ -21,7 +21,7 @@ def conv_id(kwargs):
     "flags",
     [
         pytest.param(["--fcoopmat=1"], id="coopmat"),
-        # pytest.param(["--fcoopmat=0"], id="no-coopmat"),
+        pytest.param(["--fcoopmat=0"], id="no-coopmat"),
     ],
 )
 @pytest.mark.parametrize(
