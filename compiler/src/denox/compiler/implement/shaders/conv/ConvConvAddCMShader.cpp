@@ -905,6 +905,7 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
   const uint32_t B_S = convB->W->shape().s;
 
   memory::vector<unsigned int> promissing;
+  fmt::println("begin");
   for (uint32_t c = 0; c < m_configs.size(); ++c) {
 
     // static constexpr size_t KK_ASYNC_LIMIT = 3;
@@ -934,17 +935,20 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
       continue;
     }
 
+
     // output channel tile!
     const uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
     uint32_t channelDispatchSize = (K + ctile - 1) / ctile;
-    if (channelDispatchSize > 1 && K <= 256) {
+    if (channelDispatchSize > 1 && K <= 64) {
       continue;
     }
+
 
     uint32_t K_eff = std::max(K, config.cm_n);
     if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
       continue;
     }
+
 
     // POLICY: K % ctile == 0
     if (K % config.cm_n == 0) {
@@ -952,7 +956,7 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
         continue;
       }
     } else {
-      uint32_t wasted = ctile - (K % ctile);
+      uint32_t wasted = (ctile - (K % ctile)) % ctile;
       if (wasted > config.cm_n) {
         // NOTE: kind of assumptious
         // might run into cases where we generate no configs,
@@ -989,6 +993,7 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
       }
     }
 
+
     // POLICY: wgSize \in [128, 256]
     const uint32_t wgSize = config.wg_m * config.wg_n * config.subgroupSize;
     if (wgSize < 128 || wgSize > 512) {
@@ -1006,8 +1011,10 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
         continue;
       }
     }
+    fmt::println("survived");
     promissing.push_back(c);
   }
+  fmt::println("promissing: {}", promissing.size());
   return promissing;
 }
 
