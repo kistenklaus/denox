@@ -25,8 +25,6 @@ struct DescriptorPolicy {
   uint32_t set = 0;
 };
 
-
-
 struct DescriptorPolicies {
   // policy is selected in order, i.e. first check input then output and so on.
   DescriptorPolicy inputPolicy;
@@ -57,6 +55,7 @@ enum class SpirvAddressMode {
 
 struct SpirvOptions {
   spirv::SpirvDebugInfoLevel debugInfo = spirv::SpirvDebugInfoLevel::Strip;
+  std::optional<std::pair<uint32_t, uint32_t>> bref_descriptor;
   bool optimize = true;
   SpirvAddressMode addressMode = SpirvAddressMode::descriptor_set;
 };

@@ -29,6 +29,49 @@
 #define vstype uvec4
 #define VSTYPE_SIZE 16
 
+#ifdef USE_BREF
+
+#extension GL_EXT_buffer_reference : require
+
+layout(buffer_reference, std430, buffer_reference_align = 16)
+readonly buffer InputRef {
+  istype input_tensor_blob[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16)
+writeonly buffer OutputRef {
+  ostype output_tensor_blob[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16)
+readonly buffer FilterRef {
+  fstype filter_blob[];
+};
+
+#ifdef USE_BIAS
+layout(buffer_reference, std430, buffer_reference_align = 16)
+readonly buffer BiasRef {
+  vstype bias_blob[];
+};
+#endif
+
+layout(set = BREF_SET, binding = BREF_BINDING, std140)
+uniform BufferReferences {
+  layout(offset = INPUT_BINDING_BREF_OFFSET) InputRef input_ref;
+  layout(offset = OUTPUT_BINDING_BREF_OFFSET) OutputRef output_ref;
+  layout(offset = FILTER_BINDING_BREF_OFFSET) FilterRef filter_ref;
+  #ifdef USE_BIAS
+  layout(offset = BIAS_BINDING_BREF_OFFSET) BiasRef bias;
+  #endif
+} refs;
+
+#define INPUT_TENSOR_BLOB  refs.input_ref.input_tensor_blob
+#define OUTPUT_TENSOR_BLOB refs.output_ref.output_tensor_blob
+#define FILTER_BLOB        refs.filter_ref.filter_blob
+#define BIAS_BLOB refs.bias.bias_blob
+
+#else
+
 layout(set = INPUT_SET, binding = INPUT_BINDING, std430) readonly buffer input_buf {
   istype input_tensor_blob[];
 };
@@ -53,6 +96,16 @@ layout(set = BIAS_SET, binding = BIAS_BINDING, std430) readonly buffer bias_buf 
   // This allows us to skip shared memory when loading the bias.
   vstype bias_blob[];
 };
+
+#endif
+
+
+
+#define INPUT_TENSOR_BLOB input_tensor_blob
+#define OUTPUT_TENSOR_BLOB output_tensor_blob
+#define FILTER_BLOB filter_blob
+#define BIAS_BLOB bias_blob
+
 #endif
 
 layout(push_constant) uniform PushConstant {
@@ -179,7 +232,7 @@ void main() {
     const uint OUT_CH_PADDED = (OUT_CH + CM_N - 1) / CM_N * CM_N;
     if (offset < (OUT_CH_PADDED / (VSTYPE_SIZE / ATYPE_SIZE))) {
       coopMatLoad(bias,
-        bias_blob,
+        BIAS_BLOB,
         offset,
         0,
         gl_CooperativeMatrixLayoutRowMajor);
@@ -344,31 +397,31 @@ void main() {
           const uint o = zy * (pc.IN_W * IN_CH) + zx * IN_CH + zc;
           if ((zx < pc.IN_W && zx + 7 * STRIDE_X < pc.IN_W)) {
             // NOTE: Fastpath no branching required.
-            uint16_t a = input_tensor_blob[o + 0 * STRIDE_X * IN_CH];
-            uint16_t b = input_tensor_blob[o + 1 * STRIDE_X * IN_CH];
+            uint16_t a = INPUT_TENSOR_BLOB[o + 0 * STRIDE_X * IN_CH];
+            uint16_t b = INPUT_TENSOR_BLOB[o + 1 * STRIDE_X * IN_CH];
             uint ab = packUint2x16(u16vec2(a, b));
-            uint16_t c = input_tensor_blob[o + 2 * STRIDE_X * IN_CH];
-            uint16_t d = input_tensor_blob[o + 3 * STRIDE_X * IN_CH];
+            uint16_t c = INPUT_TENSOR_BLOB[o + 2 * STRIDE_X * IN_CH];
+            uint16_t d = INPUT_TENSOR_BLOB[o + 3 * STRIDE_X * IN_CH];
             uint cd = packUint2x16(u16vec2(c, d));
-            uint16_t e = input_tensor_blob[o + 4 * STRIDE_X * IN_CH];
-            uint16_t f = input_tensor_blob[o + 5 * STRIDE_X * IN_CH];
+            uint16_t e = INPUT_TENSOR_BLOB[o + 4 * STRIDE_X * IN_CH];
+            uint16_t f = INPUT_TENSOR_BLOB[o + 5 * STRIDE_X * IN_CH];
             uint ef = packUint2x16(u16vec2(e, f));
-            uint16_t g = input_tensor_blob[o + 6 * STRIDE_X * IN_CH];
-            uint16_t h = input_tensor_blob[o + 7 * STRIDE_X * IN_CH];
+            uint16_t g = INPUT_TENSOR_BLOB[o + 6 * STRIDE_X * IN_CH];
+            uint16_t h = INPUT_TENSOR_BLOB[o + 7 * STRIDE_X * IN_CH];
             uint gh = packUint2x16(u16vec2(g, h));
             v = uvec4(ab, cd, ef, gh);
           } else {
-            uint16_t a = (zx + 0 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 0 * STRIDE_X * IN_CH] : uint16_t(0);
-            uint16_t b = (zx + 1 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 1 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t a = (zx + 0 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 0 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t b = (zx + 1 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 1 * STRIDE_X * IN_CH] : uint16_t(0);
             uint ab = packUint2x16(u16vec2(a, b));
-            uint16_t c = (zx + 2 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 2 * STRIDE_X * IN_CH] : uint16_t(0);
-            uint16_t d = (zx + 3 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 3 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t c = (zx + 2 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 2 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t d = (zx + 3 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 3 * STRIDE_X * IN_CH] : uint16_t(0);
             uint cd = packUint2x16(u16vec2(c, d));
-            uint16_t e = (zx + 4 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 4 * STRIDE_X * IN_CH] : uint16_t(0);
-            uint16_t f = (zx + 5 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 5 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t e = (zx + 4 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 4 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t f = (zx + 5 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 5 * STRIDE_X * IN_CH] : uint16_t(0);
             uint ef = packUint2x16(u16vec2(e, f));
-            uint16_t g = (zx + 6 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 6 * STRIDE_X * IN_CH] : uint16_t(0);
-            uint16_t h = (zx + 7 * STRIDE_X) < pc.IN_W ? input_tensor_blob[o + 7 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t g = (zx + 6 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 6 * STRIDE_X * IN_CH] : uint16_t(0);
+            uint16_t h = (zx + 7 * STRIDE_X) < pc.IN_W ? INPUT_TENSOR_BLOB[o + 7 * STRIDE_X * IN_CH] : uint16_t(0);
             uint gh = packUint2x16(u16vec2(g, h));
             v = uvec4(ab, cd, ef, gh);
           }
@@ -416,14 +469,15 @@ void main() {
             if (zx < pc.IN_W && (zx + 7 * STRIDE_X) < pc.IN_W) {
               const uint row = sy * (sW * IN_CH);
 
-              uint16_t a = input_tensor_blob[row + ((zx + 0 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t b = input_tensor_blob[row + ((zx + 1 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t c = input_tensor_blob[row + ((zx + 2 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t d = input_tensor_blob[row + ((zx + 3 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t e = input_tensor_blob[row + ((zx + 4 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t f = input_tensor_blob[row + ((zx + 5 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t g = input_tensor_blob[row + ((zx + 6 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
-              uint16_t h = input_tensor_blob[row + ((zx + 7 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t a = INPUT_TENSOR_BLOB[row + ((zx + 0 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t b = INPUT_TENSOR_BLOB[row + ((zx + 1 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t c = INPUT_TENSOR_BLOB[row + ((zx + 2 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t d = INPUT_TENSOR_BLOB[row + ((zx + 3 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t e = INPUT_TENSOR_BLOB[row + ((zx + 4 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t f = INPUT_TENSOR_BLOB[row + ((zx + 5 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t g = INPUT_TENSOR_BLOB[row + ((zx + 6 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+              uint16_t h = INPUT_TENSOR_BLOB[row + ((zx + 7 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc];
+
 
               v = uvec4(
                   packUint2x16(u16vec2(a, b)),
@@ -435,14 +489,14 @@ void main() {
               // slowpath: per-lane output x bounds + per-lane source x bounds
               const uint row = sy * (sW * IN_CH);
 
-              uint16_t a = ((zx + 0 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 0 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t b = ((zx + 1 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 1 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t c = ((zx + 2 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 2 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t d = ((zx + 3 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 3 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t e = ((zx + 4 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 4 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t f = ((zx + 5 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 5 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t g = ((zx + 6 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 6 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
-              uint16_t h = ((zx + 7 * STRIDE_X) < pc.IN_W) ? input_tensor_blob[row + ((zx + 7 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t a = ((zx + 0 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 0 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t b = ((zx + 1 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 1 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t c = ((zx + 2 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 2 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t d = ((zx + 3 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 3 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t e = ((zx + 4 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 4 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t f = ((zx + 5 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 5 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t g = ((zx + 6 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 6 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
+              uint16_t h = ((zx + 7 * STRIDE_X) < pc.IN_W) ? INPUT_TENSOR_BLOB[row + ((zx + 7 * STRIDE_X) / SCALING_FACTOR) * IN_CH + zc] : uint16_t(0);
 
               v = uvec4(
                   packUint2x16(u16vec2(a, b)),
@@ -545,7 +599,7 @@ void main() {
             const uint o = (zy / SCALING_FACTOR) * ((pc.IN_W / SCALING_FACTOR) * IN_CH8)
                 + (zx / SCALING_FACTOR) * IN_CH8
                 + zc8;
-            v = input_tensor_blob[o];
+            v = INPUT_TENSOR_BLOB[o];
           }
         }
         prefetch_A[q] = v;
@@ -647,7 +701,7 @@ void main() {
 
         if (zx < pc.IN_W && zy < pc.IN_H && zc8 < IN_CH8) {
           const uint o = zc8 * ((pc.IN_W / SCALING_FACTOR) * (pc.IN_H / SCALING_FACTOR)) + (zy / SCALING_FACTOR) * (pc.IN_W / SCALING_FACTOR) + (zx / SCALING_FACTOR);
-          v = input_tensor_blob[o];
+          v = INPUT_TENSOR_BLOB[o];
         }
       }
       prefetch_A[q] = v;
@@ -786,7 +840,7 @@ void main() {
         // KRSCK(CM_N)
         // => sgn = RSC
         const uint o = ((wgni) / CM_N + sgn + sgni * SG_N) * (RSC * CM_N8) + zk * CM_N8 + zn8;
-        v = filter_blob[o];
+        v = FILTER_BLOB[o];
       }
     }
     prefetch_B[q] = v;
@@ -857,7 +911,7 @@ void main() {
         // RSCKC(CM_K)
         // => sgk <- (RSC)
         const uint o = (kk * SG_K + sgk) * (OUT_CH * CM_K8) + zn * CM_K8 + zk8;
-        v = filter_blob[o];
+        v = FILTER_BLOB[o];
       }
     }
     prefetch_B[q] = v;
@@ -920,30 +974,30 @@ void main() {
         const uint o = zk * OUT_CH + zn;
         if (zk + 8 < RSC) {
           // NOTE: fastpath no branching bound check required.
-          const uint16_t a = filter_blob[o + 0 * OUT_CH];
-          const uint16_t b = filter_blob[o + 1 * OUT_CH];
+          const uint16_t a = FILTER_BLOB[o + 0 * OUT_CH];
+          const uint16_t b = FILTER_BLOB[o + 1 * OUT_CH];
           v.x = packUint2x16(u16vec2(a, b));
-          const uint16_t c = filter_blob[o + 2 * OUT_CH];
-          const uint16_t d = filter_blob[o + 3 * OUT_CH];
+          const uint16_t c = FILTER_BLOB[o + 2 * OUT_CH];
+          const uint16_t d = FILTER_BLOB[o + 3 * OUT_CH];
           v.y = packUint2x16(u16vec2(c, d));
-          const uint16_t e = filter_blob[o + 4 * OUT_CH];
-          const uint16_t f = filter_blob[o + 5 * OUT_CH];
+          const uint16_t e = FILTER_BLOB[o + 4 * OUT_CH];
+          const uint16_t f = FILTER_BLOB[o + 5 * OUT_CH];
           v.z = packUint2x16(u16vec2(e, f));
-          const uint16_t g = filter_blob[o + 6 * OUT_CH];
-          const uint16_t h = filter_blob[o + 7 * OUT_CH];
+          const uint16_t g = FILTER_BLOB[o + 6 * OUT_CH];
+          const uint16_t h = FILTER_BLOB[o + 7 * OUT_CH];
           v.w = packUint2x16(u16vec2(g, h));
         } else {
-          const uint16_t a = ((zk + 0) < RSC) ? filter_blob[o + 0 * OUT_CH] : uint16_t(0);
-          const uint16_t b = ((zk + 1) < RSC) ? filter_blob[o + 1 * OUT_CH] : uint16_t(0);
+          const uint16_t a = ((zk + 0) < RSC) ? FILTER_BLOB[o + 0 * OUT_CH] : uint16_t(0);
+          const uint16_t b = ((zk + 1) < RSC) ? FILTER_BLOB[o + 1 * OUT_CH] : uint16_t(0);
           v.x = packUint2x16(u16vec2(a, b));
-          const uint16_t c = ((zk + 2) < RSC) ? filter_blob[o + 2 * OUT_CH] : uint16_t(0);
-          const uint16_t d = ((zk + 3) < RSC) ? filter_blob[o + 3 * OUT_CH] : uint16_t(0);
+          const uint16_t c = ((zk + 2) < RSC) ? FILTER_BLOB[o + 2 * OUT_CH] : uint16_t(0);
+          const uint16_t d = ((zk + 3) < RSC) ? FILTER_BLOB[o + 3 * OUT_CH] : uint16_t(0);
           v.y = packUint2x16(u16vec2(c, d));
-          const uint16_t e = ((zk + 4) < RSC) ? filter_blob[o + 4 * OUT_CH] : uint16_t(0);
-          const uint16_t f = ((zk + 5) < RSC) ? filter_blob[o + 5 * OUT_CH] : uint16_t(0);
+          const uint16_t e = ((zk + 4) < RSC) ? FILTER_BLOB[o + 4 * OUT_CH] : uint16_t(0);
+          const uint16_t f = ((zk + 5) < RSC) ? FILTER_BLOB[o + 5 * OUT_CH] : uint16_t(0);
           v.z = packUint2x16(u16vec2(e, f));
-          const uint16_t g = ((zk + 6) < RSC) ? filter_blob[o + 6 * OUT_CH] : uint16_t(0);
-          const uint16_t h = ((zk + 7) < RSC) ? filter_blob[o + 7 * OUT_CH] : uint16_t(0);
+          const uint16_t g = ((zk + 6) < RSC) ? FILTER_BLOB[o + 6 * OUT_CH] : uint16_t(0);
+          const uint16_t h = ((zk + 7) < RSC) ? FILTER_BLOB[o + 7 * OUT_CH] : uint16_t(0);
           v.w = packUint2x16(u16vec2(g, h));
         }
       }
@@ -1304,38 +1358,38 @@ void main() {
           u16vec2 vz = unpackUint2x16(v.z);
           u16vec2 vw = unpackUint2x16(v.w);
           if (int(zx + 8) <= pc.OUT_W) {
-            output_tensor_blob[go] = vx.x;
-            output_tensor_blob[go + OUT_CH] = vx.y;
-            output_tensor_blob[go + 2 * OUT_CH] = vy.x;
-            output_tensor_blob[go + 3 * OUT_CH] = vy.y;
-            output_tensor_blob[go + 4 * OUT_CH] = vz.x;
-            output_tensor_blob[go + 5 * OUT_CH] = vz.y;
-            output_tensor_blob[go + 6 * OUT_CH] = vw.x;
-            output_tensor_blob[go + 7 * OUT_CH] = vw.y;
+            OUTPUT_TENSOR_BLOB[go] = vx.x;
+            OUTPUT_TENSOR_BLOB[go + OUT_CH] = vx.y;
+            OUTPUT_TENSOR_BLOB[go + 2 * OUT_CH] = vy.x;
+            OUTPUT_TENSOR_BLOB[go + 3 * OUT_CH] = vy.y;
+            OUTPUT_TENSOR_BLOB[go + 4 * OUT_CH] = vz.x;
+            OUTPUT_TENSOR_BLOB[go + 5 * OUT_CH] = vz.y;
+            OUTPUT_TENSOR_BLOB[go + 6 * OUT_CH] = vw.x;
+            OUTPUT_TENSOR_BLOB[go + 7 * OUT_CH] = vw.y;
           } else {
             if (zx < pc.OUT_W) {
-              output_tensor_blob[go] = vx.x;
+              OUTPUT_TENSOR_BLOB[go] = vx.x;
             }
             if ((zx + 1) < pc.OUT_W) {
-              output_tensor_blob[go + OUT_CH] = vx.y;
+              OUTPUT_TENSOR_BLOB[go + OUT_CH] = vx.y;
             }
             if ((zx + 2) < pc.OUT_W) {
-              output_tensor_blob[go + 2 * OUT_CH] = vy.x;
+              OUTPUT_TENSOR_BLOB[go + 2 * OUT_CH] = vy.x;
             }
             if ((zx + 3) < pc.OUT_W) {
-              output_tensor_blob[go + 3 * OUT_CH] = vy.y;
+              OUTPUT_TENSOR_BLOB[go + 3 * OUT_CH] = vy.y;
             }
             if ((zx + 4) < pc.OUT_W) {
-              output_tensor_blob[go + 4 * OUT_CH] = vz.x;
+              OUTPUT_TENSOR_BLOB[go + 4 * OUT_CH] = vz.x;
             }
             if ((zx + 5) < pc.OUT_W) {
-              output_tensor_blob[go + 5 * OUT_CH] = vz.y;
+              OUTPUT_TENSOR_BLOB[go + 5 * OUT_CH] = vz.y;
             }
             if ((zx + 6) < pc.OUT_W) {
-              output_tensor_blob[go + 6 * OUT_CH] = vw.x;
+              OUTPUT_TENSOR_BLOB[go + 6 * OUT_CH] = vw.x;
             }
             if ((zx + 7) < pc.OUT_W) {
-              output_tensor_blob[go + 7 * OUT_CH] = vw.y;
+              OUTPUT_TENSOR_BLOB[go + 7 * OUT_CH] = vw.y;
             }
           }
         }
@@ -1515,7 +1569,7 @@ void main() {
       const uvec4 vmax = uvec4(packFloat2x16(a), packFloat2x16(b), packFloat2x16(c), packFloat2x16(d));
 
       const uint px = zx / 2;
-      output_tensor_blob[gy8p + px * OUT_CH8 + zn8] = vmax;
+      OUTPUT_TENSOR_BLOB[gy8p + px * OUT_CH8 + zn8] = vmax;
     }
   }
 
@@ -1543,7 +1597,7 @@ void main() {
       // const uint32_t mock = CM_M8;
       if (zn8 < OUT_CH8 && zx < pc.OUT_W) {
         const uvec4 v = sh_buf[o + q];
-        output_tensor_blob[gy8 + zx * OUT_CH8 + zn8] = v;
+        OUTPUT_TENSOR_BLOB[gy8 + zx * OUT_CH8 + zn8] = v;
       }
     }
   }
@@ -1676,7 +1730,7 @@ void main() {
       const uint px = x >> 1u;
       const uint py = y >> 1u;
 
-      output_tensor_blob[n8 * POOLED_HW + py * POOLED_W + px] = vmax;
+      OUTPUT_TENSOR_BLOB[n8 * POOLED_HW + py * POOLED_W + px] = vmax;
     }
   }
   #else
@@ -1700,7 +1754,7 @@ void main() {
 
       if (n8 < OUT_CH8 && y < pc.OUT_H && sgx < pc.OUT_W) {
         uvec4 v = sh_buf[o + q];
-        output_tensor_blob[n8 * IN_HW + y * pc.OUT_W + sgx] = v;
+        OUTPUT_TENSOR_BLOB[n8 * IN_HW + y * pc.OUT_W + sgx] = v;
       }
     }
   }

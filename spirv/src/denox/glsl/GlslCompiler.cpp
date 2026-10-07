@@ -10,10 +10,12 @@ namespace denox::spirv {
 
 GlslCompiler::GlslCompiler(SpirvTools *tools, io::FileCache *fileCache,
                            const DeviceInfo &deviceInfo,
-                           SpirvDebugInfoLevel debugInfo, bool opt)
+                           SpirvDebugInfoLevel debugInfo,
+                           std::optional<std::pair<uint32_t, uint32_t>> bref,
+                           bool opt)
     : m_tools(tools), m_fileCache(fileCache), m_deviceInfo(deviceInfo),
       m_buildInResource(malloc(sizeof(TBuiltInResource))),
-      m_debugInfo(debugInfo), m_optimize(opt) {
+      m_debugInfo(debugInfo), m_bref_descriptor(bref), m_optimize(opt) {
 
   assert(m_fileCache != nullptr);
 
@@ -137,8 +139,16 @@ GlslCompiler::~GlslCompiler() {
 
 GlslCompilerInstance GlslCompiler::read(io::Path sourcePath) {
   io::CachedFileHandle src = m_fileCache->read(sourcePath);
-  return GlslCompilerInstance(this, std::move(src),
-                              std::move(sourcePath));
+  auto instance =
+      GlslCompilerInstance(this, std::move(src), std::move(sourcePath));
+  if (m_bref_descriptor) {
+    auto [bref_set, bref_binding] = *m_bref_descriptor;
+    instance.define("USE_BREF");
+    instance.define("BREF_SET", bref_set);
+    instance.define("BREF_BINDING", bref_binding);
+  }
+
+  return instance;
 }
 
 } // namespace denox::spirv

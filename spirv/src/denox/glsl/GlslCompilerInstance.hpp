@@ -73,8 +73,8 @@ public:
 
   void sha256(SHA256Builder &hash) const {
     memory::span<const std::byte> src = m_srcHandle.bytes();
-    hash.update(std::span{reinterpret_cast<const uint8_t *>(src.data()),
-                          src.size()});
+    hash.update(
+        std::span{reinterpret_cast<const uint8_t *>(src.data()), src.size()});
 
     hash.update(std::span{reinterpret_cast<const uint8_t *>(m_preamble.data()),
                           m_preamble.size()});

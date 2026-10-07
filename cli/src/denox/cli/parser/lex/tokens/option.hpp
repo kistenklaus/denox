@@ -8,6 +8,7 @@ enum class OptionToken {
   SpirvOptimize,             //
   SpirvNonSemanticDebugInfo, //
   SpirvAddressMode,
+  SpirvBrefDescriptor,
   SpirvDebugInfo,            //
   FeatureCoopmat,            //
   FeatureFusion,             //
@@ -58,6 +59,7 @@ struct fmt::formatter<OptionToken> {
       case OptionToken::SpirvOptimize: name = "spirv-optimize"; break;
       case OptionToken::SpirvNonSemanticDebugInfo: name = "spirv-non-semantic-debug-info"; break;
       case OptionToken::SpirvAddressMode: name = "spirv-address-mode"; break;
+      case OptionToken::SpirvBrefDescriptor: name = "spirv-bref-descriptor"; break;
       case OptionToken::SpirvDebugInfo: name = "spirv-debug-info"; break;
       case OptionToken::FeatureCoopmat: name = "feature-coopmat"; break;
       case OptionToken::FeatureFusion: name = "feature-fusion"; break;
@@ -85,7 +87,8 @@ struct fmt::formatter<OptionToken> {
       case OptionToken::MaxSearchStates: name = "max-search-states"; break;
       case OptionToken::Jobs: name = "jobs"; break;
       case OptionToken::Color: name = "color"; break;
-    }
+        break;
+      }
 
     return fmt::format_to(ctx.out(), "{}", name);
   }

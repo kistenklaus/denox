@@ -7,6 +7,7 @@
 #include "denox/io/fs/Path.hpp"
 #include "denox/spirv/ShaderDebugInfoLevel.hpp"
 #include "denox/spirv/SpirvTools.hpp"
+#include <optional>
 
 namespace denox::spirv {
 
@@ -17,6 +18,7 @@ public:
   GlslCompiler(SpirvTools *spvTools, io::FileCache *fileCache,
                const DeviceInfo &deviceInfo,
                SpirvDebugInfoLevel debugInfo = SpirvDebugInfoLevel::Strip,
+               std::optional<std::pair<uint32_t, uint32_t>> bref = std::nullopt,
                bool opt = false);
 
   GlslCompiler(const GlslCompiler &) = delete;
@@ -35,6 +37,7 @@ private:
   DeviceInfo m_deviceInfo;
   void * /*TBuiltInResource*/ m_buildInResource;
   SpirvDebugInfoLevel m_debugInfo;
+  std::optional<std::pair<uint32_t, uint32_t>> m_bref_descriptor;
   bool m_optimize;
 
   SourceShaCache m_shaCache;

@@ -24,7 +24,7 @@ void ComputeDispatchBuilder::addBinding(memory::string_view set_macro,
   if (!tensorId.has_value()) {
     diag::invalid_state();
   }
-  const auto& tensor = m_impl->m_superBuilder->m_tensors[tensorId->index];
+  const auto &tensor = m_impl->m_superBuilder->m_tensors[tensorId->index];
 
   const bool isInput = tensor.isInput;
   const bool isOutput = tensor.isOutput;
@@ -132,7 +132,7 @@ ComputeDispatchBuilder::~ComputeDispatchBuilder() {
     self().info.input_bindings->resize(src_count);
   }
 
-  memory::small_vector<std::pair<std::string_view, uint16_t>, 6> definitions;
+  memory::small_vector<std::pair<std::string, uint16_t>, 6> definitions;
 
   for (size_t i = 0; i < m_bindingInfos.size(); ++i) {
     const auto &info = m_bindingInfos[i];
@@ -147,6 +147,7 @@ ComputeDispatchBuilder::~ComputeDispatchBuilder() {
     });
     definitions.emplace_back(info.set_macro, set);
     definitions.emplace_back(info.binding_macro, binding);
+    definitions.emplace_back(fmt::format("{}_BREF_OFFSET", info.binding_macro), binding * 8);
 
     if (info.edgeDst) {
       if (!self().info.output_bindings) {

@@ -21,6 +21,10 @@ uint32_t
 parse_spirv_address_mode(std::span<const Token> t,
                          denox::compiler::SpirvAddressMode *addressMode);
 
+uint32_t
+parse_spirv_bref_descriptor(std::span<const Token> t,
+                            std::optional<std::pair<uint32_t, uint32_t>> *bref_descriptor);
+
 uint32_t parse_verbose(std::span<const Token> t, denox::diag::LogLevel *v);
 
 uint32_t parse_quiet(std::span<const Token> t, denox::diag::LogLevel *v);

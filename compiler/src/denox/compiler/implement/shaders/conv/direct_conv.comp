@@ -18,6 +18,49 @@
 #define vstype uvec4
 #define VSTYPE_SIZE 16
 
+#ifdef USE_BREF
+
+#extension GL_EXT_buffer_reference : require
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer InputRef {
+  istype input_tensor_blob[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer OutputRef {
+  ostype output_tensor_blob[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer FilterRef {
+  fstype filter_blob[];
+};
+
+#ifdef USE_BIAS
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer BiasRef {
+  vstype bias_blob[];
+};
+#endif
+
+layout(set = BREF_SET, binding = BREF_BINDING, std140)
+uniform BufferReferences {
+  layout(offset = INPUT_BINDING_BREF_OFFSET) InputRef input_ref;
+  layout(offset = OUTPUT_BINDING_BREF_OFFSET) OutputRef output_ref;
+  layout(offset = FILTER_BINDING_BREF_OFFSET) FilterRef filter_ref;
+  #ifdef USE_BIAS
+  layout(offset = BIAS_BINDING_BREF_OFFSET) BiasRef bias;
+  #endif
+} refs;
+
+layout(push_constant) uniform PushConstant {
+  uint IN_W;
+  uint IN_H;
+} pc;
+
+#define INPUT_TENSOR_BLOB  refs.input_ref.input_tensor_blob
+#define OUTPUT_TENSOR_BLOB refs.output_ref.output_tensor_blob
+#define FILTER_BLOB        refs.filter_ref.filter_blob
+#define BIAS_BLOB refs.bias.bias_blob
+
+#else
 layout(set = INPUT_SET, binding = INPUT_BINDING, std430) readonly buffer input_buf {
   istype input_tensor_blob[];
 };
@@ -45,6 +88,13 @@ layout(push_constant) uniform PushConstant {
   uint OUT_W;
   uint OUT_H;
 } pc;
+
+#define INPUT_TENSOR_BLOB input_tensor_blob
+#define OUTPUT_TENSOR_BLOB output_tensor_blob
+#define FILTER_BLOB filter_blob
+#define BIAS_BLOB bias_blob
+
+#endif
 
 const uint WG_SIZE = SG_SIZE * SG_COUNT;
 
@@ -124,9 +174,9 @@ void main() {
   //               :        :        :       :
 
   // ((INVOV_N * INVOC_M) div SG_SIZE) div 8  (div is a ceiling division)
-  const uint VECS_PER_INVOC = 
-    (INVOC_N * INVOC_M + SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE) - 1) 
-        / (SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE));
+  const uint VECS_PER_INVOC =
+    (INVOC_N * INVOC_M + SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE) - 1)
+      / (SG_SIZE * (VSTYPE_SIZE / ATYPE_SIZE));
   vstype sum[SG_N][SG_M][VECS_PER_INVOC];
 
   #pragma begin_block(load_bias);
@@ -151,7 +201,7 @@ void main() {
 
         const uint ch8 = zc8 + n8;
         if (ch8 < OUT_CH_PADDED8) {
-          vstype b = bias_blob[ch8];
+          vstype b = BIAS_BLOB[ch8];
           for (uint zm = 0; zm < SG_M; ++zm) {
             sum[zn][zm][i] = b;
           }
@@ -214,28 +264,28 @@ void main() {
                 const uint base = in_y * (pc.IN_W * IN_CH) + in_x * IN_CH;
 
                 if (c0 + 7u < IN_CH) {
-                  uint16_t a0 = input_tensor_blob[base + (c0 + 0u)];
-                  uint16_t a1 = input_tensor_blob[base + (c0 + 1u)];
-                  uint16_t a2 = input_tensor_blob[base + (c0 + 2u)];
-                  uint16_t a3 = input_tensor_blob[base + (c0 + 3u)];
-                  uint16_t a4 = input_tensor_blob[base + (c0 + 4u)];
-                  uint16_t a5 = input_tensor_blob[base + (c0 + 5u)];
-                  uint16_t a6 = input_tensor_blob[base + (c0 + 6u)];
-                  uint16_t a7 = input_tensor_blob[base + (c0 + 7u)];
+                  uint16_t a0 = INPUT_TENSOR_BLOB[base + (c0 + 0u)];
+                  uint16_t a1 = INPUT_TENSOR_BLOB[base + (c0 + 1u)];
+                  uint16_t a2 = INPUT_TENSOR_BLOB[base + (c0 + 2u)];
+                  uint16_t a3 = INPUT_TENSOR_BLOB[base + (c0 + 3u)];
+                  uint16_t a4 = INPUT_TENSOR_BLOB[base + (c0 + 4u)];
+                  uint16_t a5 = INPUT_TENSOR_BLOB[base + (c0 + 5u)];
+                  uint16_t a6 = INPUT_TENSOR_BLOB[base + (c0 + 6u)];
+                  uint16_t a7 = INPUT_TENSOR_BLOB[base + (c0 + 7u)];
 
                   v.x = packUint2x16(u16vec2(a0, a1));
                   v.y = packUint2x16(u16vec2(a2, a3));
                   v.z = packUint2x16(u16vec2(a4, a5));
                   v.w = packUint2x16(u16vec2(a6, a7));
                 } else {
-                  uint16_t a0 = (c0 + 0u) < IN_CH ? input_tensor_blob[base + (c0 + 0u)] : uint16_t(0);
-                  uint16_t a1 = (c0 + 1u) < IN_CH ? input_tensor_blob[base + (c0 + 1u)] : uint16_t(0);
-                  uint16_t a2 = (c0 + 2u) < IN_CH ? input_tensor_blob[base + (c0 + 2u)] : uint16_t(0);
-                  uint16_t a3 = (c0 + 3u) < IN_CH ? input_tensor_blob[base + (c0 + 3u)] : uint16_t(0);
-                  uint16_t a4 = (c0 + 4u) < IN_CH ? input_tensor_blob[base + (c0 + 4u)] : uint16_t(0);
-                  uint16_t a5 = (c0 + 5u) < IN_CH ? input_tensor_blob[base + (c0 + 5u)] : uint16_t(0);
-                  uint16_t a6 = (c0 + 6u) < IN_CH ? input_tensor_blob[base + (c0 + 6u)] : uint16_t(0);
-                  uint16_t a7 = (c0 + 7u) < IN_CH ? input_tensor_blob[base + (c0 + 7u)] : uint16_t(0);
+                  uint16_t a0 = (c0 + 0u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 0u)] : uint16_t(0);
+                  uint16_t a1 = (c0 + 1u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 1u)] : uint16_t(0);
+                  uint16_t a2 = (c0 + 2u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 2u)] : uint16_t(0);
+                  uint16_t a3 = (c0 + 3u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 3u)] : uint16_t(0);
+                  uint16_t a4 = (c0 + 4u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 4u)] : uint16_t(0);
+                  uint16_t a5 = (c0 + 5u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 5u)] : uint16_t(0);
+                  uint16_t a6 = (c0 + 6u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 6u)] : uint16_t(0);
+                  uint16_t a7 = (c0 + 7u) < IN_CH ? INPUT_TENSOR_BLOB[base + (c0 + 7u)] : uint16_t(0);
 
                   v.x = packUint2x16(u16vec2(a0, a1));
                   v.y = packUint2x16(u16vec2(a2, a3));
@@ -307,7 +357,7 @@ void main() {
         if (in_y < pc.IN_H && in_x < pc.IN_W) {
           // HWC8 global index: [y][x][c8]
           const uint o = in_y * (pc.IN_W * IN_CH8) + in_x * IN_CH8 + zc8;
-          v = input_tensor_blob[o];
+          v = INPUT_TENSOR_BLOB[o];
         }
       }
 
@@ -374,7 +424,7 @@ void main() {
         if (in_y < pc.IN_H && in_x < pc.IN_W) {
           // CHWC8 global index: [c8][y][x]
           const uint o = zc8 * IN_HW + in_y * pc.IN_W + in_x;
-          v = input_tensor_blob[o];
+          v = INPUT_TENSOR_BLOB[o];
         }
       }
 
@@ -421,9 +471,9 @@ void main() {
       const uint filtIdx = ((k8Global * OUT_CH8 + n8Global) << 3) + c_lane;
 
       if (K8_TILE_ALIGNED) {
-        sh_b[pp][i] = n_ok ? filter_blob[filtIdx] : vstype(0);
+        sh_b[pp][i] = n_ok ? FILTER_BLOB[filtIdx] : vstype(0);
       } else {
-        sh_b[pp][i] = (n_ok && (k8Global < RSC8)) ? filter_blob[filtIdx] : vstype(0);
+        sh_b[pp][i] = (n_ok && (k8Global < RSC8)) ? FILTER_BLOB[filtIdx] : vstype(0);
       }
     }
   }
@@ -634,24 +684,24 @@ void main() {
 
           // Fast path: full 8 channels in bounds
           if (c0 + 7u < OUT_CH) {
-            output_tensor_blob[go + 0u] = vx.x;
-            output_tensor_blob[go + 1u] = vx.y;
-            output_tensor_blob[go + 2u] = vy.x;
-            output_tensor_blob[go + 3u] = vy.y;
-            output_tensor_blob[go + 4u] = vz.x;
-            output_tensor_blob[go + 5u] = vz.y;
-            output_tensor_blob[go + 6u] = vw.x;
-            output_tensor_blob[go + 7u] = vw.y;
+            OUTPUT_TENSOR_BLOB[go + 0u] = vx.x;
+            OUTPUT_TENSOR_BLOB[go + 1u] = vx.y;
+            OUTPUT_TENSOR_BLOB[go + 2u] = vy.x;
+            OUTPUT_TENSOR_BLOB[go + 3u] = vy.y;
+            OUTPUT_TENSOR_BLOB[go + 4u] = vz.x;
+            OUTPUT_TENSOR_BLOB[go + 5u] = vz.y;
+            OUTPUT_TENSOR_BLOB[go + 6u] = vw.x;
+            OUTPUT_TENSOR_BLOB[go + 7u] = vw.y;
           } else {
             // Tail channels
-            if (c0 + 0u < OUT_CH) output_tensor_blob[go + 0u] = vx.x;
-            if (c0 + 1u < OUT_CH) output_tensor_blob[go + 1u] = vx.y;
-            if (c0 + 2u < OUT_CH) output_tensor_blob[go + 2u] = vy.x;
-            if (c0 + 3u < OUT_CH) output_tensor_blob[go + 3u] = vy.y;
-            if (c0 + 4u < OUT_CH) output_tensor_blob[go + 4u] = vz.x;
-            if (c0 + 5u < OUT_CH) output_tensor_blob[go + 5u] = vz.y;
-            if (c0 + 6u < OUT_CH) output_tensor_blob[go + 6u] = vw.x;
-            if (c0 + 7u < OUT_CH) output_tensor_blob[go + 7u] = vw.y;
+            if (c0 + 0u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 0u] = vx.x;
+            if (c0 + 1u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 1u] = vx.y;
+            if (c0 + 2u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 2u] = vy.x;
+            if (c0 + 3u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 3u] = vy.y;
+            if (c0 + 4u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 4u] = vz.x;
+            if (c0 + 5u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 5u] = vz.y;
+            if (c0 + 6u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 6u] = vw.x;
+            if (c0 + 7u < OUT_CH) OUTPUT_TENSOR_BLOB[go + 7u] = vw.y;
           }
         }
       }
@@ -690,7 +740,7 @@ void main() {
           if (c8 >= OUT_CH8) continue; // should only matter on the last channel tile
 
           // Direct vector store: one uvec4 == 8 fp16 channels
-          output_tensor_blob[gy8 + zx * OUT_CH8 + c8] = sum[zn][zm][i];
+          OUTPUT_TENSOR_BLOB[gy8 + zx * OUT_CH8 + c8] = sum[zn][zm][i];
         }
       }
     }
@@ -724,8 +774,7 @@ void main() {
           const uint c8 = base_c8 + n8;
           // Per your assumption: OUT_CH divisible by 8. This check is only needed for the last tile in N.
           if (c8 >= OUT_CH8) continue;
-
-          output_tensor_blob[c8 * OUT_HW + y * pc.OUT_W + gx] = sum[zn][zm][i];
+          OUTPUT_TENSOR_BLOB[c8 * OUT_HW + y * pc.OUT_W + gx] = sum[zn][zm][i];
         }
       }
     }

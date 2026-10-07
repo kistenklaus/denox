@@ -14,6 +14,10 @@ std::optional<OptionToken> parse_option(std::string_view str) {
   if (str == "spirv-address-mode") {
     return OptionToken::SpirvAddressMode;
   }
+  if (str == "spirv-bref-descriptor") {
+    return OptionToken::SpirvBrefDescriptor;
+  }
+
   if (str == "spirv-debug-info") {
     return OptionToken::SpirvDebugInfo;
   }
@@ -83,6 +87,7 @@ std::optional<OptionToken> parse_option(std::string_view str) {
   if (str == "use-descriptor-sets") {
     return OptionToken::UseDescriptorSets;
   }
+
   if (str == "spec" || str == "specialize") {
     return OptionToken::Specialize;
   }

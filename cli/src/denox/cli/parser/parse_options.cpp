@@ -96,6 +96,63 @@ parse_spirv_address_mode(std::span<const Token> tokens,
   return 2;
 }
 
+uint32_t
+parse_spirv_bref_descriptor(std::span<const Token> tokens,
+                            std::optional<std::pair<uint32_t, uint32_t>> *bref_descriptor) {
+  if (tokens.empty()) {
+    return 0;
+  }
+  const Token& head = tokens.front();
+  if (head.kind() != TokenKind::Option) {
+    return 0;
+  }
+  if (head.option() != OptionToken::SpirvBrefDescriptor) {
+    return 0;
+  }
+  // descriptor set=0 binding=1
+  if (tokens.size() <= 4) {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  const Token& skey = tokens[1];
+  if (skey.kind() != TokenKind::Literal) {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  if (skey.literal().view() != "set") {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+
+  const Token& set = tokens[2];
+  if (set.kind() != TokenKind::Literal) {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  if (!set.literal().is_unsigned_int()) {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  uint64_t set_value = set.literal().as_unsigned_int();
+
+  const Token& bkey = tokens[3];
+  if (bkey.kind() != TokenKind::Literal) {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  if (bkey.literal().view() != "binding") {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  const auto& binding = tokens[4];
+  if (binding.kind() != TokenKind::Literal) {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  if (!binding.literal().is_unsigned_int()) {
+    throw ParseError("--spirv-bref-descriptor, expects 2 arguments (i.e. set=<number> binding=<number>");
+  }
+  uint64_t binding_value = binding.literal().as_unsigned_int();
+
+  if (bref_descriptor) {
+    *bref_descriptor = {set_value, binding_value};
+  }
+
+  return 5;
+}
+
 uint32_t parse_verbose(std::span<const Token> t, denox::diag::LogLevel *v) {
   bool flag;
   uint32_t skip = parse_bool_flag(t, OptionToken::Verbose, &flag, "verbose");
@@ -320,7 +377,7 @@ uint32_t parse_database(std::span<const Token> tokens,
   if (!lit.is_path()) {
     throw ParseError(fmt::format(
         "invalid argument to '--database': expected database path"));
-  }
+}
   const auto &path = lit.as_path();
   if (path.exists()) {
     if (path.is_dir()) {
@@ -362,7 +419,7 @@ parse_shape(std::span<const Token> tokens,
   while (r > 0) {
     if (tokens[i].kind() == TokenKind::Option) {
       return static_cast<uint32_t>(i);
-    }
+}
     if (r <= 3) {
       throw ParseError(fmt::format("--shape expects \"tensor-name=X:Y:Z\""));
     }
