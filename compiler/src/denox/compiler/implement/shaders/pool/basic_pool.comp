@@ -6,13 +6,41 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_shader_16bit_storage                   : require
 
-layout(set = INPUT_SET, binding = INPUT_BINDING, std430 ) readonly buffer input_buf {
+#ifdef USE_BREF
+
+#extension GL_EXT_buffer_reference : require
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer InputRef {
   istype input_tensor_blob[];
 };
 
-layout(set = OUTPUT_SET, binding = OUTPUT_BINDING, std430 ) writeonly buffer output_buf {
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer OutputRef {
   ostype output_tensor_blob[];
 };
+
+layout(set = BREF_SET, binding = BREF_BINDING, std140)
+uniform BufferReferences {
+  layout(offset = INPUT_BINDING_BREF_OFFSET) InputRef input_ref;
+  layout(offset = OUTPUT_BINDING_BREF_OFFSET) OutputRef output_ref;
+} refs;
+
+#define OUTPUT_TENSOR_BLOB refs.input_ref.input_tensor_blob
+#define INPUT_TENSOR_BLOB refs.output_ref.output_tensor_blob
+
+#else
+
+layout(set = INPUT_SET, binding = INPUT_BINDING, std430) readonly buffer input_buf {
+  istype input_tensor_blob[];
+};
+
+layout(set = OUTPUT_SET, binding = OUTPUT_BINDING, std430) writeonly buffer output_buf {
+  ostype output_tensor_blob[];
+};
+
+#define OUTPUT_TENSOR_BLOB output_tensor_blob
+#define INPUT_TENSOR_BLOB input_tensor_blob
+
+#endif
 
 layout(push_constant) uniform PushConstant {
   uint W;
@@ -84,14 +112,14 @@ void main() {
               break;
             }
             const uint io = ih * W * CH + iw * CH + c;
-            uint16_t v = input_tensor_blob[io];
+            uint16_t v = INPUT_TENSOR_BLOB[io];
             float16_t x = uint16BitsToFloat16(v);
             acc = POOL_ACC(acc, acc_t(x));
           }
         }
         uint16_t v = float16BitsToUint16(float16_t(POOL_RESULT(acc)));
         // uint16_t v = float16BitsToUint16(float16_t(oh));
-        output_tensor_blob[oo] = v;
+        OUTPUT_TENSOR_BLOB[oo] = v;
       }
     }
   }
@@ -147,7 +175,7 @@ void main() {
               break;
             }
             const uint io = ih * W * CH8 + iw * CH8 + c8;
-            uvec4 v = input_tensor_blob[io];
+            uvec4 v = INPUT_TENSOR_BLOB[io];
             acc[0] = POOL_ACC(acc[0], acc2_t(unpackFloat2x16(v.x)));
             acc[1] = POOL_ACC(acc[1], acc2_t(unpackFloat2x16(v.y)));
             acc[2] = POOL_ACC(acc[2], acc2_t(unpackFloat2x16(v.z)));
@@ -160,7 +188,7 @@ void main() {
             packFloat2x16(f16vec2(POOL_RESULT(acc[2]))),
             packFloat2x16(f16vec2(POOL_RESULT(acc[3])))
           );
-        output_tensor_blob[oo] = v;
+        OUTPUT_TENSOR_BLOB[oo] = v;
       }
     }
   }
@@ -218,7 +246,7 @@ void main() {
               break;
             }
             const uint io = c8 * W * H + ih * W + iw;
-            uvec4 v = input_tensor_blob[io];
+            uvec4 v = INPUT_TENSOR_BLOB[io];
             acc[0] = POOL_ACC(acc[0], acc2_t(unpackFloat2x16(v.x)));
             acc[1] = POOL_ACC(acc[1], acc2_t(unpackFloat2x16(v.y)));
             acc[2] = POOL_ACC(acc[2], acc2_t(unpackFloat2x16(v.z)));
@@ -232,7 +260,7 @@ void main() {
             packFloat2x16(f16vec2(POOL_RESULT(acc[2]))),
             packFloat2x16(f16vec2(POOL_RESULT(acc[3])))
           );
-        output_tensor_blob[oo] = v;
+        OUTPUT_TENSOR_BLOB[oo] = v;
       }
     }
   }

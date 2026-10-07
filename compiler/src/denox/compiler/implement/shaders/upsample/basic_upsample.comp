@@ -6,13 +6,42 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_shader_16bit_storage                   : require
 
-layout(set = INPUT_SET, binding = INPUT_BINDING, std430) readonly buffer input_buf {
-    istype input_tensor_blob[];
+#ifdef USE_BREF
+
+#extension GL_EXT_buffer_reference : require
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer InputRef {
+  istype input_tensor_blob[];
 };
 
-layout(set = OUTPUT_SET, binding = OUTPUT_BINDING, std430) writeonly buffer output_buf {
-    ostype output_tensor_blob[];
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer OutputRef {
+  ostype output_tensor_blob[];
 };
+
+layout(set = BREF_SET, binding = BREF_BINDING, std140)
+uniform BufferReferences {
+  layout(offset = INPUT_BINDING_BREF_OFFSET) InputRef input_ref;
+  layout(offset = OUTPUT_BINDING_BREF_OFFSET) OutputRef output_ref;
+} refs;
+
+#define OUTPUT_TENSOR_BLOB refs.input_ref.input_tensor_blob
+#define INPUT_TENSOR_BLOB refs.output_ref.output_tensor_blob
+
+#else 
+
+layout(set = INPUT_SET, binding = INPUT_BINDING, std430 ) readonly buffer input_buf {
+  istype input_tensor_blob[];
+};
+
+layout(set = OUTPUT_SET, binding = OUTPUT_BINDING, std430 ) writeonly buffer output_buf {
+  ostype output_tensor_blob[];
+};
+
+#define OUTPUT_TENSOR_BLOB output_tensor_blob
+#define INPUT_TENSOR_BLOB input_tensor_blob
+
+#endif
+
 
 layout(push_constant) uniform PushConstant {
     uint W;
@@ -69,13 +98,13 @@ uvec4 bilinear_blend(uvec4 a, uvec4 b, uvec4 c, uvec4 d, Tap h, Tap w) {
 
 #define TAP(x, x2, n, scale) const Tap x = bilinear_tap(x2, n, scale)
 #define SAMPLE(SRC) \
-    bilinear_blend(input_tensor_blob[SRC(h.i0, w.i0)], \
-                   input_tensor_blob[SRC(h.i0, w.i1)], \
-                   input_tensor_blob[SRC(h.i1, w.i0)], \
-                   input_tensor_blob[SRC(h.i1, w.i1)], h, w)
+    bilinear_blend(INPUT_TENSOR_BLOB[SRC(h.i0, w.i0)], \
+                   INPUT_TENSOR_BLOB[SRC(h.i0, w.i1)], \
+                   INPUT_TENSOR_BLOB[SRC(h.i1, w.i0)], \
+                   INPUT_TENSOR_BLOB[SRC(h.i1, w.i1)], h, w)
 #else
 #define TAP(x, x2, n, scale) const uint x = x2 / SCALING_FACTOR
-#define SAMPLE(SRC) input_tensor_blob[SRC(h, w)]
+#define SAMPLE(SRC) INPUT_TENSOR_BLOB[SRC(h, w)]
 #endif
 
 layout(local_size_x = WG_C, local_size_y = WG_W, local_size_z = WG_H) in;
@@ -122,7 +151,7 @@ void main() {
                 if (c >= CH) {
                     break;
                 }
-                output_tensor_blob[dst_o + c] = SAMPLE(SRC);
+                OUTPUT_TENSOR_BLOB[dst_o + c] = SAMPLE(SRC);
             }
         }
     }
@@ -168,7 +197,7 @@ void main() {
                 const uint c8 = c08 + zc8 * WG_C;
                 if (c8 < CH8) {
                     const uint dst_o = h2 * W2 * CH8 + w2 * CH8 + c8;
-                    output_tensor_blob[dst_o] = SAMPLE(SRC);
+                    OUTPUT_TENSOR_BLOB[dst_o] = SAMPLE(SRC);
                 }
             }
         }
@@ -215,7 +244,7 @@ void main() {
 
                 const uint dst_o = c8 * W2 * H2 + h2 * W2 + w2;
 
-                output_tensor_blob[dst_o] = SAMPLE(SRC);
+                OUTPUT_TENSOR_BLOB[dst_o] = SAMPLE(SRC);
             }
         }
     }
