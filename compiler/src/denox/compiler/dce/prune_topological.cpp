@@ -109,10 +109,8 @@ void denox::compiler::prune_topological(SuperGraph &supergraph,
 
   bool truncated = false;
   auto all_minimum_cost_subgraphs = algorithm::all_minimum_cost_subgraphs(
-      tgraph, supergraph.inputs, supergraph.outputs, maxSearchStates, &truncated);
-  if (truncated) {
-    fmt::println("truncated");
-  }
+      tgraph, supergraph.inputs, supergraph.outputs, maxSearchStates,
+      &truncated);
 
   if (all_minimum_cost_subgraphs.edgeCount() == 0) {
     failed_to_implement(supergraph, model, maxSearchStates);

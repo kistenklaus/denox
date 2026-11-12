@@ -99,5 +99,6 @@ endif()
 
 install(TARGETS denox 
   RUNTIME DESTINATION bin
+  COMPONENT denox
 )
 

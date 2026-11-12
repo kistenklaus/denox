@@ -41,7 +41,7 @@ docker run --rm -t \
       -DBUILD_TESTING=OFF
 
     cmake --build /tmp/build -j"$(nproc)" --target denox
-    cmake --install /tmp/build --prefix /tmp/install
+    cmake --install /tmp/build --prefix /tmp/install --component denox
 
     mkdir -p /tmp/package/denox-linux-x86_64
     cp -a /tmp/install/. /tmp/package/denox-linux-x86_64/

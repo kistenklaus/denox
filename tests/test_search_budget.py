@@ -118,8 +118,8 @@ def test_compile_max_search_states(cache_dir, tmp_path):
     onnx = export_model(NestedUNet())
     onnx.save(onnx_path)
     output = compile_model(cache_dir, onnx_path, dnx_path,
-                           "--max-search-states", "0")
-    assert "exceeded 0 states" in output.stdout
+                           "--max-search-states=1")
+    assert "exceeded 1 states" in output.stdout
     check_infer(onnx, dnx_path, tmp_path)
 
 
@@ -134,8 +134,8 @@ def test_reweight_max_search_states(cache_dir, tmp_path, model):
     torch.manual_seed(0)
     export_model(model()).save(onnx_path)
     output = compile_model(cache_dir, onnx_path, dnx_path,
-                           "--max-search-states", "0")
-    assert "exceeded 0 states" in output.stdout
+                           "--max-search-states", "1")
+    assert "exceeded 1 states" in output.stdout
 
     torch.manual_seed(1)
     new_onnx = export_model(model())

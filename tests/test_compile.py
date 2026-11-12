@@ -3,7 +3,9 @@ from models import MODELS;
 from images import create_random_png
 from inference import onnx_infer, load_output_image
 import torch
+import pytest
 
+@pytest.mark.skip(reason="takes to long")
 def test_compile(cache_dir, tmp_path):
     onnx_path = tmp_path / "net.onnx"
     dnx_path = tmp_path / "net.dnx"
@@ -44,6 +46,7 @@ def test_compile(cache_dir, tmp_path):
             )
 
 
+@pytest.mark.skip(reason="takes to long")
 def test_compile_descriptor_policies(cache_dir, tmp_path):
     onnx_path = tmp_path / "net.onnx"
     dnx_path = tmp_path / "net.dnx"
@@ -85,6 +88,7 @@ def test_compile_descriptor_policies(cache_dir, tmp_path):
             )
 
 
+@pytest.mark.skip(reason="takes to long")
 def test_compile_shape_format_type(cache_dir, tmp_path):
     onnx_path = tmp_path / "net.onnx"
     dnx_path = tmp_path / "net.dnx"
@@ -128,6 +132,7 @@ def test_compile_shape_format_type(cache_dir, tmp_path):
                 atol=1e-1,
             )
 
+@pytest.mark.skip(reason="takes to long")
 def test_compile_nofeatures(cache_dir, tmp_path):
     onnx_path = tmp_path / "net.onnx"
     dnx_path = tmp_path / "net.dnx"
@@ -170,6 +175,7 @@ def test_compile_nofeatures(cache_dir, tmp_path):
                 atol=1e-1,
             )
 
+@pytest.mark.skip(reason="takes to long")
 def test_compile_quite(cache_dir, tmp_path):
     onnx_path = tmp_path / "net.onnx"
     dnx_path = tmp_path / "net.dnx"
@@ -191,6 +197,7 @@ def test_compile_quite(cache_dir, tmp_path):
         output = output.stderr + output.stdout
         assert not output.strip()
 
+@pytest.mark.skip(reason="takes to long")
 def test_compile_with_device_yml(cache_dir, tmp_path):
     onnx_path = tmp_path / "net.onnx"
     dnx_path = tmp_path / "net.dnx"

@@ -147,11 +147,10 @@ OptSchedule select_schedule(SuperGraph &&supergraph, const Db &db,
                                        supergraph.inputs, supergraph.outputs,
                                        options.maxSearchStates, &truncated);
   if (truncated) {
-    logger.warn(fmt::format("{}WARNING: Schedule search exceeded {} states, "
-                            "selected schedule may be suboptimal "
-                            "(see --max-search-states){}",
-                            logger.yellow(), options.maxSearchStates,
-                            logger.reset()));
+    logger.warn("{}WARNING: Schedule search exceeded {} states, "
+                "selected schedule may be suboptimal "
+                "(see --max-search-states){}",
+                logger.yellow(), options.maxSearchStates, logger.reset());
   }
   memory::ConstGraph<TensorId, SuperGraphEdge, weight_type> constMinCostGraph(
       std::move(minimumCostSubgraph));
