@@ -1,6 +1,7 @@
 #include "denox/compiler/reweight.hpp"
 
 #include "denox/common/SHA256.hpp"
+#include "denox/common/commit_hash.hpp"
 #include "denox/compiler/canonicalize/canonicalize.hpp"
 #include "denox/compiler/dce/dce.hpp"
 #include "denox/compiler/dce/prune_dead_supergraph.hpp"
@@ -24,7 +25,15 @@ void denox::reweight(memory::span<std::byte> dnx,
                      const diag::Logger &logger) {
   diag::Progress progress{};
 
-  compiler::CompileOptions options = compiler::recover_options(dnx);
+  auto [options, commit] = compiler::recover_options(dnx);
+
+  std::string current_commit = commit_hash();
+  if (commit != current_commit) {
+    logger.warn("{}WARNING: Trying to reweight a dnx model, originally "
+                "compiled with denox commit '{}' with a different version "
+                "{} is not guaranteed to work reliably. See *** for more information.{}",
+                logger.yellow(), commit, current_commit, logger.reset());
+  }
 
   spirv::SpirvTools spirvTools(options.deviceInfo);
   io::FileCache fileCache;

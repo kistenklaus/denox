@@ -11,7 +11,8 @@
 
 namespace denox::compiler {
 
-CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
+std::pair<CompileOptions, std::string>
+recover_options(memory::span<const std::byte> dnxBuf) {
   CompileOptions options;
 
   const auto *dnx = dnx::GetModel(dnxBuf.data());
@@ -358,7 +359,7 @@ CompileOptions recover_options(memory::span<const std::byte> dnxBuf) {
   }
   options.optimizationLevel = compilation_info->optimization_level();
 
-  return options;
+  return std::make_pair(options, compilation_info->denox_commit_hash()->str());
 }
 
 } // namespace denox::compiler
