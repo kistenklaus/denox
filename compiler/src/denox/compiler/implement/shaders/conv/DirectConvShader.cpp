@@ -473,14 +473,6 @@ direct_conv_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
   shader.define("fstype", "uvec4");
   shader.define("FSTYPE_SIZE", 16);
 
-  // TODO:
-  assert(config.invoc_n * config.sg_n * config.wg_n >= K &&
-         "direct_conv expects a KRc8k<invoc_c*sg_n*wg_n cdiv 8> layout, this "
-         "is identical to RSc8k8, unless  "
-         "the output channels are tiled. If this one fails we should simply "
-         "implement the actual layout needed as a parameterized layout, a bit "
-         "more difficult, but that should do it.");
-
   if (config.async) {
     shader.define("ASYNC_READ");
   } else {

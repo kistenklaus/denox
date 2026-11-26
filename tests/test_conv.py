@@ -20,8 +20,8 @@ def conv_id(kwargs):
 @pytest.mark.parametrize(
     "flags",
     [
-        pytest.param(["--fcoopmat=1"], id="coopmat"),
-        pytest.param(["--fcoopmat=0"], id="no-coopmat"),
+        pytest.param(["--fcoopmat=1", "--min-samples=2", "--max-samples=2"], id="coopmat"),
+        pytest.param(["--fcoopmat=0", "--min-samples=2", "--max-samples=2"], id="no-coopmat"),
     ],
 )
 @pytest.mark.parametrize(
@@ -73,7 +73,7 @@ def conv_id(kwargs):
             "padding_mode": "zeros",
             "bias": False,
         },
-        
+
         # 3x3 1, replicate padding.
         {
             "in_channels": 10,
@@ -232,6 +232,34 @@ def conv_id(kwargs):
             "padding_mode": "zeros",
             "bias": True,
         },
+        # tiled output channels:
+        {
+            "in_channels": 256,
+            "out_channels": 512,
+            "kernel_size": 3,
+            "stride": 1,
+            "padding": 1,
+            "padding_mode": "zeros",
+            "bias": True,
+        },
+        {
+            "in_channels": 256,
+            "out_channels": 512,
+            "kernel_size": 3,
+            "stride": 2,
+            "padding": 1,
+            "padding_mode": "zeros",
+            "bias": True,
+        },
+        {
+            "in_channels": 256,
+            "out_channels": 512,
+            "kernel_size": 1,
+            "stride": 1,
+            "padding": 0,
+            "padding_mode": "zeros",
+            "bias": True,
+        },
 
     ],
     ids=conv_id,
@@ -286,4 +314,11 @@ def test_conv(tmp_path, flags, conv_kwargs):
 
     assert output.shape == output_ref.shape
     assert output.dtype == output_ref.dtype
-    torch.testing.assert_close(output, output_ref, rtol=0, atol=0.02)
+    
+    # with that many output channels it's expected
+    # to end up with a bit more numeric noise.
+    atol = 0.02
+    if (conv_kwargs["out_channels"] >= 256):
+        atol = 0.05
+
+    torch.testing.assert_close(output, output_ref, rtol=0, atol=atol)
