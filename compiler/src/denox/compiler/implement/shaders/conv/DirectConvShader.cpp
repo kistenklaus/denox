@@ -18,11 +18,9 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
       m_subgroupControl(
           options.deviceInfo.subgroup.controlProperties.supported &&
           options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
-                  .size() > 1) {
+                  .size() > 1)
+  {
 
-  if (options.deviceInfo.subgroup.subgroupSize == 0) {
-    return;
-  }
   if (!options.deviceInfo.subgroup.supportsBasicOps) {
     return;
   }
@@ -34,20 +32,13 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     { // Create config space.
 
       memory::small_vector<uint32_t, 2> subgroupSizes;
-      if (options.optimizationLevel >= 5 &&
-          options.deviceInfo.subgroup.controlProperties.supported) {
-        subgroupSizes = options.deviceInfo.subgroup.controlProperties
-                            .supportedSubgroupSizes;
+      if (m_subgroupControl) {
+        const auto& ss = options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes;
+        subgroupSizes.assign(ss.begin(), ss.end());
       } else {
-        if (options.deviceInfo.subgroup.controlProperties.supported &&
-            std::ranges::count(options.deviceInfo.subgroup.controlProperties
-                                   .supportedSubgroupSizes,
-                               32) != 0) {
-          subgroupSizes = {32};
-        } else {
-          subgroupSizes.push_back(options.deviceInfo.subgroup.subgroupSize);
-        }
-      };
+        assert(options.deviceInfo.subgroup.subgroupSize != 0);
+        subgroupSizes.push_back(options.deviceInfo.subgroup.subgroupSize);
+      }
 
       for (const uint32_t subgroupSize : subgroupSizes) {
 

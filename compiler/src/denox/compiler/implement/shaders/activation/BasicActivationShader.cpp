@@ -11,7 +11,6 @@ namespace denox::compiler::shaders {
 BasicActivationShader::BasicActivationShader(spirv::GlslCompiler *compiler,
                                              const CompileOptions &options)
     : m_compiler(compiler),
-      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(
@@ -180,7 +179,7 @@ memory::vector<unsigned int> BasicActivationShader::acceptMatch(
 
 static spirv::GlslCompilerInstance
 basic_activation_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
-                         unsigned int subgroupSize, TensorFormat inputFormat,
+                         TensorFormat inputFormat,
                          TensorFormat outputFormat, unsigned int channels,
                          memory::Dtype atype,
                          ActivationFunction activationFunction,
@@ -189,7 +188,6 @@ basic_activation_compile(spirv::GlslCompiler *compiler, const io::Path &srcPath,
     diag::invalid_state();
   }
   auto shader = compiler->read(srcPath);
-  shader.define("SG_SIZE", subgroupSize);
   shader.define("CH", channels);
   shader.define("in_atype", "float16_t");
   shader.define("IN_ATYPE_SIZE", 2);
@@ -278,7 +276,7 @@ void BasicActivationShader::implement(
   Config config = m_configs[configKey];
 
   auto shader = basic_activation_compile(
-      m_compiler, m_srcPath, m_subgroupSize, in.format, out.format,
+      m_compiler, m_srcPath, in.format, out.format,
       static_cast<unsigned int>(in.channels.constant()), memory::Dtype::F16,
       acti.func, config);
 

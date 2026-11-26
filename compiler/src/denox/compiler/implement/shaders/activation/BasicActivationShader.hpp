@@ -58,7 +58,6 @@ private:
                        "compiler/src/denox/compiler/implement/shaders/"
                        "activation/basic_activation.comp";
 
-  uint32_t m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<std::uint32_t, 3> m_maxComputeWorkGroupSize;
 

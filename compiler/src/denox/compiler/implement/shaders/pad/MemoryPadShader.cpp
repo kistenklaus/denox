@@ -12,7 +12,6 @@ namespace denox::compiler::shaders {
 MemoryPadShader::MemoryPadShader(spirv::GlslCompiler *compiler,
                                  const CompileOptions &options)
     : m_compiler(compiler),
-      m_subgroupSize(options.deviceInfo.subgroup.subgroupSize),
       m_maxComputeWorkGroupInvocations(
           options.deviceInfo.limits.maxComputeWorkGroupInvocations),
       m_maxComputeWorkGroupSize(

@@ -55,7 +55,6 @@ private:
       io::Path::assets() /
       "compiler/src/denox/compiler/implement/shaders/pad/memory_pad.comp";
 
-  uint32_t m_subgroupSize;
   uint32_t m_maxComputeWorkGroupInvocations;
   std::array<std::uint32_t, 3> m_maxComputeWorkGroupSize;
 
