@@ -15,9 +15,12 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph,
                                             std::size_t maxSearchStates) {
   ZoneScopedN("prune_dead_supergraph");
 
+
   auto &graph = supergraph.graph;
   const size_t N = graph.nodeCount();
   const size_t M = graph.edgeCount();
+
+  assert(graph.nodeCount() == model.graph.nodeCount());
 
   memory::vector<bool> reachable(N, true);
   while (true) {
@@ -136,6 +139,17 @@ void denox::compiler::prune_dead_supergraph(SuperGraph &supergraph,
         srcs.push_back(nodeRemap[*src]);
       }
       pruned.addEdge(srcs, nodeRemap[*dst], std::move(graph.get_rvalue(eid)));
+    }
+  }
+
+  for (const auto &nid : supergraph.inputs) {
+    assert(nid != memory::NodeId{});
+    const memory::NodeId nn = nodeRemap[*nid];
+    if (!nn) {
+      // NOTE: Input tensor was pruned!
+      // This happens if the input is not backwards reachable, which
+      // implies that there exists no implementation!
+      failed_to_implement(supergraph, model, maxSearchStates);
     }
   }
 
