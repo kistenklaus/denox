@@ -1135,6 +1135,19 @@ Action parse_reweight(std::span<const Token> tokens) {
       continue;
     }
 
+    if ((jump = parse_verbose(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_quiet(tail, &loglevel))) {
+      i += jump;
+      continue;
+    }
+    if ((jump = parse_color(tail, &logcolors))) {
+      i += jump;
+      continue;
+    }
+
     // --- nothing matched ---
     throw ParseError(
         fmt::format("invalid option {}", describe_token(tokens[i])));
