@@ -14,6 +14,7 @@
 #include <spirv-tools/libspirv.h>
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/optimizer.hpp>
+#include <tracy/Tracy.hpp>
 
 namespace denox::spirv {
 
@@ -189,6 +190,7 @@ CompilationResult GlslCompilerInstance::compile() const {
 }
 
 SHA256 GlslCompilerInstance::fast_sha256() const {
+  ZoneScopedN("fast_sha256");
   memory::span<const std::byte> src = m_srcHandle.bytes();
   SHA256Builder hasher = m_compiler->m_shaCache.cachedSHA(m_sourcePath, src);
   hasher.update(std::span{reinterpret_cast<const uint8_t *>(m_preamble.data()),
