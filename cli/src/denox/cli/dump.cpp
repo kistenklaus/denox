@@ -245,7 +245,7 @@ static void dispatch(const denox::dnx::Model *dnx, uint32_t i,
   }
   const denox::dnx::ComputeDispatchRequirements *req = dispatch->requirements();
   if (req && req->fixed_subgroup_size()) {
-    ss << fmt::format("- required-sg-control : {}\n",
+    ss << fmt::format("- required-sg-size : {}\n",
                       req->fixed_subgroup_size());
   } else {
     ss << fmt::format("- required-sg-size    : none\n");
