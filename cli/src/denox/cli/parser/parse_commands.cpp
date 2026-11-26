@@ -1154,7 +1154,7 @@ Action parse_reweight(std::span<const Token> tokens) {
   }
 
   if (help) {
-    return HelpAction(HelpScope::Compile);
+    return HelpAction(HelpScope::Reweight);
   }
 
   if (!output.has_value()) {
@@ -1187,7 +1187,7 @@ Action parse_query_device_info(std::span<const Token> tokens) {
   }
 
   if (parse_help(tokens, nullptr)) {
-    return HelpAction(HelpScope::Reweight);
+    return HelpAction(HelpScope::QueryDeviceInfo);
   }
   QueryDeviceInfo action;
   bool help = false;
