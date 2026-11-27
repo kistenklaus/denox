@@ -47,7 +47,8 @@ ConvConvAddCMShader::ConvConvAddCMShader(spirv::GlslCompiler *compiler,
 
       memory::small_vector<uint32_t, 2> subgroupSizes;
       if (m_subgroupControl) {
-        const auto& ss = options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes;
+        const auto &ss = options.deviceInfo.subgroup.controlProperties
+                             .supportedSubgroupSizes;
         subgroupSizes.assign(ss.begin(), ss.end());
       } else {
         assert(options.deviceInfo.subgroup.subgroupSize != 0);
@@ -645,8 +646,8 @@ ConvConvAddCMShader::ConvConvAddCMShader(spirv::GlslCompiler *compiler,
     m_patternHandles.emplace_back(a, convA, lhs, b, convB, rhs, add, out,
                                   memory::nullopt, activation);
     m_capabilities.patterns.emplace_back(
-        std::move(conv_conv_add_activation_pattern), std::move(a),
-        std::move(b), std::move(out));
+        std::move(conv_conv_add_activation_pattern), std::move(a), std::move(b),
+        std::move(out));
   }
 
   if (options.features.enableUpsampleConvFusion) {
@@ -686,8 +687,8 @@ ConvConvAddCMShader::ConvConvAddCMShader(spirv::GlslCompiler *compiler,
     m_patternHandles.emplace_back(a, convA, lhs, b, convB, rhs, add, out,
                                   upsample, memory::nullopt);
     m_capabilities.patterns.emplace_back(
-        std::move(A_upsample_conv_conv_add_pattern), std::move(a),
-        std::move(b), std::move(out));
+        std::move(A_upsample_conv_conv_add_pattern), std::move(a), std::move(b),
+        std::move(out));
   }
 
   if (options.features.enableUpsampleConvFusion) {
@@ -727,15 +728,14 @@ ConvConvAddCMShader::ConvConvAddCMShader(spirv::GlslCompiler *compiler,
     m_patternHandles.emplace_back(a, convA, lhs, b, convB, rhs, add, out,
                                   upsample, memory::nullopt);
     m_capabilities.patterns.emplace_back(
-        std::move(B_upsample_conv_conv_add_pattern), std::move(a),
-        std::move(b), std::move(out));
+        std::move(B_upsample_conv_conv_add_pattern), std::move(a), std::move(b),
+        std::move(out));
   }
 
   if (options.features.enableUpsampleConvFusion &&
       options.features.enableConvReluFusion) {
     Pattern A_upsample_conv_conv_add_activation_pattern;
-    Pattern::EP add =
-        A_upsample_conv_conv_add_activation_pattern.matchEdge();
+    Pattern::EP add = A_upsample_conv_conv_add_activation_pattern.matchEdge();
     Pattern::NP lhs = add->matchSrc(0);
     Pattern::NP rhs = add->matchSrc(1);
     Pattern::NP sum = add->matchDst();
@@ -788,8 +788,7 @@ ConvConvAddCMShader::ConvConvAddCMShader(spirv::GlslCompiler *compiler,
   if (options.features.enableUpsampleConvFusion &&
       options.features.enableConvReluFusion) {
     Pattern B_upsample_conv_conv_add_activation_pattern;
-    Pattern::EP add =
-        B_upsample_conv_conv_add_activation_pattern.matchEdge();
+    Pattern::EP add = B_upsample_conv_conv_add_activation_pattern.matchEdge();
     Pattern::NP lhs = add->matchSrc(0);
     Pattern::NP rhs = add->matchSrc(1);
     Pattern::NP sum = add->matchDst();
@@ -838,7 +837,7 @@ ConvConvAddCMShader::ConvConvAddCMShader(spirv::GlslCompiler *compiler,
         std::move(B_upsample_conv_conv_add_activation_pattern), std::move(a),
         std::move(b), std::move(out));
   }
- }
+}
 
 std::size_t ConvConvAddCMShader::parameterMemorySize(
     const memory::ConstGraph<TensorInstance, ComputeOp> &graph,
@@ -924,7 +923,6 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
       continue;
     }
 
-
     // output channel tile!
     const uint32_t ctile = config.cm_n * config.sg_n * config.wg_n;
     uint32_t channelDispatchSize = (K + ctile - 1) / ctile;
@@ -932,12 +930,10 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
       continue;
     }
 
-
     uint32_t K_eff = std::max(K, config.cm_n);
     if (K_eff * MAX_CHANNEL_TILE_OVERALLOCATION < ctile) {
       continue;
     }
-
 
     // POLICY: K % ctile == 0
     if (K % config.cm_n == 0) {
@@ -981,7 +977,6 @@ memory::vector<unsigned int> ConvConvAddCMShader::acceptMatch(
         continue;
       }
     }
-
 
     // POLICY: wgSize \in [128, 256]
     const uint32_t wgSize = config.wg_m * config.wg_n * config.subgroupSize;
@@ -1352,9 +1347,7 @@ void ConvConvAddCMShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  if (m_subgroupControl) {
-    dispatch.setFixedSubgroupSize(config.subgroupSize);
-  }
+  dispatch.setFixedSubgroupSize(config.subgroupSize);
 
   TensorId A_W = impl.createParameter( //
       A_filterLayout.size(convA->W->shape()) * memory::Dtype::F16.size(),
@@ -1528,13 +1521,13 @@ void ConvConvAddCMShader::implement(
 
   memory::string inputA = "x";
   if (A_scalingFactor != 1) {
-    inputA = fmt::format(
-        "upsample(x,mode=nearest,scaling_factor={})", A_scalingFactor);
+    inputA = fmt::format("upsample(x,mode=nearest,scaling_factor={})",
+                         A_scalingFactor);
   }
   memory::string inputB = "y";
   if (B_scalingFactor != 1) {
-    inputB = fmt::format(
-        "upsample(y,mode=nearest,scaling_factor={})", B_scalingFactor);
+    inputB = fmt::format("upsample(y,mode=nearest,scaling_factor={})",
+                         B_scalingFactor);
   }
   memory::string convAOperation = fmt::format(
       "conv2d({},kernel_size=({},{}),bias={},stride=({},{}),padding=({},{}),"
@@ -1554,9 +1547,8 @@ void ConvConvAddCMShader::implement(
       operation = fmt::format("relu({})", operation);
       break;
     case ActivationFunctionKind::LeakyReLU:
-      operation = fmt::format(
-          "leaky_relu({},alpha={})", operation,
-          activationFunction->leaky_relu().alpha);
+      operation = fmt::format("leaky_relu({},alpha={})", operation,
+                              activationFunction->leaky_relu().alpha);
       break;
     case ActivationFunctionKind::SiLU:
       operation = fmt::format("silu({})", operation);

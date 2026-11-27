@@ -46,7 +46,8 @@ DirectConvShaderCM::DirectConvShaderCM(spirv::GlslCompiler *compiler,
     {
       memory::small_vector<uint32_t, 2> subgroupSizes;
       if (m_subgroupControl) {
-        const auto& ss = options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes;
+        const auto &ss = options.deviceInfo.subgroup.controlProperties
+                             .supportedSubgroupSizes;
         subgroupSizes.assign(ss.begin(), ss.end());
       } else {
         assert(options.deviceInfo.subgroup.subgroupSize != 0);
@@ -1023,9 +1024,7 @@ void DirectConvShaderCM::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  if (m_subgroupControl) {
-    dispatch.setFixedSubgroupSize(config.subgroupSize);
-  }
+  dispatch.setFixedSubgroupSize(config.subgroupSize);
 
   TensorId weightTensorId = impl.createParameter(
       filterLayout.size(conv->W->shape()) * memory::Dtype::F16.size(),
@@ -1240,9 +1239,14 @@ void DirectConvShaderCM::implement(
       .subgroupScope = true,
   });
   {
-    const uint32_t sh_a_size = (config.wg_m * config.cm_m * config.cm_k * config.sg_k * config.sg_m) * 2;
-    const uint32_t sh_b_size = (config.wg_n * config.cm_k * config.cm_n * config.sg_k * config.sg_n) * 2;
-    const uint32_t sh_out_size = config.wg_m * config.wg_n * config.sg_m * config.sg_n * config.cm_m * config.cm_n * 2;
+    const uint32_t sh_a_size =
+        (config.wg_m * config.cm_m * config.cm_k * config.sg_k * config.sg_m) *
+        2;
+    const uint32_t sh_b_size =
+        (config.wg_n * config.cm_k * config.cm_n * config.sg_k * config.sg_n) *
+        2;
+    const uint32_t sh_out_size = config.wg_m * config.wg_n * config.sg_m *
+                                 config.sg_n * config.cm_m * config.cm_n * 2;
     const uint32_t sh_size = std::max(sh_a_size + sh_b_size, sh_out_size);
     dispatch.setSharedMemory(sh_size);
   }

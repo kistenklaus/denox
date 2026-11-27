@@ -47,7 +47,8 @@ ConcatConvCMShader::ConcatConvCMShader(spirv::GlslCompiler *compiler,
 
       memory::small_vector<uint32_t, 2> subgroupSizes;
       if (m_subgroupControl) {
-        const auto& ss = options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes;
+        const auto &ss = options.deviceInfo.subgroup.controlProperties
+                             .supportedSubgroupSizes;
         subgroupSizes.assign(ss.begin(), ss.end());
       } else {
         assert(options.deviceInfo.subgroup.subgroupSize != 0);
@@ -1362,9 +1363,7 @@ void ConcatConvCMShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  if (m_subgroupControl) {
-    dispatch.setFixedSubgroupSize(config.subgroupSize);
-  }
+  dispatch.setFixedSubgroupSize(config.subgroupSize);
 
   assert(A_C + B_C == conv->W->shape().c);
 
@@ -1480,11 +1479,20 @@ void ConcatConvCMShader::implement(
   }
   {
 
-    const uint32_t A_sh_a_size = (config.wg_m * config.cm_m * config.a_cm_k * config.a_sg_k * config.sg_m) * 2;
-    const uint32_t B_sh_a_size = (config.wg_m * config.cm_m * config.b_cm_k * config.b_sg_k * config.sg_m) * 2;
-    const uint32_t A_sh_b_size = (config.wg_n * config.a_cm_k * config.cm_n * config.a_sg_k * config.sg_n) * 2;
-    const uint32_t B_sh_b_size = (config.wg_n * config.b_cm_k * config.cm_n * config.b_sg_k * config.sg_n) * 2;
-    const uint32_t sh_out_size = config.wg_m * config.wg_n * config.sg_m * config.sg_n * config.cm_m * config.cm_n * 2;
+    const uint32_t A_sh_a_size = (config.wg_m * config.cm_m * config.a_cm_k *
+                                  config.a_sg_k * config.sg_m) *
+                                 2;
+    const uint32_t B_sh_a_size = (config.wg_m * config.cm_m * config.b_cm_k *
+                                  config.b_sg_k * config.sg_m) *
+                                 2;
+    const uint32_t A_sh_b_size = (config.wg_n * config.a_cm_k * config.cm_n *
+                                  config.a_sg_k * config.sg_n) *
+                                 2;
+    const uint32_t B_sh_b_size = (config.wg_n * config.b_cm_k * config.cm_n *
+                                  config.b_sg_k * config.sg_n) *
+                                 2;
+    const uint32_t sh_out_size = config.wg_m * config.wg_n * config.sg_m *
+                                 config.sg_n * config.cm_m * config.cm_n * 2;
     const uint32_t A_sh_size = std::max(A_sh_a_size + A_sh_b_size, sh_out_size);
 
     const uint32_t B_sh_size = std::max(B_sh_a_size + B_sh_b_size, sh_out_size);

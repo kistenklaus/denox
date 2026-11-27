@@ -18,8 +18,7 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
       m_subgroupControl(
           options.deviceInfo.subgroup.controlProperties.supported &&
           options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes
-                  .size() > 1)
-  {
+                  .size() > 1) {
 
   if (!options.deviceInfo.subgroup.supportsBasicOps) {
     return;
@@ -33,7 +32,8 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
 
       memory::small_vector<uint32_t, 2> subgroupSizes;
       if (m_subgroupControl) {
-        const auto& ss = options.deviceInfo.subgroup.controlProperties.supportedSubgroupSizes;
+        const auto &ss = options.deviceInfo.subgroup.controlProperties
+                             .supportedSubgroupSizes;
         subgroupSizes.assign(ss.begin(), ss.end());
       } else {
         assert(options.deviceInfo.subgroup.subgroupSize != 0);
@@ -249,7 +249,7 @@ DirectConvShader::DirectConvShader(spirv::GlslCompiler *compiler,
     }
     return true;
   };
-  const auto convSupported = [](const ComputeOp& op) {
+  const auto convSupported = [](const ComputeOp &op) {
     return op.tag() == ComputeOpKind::Conv;
   };
 
@@ -579,9 +579,7 @@ void DirectConvShader::implement(
 
   auto dispatch = impl.registerDispatch(std::move(shader), workgroupCountX,
                                         workgroupCountY, workgroupCountZ);
-  if (m_subgroupControl) {
-    dispatch.setFixedSubgroupSize(config.subgroupSize);
-  }
+  dispatch.setFixedSubgroupSize(config.subgroupSize);
 
   TensorId weightTensorId = impl.createParameter(
       filterLayout.size(conv->W->shape()) * memory::Dtype::F16.size(),
@@ -619,7 +617,8 @@ void DirectConvShader::implement(
   dispatch.addPushConstant(PushConstant::Dynamic(in.width, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(in.height, memory::Dtype::U32));
-  dispatch.addPushConstant(PushConstant::Dynamic(out.width, memory::Dtype::U32));
+  dispatch.addPushConstant(
+      PushConstant::Dynamic(out.width, memory::Dtype::U32));
   dispatch.addPushConstant(
       PushConstant::Dynamic(out.height, memory::Dtype::U32));
 
